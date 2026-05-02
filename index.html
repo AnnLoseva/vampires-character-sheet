@@ -974,6 +974,7 @@ function addSpecLine(skillName) {
 // Загрузка описаний атрибутов + подсказок на точки
 // Подсказки для атрибутов
 // ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
+// ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
 async function preloadAllAttributes() {
     const attrs = Object.keys(RULES.attributes || {});
     
@@ -981,12 +982,14 @@ async function preloadAllAttributes() {
         const data = RULES.attributes[attr];
         if (!data) continue;
 
-        // 1. Наведение на НАЗВАНИЕ атрибута — только общее описание
+        // Наведение на НАЗВАНИЕ — общее описание
         document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
-            el.setAttribute('data-tooltip', data.description || 'Нет описания');
+            el.setAttribute('data-tooltip', 
+                `${attr}\n\n${data.description || 'Описание отсутствует'}`
+            );
         });
 
-        // 2. Наведение на каждую точку — описание именно этой точки
+        // Наведение на КАЖДУЮ ТОЧКУ — описание именно этой точки
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
@@ -1009,16 +1012,18 @@ async function preloadAllSkills() {
         const data = RULES.skills[skill];
         if (!data) continue;
 
-        // 1. Наведение на НАЗВАНИЕ навыка — только общее описание
+        // Наведение на НАЗВАНИЕ — общее описание
         document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
-            let tooltip = data.description || 'Нет описания';
+            let tooltip = `${skill}\n\n${data.description || 'Описание отсутствует'}`;
+            
             if (data.specialties && data.specialties.length) {
                 tooltip += `\n\nСпециализации: ${data.specialties.join(', ')}`;
             }
+            
             el.setAttribute('data-tooltip', tooltip);
         });
 
-        // 2. Наведение на каждую точку — описание этой точки
+        // Наведение на КАЖДУЮ ТОЧКУ — описание этой точки
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
