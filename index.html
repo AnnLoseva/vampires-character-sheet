@@ -302,15 +302,15 @@ function renderSkills() {
 
 // Временные данные для иконок (можно расширить в rules.json позже)
 const CLAN_ICONS = {
-    "Бруха": "/static/emojis/brujah.png",
-    "Вентру": "/static/emojis/ventrue.png",
-    "Гангрел": "/static/emojis/gangrel.png",
-    "Малкавиан": "/static/emojis/malkavian.png",
-    "Носферату": "/static/emojis/nosferatu.png",
-    "Тореадор": "/static/emojis/toreador.png",
-    "Тремер": "/static/emojis/tremere.png",
-    "Каитиф": "/static/emojis/caitiff.png",
-    "Слабокровные": "/static/emojis/thin_blood.png"
+    "Бруха": "static/emojis/brujah.png",
+    "Вентру": "static/emojis/ventrue.png",
+    "Гангрел": "static/emojis/gangrel.png",
+    "Малкавиан": "static/emojis/malkavian.png",
+    "Носферату": "static/emojis/nosferatu.png",
+    "Тореадор": "static/emojis/toreador.png",
+    "Тремер": "static/emojis/tremere.png",
+    "Каитиф": "static/emojis/caitiff.png",
+    "Слабокровные": "static/emojis/thin_blood.png"
 };
 
 // Окрашивание иконки в фирменный красный цвет
@@ -392,15 +392,15 @@ function openClanGallery() {
     gallery.innerHTML = '';
 
     currentClanData = [
-        { name: "Бруха", image: "/static/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты. Страстные воины." },
-        { name: "Вентру", image: "/static/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
-        { name: "Гангрел", image: "/static/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
-        { name: "Малкавиан", image: "/static/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
-        { name: "Носферату", image: "/static/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
-        { name: "Тореадор", image: "/static/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
-        { name: "Тремер", image: "/static/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
-        { name: "Каитиф", image: "/static/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
-        { name: "Слабокровные", image: "/static/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
+        { name: "Бруха", image: "/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты. Страстные воины." },
+        { name: "Вентру", image: "/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
+        { name: "Гангрел", image: "/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
+        { name: "Малкавиан", image: "/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
+        { name: "Носферату", image: "/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
+        { name: "Тореадор", image: "/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
+        { name: "Тремер", image: "/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
+        { name: "Каитиф", image: "/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
+        { name: "Слабокровные", image: "/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
     ];
 
     currentClanData.forEach(c => {
@@ -485,16 +485,16 @@ function openPredatorGallery() {
     gallery.innerHTML = '';
 
     currentPredatorData = [
-        { name: "Бестия",       desc: "Насильственный стиль. Быстрое и грубое нападение.", image: "/static/predator_gallery/Бестия.png" },
-        { name: "Джентльмен",   desc: "Изысканный и расчётливый подход к охоте.", image: "/static/predator_gallery/Джентльмен.png" },
-        { name: "Идол",         desc: "Питание через поклонение и обожание.", image: "/static/predator_gallery/Идол.png" },
-        { name: "Искуситель",   desc: "Соблазнение и манипуляция жертвой.", image: "/static/predator_gallery/Искуситель.png" },
-        { name: "Морфей",       desc: "Охота через сны и воздействие на спящих.", image: "/static/predator_gallery/Морфей.png" },
-        { name: "Налётчик",     desc: "Стремительные налёты и быстрый отход.", image: "/static/predator_gallery/Налётчик.png" },
-        { name: "Семьянин",     desc: "Питание от членов семьи или близкого круга.", image: "/static/predator_gallery/Семьянин.png" },
-        { name: "Суррогатчик",  desc: "Использование посредников и суррогатов.", image: "/static/predator_gallery/Суррогатчик.png" },
-        { name: "Тусовщик",     desc: "Охота на вечеринках и в тусовках.", image: "/static/predator_gallery/Тусовщик.png" },
-        { name: "Фермер",       desc: "Содержание «фермы» из смертных доноров.", image: "/static/predator_gallery/Фермер.png" }
+        { name: "Бестия",       desc: "Насильственный стиль. Быстрое и грубое нападение.", image: "static/predator_gallery/Бестия.png" },
+        { name: "Джентльмен",   desc: "Изысканный и расчётливый подход к охоте.", image: "static/predator_gallery/Джентльмен.png" },
+        { name: "Идол",         desc: "Питание через поклонение и обожание.", image: "static/predator_gallery/Идол.png" },
+        { name: "Искуситель",   desc: "Соблазнение и манипуляция жертвой.", image: "static/predator_gallery/Искуситель.png" },
+        { name: "Морфей",       desc: "Охота через сны и воздействие на спящих.", image: "static/predator_gallery/Морфей.png" },
+        { name: "Налётчик",     desc: "Стремительные налёты и быстрый отход.", image: "static/predator_gallery/Налётчик.png" },
+        { name: "Семьянин",     desc: "Питание от членов семьи или близкого круга.", image: "static/predator_gallery/Семьянин.png" },
+        { name: "Суррогатчик",  desc: "Использование посредников и суррогатов.", image: "static/predator_gallery/Суррогатчик.png" },
+        { name: "Тусовщик",     desc: "Охота на вечеринках и в тусовках.", image: "static/predator_gallery/Тусовщик.png" },
+        { name: "Фермер",       desc: "Содержание «фермы» из смертных доноров.", image: "static/predator_gallery/Фермер.png" }
     ];
 
     currentPredatorData.forEach(p => {
@@ -1179,15 +1179,15 @@ function openClanGallery() {
     gallery.innerHTML = '';
 
     currentClanData = [
-        { name: "Бруха", image: "/static/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты." },
-        { name: "Вентру", image: "/static/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
-        { name: "Гангрел", image: "/static/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
-        { name: "Малкавиан", image: "/static/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
-        { name: "Носферату", image: "/static/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
-        { name: "Тореадор", image: "/static/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
-        { name: "Тремер", image: "/static/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
-        { name: "Каитиф", image: "/static/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
-        { name: "Слабокровные", image: "/static/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
+        { name: "Бруха", image: "static/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты." },
+        { name: "Вентру", image: "static/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
+        { name: "Гангрел", image: "static/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
+        { name: "Малкавиан", image: "static/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
+        { name: "Носферату", image: "static/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
+        { name: "Тореадор", image: "static/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
+        { name: "Тремер", image: "static/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
+        { name: "Каитиф", image: "static/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
+        { name: "Слабокровные", image: "static/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
     ];
 
     currentClanData.forEach(c => {
