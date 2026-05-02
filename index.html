@@ -186,14 +186,13 @@ async function loadRules() {
     try {
         const res = await fetch('rules.json');
         RULES = await res.json();
-        console.log("✅ rules.json загружен");
+        console.log("✅ rules.json успешно загружен!", Object.keys(RULES));
         initSheet();
     } catch (e) {
-        console.error("❌ Не удалось загрузить rules.json", e);
-        alert("Положи rules.json рядом с index.html");
+        console.error("❌ Ошибка загрузки rules.json", e);
+        alert("Положи rules.json в папку с index.html");
     }
 }
-
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 function initSheet() {
     populateSelects();
@@ -527,58 +526,72 @@ function nextPredator() {
 // Детальный просмотр одного стиля охоты
 async function showSinglePredator(pred) {
     const gallery = document.getElementById('predator-gallery');
-    let data = RULES.predator_types?.[pred.name] || {};
+    const data = RULES.predator_types?.[pred.name] || {};
 
-    gallery.innerHTML = `
-        <div style="text-align:center; padding:20px; max-width:1200px; margin:0 auto; position: relative;">
+    let html = `
+        <div style="text-align:center; padding:20px; max-width:1100px; margin:0 auto; position:relative;">
             
-            <!-- Стрелки -->
-            <button onclick="prevPredator()" 
-                    style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); 
-                           background: rgba(0,0,0,0.7); color: #ff3131; border: none; 
-                           width: 50px; height: 50px; border-radius: 50%; font-size: 24px; cursor: pointer; z-index: 10;">
-                ←
-            </button>
-            <button onclick="nextPredator()" 
-                    style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); 
-                           background: rgba(0,0,0,0.7); color: #ff3131; border: none; 
-                           width: 50px; height: 50px; border-radius: 50%; font-size: 24px; cursor: pointer; z-index: 10;">
-                →
-            </button>
+            <button onclick="prevPredator()" style="position:absolute;left:30px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.8);color:#ff3131;border:none;width:60px;height:60px;border-radius:50%;font-size:28px;cursor:pointer;z-index:10;">←</button>
+            <button onclick="nextPredator()" style="position:absolute;right:30px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.8);color:#ff3131;border:none;width:60px;height:60px;border-radius:50%;font-size:28px;cursor:pointer;z-index:10;">→</button>
 
-            <img src="${pred.image}" style="max-width:95%; max-height:75vh; border-radius:12px; border:4px solid #ff3131; box-shadow: 0 0 40px rgba(255,49,49,0.8);">
+            <img src="${pred.image}" style="max-width:95%; max-height:65vh; border:4px solid #ff3131; border-radius:12px; box-shadow:0 0 40px rgba(255,49,49,0.6);">
 
             <h2 style="color:#ff3131; margin:25px 0 15px;">${pred.name}</h2>
 
-            <div style="background:#1a1a1a; border:1px solid #ff3131; border-radius:8px; padding:25px; text-align:left; max-width:900px; margin:0 auto;">
-                <div style="color:#ddd; line-height:1.7; font-size:15px;">
-                    ${data.description || pred.desc || 'Описание отсутствует'}
-                </div>
-                
-                <hr style="border-color:#333; margin:25px 0;">
-                
-                <strong style="color:#ffae00;">Специализация:</strong> ${data.specialty || '—'}<br><br>
-                
-                <strong style="color:#ffae00;">Преимущества:</strong><br>
-                ${data.advantages && data.advantages.length ? data.advantages.map(a => `• ${a}`).join('<br>') : '—'}<br><br>
-                
-                <strong style="color:#ffae00;">Недостатки:</strong><br>
-                ${data.disadvantages && data.disadvantages.length ? data.disadvantages.map(d => `• ${d}`).join('<br>') : '—'}<br><br>
-                
-                <strong style="color:#ffae00;">Человечность:</strong> 
-                <span style="color:#ffd700; font-size:18px;">${data.humanity || '—'}</span>
+            <div style="background:#1a1a1a; border:1px solid #ff3131; border-radius:8px; padding:25px; text-align:left; font-size:15px; line-height:1.7;">
+    `;
+
+    if (data.description) {
+        html += `<p style="color:#ddd;">${data.description}</p>`;
+    }
+
+    if (data.specialty) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Специализация:</strong><br>
+                 ${data.specialty}`;
+    }
+
+    if (data.disciplines && data.disciplines.length) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Дисциплины:</strong><br>
+                 ${data.disciplines.join(', ')}`;
+    }
+
+    if (data.advantages && data.advantages.length) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Преимущества:</strong><br>`;
+        data.advantages.forEach(a => html += `• ${a}<br>`);
+    }
+
+    if (data.disadvantages && data.disadvantages.length) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Недостатки:</strong><br>`;
+        data.disadvantages.forEach(d => html += `• ${d}<br>`);
+    }
+
+    if (data.humanity !== undefined) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Изменение Человечности:</strong> 
+                 <span style="color:#ffd700;font-size:18px;">${data.humanity > 0 ? '+' : ''}${data.humanity}</span>`;
+    }
+
+    html += `
             </div>
 
-            <button onclick="selectThisPredator('${pred.name}')" 
-                    style="background:#ff3131; color:black; border:none; padding:16px 45px; font-size:18px; margin:15px 10px; cursor:pointer;">
-                Выбрать этот стиль охоты
-            </button>
-            <button onclick="openPredatorGallery()" 
-                    style="background:transparent; color:#ff3131; border:2px solid #ff3131; padding:16px 45px; font-size:18px; margin:15px 10px; cursor:pointer;">
-                ← Назад к списку
-            </button>
+            <div style="margin-top:25px;">
+                <button onclick="selectThisPredator('${pred.name}')" 
+                        style="background:#ff3131;color:black;border:none;padding:16px 40px;font-size:18px;border-radius:6px;cursor:pointer;">
+                    Выбрать этот стиль охоты
+                </button>
+                <button onclick="openPredatorGallery()" 
+                        style="background:transparent;color:#ff3131;border:2px solid #ff3131;padding:16px 40px;font-size:18px;border-radius:6px;cursor:pointer;">
+                    ← Назад к списку
+                </button>
+            </div>
         </div>
     `;
+
+    gallery.innerHTML = html;
 }
 
 // Выбор стиля охоты
@@ -723,76 +736,117 @@ function loadClanHint() {
     }
 
     let html = `
-        <strong style="color:var(--v-red); font-size:19px;">${clanName}</strong><br><br>
+        <strong style="color:#ff3131; font-size:21px;">${clanName}</strong><br><br>
+        
         <div style="color:#ddd; line-height:1.65; font-size:14.8px;">
             ${clan.description || 'Описание отсутствует'}
         </div>
     `;
 
+    // Типы персонажей
+    if (clan.types) {
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Типичные представители:</strong><br>
+                 <span style="color:#ccc;">${clan.types}</span>`;
+    }
+
+    // Дисциплины + их описание
     if (clan.disciplines && clan.disciplines.length) {
-        html += `<hr style="border-color:#333; margin:20px 0;">`;
-        html += `<strong style="color:#ffae00;">Дисциплины:</strong><br>`;
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Дисциплины клана:</strong><br>`;
+        
         clan.disciplines.forEach(d => {
-            html += `• <strong>${d}</strong><br>`;
+            const desc = clan.discipline_description?.[d] || '';
+            html += `• <strong>${d}</strong> — ${desc}<br>`;
         });
     }
 
+    // Изъян
     if (clan.bane) {
-        html += `<hr style="border-color:#333; margin:20px 0;">`;
-        html += `<strong style="color:#ffae00;">Изъян:</strong> <span style="color:#ff6666;">${clan.bane}</span>`;
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ff6666;">Проклятие клана:</strong><br>
+                 <span style="color:#ff9999;">${clan.bane}</span>`;
+    }
+
+    // Стиль игры
+    if (clan.playstyle) {
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Стиль игры:</strong><br>
+                 ${clan.playstyle}`;
+    }
+
+    // Конфликт
+    if (clan.conflict) {
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Внутренний конфликт:</strong><br>
+                 ${clan.conflict}`;
+    }
+
+    // Архетипы
+    if (clan.archetypes && clan.archetypes.length) {
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Архетипы:</strong><br>`;
+        clan.archetypes.forEach(a => {
+            html += `• ${a}<br>`;
+        });
     }
 
     box.innerHTML = html;
     box.style.display = 'block';
 }
 
-// Подсказка по стилю охоты
 function loadPredatorHint() {
-    const type = document.getElementById('predator-input').value;
+    const name = document.getElementById('predator-input').value;
     const box = document.getElementById('predator-hint-box');
     
-    if (!type) { 
+    if (!name) { 
         box.style.display = 'none'; 
         return; 
     }
 
-    const pred = RULES.predator_types?.[type];
+    const pred = RULES.predator_types?.[name];
     if (!pred) {
         box.style.display = 'none';
         return;
     }
 
     let html = `
-        <strong style="color:var(--v-red); font-size:19px; display:block; margin-bottom:12px;">${type}</strong>
+        <strong style="color:#ff3131; font-size:21px;">${name}</strong><br><br>
         
-        <div style="color:#ddd; line-height:1.7; font-size:14.8px; margin-bottom:18px;">
+        <div style="color:#ddd; line-height:1.7; font-size:14.8px;">
             ${pred.description || 'Описание отсутствует'}
         </div>
-
-        <hr style="border-color:#333; margin:15px 0;">
-
-        <div style="margin-bottom:12px;">
-            <strong style="color:#ffae00;">Специализация:</strong> 
-            <span style="color:#ccc;">${pred.specialty || '—'}</span>
-        </div>
-
-        ${pred.advantages && pred.advantages.length ? `
-        <div style="margin-bottom:12px;">
-            <strong style="color:#ffae00;">Преимущества:</strong><br>
-            ${pred.advantages.map(a => `• ${a}`).join('<br>')}
-        </div>` : ''}
-
-        ${pred.disadvantages && pred.disadvantages.length ? `
-        <div style="margin-bottom:12px;">
-            <strong style="color:#ffae00;">Недостатки:</strong><br>
-            ${pred.disadvantages.map(d => `• ${d}`).join('<br>')}
-        </div>` : ''}
-
-        <div>
-            <strong style="color:#ffae00;">Человечность:</strong> 
-            <span style="color:#ffd700; font-weight:bold;">${pred.humanity || '—'}</span>
-        </div>
     `;
+
+    if (pred.specialty) {
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Специализация:</strong><br>
+                 ${pred.specialty}`;
+    }
+
+    if (pred.disciplines && pred.disciplines.length) {
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Дисциплины:</strong><br>
+                 ${pred.disciplines.join(', ')}`;
+    }
+
+    if (pred.advantages && pred.advantages.length) {
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Преимущества:</strong><br>`;
+        pred.advantages.forEach(a => html += `• ${a}<br>`);
+    }
+
+    if (pred.disadvantages && pred.disadvantages.length) {
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Недостатки:</strong><br>`;
+        pred.disadvantages.forEach(d => html += `• ${d}<br>`);
+    }
+
+    if (pred.humanity !== undefined) {
+        html += `<hr style="border-color:#333; margin:18px 0;">
+                 <strong style="color:#ffae00;">Изменение Человечности:</strong> 
+                 <span style="color:#ffd700; font-size:17px;">${pred.humanity > 0 ? '+' : ''}${pred.humanity}</span>`;
+    }
 
     box.innerHTML = html;
     box.style.display = 'block';
@@ -918,6 +972,8 @@ function addSpecLine(skillName) {
 // ==================== ПРЕЛОАД ПОДСКАЗОК (TOOLTIPS) ====================
 
 // Загрузка описаний атрибутов + подсказок на точки
+// Подсказки для атрибутов
+// ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
 async function preloadAllAttributes() {
     const attrs = Object.keys(RULES.attributes || {});
     
@@ -925,26 +981,27 @@ async function preloadAllAttributes() {
         const data = RULES.attributes[attr];
         if (!data) continue;
 
-        // Подсказка на название атрибута
+        // 1. Наведение на НАЗВАНИЕ атрибута — только общее описание
         document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
-            let tooltip = data.description || "Нет описания";
-            el.setAttribute('data-tooltip', tooltip);
+            el.setAttribute('data-tooltip', data.description || 'Нет описания');
         });
 
-        // Подсказки на каждую точку (1–5)
+        // 2. Наведение на каждую точку — описание именно этой точки
         for (let level = 1; level <= 5; level++) {
-            if (data[`dot${level}`]) {
-                const desc = String(data[`dot${level}`]).trim();
-                document.querySelectorAll(`.attr-group .dot-label[data-level="${level}"][data-name="${attr}"]`)
+            const dotDesc = data[`dot${level}`];
+            if (dotDesc) {
+                document.querySelectorAll(`.dot-label[data-level="${level}"][data-name="${attr}"]`)
                     .forEach(label => {
-                        label.setAttribute('data-tooltip', `${attr} • ${level} точек\n${desc}`);
+                        label.setAttribute('data-tooltip', 
+                            `${attr} — ${level} точек\n\n${dotDesc}`
+                        );
                     });
             }
         }
     }
 }
 
-// Загрузка описаний навыков + подсказок на точки
+// ==================== ПОДСКАЗКИ ДЛЯ НАВЫКОВ ====================
 async function preloadAllSkills() {
     const skills = Object.keys(RULES.skills || {});
     
@@ -952,19 +1009,24 @@ async function preloadAllSkills() {
         const data = RULES.skills[skill];
         if (!data) continue;
 
-        // Подсказка на название навыка
+        // 1. Наведение на НАЗВАНИЕ навыка — только общее описание
         document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
-            let tooltip = data.description || "Нет описания";
+            let tooltip = data.description || 'Нет описания';
+            if (data.specialties && data.specialties.length) {
+                tooltip += `\n\nСпециализации: ${data.specialties.join(', ')}`;
+            }
             el.setAttribute('data-tooltip', tooltip);
         });
 
-        // Подсказки на каждую точку (1–5)
+        // 2. Наведение на каждую точку — описание этой точки
         for (let level = 1; level <= 5; level++) {
-            if (data[`dot${level}`]) {
-                const desc = String(data[`dot${level}`]).trim();
-                document.querySelectorAll(`.skill-group .dot-label[data-level="${level}"][data-name="${skill}"]`)
+            const dotDesc = data[`dot${level}`];
+            if (dotDesc) {
+                document.querySelectorAll(`.dot-label[data-level="${level}"][data-name="${skill}"]`)
                     .forEach(label => {
-                        label.setAttribute('data-tooltip', `${skill} • ${level} точек\n${desc}`);
+                        label.setAttribute('data-tooltip', 
+                            `${skill} — ${level} точек\n\n${dotDesc}`
+                        );
                     });
             }
         }
@@ -1219,37 +1281,87 @@ async function showSingleClan(clan) {
     const gallery = document.getElementById('clan-gallery');
     const data = RULES.clans?.[clan.name] || {};
 
-    gallery.innerHTML = `
-        <div style="text-align:center; padding:20px;">
-            <button onclick="prevClan()" style="position:absolute;left:20px;top:50%;transform:translateY(-50%);">←</button>
-            <button onclick="nextClan()" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);">→</button>
+    let html = `
+        <div style="text-align:center; padding:20px; max-width:1100px; margin:0 auto; position:relative;">
             
-            <img src="${clan.image}" style="max-width:90%; max-height:70vh; border:4px solid #ff3131; border-radius:12px;">
-            
-            <h2 style="color:#ff3131;margin:20px 0;">${clan.name}</h2>
-            <div style="background:#1a1a1a;padding:20px;border-radius:8px;text-align:left;">
-                ${data.description || clan.desc || 'Описание отсутствует'}
+            <!-- Стрелки навигации -->
+            <button onclick="prevClan()" style="position:absolute; left:30px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.8); color:#ff3131; border:none; width:60px; height:60px; border-radius:50%; font-size:28px; cursor:pointer; z-index:10;">←</button>
+            <button onclick="nextClan()" style="position:absolute; right:30px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.8); color:#ff3131; border:none; width:60px; height:60px; border-radius:50%; font-size:28px; cursor:pointer; z-index:10;">→</button>
+
+            <img src="${clan.image}" style="max-width:95%; max-height:65vh; border:4px solid #ff3131; border-radius:12px; box-shadow:0 0 40px rgba(255,49,49,0.6);">
+
+            <h2 style="color:#ff3131; margin:25px 0 15px;">${clan.name}</h2>
+
+            <div style="background:#1a1a1a; border:1px solid #ff3131; border-radius:8px; padding:25px; text-align:left; font-size:15px; line-height:1.7;">
+    `;
+
+    // Основное описание
+    if (data.description) {
+        html += `<p style="color:#ddd;">${data.description}</p>`;
+    }
+
+    // Типы
+    if (data.types) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Типичные представители:</strong><br>
+                 <span style="color:#ccc;">${data.types}</span>`;
+    }
+
+    // Дисциплины
+    if (data.disciplines && data.disciplines.length) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Дисциплины:</strong><br>`;
+        data.disciplines.forEach(d => {
+            const desc = data.discipline_description?.[d] || '';
+            html += `• <strong>${d}</strong> — ${desc}<br>`;
+        });
+    }
+
+    // Изъян
+    if (data.bane) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ff6666;">Проклятие:</strong> 
+                 <span style="color:#ff9999;">${data.bane}</span>`;
+    }
+
+    // Стиль игры
+    if (data.playstyle) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Стиль игры:</strong><br>
+                 ${data.playstyle}`;
+    }
+
+    // Конфликт
+    if (data.conflict) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Внутренний конфликт:</strong><br>
+                 ${data.conflict}`;
+    }
+
+    // Архетипы
+    if (data.archetypes && data.archetypes.length) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Архетипы:</strong><br>`;
+        data.archetypes.forEach(a => html += `• ${a}<br>`);
+    }
+
+    html += `
             </div>
-            
-            <button onclick="selectThisClan('${clan.name}')" style="margin-top:20px;background:#ff3131;color:black;padding:12px 30px;border:none;border-radius:4px;cursor:pointer;">
-                Выбрать этот клан
-            </button>
-            <button onclick="openClanGallery()" style="margin-left:10px;background:transparent;color:#ff3131;border:2px solid #ff3131;padding:12px 30px;border-radius:4px;cursor:pointer;">
-                Назад
-            </button>
+
+            <div style="margin-top:25px;">
+                <button onclick="selectThisClan('${clan.name}')" 
+                        style="background:#ff3131; color:black; border:none; padding:16px 40px; font-size:18px; border-radius:6px; cursor:pointer; margin:0 10px;">
+                    Выбрать этот клан
+                </button>
+                <button onclick="openClanGallery()" 
+                        style="background:transparent; color:#ff3131; border:2px solid #ff3131; padding:16px 40px; font-size:18px; border-radius:6px; cursor:pointer;">
+                    ← Назад к списку
+                </button>
+            </div>
         </div>
     `;
-}
 
-function selectThisClan(name) {
-    document.getElementById('clan-input').value = name;
-    closeClanModal();
-    loadClanHint();
-    updateClanIcon();
-}
-
-function closeClanModal() {
-    document.getElementById('clan-modal').style.display = 'none';
+    gallery.innerHTML = html;
 }
 
 // ==================== ОБРАБОТЧИК ВЫБОРА КЛАНА ====================
