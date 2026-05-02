@@ -35,26 +35,28 @@
         }
         .dots input:checked ~ label { background: var(--v-red); border-color: var(--v-red); box-shadow: 0 0 10px var(--v-red); }
         
-        .tooltip-trigger { position: relative; cursor: help; }
-        .tooltip-trigger:hover::after, .dots label:hover::after {
-            content: attr(data-tooltip);
-            position: absolute;
-            bottom: 130%;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1a1a1a;
-            color: white;
-            padding: 8px 12px;
-            border: 1px solid var(--v-red);
-            border-radius: 4px;
-            font-size: 13px;
-            white-space: pre-line;
-            z-index: 1000;
-            pointer-events: none;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.7);
-            min-width: 280px;
-            text-align: left;
-        }
+        /* Подсказки */
+            .tooltip-trigger:hover::after,
+            .dot-label:hover::after {
+                content: attr(data-tooltip);
+                position: absolute;
+                bottom: 130%;
+                left: 50%;
+                transform: translateX(-50%);
+                background: #1a1a1a;
+                color: white;
+                padding: 10px 14px;
+                border: 1px solid #ff3131;
+                border-radius: 6px;
+                font-size: 13.5px;
+                white-space: pre-line;
+                z-index: 10000;
+                pointer-events: none;
+                box-shadow: 0 4px 20px rgba(255,49,49,0.5);
+                min-width: 280px;
+                text-align: left;
+                line-height: 1.5;
+            }
         
         .vitals { display: flex; justify-content: space-around; margin-top: 45px; padding: 25px; background: #080808; border: 1px solid #333; }
         .vital-item { text-align: center; }
