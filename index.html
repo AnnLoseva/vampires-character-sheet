@@ -38,26 +38,31 @@
         .tooltip-trigger { position: relative; cursor: help; }
                         /* Подсказки */
                 .tooltip-trigger:hover::after,
-                .dot-label:hover::after {
-                    content: attr(data-tooltip);
-                    position: absolute;
-                    bottom: 130%;
-                    left: 50%;
-                    transform: translateX(-50%);
-                    background: #1a1a1a;
-                    color: white;
-                    padding: 10px 14px;
-                    border: 1px solid #ff3131;
-                    border-radius: 6px;
-                    font-size: 13.5px;
-                    white-space: pre-line;
-                    z-index: 10000;
-                    pointer-events: none;
-                    box-shadow: 0 4px 20px rgba(255,49,49,0.5);
-                    min-width: 280px;
-                    text-align: left;
-                    line-height: 1.5;
-                }
+                /* Надёжные подсказки для точек */
+                        .dot-label {
+                            position: relative;
+                        }
+
+                        .dot-label:hover::after {
+                            content: attr(data-tooltip);
+                            position: absolute;
+                            bottom: 140%;
+                            left: 50%;
+                            transform: translateX(-50%);
+                            background: #1a1a1a;
+                            color: #fff;
+                            padding: 10px 14px;
+                            border: 2px solid #ff3131;
+                            border-radius: 6px;
+                            font-size: 13.5px;
+                            white-space: pre-line;
+                            z-index: 10000;
+                            pointer-events: none;
+                            box-shadow: 0 4px 25px rgba(255, 49, 49, 0.6);
+                            min-width: 300px;
+                            text-align: left;
+                            line-height: 1.45;
+                        }
                         
         .vitals { display: flex; justify-content: space-around; margin-top: 45px; padding: 25px; background: #080808; border: 1px solid #333; }
         .vital-item { text-align: center; }
