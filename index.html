@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>VTM V5 Digital Sheet</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
+        body { background: var(--v-bg); color: #d0d0d0; font-family: 'Courier New', Courier, monospace; display: flex; justify-content: center; padding: 30px 20px; gap: 25px; }
+        
+        .guide { width: 310px; background: var(--v-panel); padding: 20px; border: 1px solid #333; height: fit-content; position: sticky; top: 20px; z-index: 100; }
+        .guide.error { border-color: #ff3131 !important; box-shadow: 0 0 15px rgba(255,49,49,0.6); background: #1a0f0f; }
+        
+        .sheet { width: 1080px; background: #000; padding: 40px 45px; border: 1px solid #222; box-shadow: 0 0 40px rgba(255,49,49,0.1); position: relative; }
+        .header-row { display: flex; gap: 25px; margin-bottom: 25px; }
+        input[type="text"], select { background: transparent; border: none; border-bottom: 1px solid #333; color: white; width: 100%; font-size: 17px; padding: 6px 0; }
+        
+        h2 { text-align: center; text-transform: uppercase; letter-spacing: 4px; color: white; border-bottom: 1px solid #222; padding-bottom: 12px; margin: 35px 0 20px; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid #222; }
+        .col { border-right: 1px solid #222; padding: 10px 16px; }
+        .col:last-child { border-right: none; }
+        .cat-name { text-align: center; font-size: 11px; color: #666; text-transform: uppercase; margin-bottom: 12px; }
+        
+        .row { display: flex; align-items: center; margin-bottom: 3px; min-height: 24px; gap: 20px; }
+        .label-group { display: flex; align-items: center; gap: 5px; font-size: 12.8px; flex: 1; }
+        .attr-name, .skill-name { font-size: 13px; flex: 1; cursor: help; }
+        
+        .s-badge { font-size: 10px; border: 1px solid #444; padding: 1px 4px; color: #444; cursor: pointer; font-weight: bold; min-width: 16px; text-align: center; }
+        input[type="checkbox"]:checked + .s-badge { color: var(--v-red); border-color: var(--v-red); }
+        
+        .dots { display: flex; gap: 5px; direction: rtl; flex-shrink: 0; align-items: center; }
+        .dots input { display: none; }
+        .dots label {
+            width: 16px; height: 16px; border-radius: 50%; border: 2px solid #555; background: #111; cursor: pointer; transition: all 0.2s;
+        }
+        .dots input:checked ~ label { background: var(--v-red); border-color: var(--v-red); box-shadow: 0 0 10px var(--v-red); }
+        
+        .tooltip-trigger { position: relative; cursor: help; }
+        .tooltip-trigger:hover::after, .dots label:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            bottom: 130%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1a1a1a;
+            color: white;
+            padding: 8px 12px;
+            border: 1px solid var(--v-red);
+            border-radius: 4px;
+            font-size: 13px;
+            white-space: pre-line;
+            z-index: 1000;
+            pointer-events: none;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.7);
+            min-width: 280px;
+            text-align: left;
+        }
+        
+        .vitals { display: flex; justify-content: space-around; margin-top: 45px; padding: 25px; background: #080808; border: 1px solid #333; }
+        .vital-item { text-align: center; }
+        .vital-item span { display: block; font-size: 11px; color: #666; margin-bottom: 6px; }
+        .vital-item div { font-size: 32px; color: var(--v-red); font-weight: bold; }
+        
+        .discipline-item { display: flex; align-items: center; gap: 15px; background: #111; padding: 12px; border-radius: 6px; margin-bottom: 8px; }
+        #btn-save { background: transparent; color: var(--v-red); border: 2px solid var(--v-red); padding: 16px; width: 100%; margin-top: 35px; cursor: pointer; font-weight: bold; }
+        
+        .skill-specs { margin-left: 38px; margin-top: 4px; display: none; flex-direction: column; gap: 4px; }
+        .skill-spec-line { display: flex; align-items: center; gap: 6px; }
+        .skill-spec-line input { background: transparent; border: none; border-bottom: 1px solid #555; color: #ccc; font-size: 12.5px; padding: 2px 4px; width: 150px; }
+  
+        .clan-icon {
+            width: 36px;
+            height: 36px;
+            object-fit: contain;
+            filter: drop-shadow(0 0 6px rgba(255, 49, 49, 0.8));
+            border-radius: 4px;
+}
+  
+  
+  
+  </style>
+</head>
+
+<body></body>
+<!-- Левая панель -->
+<div class="guide">
+    <div id="attr-tracker"></div>
+    <hr style="border:0; border-top:1px solid #333; margin: 15px 0;">
+    <p style="font-size: 12px;">Набор навыков:</p>
+    <select id="skill-package" onchange="updateTrackers()" style="width: 100%; background: #000; color: white; border: 1px solid #444; padding: 5px; margin-bottom: 10px;">
+        <option value="specialist">Специалист</option>
+        <option value="balanced" selected>Сбалансированный</option>
+        <option value="versatile">Универсал</option>
+    </select>
+    <div id="skill-tracker"></div>
+    <hr style="border:0; border-top:1px solid #333; margin: 15px 0;">
+    <div id="spec-tracker">Специализации (S): 0 / 1</div>
+    <p id="global-warning" style="color:#ffae00; display:none;">Внимание! Проверьте лимиты.</p>
+</div>
+
+<!-- Основной лист -->
+<div class="sheet" id="capture-area" style="position: relative; margin-right: 420px;">
+    
+    <!-- Header -->
+    <div class="header-row">
+        <input type="text" id="char-name" placeholder="Имя персонажа" value="Kindred" style="flex:1.2;">
+
+        <div style="flex:1.4; display: flex; align-items: center; gap: 12px;">
+            <select id="clan-input" onchange="loadClanHint(); updateClanIcon();" 
+                    style="flex:1; background:transparent; color:white; border:none; border-bottom:1px solid #333; font-size:17px; padding:6px 0;">
+                <option value="">Выберите клан</option>
+            </select>
+            <div id="clan-icon-container" style="width: 38px; height: 38px; flex-shrink: 0; display:flex; align-items:center; justify-content:center;"></div>
+        </div>
+
+        <div style="flex:1;">
+            <select id="predator-input" onchange="loadPredatorHint()" 
+                    style="width:100%;background:transparent;color:white;border:none;border-bottom:1px solid #333;font-size:17px;padding:6px 0;">
+                <option value="">Стиль Охоты</option>
+            </select>
+        </div>
+    </div>
+
+    <h2>Характеристики</h2>
+    <div class="grid" id="attributes-grid"></div>
+
+    <h2>Навыки</h2>
+    <div class="grid" id="skills-grid"></div>
+
+    <div class="vitals">
+        <div class="vital-item"><span>Здоровье</span><div id="val-hp">4</div></div>
+        <div class="vital-item"><span>Сила воли</span><div id="val-wp">2</div></div>
+        <div class="vital-item"><span>Человечность</span><div style="color:white">7</div></div>
+    </div>
+
+    <div style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333;">
+        <h2 style="text-align:center; margin-bottom:15px;">Дисциплины <span id="discipline-total" style="color:#ffae00;">(0/5)</span></h2>
+        <div id="disciplines-list"></div>
+        <button onclick="addEmptyDiscipline()" style="background:transparent; color:var(--v-red); border:1px solid var(--v-red); padding:8px 16px; border-radius:4px; cursor:pointer; margin-top:12px;">
+            + Добавить дисциплину
+        </button>
+    </div>
+</div>
+
+<!-- Правая панель -->
+<div style="position: absolute; right: 40px; top: 80px; width: 380px; display: flex; flex-direction: column; gap: 20px;">
+    <div id="clan-hint-box" style="background: #1a1a1a; border: 1px solid var(--v-red); padding: 20px; border-radius: 6px; display: none; max-height: 420px; overflow-y: auto;"></div>
+    <div id="predator-hint-box" style="background: #1a1a1a; border: 1px solid var(--v-red); padding: 20px; border-radius: 6px; display: none; max-height: 420px; overflow-y: auto;"></div>
+
+    <button id="btn-save" style="padding: 18px; font-size: 16px; width: 100%;">
+        Скачать как картинку (JPG)
+    </button>
+</div>
+
+<!-- Модальные окна -->
+<div id="clan-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 10000; overflow: auto; padding: 20px;">
+    <div style="max-width: 1300px; margin: 40px auto; background: #111; padding: 30px; border-radius: 8px; border: 1px solid #ff3131; position: relative;">
+        <button onclick="closeClanModal()" style="position: absolute; top: 15px; right: 20px; background: transparent; color: #ff3131; border: none; font-size: 28px; cursor: pointer;">×</button>
+        <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px;">Выбор Клана</h2>
+        <div id="clan-gallery" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px;"></div>
+    </div>
+</div>
+
+<div id="predator-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 10000; overflow: auto; padding: 20px;">
+    <div style="max-width: 1300px; margin: 40px auto; background: #111; padding: 30px; border-radius: 8px; border: 1px solid #ff3131; position: relative;">
+        <button onclick="closePredatorModal()" style="position: absolute; top: 15px; right: 20px; background: transparent; color: #ff3131; border: none; font-size: 28px; cursor: pointer;">×</button>
+        <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px;">Выбор Стиля Охоты</h2>
+        <div id="predator-gallery" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px;"></div>
+    </div>
+</div>
+</body>
+<script>
+// ==================== ВЕСЬ СКРИПТ (все части вместе) ====================
+// ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
+let RULES = {};
+let currentPackage = 'balanced';
+let clanDisciplines = [];
+let predatorDisciplines = [];
+let currentClanData = [];
+let currentPredatorData = [];
+let currentClanIndex = 0;
+let currentPredatorIndex = 0;
+
+// ==================== ЗАГРУЗКА ДАННЫХ ====================
+async function loadRules() {
+    try {
+        const res = await fetch('rules.json');
+        RULES = await res.json();
+        console.log("✅ rules.json загружен");
+        initSheet();
+    } catch (e) {
+        console.error("❌ Не удалось загрузить rules.json", e);
+        alert("Положи rules.json рядом с index.html");
+    }
+}
+
+// ==================== ИНИЦИАЛИЗАЦИЯ ====================
+function initSheet() {
+    populateSelects();
+    renderAttributes();
+    renderSkills();
+    updateTrackers();
+    preloadAllAttributes();
+    preloadAllSkills();
+}
+
+function populateSelects() {
+    const clanSelect = document.getElementById('clan-input');
+    clanSelect.innerHTML = '<option value="">Выберите клан</option>';
+    Object.keys(RULES.clans || {}).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        clanSelect.appendChild(opt);
+    });
+
+    const predSelect = document.getElementById('predator-input');
+    predSelect.innerHTML = '<option value="">Стиль Охоты</option>';
+    Object.keys(RULES.predator_types || {}).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        predSelect.appendChild(opt);
+    });
+}
+
+function renderAttributes() {
+    const container = document.getElementById('attributes-grid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const categories = {
+        "Физические": ["Сила", "Ловкость", "Выносливость"],
+        "Социальные": ["Обаяние", "Манипуляция", "Самообладание"],
+        "Ментальные": ["Интеллект", "Смекалка", "Упорство"]
+    };
+
+    Object.keys(categories).forEach(cat => {
+        const col = document.createElement('div');
+        col.className = 'col';
+        col.innerHTML = `<div class="cat-name">${cat}</div>`;
+
+        categories[cat].forEach(name => {
+            let dotsHTML = '';
+            for (let i = 5; i >= 1; i--) {
+                dotsHTML += `
+                    <input type="radio" id="a-${name}-${i}" name="${name}" value="${i}" class="dot-input" data-type="attr" style="display:none;">
+                    <label for="a-${name}-${i}" class="dot-label" data-level="${i}" data-name="${name}"></label>`;
+            }
+
+            col.innerHTML += `
+                <div class="row">
+                    <span class="attr-name tooltip-trigger" data-attr="${name}">${name}</span>
+                    <div class="dots">${dotsHTML}</div>
+                </div>`;
+        });
+
+        container.appendChild(col);
+    });
+}
+
+function renderSkills() {
+    const container = document.getElementById('skills-grid');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const categories = {
+        "Физические": ["Атлетика", "Вождение", "Воровство", "Выживание", "Драка", "Ремесло", "Скрытность", "Стрельба", "Фехтование"],
+        "Социальные": ["Запугивание", "Исполнение", "Лидерство", "Обращение с животными", "Проницательность", "Убеждение", "Уличное чутьё", "Хитрость", "Этикет"],
+        "Ментальные": ["Гуманитарные науки", "Естественные науки", "Медицина", "Наблюдательность", "Оккультизм", "Политика", "Расследование", "Техника", "Финансы"]
+    };
+
+    Object.keys(categories).forEach(cat => {
+        const col = document.createElement('div');
+        col.className = 'col';
+        col.innerHTML = `<div class="cat-name">${cat}</div>`;
+
+        categories[cat].forEach(name => {
+            let dotsHTML = '';
+            for (let i = 5; i >= 1; i--) {
+                dotsHTML += `
+                    <input type="radio" id="sk-${name}-${i}" name="${name}" value="${i}" class="dot-input" data-type="skill" style="display:none;">
+                    <label for="sk-${name}-${i}" class="dot-label" data-level="${i}" data-name="${name}"></label>`;
+            }
+
+            col.innerHTML += `
+                <div class="row">
+                    <div class="label-group">
+                        <input type="checkbox" id="s-${name}" class="spec-checkbox" style="display:none;">
+                        <label for="s-${name}" class="s-badge">S</label>
+                        <span class="skill-name tooltip-trigger" data-skill="${name}">${name}</span>
+                    </div>
+                    <div class="dots">${dotsHTML}</div>
+                </div>
+                <div id="specs-${name}" class="skill-specs"></div>`;
+        });
+
+        container.appendChild(col);
+    });
+}
+// ==================== ИКОНКИ КЛАНОВ ====================
+
+// Временные данные для иконок (можно расширить в rules.json позже)
+const CLAN_ICONS = {
+    "Бруха": "/static/emojis/brujah.png",
+    "Вентру": "/static/emojis/ventrue.png",
+    "Гангрел": "/static/emojis/gangrel.png",
+    "Малкавиан": "/static/emojis/malkavian.png",
+    "Носферату": "/static/emojis/nosferatu.png",
+    "Тореадор": "/static/emojis/toreador.png",
+    "Тремер": "/static/emojis/tremere.png",
+    "Каитиф": "/static/emojis/caitiff.png",
+    "Слабокровные": "/static/emojis/thin_blood.png"
+};
+
+// Окрашивание иконки в фирменный красный цвет
+async function tintImageToRed(imgUrl) {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = imgUrl;
+        img.onload = () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = img.width;
+            canvas.height = img.height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0);
+
+            const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+            const data = imageData.data;
+
+            for (let i = 0; i < data.length; i += 4) {
+                if (data[i + 3] === 0) continue; // пропускаем прозрачные пиксели
+                data[i] = 255;     // Red
+                data[i + 1] = Math.floor(data[i + 1] * 0.1); // Green → почти 0
+                data[i + 2] = Math.floor(data[i + 2] * 0.1); // Blue → почти 0
+            }
+
+            ctx.putImageData(imageData, 0, 0);
+            resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = () => resolve(null);
+    });
+}
+
+// Кэш окрашенных иконок
+const tintedCache = {};
+
+// Получение окрашенной иконки
+async function getTintedEmoji(url) {
+    if (tintedCache[url]) return tintedCache[url];
+    const tinted = await tintImageToRed(url);
+    if (tinted) tintedCache[url] = tinted;
+    return tinted;
+}
+
+// Обновление иконки клана
+async function updateClanIcon() {
+    const clanName = document.getElementById('clan-input').value;
+    const container = document.getElementById('clan-icon-container');
+    if (!container) return;
+
+    if (!clanName) {
+        container.innerHTML = '';
+        return;
+    }
+
+    const tintedUrl = await getTintedEmoji(CLAN_ICONS[clanName]);
+    if (tintedUrl) {
+        container.innerHTML = `<img src="${tintedUrl}" class="clan-icon" alt="${clanName}">`;
+    } else {
+        container.innerHTML = `<span style="font-size:32px; color:#666;">🧛</span>`;
+    }
+}
+
+// Рендер иконки (вспомогательная)
+async function renderClanIcon(clanName) {
+    const tintedUrl = await getTintedEmoji(CLAN_ICONS[clanName]);
+    return tintedUrl 
+        ? `<img src="${tintedUrl}" class="clan-icon" alt="${clanName}">` 
+        : `<span style="font-size:32px; color:#ff3131;">❌</span>`;
+}
+
+// ==================== ГАЛЕРЕЯ КЛАНОВ ====================
+
+// Открытие галереи кланов
+function openClanGallery() {
+    const modal = document.getElementById('clan-modal');
+    const gallery = document.getElementById('clan-gallery');
+    if (!modal || !gallery) return;
+
+    gallery.innerHTML = '';
+
+    currentClanData = [
+        { name: "Бруха", image: "/static/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты. Страстные воины." },
+        { name: "Вентру", image: "/static/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
+        { name: "Гангрел", image: "/static/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
+        { name: "Малкавиан", image: "/static/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
+        { name: "Носферату", image: "/static/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
+        { name: "Тореадор", image: "/static/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
+        { name: "Тремер", image: "/static/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
+        { name: "Каитиф", image: "/static/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
+        { name: "Слабокровные", image: "/static/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
+    ];
+
+    currentClanData.forEach(c => {
+        const div = document.createElement('div');
+        div.style.cursor = 'pointer';
+        div.innerHTML = `
+            <img src="${c.image}" style="width:100%; max-height:60vh; object-fit:contain; border-radius:8px; border:2px solid #550000;">
+            <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${c.name}</h3>
+            <p style="color:#ddd; font-size:14px; padding:0 10px;">${c.desc}</p>
+        `;
+        div.onclick = () => showSingleClan(c);
+        gallery.appendChild(div);
+    });
+
+    modal.style.display = 'block';
+}
+
+function showSingleClan(clan) {
+    const gallery = document.getElementById('clan-gallery');
+    gallery.innerHTML = `
+        <div style="text-align:center; padding:20px;">
+            <img src="${clan.image}" style="max-width:90%; max-height:70vh; border:4px solid #ff3131; border-radius:12px;">
+            <h2 style="color:#ff3131; margin:20px 0;">${clan.name}</h2>
+            <button onclick="selectThisClan('${clan.name}')" style="background:#ff3131;color:black;padding:12px 30px;border:none;border-radius:4px;cursor:pointer;">Выбрать этот клан</button>
+            <button onclick="openClanGallery()" style="margin-left:10px;background:transparent;color:#ff3131;border:2px solid #ff3131;padding:12px 30px;border-radius:4px;cursor:pointer;">Назад к списку</button>
+        </div>
+    `;
+}
+
+function selectThisClan(name) {
+    document.getElementById('clan-input').value = name;
+    closeClanModal();
+    loadClanHint();
+    updateClanIcon();
+}
+
+function closeClanModal() {
+    document.getElementById('clan-modal').style.display = 'none';
+}
+
+function closeClanModal() {
+    document.getElementById('clan-modal').style.display = 'none';
+}
+// Предыдущий клан
+function prevClan() {
+    currentClanIndex = (currentClanIndex - 1 + currentClanData.length) % currentClanData.length;
+    showSingleClan(currentClanData[currentClanIndex]);
+}
+
+// Следующий клан
+function nextClan() {
+    currentClanIndex = (currentClanIndex + 1) % currentClanData.length;
+    showSingleClan(currentClanData[currentClanIndex]);
+}
+
+
+
+   
+
+// Выбор клана из галереи
+function selectThisClan(name) {
+    document.getElementById('clan-input').value = name;
+    closeClanModal();
+    loadClanHint();
+    updateClanIcon();
+}
+
+// Закрытие модального окна кланов
+function closeClanModal() {
+    document.getElementById('clan-modal').style.display = 'none';
+}
+
+
+
+// ==================== ГАЛЕРЕЯ СТИЛЕЙ ОХОТЫ ====================
+
+
+// Открытие галереи стилей охоты
+function openPredatorGallery() {
+    const modal = document.getElementById('predator-modal');
+    const gallery = document.getElementById('predator-gallery');
+    gallery.innerHTML = '';
+
+    currentPredatorData = [
+        { name: "Бестия",       desc: "Насильственный стиль. Быстрое и грубое нападение.", image: "/static/predator_gallery/Бестия.png" },
+        { name: "Джентльмен",   desc: "Изысканный и расчётливый подход к охоте.", image: "/static/predator_gallery/Джентльмен.png" },
+        { name: "Идол",         desc: "Питание через поклонение и обожание.", image: "/static/predator_gallery/Идол.png" },
+        { name: "Искуситель",   desc: "Соблазнение и манипуляция жертвой.", image: "/static/predator_gallery/Искуситель.png" },
+        { name: "Морфей",       desc: "Охота через сны и воздействие на спящих.", image: "/static/predator_gallery/Морфей.png" },
+        { name: "Налётчик",     desc: "Стремительные налёты и быстрый отход.", image: "/static/predator_gallery/Налётчик.png" },
+        { name: "Семьянин",     desc: "Питание от членов семьи или близкого круга.", image: "/static/predator_gallery/Семьянин.png" },
+        { name: "Суррогатчик",  desc: "Использование посредников и суррогатов.", image: "/static/predator_gallery/Суррогатчик.png" },
+        { name: "Тусовщик",     desc: "Охота на вечеринках и в тусовках.", image: "/static/predator_gallery/Тусовщик.png" },
+        { name: "Фермер",       desc: "Содержание «фермы» из смертных доноров.", image: "/static/predator_gallery/Фермер.png" }
+    ];
+
+    currentPredatorData.forEach(p => {
+        const div = document.createElement('div');
+        div.style.cursor = 'pointer';
+        div.innerHTML = `
+            <img src="${p.image}" style="width:100%; max-height:60vh; object-fit:contain; border-radius:8px; border:2px solid #550000;">
+            <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${p.name}</h3>
+            <p style="color:#ddd; font-size:14px; padding:0 10px;">${p.desc}</p>
+        `;
+        div.onclick = () => showSinglePredator(p);
+        gallery.appendChild(div);
+    });
+
+    modal.style.display = 'block';
+}
+
+// Предыдущий стиль охоты
+function prevPredator() {
+    currentPredatorIndex = (currentPredatorIndex - 1 + currentPredatorData.length) % currentPredatorData.length;
+    showSinglePredator(currentPredatorData[currentPredatorIndex]);
+}
+
+// Следующий стиль охоты
+function nextPredator() {
+    currentPredatorIndex = (currentPredatorIndex + 1) % currentPredatorData.length;
+    showSinglePredator(currentPredatorData[currentPredatorIndex]);
+}
+
+// Детальный просмотр одного стиля охоты
+async function showSinglePredator(pred) {
+    const gallery = document.getElementById('predator-gallery');
+    let data = RULES.predator_types?.[pred.name] || {};
+
+    gallery.innerHTML = `
+        <div style="text-align:center; padding:20px; max-width:1200px; margin:0 auto; position: relative;">
+            
+            <!-- Стрелки -->
+            <button onclick="prevPredator()" 
+                    style="position: absolute; left: 20px; top: 50%; transform: translateY(-50%); 
+                           background: rgba(0,0,0,0.7); color: #ff3131; border: none; 
+                           width: 50px; height: 50px; border-radius: 50%; font-size: 24px; cursor: pointer; z-index: 10;">
+                ←
+            </button>
+            <button onclick="nextPredator()" 
+                    style="position: absolute; right: 20px; top: 50%; transform: translateY(-50%); 
+                           background: rgba(0,0,0,0.7); color: #ff3131; border: none; 
+                           width: 50px; height: 50px; border-radius: 50%; font-size: 24px; cursor: pointer; z-index: 10;">
+                →
+            </button>
+
+            <img src="${pred.image}" style="max-width:95%; max-height:75vh; border-radius:12px; border:4px solid #ff3131; box-shadow: 0 0 40px rgba(255,49,49,0.8);">
+
+            <h2 style="color:#ff3131; margin:25px 0 15px;">${pred.name}</h2>
+
+            <div style="background:#1a1a1a; border:1px solid #ff3131; border-radius:8px; padding:25px; text-align:left; max-width:900px; margin:0 auto;">
+                <div style="color:#ddd; line-height:1.7; font-size:15px;">
+                    ${data.description || pred.desc || 'Описание отсутствует'}
+                </div>
+                
+                <hr style="border-color:#333; margin:25px 0;">
+                
+                <strong style="color:#ffae00;">Специализация:</strong> ${data.specialty || '—'}<br><br>
+                
+                <strong style="color:#ffae00;">Преимущества:</strong><br>
+                ${data.advantages && data.advantages.length ? data.advantages.map(a => `• ${a}`).join('<br>') : '—'}<br><br>
+                
+                <strong style="color:#ffae00;">Недостатки:</strong><br>
+                ${data.disadvantages && data.disadvantages.length ? data.disadvantages.map(d => `• ${d}`).join('<br>') : '—'}<br><br>
+                
+                <strong style="color:#ffae00;">Человечность:</strong> 
+                <span style="color:#ffd700; font-size:18px;">${data.humanity || '—'}</span>
+            </div>
+
+            <button onclick="selectThisPredator('${pred.name}')" 
+                    style="background:#ff3131; color:black; border:none; padding:16px 45px; font-size:18px; margin:15px 10px; cursor:pointer;">
+                Выбрать этот стиль охоты
+            </button>
+            <button onclick="openPredatorGallery()" 
+                    style="background:transparent; color:#ff3131; border:2px solid #ff3131; padding:16px 45px; font-size:18px; margin:15px 10px; cursor:pointer;">
+                ← Назад к списку
+            </button>
+        </div>
+    `;
+}
+
+// Выбор стиля охоты
+function selectThisPredator(name) {
+    document.getElementById('predator-input').value = name;
+    closePredatorModal();
+    loadPredatorHint();
+}
+
+// Закрытие модального окна стилей охоты
+function closePredatorModal() {
+    document.getElementById('predator-modal').style.display = 'none';
+}
+
+
+// ==================== ВЫБОР И ЗАКРЫТИЕ ====================
+
+// Выбор клана из галереи
+function selectThisClan(name) {
+    document.getElementById('clan-input').value = name;
+    closeClanModal();
+    loadClanHint();        // обновляем подсказку
+    updateClanIcon();      // обновляем иконку
+}
+
+// Закрытие модального окна кланов
+function closeClanModal() {
+    document.getElementById('clan-modal').style.display = 'none';
+}
+
+// Выбор стиля охоты из галереи
+function selectThisPredator(name) {
+    document.getElementById('predator-input').value = name;
+    closePredatorModal();
+    loadPredatorHint();    // обновляем подсказку
+}
+
+// Закрытие модального окна стилей охоты
+function closePredatorModal() {
+    document.getElementById('predator-modal').style.display = 'none';
+}
+
+
+// ==================== ДИСЦИПЛИНЫ ====================
+
+
+// Обновление списка дисциплин (от клана + от стиля охоты)
+function refreshDisciplinesList() {
+    const list = document.getElementById('disciplines-list');
+    if (!list) return;
+    
+    list.innerHTML = '';  // Полная очистка
+
+    // Дисциплины от клана
+    clanDisciplines.forEach(d => addDiscipline(d, 'Клан'));
+    
+    // Дисциплины от стиля охоты
+    predatorDisciplines.forEach(d => addDiscipline(d, 'Охота'));
+}
+
+// Добавление дисциплины в список
+function addDiscipline(name = '', source = 'Вручную') {
+    const list = document.getElementById('disciplines-list');
+    if (!list) return;
+
+    const unique = 'disc-' + Date.now() + Math.random().toString(36).substr(2, 5);
+
+    const item = document.createElement('div');
+    item.className = 'discipline-item';
+    item.innerHTML = `
+        <div style="flex:1; color:#ddd; font-size:15.5px;">${name}</div>
+        
+        <div class="dots-discipline" style="display:flex; gap:6px;">
+            ${[1,2,3,4,5].map(level => `
+                <label style="cursor:pointer;">
+                    <input type="radio" name="${unique}" value="${level}" style="display:none;">
+                    <span style="width:24px; height:24px; border:2px solid #555; border-radius:50%; background:#1f1f1f; transition:all 0.2s;"></span>
+                </label>
+            `).join('')}
+        </div>
+
+        <small style="color:#777; min-width:75px; text-align:right;">${source}</small>
+        
+        <button onclick="this.parentElement.remove(); updateDisciplineTotal()" 
+                style="background:#222; color:#ff6666; border:none; width:26px; height:26px; border-radius:50%; cursor:pointer;">×</button>
+    `;
+
+    list.appendChild(item);
+
+    // Активация точек
+    const inputs = item.querySelectorAll('input[type="radio"]');
+    const spans = item.querySelectorAll('span');
+
+    inputs.forEach(input => {
+        input.addEventListener('change', () => {
+            const selected = parseInt(input.value);
+            spans.forEach((span, index) => {
+                if (index + 1 <= selected) {
+                    span.style.background = '#ff3131';
+                    span.style.borderColor = '#ff6666';
+                    span.style.boxShadow = '0 0 10px #ff3131';
+                } else {
+                    span.style.background = '#1f1f1f';
+                    span.style.borderColor = '#555';
+                    span.style.boxShadow = 'none';
+                }
+            });
+            updateDisciplineTotal();
+        });
+    });
+
+    updateDisciplineTotal();
+}
+
+// Пересчёт суммы точек дисциплин
+function updateDisciplineTotal() {
+    let total = 0;
+    document.querySelectorAll('#disciplines-list input[type="radio"]:checked').forEach(r => {
+        total += parseInt(r.value);
+    });
+    const counter = document.getElementById('discipline-total');
+    if (counter) counter.textContent = `(${total}/5)`;
+}
+
+
+// ==================== ПОДСКАЗКИ (ХИНТЫ) ====================
+
+// Подсказка по клану
+function loadClanHint() {
+    const clanName = document.getElementById('clan-input').value.trim();
+    const box = document.getElementById('clan-hint-box');
+    
+    if (!clanName) { 
+        box.style.display = 'none'; 
+        return; 
+    }
+
+    const clan = RULES.clans?.[clanName];
+    if (!clan) {
+        box.style.display = 'none';
+        return;
+    }
+
+    let html = `
+        <strong style="color:var(--v-red); font-size:19px;">${clanName}</strong><br><br>
+        <div style="color:#ddd; line-height:1.65; font-size:14.8px;">
+            ${clan.description || 'Описание отсутствует'}
+        </div>
+    `;
+
+    if (clan.disciplines && clan.disciplines.length) {
+        html += `<hr style="border-color:#333; margin:20px 0;">`;
+        html += `<strong style="color:#ffae00;">Дисциплины:</strong><br>`;
+        clan.disciplines.forEach(d => {
+            html += `• <strong>${d}</strong><br>`;
+        });
+    }
+
+    if (clan.bane) {
+        html += `<hr style="border-color:#333; margin:20px 0;">`;
+        html += `<strong style="color:#ffae00;">Изъян:</strong> <span style="color:#ff6666;">${clan.bane}</span>`;
+    }
+
+    box.innerHTML = html;
+    box.style.display = 'block';
+}
+
+// Подсказка по стилю охоты
+function loadPredatorHint() {
+    const type = document.getElementById('predator-input').value;
+    const box = document.getElementById('predator-hint-box');
+    
+    if (!type) { 
+        box.style.display = 'none'; 
+        return; 
+    }
+
+    const pred = RULES.predator_types?.[type];
+    if (!pred) {
+        box.style.display = 'none';
+        return;
+    }
+
+    let html = `
+        <strong style="color:var(--v-red); font-size:19px; display:block; margin-bottom:12px;">${type}</strong>
+        
+        <div style="color:#ddd; line-height:1.7; font-size:14.8px; margin-bottom:18px;">
+            ${pred.description || 'Описание отсутствует'}
+        </div>
+
+        <hr style="border-color:#333; margin:15px 0;">
+
+        <div style="margin-bottom:12px;">
+            <strong style="color:#ffae00;">Специализация:</strong> 
+            <span style="color:#ccc;">${pred.specialty || '—'}</span>
+        </div>
+
+        ${pred.advantages && pred.advantages.length ? `
+        <div style="margin-bottom:12px;">
+            <strong style="color:#ffae00;">Преимущества:</strong><br>
+            ${pred.advantages.map(a => `• ${a}`).join('<br>')}
+        </div>` : ''}
+
+        ${pred.disadvantages && pred.disadvantages.length ? `
+        <div style="margin-bottom:12px;">
+            <strong style="color:#ffae00;">Недостатки:</strong><br>
+            ${pred.disadvantages.map(d => `• ${d}`).join('<br>')}
+        </div>` : ''}
+
+        <div>
+            <strong style="color:#ffae00;">Человечность:</strong> 
+            <span style="color:#ffd700; font-weight:bold;">${pred.humanity || '—'}</span>
+        </div>
+    `;
+
+    box.innerHTML = html;
+    box.style.display = 'block';
+}
+
+// ==================== ТРЕКЕРЫ И ВАЛИДАЦИЯ ====================
+
+const ATTR_LIMITS = { 4: 1, 3: 3, 2: 4, 1: 1 };
+const SKILL_PACKAGES = {
+    specialist: { 4: 1, 3: 3, 2: 3, 1: 3 },
+    balanced:   { 4: 0, 3: 3, 2: 5, 1: 7 },
+    versatile:  { 4: 0, 3: 1, 2: 8, 1: 10 }
+};
+
+let counts = { attr: {4:0, 3:0, 2:0, 1:0}, skill: {4:0, 3:0, 2:0, 1:0} };
+
+// Основная функция обновления трекеров
+function updateTrackers() {
+    const counts = { attr: {4:0,3:0,2:0,1:0}, skill: {4:0,3:0,2:0,1:0} };
+
+    document.querySelectorAll('.dot-input:checked').forEach(input => {
+        const val = parseInt(input.value);
+        if (val > 0) counts[input.dataset.type][val]++;
+    });
+
+    // Вторичные
+    const stamina = parseInt(document.querySelector('input[name="Выносливость"]:checked')?.value || 1);
+    const composure = parseInt(document.querySelector('input[name="Самообладание"]:checked')?.value || 1);
+    const resolve = parseInt(document.querySelector('input[name="Упорство"]:checked')?.value || 1);
+
+    document.getElementById('val-hp').textContent = stamina + 3;
+    document.getElementById('val-wp').textContent = composure + resolve;
+
+    renderTracker('attr', ATTR_LIMITS, 'attr-tracker');
+    renderTracker('skill', SKILL_PACKAGES[currentPackage], 'skill-tracker');
+
+    let specCount = document.querySelectorAll('.spec-checkbox:checked').length;
+    document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / 1`;
+
+    checkLimits();
+}
+
+function renderTracker(type, limits, trackerId) {
+    let html = `<b>${type === 'attr' ? 'Атрибуты' : 'Навыки'}:</b>`;
+    for (let v of [1,2,3,4,5]) {
+        const limit = limits[v] !== undefined ? limits[v] : 0;
+        const count = counts[type][v] || 0;
+        let status = (count > limit || (v === 5 && count > 0)) ? 'over-limit' : '';
+        html += `<div class="tracker-item ${status}">На ${v}: ${count} / ${limit}</div>`;
+    }
+    document.getElementById(trackerId).innerHTML = html;
+}
+
+function checkLimits() {
+    const guide = document.querySelector('.guide');
+    const warning = document.getElementById('global-warning');
+    const hasOver = document.querySelectorAll('.over-limit').length > 0;
+    const hasFive = counts.attr[5] > 0 || counts.skill[5] > 0;
+
+    if (hasOver || hasFive) {
+        guide.classList.add('error');
+        warning.style.display = 'block';
+    } else {
+        guide.classList.remove('error');
+        warning.style.display = 'none';
+    }
+}
+
+
+// ==================== СПЕЦИАЛЬНОСТИ ====================
+
+// Обработчик клика по S-бейджу
+document.addEventListener('click', function(e) {
+    if (e.target.classList.contains('s-badge')) {
+        const checkbox = e.target.previousElementSibling; // input type=checkbox
+        if (!checkbox) return;
+
+        const skillName = checkbox.value || checkbox.id.replace('s-', '');
+        const container = document.getElementById('specs-' + skillName);
+        
+        if (!container) return;
+
+        const isVisible = container.style.display !== 'none';
+        
+        // Переключаем видимость
+        container.style.display = isVisible ? 'none' : 'flex';
+
+        // Если открываем впервые — добавляем пустую строку
+        if (!isVisible && container.children.length === 0) {
+            addSpecLine(skillName);
+        }
+    }
+});
+
+// Добавление новой строки специальности
+function addSpecLine(skillName) {
+    const container = document.getElementById('specs-' + skillName);
+    if (!container) return;
+
+    const line = document.createElement('div');
+    line.className = 'skill-spec-line';
+    line.innerHTML = `
+        <input type="text" placeholder="Название специальности" style="flex:1;">
+        <button title="Добавить ещё одну" style="background:#222;color:#ffaa00;">+</button>
+        <button title="Удалить" style="background:#222;color:#ff6666;">×</button>
+    `;
+
+    // Кнопка "Добавить ещё"
+    line.querySelector('button').addEventListener('click', () => addSpecLine(skillName));
+
+    // Кнопка "Удалить"
+    line.querySelectorAll('button')[1].addEventListener('click', () => {
+        line.remove();
+        if (container.children.length === 0) {
+            container.style.display = 'none';
+        }
+    });
+
+    container.appendChild(line);
+    container.style.display = 'flex';
+}
+
+// ==================== ПРЕЛОАД ПОДСКАЗОК (TOOLTIPS) ====================
+
+// Загрузка описаний атрибутов + подсказок на точки
+async function preloadAllAttributes() {
+    const attrs = Object.keys(RULES.attributes || {});
+    
+    for (let attr of attrs) {
+        const data = RULES.attributes[attr];
+        if (!data) continue;
+
+        // Подсказка на название атрибута
+        document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
+            let tooltip = data.description || "Нет описания";
+            el.setAttribute('data-tooltip', tooltip);
+        });
+
+        // Подсказки на каждую точку (1–5)
+        for (let level = 1; level <= 5; level++) {
+            if (data[`dot${level}`]) {
+                const desc = String(data[`dot${level}`]).trim();
+                document.querySelectorAll(`.attr-group .dot-label[data-level="${level}"][data-name="${attr}"]`)
+                    .forEach(label => {
+                        label.setAttribute('data-tooltip', `${attr} • ${level} точек\n${desc}`);
+                    });
+            }
+        }
+    }
+}
+
+// Загрузка описаний навыков + подсказок на точки
+async function preloadAllSkills() {
+    const skills = Object.keys(RULES.skills || {});
+    
+    for (let skill of skills) {
+        const data = RULES.skills[skill];
+        if (!data) continue;
+
+        // Подсказка на название навыка
+        document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
+            let tooltip = data.description || "Нет описания";
+            el.setAttribute('data-tooltip', tooltip);
+        });
+
+        // Подсказки на каждую точку (1–5)
+        for (let level = 1; level <= 5; level++) {
+            if (data[`dot${level}`]) {
+                const desc = String(data[`dot${level}`]).trim();
+                document.querySelectorAll(`.skill-group .dot-label[data-level="${level}"][data-name="${skill}"]`)
+                    .forEach(label => {
+                        label.setAttribute('data-tooltip', `${skill} • ${level} точек\n${desc}`);
+                    });
+            }
+        }
+    }
+}
+
+
+// ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
+
+// ==================== ЗАПУСК ====================
+window.onload = async function() {
+    await loadRules();           // Загружаем JSON
+    setupEventListeners();       // Настраиваем обработчики
+};
+
+// Настройка всех обработчиков событий
+function setupEventListeners() {
+    // Изменение пакета навыков
+    const packageSelect = document.getElementById('skill-package');
+    if (packageSelect) {
+        packageSelect.addEventListener('change', (e) => {
+            currentPackage = e.target.value;
+            updateTrackers();
+        });
+    }
+
+    // Изменение клана
+    const clanSelect = document.getElementById('clan-input');
+    if (clanSelect) {
+        clanSelect.addEventListener('change', () => {
+            loadClanHint();
+            updateClanIcon();
+        });
+    }
+
+    // Изменение стиля охоты
+    const predatorSelect = document.getElementById('predator-input');
+    if (predatorSelect) {
+        predatorSelect.addEventListener('change', () => {
+            if (predatorSelect.value === "") {
+                openPredatorGallery();
+            } else {
+                loadPredatorHint();
+            }
+        });
+    }
+
+    // Изменение точек и специализаций
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('dot-input') || 
+            e.target.classList.contains('spec-checkbox')) {
+            updateTrackers();
+        }
+    });
+
+    // Сброс точки при повторном клике (клик по уже выбранной)
+    document.addEventListener('click', function(e) {
+        if (e.target.tagName === 'LABEL' && e.target.classList.contains('dot-label')) {
+            const inputId = e.target.getAttribute('for');
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            if (input.checked) {
+                e.preventDefault();
+                const name = input.name;
+
+                // Сбрасываем все точки этого атрибута/навыка
+                document.querySelectorAll(`input[name="${name}"]`).forEach(inp => {
+                    inp.checked = false;
+                });
+
+                // Ставим 0
+                const zeroInput = document.querySelector(`input[name="${name}"][value="0"]`);
+                if (zeroInput) zeroInput.checked = true;
+
+                updateTrackers();
+            }
+        }
+    });
+
+    // Клик по S-бейджу (специальности)
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('s-badge')) {
+            const skillName = e.target.getAttribute('for').replace('s-', '');
+            const container = document.getElementById('specs-' + skillName);
+            if (!container) return;
+
+            const isVisible = container.style.display !== 'none';
+            container.style.display = isVisible ? 'none' : 'flex';
+
+            if (!isVisible && container.children.length === 0) {
+                addSpecLine(skillName);
+            }
+        }
+    });
+}
+
+
+// ==================== СОХРАНЕНИЕ В JPG ====================
+
+document.getElementById('btn-save').addEventListener('click', function() {
+    const area = document.getElementById('capture-area');
+    const charName = document.getElementById('char-name').value.trim() || 'Kindred';
+    
+    const btn = this;
+    const originalText = btn.textContent;
+    
+    btn.textContent = 'Генерируем картинку...';
+    btn.disabled = true;
+
+    // Фикс специальностей перед захватом
+    const specContainers = area.querySelectorAll('.skill-specs');
+    specContainers.forEach(container => {
+        if (container.children.length > 0) {
+            container.style.display = 'flex';
+            container.style.flexDirection = 'column';
+            container.style.minHeight = container.scrollHeight + 'px';
+            container.style.overflow = 'visible';
+        }
+    });
+
+    setTimeout(() => {
+        html2canvas(area, {
+            scale: 3,                    // высокое качество
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#000000',
+            logging: false,
+            width: area.offsetWidth,
+            height: area.offsetHeight + 50,
+
+            onclone: (clonedDoc) => {
+                // Финальная подготовка специальностей в клоне
+                const clonedSpecs = clonedDoc.querySelectorAll('.skill-specs');
+                clonedSpecs.forEach(container => {
+                    if (container.children.length > 0) {
+                        container.style.display = 'flex';
+                        container.style.flexDirection = 'column';
+                        container.style.height = 'auto';
+                        container.style.minHeight = container.scrollHeight + 'px';
+                    }
+                });
+
+                // Превращаем input'ы специальностей в текст
+                clonedDoc.querySelectorAll('.skill-spec-line input').forEach(input => {
+                    if (input.value.trim()) {
+                        const span = clonedDoc.createElement('span');
+                        span.textContent = input.value.trim();
+                        span.style.cssText = `
+                            color: #ccc;
+                            font-size: 12.5px;
+                            border-bottom: 1px solid #555;
+                            padding: 2px 4px;
+                            display: inline-block;
+                            min-width: 160px;
+                        `;
+                        input.parentNode.replaceChild(span, input);
+                    }
+                });
+            }
+        }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = `V5_Sheet_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.jpg`;
+            link.href = canvas.toDataURL('image/jpeg', 0.95);
+            link.click();
+
+            // Возвращаем кнопку в исходное состояние
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }).catch(err => {
+            console.error("Ошибка html2canvas:", err);
+            alert("Не удалось создать изображение.");
+            btn.textContent = originalText;
+            btn.disabled = false;
+        });
+    }, 100);
+});
+
+
+// ==================== ОБРАБОТЧИКИ ====================
+function setupEventListeners() {
+    document.getElementById('skill-package').addEventListener('change', (e) => {
+        currentPackage = e.target.value;
+        updateTrackers();
+    });
+
+    document.getElementById('clan-input').addEventListener('change', () => {
+        loadClanHint();
+        updateClanIcon();
+    });
+
+    document.getElementById('predator-input').addEventListener('change', () => {
+        loadPredatorHint();
+    });
+
+    document.addEventListener('change', (e) => {
+        if (e.target.classList.contains('dot-input') || e.target.classList.contains('spec-checkbox')) {
+            updateTrackers();
+        }
+    });
+
+
+// ==================== ГАЛЕРЕЯ КЛАНОВ (полная версия) ====================
+let currentClanData = [];
+let currentClanIndex = 0;
+
+function openClanGallery() {
+    const modal = document.getElementById('clan-modal');
+    const gallery = document.getElementById('clan-gallery');
+    if (!modal || !gallery) return;
+
+    gallery.innerHTML = '';
+
+    currentClanData = [
+        { name: "Бруха", image: "/static/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты." },
+        { name: "Вентру", image: "/static/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
+        { name: "Гангрел", image: "/static/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
+        { name: "Малкавиан", image: "/static/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
+        { name: "Носферату", image: "/static/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
+        { name: "Тореадор", image: "/static/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
+        { name: "Тремер", image: "/static/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
+        { name: "Каитиф", image: "/static/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
+        { name: "Слабокровные", image: "/static/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
+    ];
+
+    currentClanData.forEach(c => {
+        const div = document.createElement('div');
+        div.style.cursor = 'pointer';
+        div.innerHTML = `
+            <img src="${c.image}" style="width:100%; max-height:60vh; object-fit:contain; border-radius:8px; border:2px solid #550000;">
+            <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${c.name}</h3>
+            <p style="color:#ddd; font-size:14px; padding:0 10px;">${c.desc}</p>
+        `;
+        div.onclick = () => showSingleClan(c);
+        gallery.appendChild(div);
+    });
+
+    modal.style.display = 'block';
+}
+
+function prevClan() {
+    currentClanIndex = (currentClanIndex - 1 + currentClanData.length) % currentClanData.length;
+    showSingleClan(currentClanData[currentClanIndex]);
+}
+
+function nextClan() {
+    currentClanIndex = (currentClanIndex + 1) % currentClanData.length;
+    showSingleClan(currentClanData[currentClanIndex]);
+}
+
+async function showSingleClan(clan) {
+    const gallery = document.getElementById('clan-gallery');
+    const data = RULES.clans?.[clan.name] || {};
+
+    gallery.innerHTML = `
+        <div style="text-align:center; padding:20px;">
+            <button onclick="prevClan()" style="position:absolute;left:20px;top:50%;transform:translateY(-50%);">←</button>
+            <button onclick="nextClan()" style="position:absolute;right:20px;top:50%;transform:translateY(-50%);">→</button>
+            
+            <img src="${clan.image}" style="max-width:90%; max-height:70vh; border:4px solid #ff3131; border-radius:12px;">
+            
+            <h2 style="color:#ff3131;margin:20px 0;">${clan.name}</h2>
+            <div style="background:#1a1a1a;padding:20px;border-radius:8px;text-align:left;">
+                ${data.description || clan.desc || 'Описание отсутствует'}
+            </div>
+            
+            <button onclick="selectThisClan('${clan.name}')" style="margin-top:20px;background:#ff3131;color:black;padding:12px 30px;border:none;border-radius:4px;cursor:pointer;">
+                Выбрать этот клан
+            </button>
+            <button onclick="openClanGallery()" style="margin-left:10px;background:transparent;color:#ff3131;border:2px solid #ff3131;padding:12px 30px;border-radius:4px;cursor:pointer;">
+                Назад
+            </button>
+        </div>
+    `;
+}
+
+function selectThisClan(name) {
+    document.getElementById('clan-input').value = name;
+    closeClanModal();
+    loadClanHint();
+    updateClanIcon();
+}
+
+function closeClanModal() {
+    document.getElementById('clan-modal').style.display = 'none';
+}
+
+// ==================== ОБРАБОТЧИК ВЫБОРА КЛАНА ====================
+document.getElementById('clan-input').addEventListener('change', function() {
+    if (this.value === "") {
+        openClanGallery();        // ← Галерея при пустом выборе
+    } else {
+        loadClanHint();
+        updateClanIcon();
+    }
+});
+
+
+// ==================== ОБРАБОТЧИК ВЫБОРА СТИЛЯ ОХОТЫ ====================
+const predatorSelect = document.getElementById('predator-input');
+if (predatorSelect) {
+    predatorSelect.addEventListener('change', function() {
+        if (this.value === "") {
+            openPredatorGallery();   // Открываем галерею при пустом выборе
+        } else {
+            loadPredatorHint();
+        }
+    });
+}
+
+
+
+}
+
+
+
+</script>
+</body>
+</html>
