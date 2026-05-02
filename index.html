@@ -35,29 +35,30 @@
         }
         .dots input:checked ~ label { background: var(--v-red); border-color: var(--v-red); box-shadow: 0 0 10px var(--v-red); }
         
-        /* Подсказки */
-            .tooltip-trigger:hover::after,
-            .dot-label:hover::after {
-                content: attr(data-tooltip);
-                position: absolute;
-                bottom: 130%;
-                left: 50%;
-                transform: translateX(-50%);
-                background: #1a1a1a;
-                color: white;
-                padding: 10px 14px;
-                border: 1px solid #ff3131;
-                border-radius: 6px;
-                font-size: 13.5px;
-                white-space: pre-line;
-                z-index: 10000;
-                pointer-events: none;
-                box-shadow: 0 4px 20px rgba(255,49,49,0.5);
-                min-width: 280px;
-                text-align: left;
-                line-height: 1.5;
-            }
-        
+        .tooltip-trigger { position: relative; cursor: help; }
+                        /* Подсказки */
+                .tooltip-trigger:hover::after,
+                .dot-label:hover::after {
+                    content: attr(data-tooltip);
+                    position: absolute;
+                    bottom: 130%;
+                    left: 50%;
+                    transform: translateX(-50%);
+                    background: #1a1a1a;
+                    color: white;
+                    padding: 10px 14px;
+                    border: 1px solid #ff3131;
+                    border-radius: 6px;
+                    font-size: 13.5px;
+                    white-space: pre-line;
+                    z-index: 10000;
+                    pointer-events: none;
+                    box-shadow: 0 4px 20px rgba(255,49,49,0.5);
+                    min-width: 280px;
+                    text-align: left;
+                    line-height: 1.5;
+                }
+                        
         .vitals { display: flex; justify-content: space-around; margin-top: 45px; padding: 25px; background: #080808; border: 1px solid #333; }
         .vital-item { text-align: center; }
         .vital-item span { display: block; font-size: 11px; color: #666; margin-bottom: 6px; }
@@ -976,6 +977,7 @@ function addSpecLine(skillName) {
 // Загрузка описаний атрибутов + подсказок на точки
 // Подсказки для атрибутов
 // ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
+// ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
 async function preloadAllAttributes() {
     const attrs = Object.keys(RULES.attributes || {});
     
@@ -983,25 +985,24 @@ async function preloadAllAttributes() {
         const data = RULES.attributes[attr];
         if (!data) continue;
 
-        // Общее описание на название
+        // Наведение на НАЗВАНИЕ — общее описание
         document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
             el.setAttribute('data-tooltip', 
                 `${attr}\n\n${data.description || 'Описание отсутствует'}`
             );
         });
 
-        // Описания на КАЖДУЮ ТОЧКУ
+        // Наведение на КАЖДУЮ ТОЧКУ — описание именно этой точки
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
-            if (!dotDesc) continue;
-
-            // Ищем все точки этого атрибута и уровня
-            document.querySelectorAll(`label[data-name="${attr}"][data-level="${level}"]`)
-                .forEach(label => {
-                    label.setAttribute('data-tooltip', 
-                        `${attr} • ${level} точек\n\n${dotDesc}`
-                    );
-                });
+            if (dotDesc) {
+                document.querySelectorAll(`.dot-label[data-level="${level}"][data-name="${attr}"]`)
+                    .forEach(label => {
+                        label.setAttribute('data-tooltip', 
+                            `${attr} — ${level} точек\n\n${dotDesc}`
+                        );
+                    });
+            }
         }
     }
 }
@@ -1014,29 +1015,32 @@ async function preloadAllSkills() {
         const data = RULES.skills[skill];
         if (!data) continue;
 
-        // Общее описание на название
+        // Наведение на НАЗВАНИЕ — общее описание
         document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
             let tooltip = `${skill}\n\n${data.description || 'Описание отсутствует'}`;
+            
             if (data.specialties && data.specialties.length) {
                 tooltip += `\n\nСпециализации: ${data.specialties.join(', ')}`;
             }
+            
             el.setAttribute('data-tooltip', tooltip);
         });
 
-        // Описания на КАЖДУЮ ТОЧКУ
+        // Наведение на КАЖДУЮ ТОЧКУ — описание этой точки
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
-            if (!dotDesc) continue;
-
-            document.querySelectorAll(`label[data-name="${skill}"][data-level="${level}"]`)
-                .forEach(label => {
-                    label.setAttribute('data-tooltip', 
-                        `${skill} • ${level} точек\n\n${dotDesc}`
-                    );
-                });
+            if (dotDesc) {
+                document.querySelectorAll(`.dot-label[data-level="${level}"][data-name="${skill}"]`)
+                    .forEach(label => {
+                        label.setAttribute('data-tooltip', 
+                            `${skill} — ${level} точек\n\n${dotDesc}`
+                        );
+                    });
+            }
         }
     }
 }
+
 
 // ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
 
