@@ -974,8 +974,6 @@ function addSpecLine(skillName) {
 
 // ==================== ПРЕЛОАД ПОДСКАЗОК (TOOLTIPS) ====================
 
-// Загрузка описаний атрибутов + подсказок на точки
-// Подсказки для атрибутов
 // ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
 async function preloadAllAttributes() {
     const attrs = Object.keys(RULES.attributes || {});
@@ -984,18 +982,17 @@ async function preloadAllAttributes() {
         const data = RULES.attributes[attr];
         if (!data) continue;
 
-        // 1. Общее описание — при наведении на название
+        // Название — общее описание
         document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
             el.setAttribute('data-tooltip', 
                 `${attr}\n\n${data.description || 'Описание отсутствует'}`
             );
         });
 
-        // 2. Описание точки — при наведении на кружочек
+        // Точки — описание уровня
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
-                // Главный селектор для точек
                 document.querySelectorAll(`label[data-name="${attr}"][data-level="${level}"]`)
                     .forEach(label => {
                         label.setAttribute('data-tooltip', 
@@ -1015,7 +1012,7 @@ async function preloadAllSkills() {
         const data = RULES.skills[skill];
         if (!data) continue;
 
-        // 1. Общее описание — при наведении на название
+        // Название — общее описание
         document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
             let tooltip = `${skill}\n\n${data.description || 'Описание отсутствует'}`;
             if (data.specialties && data.specialties.length) {
@@ -1024,7 +1021,7 @@ async function preloadAllSkills() {
             el.setAttribute('data-tooltip', tooltip);
         });
 
-        // 2. Описание точки — при наведении на кружочек
+        // Точки — описание уровня
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
@@ -1038,7 +1035,6 @@ async function preloadAllSkills() {
         }
     }
 }
-
 
 // ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
 
