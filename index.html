@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>VTM V5 Digital Sheet v1.0.9</title>
+    <title>VTM V5 Digital Sheet v1.0.11</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
@@ -1116,15 +1116,28 @@ document.addEventListener('click', function(e) {
     if (!container) return;
 
     if (container.style.display !== 'flex') {
-        // Открываем + добавляем первую строку
+        // Открываем
         container.style.display = 'flex';
         if (container.children.length === 0) {
             addSpecLine(skillName);
         }
     } else {
-        // Второе нажатие — удаляем все строки
+        // Второе нажатие — удаляем + гарантированно гасим
         container.innerHTML = '';
         container.style.display = 'none';
+
+        const cb = document.getElementById('s-' + skillName);
+        if (cb) {
+            cb.checked = false;
+        }
+
+        // Принудительное обновление вида бейджа
+        const badge = document.querySelector(`label[for="s-${skillName}"]`);
+        if (badge) {
+            badge.style.color = '#444';
+            badge.style.borderColor = '#444';
+        }
+
         updateSpecUI(skillName);
     }
 });
