@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>VTM V5 Digital Sheet</title>
+    <title>VTM V5 Digital Sheet v1.0.5</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
@@ -28,49 +28,121 @@
         .s-badge { font-size: 10px; border: 1px solid #444; padding: 1px 4px; color: #444; cursor: pointer; font-weight: bold; min-width: 16px; text-align: center; }
         input[type="checkbox"]:checked + .s-badge { color: var(--v-red); border-color: var(--v-red); }
         
-        .dots { display: flex; gap: 5px; direction: rtl; flex-shrink: 0; align-items: center; }
+                .dots { 
+            display: flex; 
+            gap: 5px; 
+            direction: rtl; 
+            flex-shrink: 0; 
+            align-items: center; 
+        }
         .dots input { display: none; }
         .dots label {
-            width: 16px; height: 16px; border-radius: 50%; border: 2px solid #555; background: #111; cursor: pointer; transition: all 0.2s;
+            width: 16px; 
+            height: 16px; 
+            border-radius: 50%; 
+            border: 2px solid #555; 
+            background: #111; 
+            cursor: pointer; 
+            transition: all 0.2s;
         }
-        .dots input:checked ~ label { background: var(--v-red); border-color: var(--v-red); box-shadow: 0 0 10px var(--v-red); }
+        .dots input:checked ~ label { 
+            background: var(--v-red); 
+            border-color: var(--v-red); 
+            box-shadow: 0 0 10px var(--v-red); 
+        }
         
         /* Большое красивое окно-подсказка */
-            .tooltip-trigger:hover::after,
-            .dot-label:hover::after {
-                content: attr(data-tooltip) !important;
-                position: absolute !important;
-                bottom: 160% !important;
-                left: 50% !important;
-                transform: translateX(-50%) !important;
-                background: #111111 !important;
-                color: #e0e0e0 !important;
-                padding: 16px 20px !important;
-                border: 2px solid #ff3131 !important;
-                border-radius: 8px !important;
-                font-size: 14px !important;
-                white-space: pre-line !important;
-                z-index: 10000 !important;
-                pointer-events: none !important;
-                box-shadow: 0 0 30px rgba(255, 49, 49, 0.5) !important;
-                max-width: 420px !important;
-                text-align: left !important;
-                line-height: 1.55 !important;
-            }
+        .tooltip-trigger:hover::after,
+        .dot-label:hover::after {
+            content: attr(data-tooltip) !important;
+            position: absolute !important;
+            bottom: 160% !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            background: #111111 !important;
+            color: #e0e0e0 !important;
+            padding: 16px 20px !important;
+            border: 2px solid #ff3131 !important;
+            border-radius: 8px !important;
+            font-size: 14px !important;
+            white-space: pre-line !important;
+            z-index: 10000 !important;
+            pointer-events: none !important;
+            box-shadow: 0 0 30px rgba(255, 49, 49, 0.5) !important;
+            max-width: 420px !important;
+            text-align: left !important;
+            line-height: 1.55 !important;
+        }
 
-
+        /* Для названий немного поднимаем */
+        .attr-name:hover::after,
+        .skill-name:hover::after {
+            bottom: 170% !important;
+        }
                         
-        .vitals { display: flex; justify-content: space-around; margin-top: 45px; padding: 25px; background: #080808; border: 1px solid #333; }
+        .vitals { 
+            display: flex; 
+            justify-content: space-around; 
+            margin-top: 45px; 
+            padding: 25px; 
+            background: #080808; 
+            border: 1px solid #333; 
+        }
         .vital-item { text-align: center; }
-        .vital-item span { display: block; font-size: 11px; color: #666; margin-bottom: 6px; }
-        .vital-item div { font-size: 32px; color: var(--v-red); font-weight: bold; }
+        .vital-item span { 
+            display: block; 
+            font-size: 11px; 
+            color: #666; 
+            margin-bottom: 6px; 
+        }
+        .vital-item div { 
+            font-size: 32px; 
+            color: var(--v-red); 
+            font-weight: bold; 
+        }
         
-        .discipline-item { display: flex; align-items: center; gap: 15px; background: #111; padding: 12px; border-radius: 6px; margin-bottom: 8px; }
-        #btn-save { background: transparent; color: var(--v-red); border: 2px solid var(--v-red); padding: 16px; width: 100%; margin-top: 35px; cursor: pointer; font-weight: bold; }
+        .discipline-item { 
+            display: flex; 
+            align-items: center; 
+            gap: 15px; 
+            background: #111; 
+            padding: 12px; 
+            border-radius: 6px; 
+            margin-bottom: 8px; 
+        }
         
-        .skill-specs { margin-left: 38px; margin-top: 4px; display: none; flex-direction: column; gap: 4px; }
-        .skill-spec-line { display: flex; align-items: center; gap: 6px; }
-        .skill-spec-line input { background: transparent; border: none; border-bottom: 1px solid #555; color: #ccc; font-size: 12.5px; padding: 2px 4px; width: 150px; }
+        #btn-save { 
+            background: transparent; 
+            color: var(--v-red); 
+            border: 2px solid var(--v-red); 
+            padding: 16px; 
+            width: 100%; 
+            margin-top: 35px; 
+            cursor: pointer; 
+            font-weight: bold; 
+        }
+        
+        .skill-specs { 
+            margin-left: 38px; 
+            margin-top: 4px; 
+            display: none; 
+            flex-direction: column; 
+            gap: 4px; 
+        }
+        .skill-spec-line { 
+            display: flex; 
+            align-items: center; 
+            gap: 6px; 
+        }
+        .skill-spec-line input { 
+            background: transparent; 
+            border: none; 
+            border-bottom: 1px solid #555; 
+            color: #ccc; 
+            font-size: 12.5px; 
+            padding: 2px 4px; 
+            width: 150px; 
+        }
   
         .clan-icon {
             width: 36px;
@@ -78,8 +150,7 @@
             object-fit: contain;
             filter: drop-shadow(0 0 6px rgba(255, 49, 49, 0.8));
             border-radius: 4px;
-}
-  
+        }
   
   
   </style>
@@ -976,51 +1047,66 @@ function addSpecLine(skillName) {
     container.style.display = 'flex';
 }
 
-// ==================== ПРЕЛОАД ПОДСКАЗОК (TOOLTIPS) ====================
-
+// ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
 async function preloadAllAttributes() {
     const attrs = Object.keys(RULES.attributes || {});
+    
     for (let attr of attrs) {
         const data = RULES.attributes[attr];
         if (!data) continue;
 
-        const fullText = `${attr}\n\n${data.description || 'Описание отсутствует'}`;
+        // Название характеристики
         document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
-            el.setAttribute('data-tooltip', fullText);
+            el.setAttribute('data-tooltip', 
+                `${attr}\n\n${data.description || 'Описание отсутствует'}`
+            );
         });
 
+        // Точки
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
+                const text = `${attr}   ●   ${level}\n\n${dotDesc}`;
                 document.querySelectorAll(`label[data-name="${attr}"][data-level="${level}"]`)
-                    .forEach(label => label.setAttribute('data-tooltip', `${attr} — ${level} точек\n\n${dotDesc}`));
+                    .forEach(label => {
+                        label.setAttribute('data-tooltip', text);
+                    });
             }
         }
     }
 }
 
+// ==================== ПОДСКАЗКИ ДЛЯ НАВЫКОВ ====================
 async function preloadAllSkills() {
     const skills = Object.keys(RULES.skills || {});
+    
     for (let skill of skills) {
         const data = RULES.skills[skill];
         if (!data) continue;
 
+        // Название навыка
         let fullText = `${skill}\n\n${data.description || 'Описание отсутствует'}`;
-        if (data.specialties && data.specialties.length) fullText += `\n\nСпециализации: ${data.specialties.join(', ')}`;
-        
+        if (data.specialties && data.specialties.length) {
+            fullText += `\n\nСпециализации: ${data.specialties.join(', ')}`;
+        }
         document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
             el.setAttribute('data-tooltip', fullText);
         });
 
+        // Точки
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
+                const text = `${skill}  ●    ${level} \n${dotDesc}`;
                 document.querySelectorAll(`label[data-name="${skill}"][data-level="${level}"]`)
-                    .forEach(label => label.setAttribute('data-tooltip', `${skill} — ${level} точек\n\n${dotDesc}`));
+                    .forEach(label => {
+                        label.setAttribute('data-tooltip', text);
+                    });
             }
         }
     }
 }
+
 
 // ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
 
@@ -1375,9 +1461,56 @@ if (predatorSelect) {
     });
 }
 
+// ==================== ДИНАМИЧЕСКИЕ ПОДСКАЗКИ ====================
+let tooltip = null;
 
+function createTooltip() {
+    if (tooltip) return tooltip;
+    
+    tooltip = document.createElement('div');
+    tooltip.style.cssText = `
+        position: fixed;
+        background: #111111;
+        color: #e0e0e0;
+        padding: 16px 20px;
+        border: 2px solid #ff3131;
+        border-radius: 8px;
+        font-size: 14px;
+        line-height: 1.55;
+        max-width: 420px;
+        z-index: 10000;
+        pointer-events: none;
+        box-shadow: 0 0 30px rgba(255, 49, 49, 0.5);
+        display: none;
+        white-space: pre-line;
+    `;
+    document.body.appendChild(tooltip);
+    return tooltip;
+}
+
+document.addEventListener('mouseover', function(e) {
+    const target = e.target;
+    let text = target.getAttribute('data-tooltip') || target.getAttribute('title');
+    
+    if (text) {
+        const tt = createTooltip();
+        tt.textContent = text;
+        tt.style.display = 'block';
+        
+        // Позиционирование
+        const rect = target.getBoundingClientRect();
+        tt.style.left = (rect.left + window.scrollX + rect.width/2 - tt.offsetWidth/2) + 'px';
+        tt.style.top = (rect.top + window.scrollY - tt.offsetHeight - 15) + 'px';
+    }
+});
+
+document.addEventListener('mouseout', function() {
+    if (tooltip) tooltip.style.display = 'none';
+});
 
 }
+
+
 
 
 
