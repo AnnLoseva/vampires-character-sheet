@@ -36,28 +36,27 @@
         .dots input:checked ~ label { background: var(--v-red); border-color: var(--v-red); box-shadow: 0 0 10px var(--v-red); }
         
         /* Большое красивое окно-подсказка */
-.tooltip-trigger:hover::after,
-.dot-label:hover::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    bottom: 150%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #111111;
-    color: #e0e0e0;
-    padding: 16px 20px;
-    border: 2px solid #ff3131;
-    border-radius: 8px;
-    font-size: 14px;
-    white-space: pre-line;
-    z-index: 10000;
-    pointer-events: none;
-    box-shadow: 0 0 30px rgba(255, 49, 49, 0.4);
-    max-width: 420px;
-    text-align: left;
-    line-height: 1.55;
-    min-width: 320px;
-}
+            .tooltip-trigger:hover::after,
+            .dot-label:hover::after {
+                content: attr(data-tooltip) !important;
+                position: absolute !important;
+                bottom: 160% !important;
+                left: 50% !important;
+                transform: translateX(-50%) !important;
+                background: #111111 !important;
+                color: #e0e0e0 !important;
+                padding: 16px 20px !important;
+                border: 2px solid #ff3131 !important;
+                border-radius: 8px !important;
+                font-size: 14px !important;
+                white-space: pre-line !important;
+                z-index: 10000 !important;
+                pointer-events: none !important;
+                box-shadow: 0 0 30px rgba(255, 49, 49, 0.5) !important;
+                max-width: 420px !important;
+                text-align: left !important;
+                line-height: 1.55 !important;
+            }
 
 
                         
@@ -979,62 +978,45 @@ function addSpecLine(skillName) {
 
 // ==================== ПРЕЛОАД ПОДСКАЗОК (TOOLTIPS) ====================
 
-// ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
 async function preloadAllAttributes() {
     const attrs = Object.keys(RULES.attributes || {});
-    
     for (let attr of attrs) {
         const data = RULES.attributes[attr];
         if (!data) continue;
 
-        // Название + полное описание
         const fullText = `${attr}\n\n${data.description || 'Описание отсутствует'}`;
         document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
             el.setAttribute('data-tooltip', fullText);
         });
 
-        // Точки — описание уровня
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
                 document.querySelectorAll(`label[data-name="${attr}"][data-level="${level}"]`)
-                    .forEach(label => {
-                        label.setAttribute('data-tooltip', 
-                            `${attr} — ${level} точек\n\n${dotDesc}`
-                        );
-                    });
+                    .forEach(label => label.setAttribute('data-tooltip', `${attr} — ${level} точек\n\n${dotDesc}`));
             }
         }
     }
 }
 
-// ==================== ПОДСКАЗКИ ДЛЯ НАВЫКОВ ====================
 async function preloadAllSkills() {
     const skills = Object.keys(RULES.skills || {});
-    
     for (let skill of skills) {
         const data = RULES.skills[skill];
         if (!data) continue;
 
-        // Название + полное описание
         let fullText = `${skill}\n\n${data.description || 'Описание отсутствует'}`;
-        if (data.specialties && data.specialties.length) {
-            fullText += `\n\nСпециализации: ${data.specialties.join(', ')}`;
-        }
+        if (data.specialties && data.specialties.length) fullText += `\n\nСпециализации: ${data.specialties.join(', ')}`;
+        
         document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
             el.setAttribute('data-tooltip', fullText);
         });
 
-        // Точки
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
                 document.querySelectorAll(`label[data-name="${skill}"][data-level="${level}"]`)
-                    .forEach(label => {
-                        label.setAttribute('data-tooltip', 
-                            `${skill} — ${level} точек\n\n${dotDesc}`
-                        );
-                    });
+                    .forEach(label => label.setAttribute('data-tooltip', `${skill} — ${level} точек\n\n${dotDesc}`));
             }
         }
     }
