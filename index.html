@@ -39,30 +39,40 @@
                         /* Подсказки */
                 .tooltip-trigger:hover::after,
                 /* Надёжные подсказки для точек */
-                        .dot-label {
-                            position: relative;
-                        }
+                        /* Подсказки */
+.tooltip-trigger {
+    position: relative;
+    cursor: help;
+}
 
-                        .dot-label:hover::after {
-                            content: attr(data-tooltip);
-                            position: absolute;
-                            bottom: 140%;
-                            left: 50%;
-                            transform: translateX(-50%);
-                            background: #1a1a1a;
-                            color: #fff;
-                            padding: 10px 14px;
-                            border: 2px solid #ff3131;
-                            border-radius: 6px;
-                            font-size: 13.5px;
-                            white-space: pre-line;
-                            z-index: 10000;
-                            pointer-events: none;
-                            box-shadow: 0 4px 25px rgba(255, 49, 49, 0.6);
-                            min-width: 300px;
-                            text-align: left;
-                            line-height: 1.45;
-                        }
+.tooltip-trigger:hover::after,
+.dot-label:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 140%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #1a1a1a;
+    color: white;
+    padding: 10px 14px;
+    border: 2px solid #ff3131;
+    border-radius: 6px;
+    font-size: 13.5px;
+    white-space: pre-line;
+    z-index: 10000;
+    pointer-events: none;
+    box-shadow: 0 4px 25px rgba(255,49,49,0.6);
+    min-width: 300px;
+    text-align: left;
+    line-height: 1.5;
+    max-width: 420px;
+}
+
+/* Специально для названий — чуть выше, чтобы не перекрывалось */
+.attr-name:hover::after,
+.skill-name:hover::after {
+    bottom: 160%;   /* поднимаем выше */
+}
                         
         .vitals { display: flex; justify-content: space-around; margin-top: 45px; padding: 25px; background: #080808; border: 1px solid #333; }
         .vital-item { text-align: center; }
@@ -990,22 +1000,22 @@ async function preloadAllAttributes() {
         const data = RULES.attributes[attr];
         if (!data) continue;
 
-        // Название — общее описание
+        // Название характеристики
         document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
-            el.setAttribute('data-tooltip', 
-                `${attr}\n\n${data.description || 'Описание отсутствует'}`
-            );
+            const text = `${attr}\n\n${data.description || 'Описание отсутствует'}`;
+            el.setAttribute('data-tooltip', text);
+            el.setAttribute('title', text);        // запасной вариант
         });
 
-        // Точки — описание уровня
+        // Точки
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
                 document.querySelectorAll(`label[data-name="${attr}"][data-level="${level}"]`)
                     .forEach(label => {
-                        label.setAttribute('data-tooltip', 
-                            `${attr} — ${level} точек\n\n${dotDesc}`
-                        );
+                        const text = `${attr} — ${level} точек\n\n${dotDesc}`;
+                        label.setAttribute('data-tooltip', text);
+                        label.setAttribute('title', text);
                     });
             }
         }
@@ -1020,24 +1030,25 @@ async function preloadAllSkills() {
         const data = RULES.skills[skill];
         if (!data) continue;
 
-        // Название — общее описание
+        // Название навыка
         document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
-            let tooltip = `${skill}\n\n${data.description || 'Описание отсутствует'}`;
+            let text = `${skill}\n\n${data.description || 'Описание отсутствует'}`;
             if (data.specialties && data.specialties.length) {
-                tooltip += `\n\nСпециализации: ${data.specialties.join(', ')}`;
+                text += `\n\nСпециализации: ${data.specialties.join(', ')}`;
             }
-            el.setAttribute('data-tooltip', tooltip);
+            el.setAttribute('data-tooltip', text);
+            el.setAttribute('title', text);
         });
 
-        // Точки — описание уровня
+        // Точки
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
                 document.querySelectorAll(`label[data-name="${skill}"][data-level="${level}"]`)
                     .forEach(label => {
-                        label.setAttribute('data-tooltip', 
-                            `${skill} — ${level} точек\n\n${dotDesc}`
-                        );
+                        const text = `${skill} — ${level} точек\n\n${dotDesc}`;
+                        label.setAttribute('data-tooltip', text);
+                        label.setAttribute('title', text);
                     });
             }
         }
