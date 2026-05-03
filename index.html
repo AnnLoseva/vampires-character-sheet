@@ -338,7 +338,7 @@ function initSheet() {
 
 function populateSelects() {
     const clanSelect = document.getElementById('clan-input');
-    clanSelect.innerHTML = '<option value="">Выберите клан</option>';
+    clanSelect.innerHTML = '<option value="">Выберите клан</option>'
     Object.keys(RULES.clans || {}).forEach(name => {
         const opt = document.createElement('option');
         opt.value = name;
@@ -1445,8 +1445,31 @@ async function preloadAllSkills() {
     }
 }
 
+// ==================== ПОДСКАЗКИ ДЛЯ ХАРАКТЕРИСТИК ====================
+async function preloadAllAttributes() {
+    const attributes = ["Сила", "Ловкость", "Выносливость", "Обаяние", "Манипуляция", "Самообладание", "Интеллект", "Смекалка", "Упорство"];
+    
+    for (let attr of attributes) {
+        // Можно добавить описания из rules.json, если они есть
+        const data = RULES.attributes?.[attr] || { description: "Характеристика персонажа." };
+        
+        let fullText = `${attr}\n\n${data.description || 'Нет описания.'}`;
+        
+        // Подсказки на названиях
+        document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
+            el.setAttribute('data-tooltip', fullText);
+        });
 
-// ==================== ОБРАБОТЧИКИ СОБЫТИЙ ====================
+        // Подсказки на точках
+        for (let level = 1; level <= 5; level++) {
+            const dotDesc = data[`dot${level}`] || `Уровень ${level}`;
+            document.querySelectorAll(`label[data-name="${attr}"][data-level="${level}"]`)
+                .forEach(label => {
+                    label.setAttribute('data-tooltip', `${attr} ● ${level}\n${dotDesc}`);
+                });
+        }
+    }
+}
 
 // ==================== ЗАПУСК ====================
 window.onload = async function() {
@@ -1572,22 +1595,28 @@ if (predatorSelect) {
         }
     });
 }
+
+
+// ==================== ОБРАБОТЧИК ВЫБОРА КЛАНА ====================
 const clanSelect = document.getElementById('clan-input');
 if (clanSelect) {
     clanSelect.addEventListener('change', function() {
-        if (this.value === "") {
+        if (this.value === "" || this.value === null) {
+            // Всегда открываем галерею при пустом значении
             openClanGallery();
         } else {
             loadClanHint();
             updateClanIcon();
             
-            // ← НОВОЕ: открываем выбор дисциплин
+            // Открываем выбор дисциплин клана
             setTimeout(() => {
                 openClanDisciplineModal(this.value);
-            }, 100); // небольшая задержка, чтобы успела открыться подсказка
+            }, 150);
         }
     });
 }
+
+
 
 
 // ==================== ДИНАМИЧЕСКИЕ ПОДСКАЗКИ ====================
