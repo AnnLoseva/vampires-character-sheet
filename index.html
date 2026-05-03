@@ -35,7 +35,7 @@
         }
         .dots input:checked ~ label { background: var(--v-red); border-color: var(--v-red); box-shadow: 0 0 10px var(--v-red); }
         
-  /* Большое красивое окно-подсказка */
+        /* Большое красивое окно-подсказка */
 .tooltip-trigger:hover::after,
 .dot-label:hover::after {
     content: attr(data-tooltip);
@@ -59,11 +59,6 @@
     min-width: 320px;
 }
 
-/* Дополнительно для лучшего позиционирования */
-.attr-name:hover::after,
-.skill-name:hover::after {
-    bottom: 160%;
-}
 
                         
         .vitals { display: flex; justify-content: space-around; margin-top: 45px; padding: 25px; background: #080808; border: 1px solid #333; }
@@ -984,7 +979,6 @@ function addSpecLine(skillName) {
 
 // ==================== ПРЕЛОАД ПОДСКАЗОК (TOOLTIPS) ====================
 
-// ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
 // ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
 async function preloadAllAttributes() {
     const attrs = Object.keys(RULES.attributes || {});
