@@ -1454,10 +1454,13 @@ document.getElementById('btn-save').addEventListener('click', function() {
 
 // ==================== ОБРАБОТЧИКИ ====================
 function setupEventListeners() {
-  document.getElementById('skill-package').addEventListener('change', (e) => {
-    currentPackage = e.target.value;
-    updateTrackers();
-});
+    const skillPackage = document.getElementById('skill-package');
+    if (skillPackage) {
+        skillPackage.addEventListener('change', (e) => {
+            currentPackage = e.target.value;
+            updateTrackers();
+        });
+    }
 
   
 
@@ -1579,6 +1582,27 @@ window.nextClan = function() {
             if (skillName) updateSBadgeState(skillName);
         });
     }, 300);
+
+// ==================== ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ТОЧЕК ====================
+
+// Главный обработчик для всех точек (атрибуты + навыки)
+document.addEventListener('change', function(e) {
+    if (e.target.classList.contains('dot-input')) {
+        updateTrackers();
+    }
+});
+
+// Обновление при загрузке и после выбора пакета
+document.getElementById('skill-package').addEventListener('change', () => {
+    currentPackage = document.getElementById('skill-package').value;
+    updateTrackers();
+});
+
+// Принудительное обновление после рендера
+setTimeout(() => {
+    updateTrackers();
+}, 500);
+
 
 }
 
