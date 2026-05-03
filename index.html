@@ -333,6 +333,8 @@ let currentClanData = [];
 let currentPredatorData = [];
 let currentClanIndex = 0;
 let currentPredatorIndex = 0;
+let currentClanDisciplines = [];     // какие дисциплины дал клан
+let currentPredatorDisciplines = []; // какие дисциплины дал стиль охоты
 
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
 async function loadRules() {
@@ -607,11 +609,11 @@ function closePredDiscModal() {
 
 
 // ==================== ДОБАВЛЕНИЕ ДИСЦИПЛИНЫ ====================
-function addDiscipline(name = '', source = 'Вручную', addedDots = 0) {
+function addDiscipline(name = '', source = 'Вручную', dots = 0) {
     const list = document.getElementById('disciplines-list');
     if (!list) return;
 
-    // Поиск существующей дисциплины
+    // Ищем существующую дисциплину
     let existingItem = null;
     document.querySelectorAll('.discipline-item').forEach(item => {
         const title = item.querySelector('div:first-child');
@@ -621,78 +623,54 @@ function addDiscipline(name = '', source = 'Вручную', addedDots = 0) {
     });
 
     if (existingItem) {
-        const currentRadios = existingItem.querySelectorAll('input[type="radio"]');
-        let currentLevel = 0;
-        currentRadios.forEach(r => {
-            if (r.checked) currentLevel = parseInt(r.value);
+        // Если уже есть — просто увеличиваем количество точек (суммируем)
+        const radios = existingItem.querySelectorAll('input[type="radio"]');
+        let currentDots = 0;
+        radios.forEach(r => { if (r.checked) currentDots = parseInt(r.value); });
+
+        const newDots = Math.min(5, currentDots + dots); // не больше 5
+
+        radios.forEach(r => {
+            r.checked = (parseInt(r.value) === newDots);
         });
 
-        // Если нажали на ту же точку — сбрасываем в 0
-        let newLevel = (currentLevel === addedDots) ? 0 : addedDots;
-
-        // Применяем
-        currentRadios.forEach(r => {
-            r.checked = (parseInt(r.value) === newLevel);
-        });
-
-        const dots = existingItem.querySelectorAll('.disc-dot');
-        dots.forEach(dot => {
-            const level = parseInt(dot.getAttribute('data-level'));
-            if (level <= newLevel && level > 0) {
-                dot.classList.add('filled');
-            } else {
-                dot.classList.remove('filled');
-            }
+        const visualDots = existingItem.querySelectorAll('.disc-dot');
+        visualDots.forEach(dot => {
+            dot.classList.toggle('filled', parseInt(dot.dataset.level) <= newDots);
         });
 
         updateDisciplineTotal();
         return;
     }
 
-    // Создаём новую
+    // Создаём новую дисциплину
     const unique = 'disc-' + Date.now() + Math.random().toString(36).substr(2, 6);
 
     const item = document.createElement('div');
     item.className = 'discipline-item';
     item.innerHTML = `
         <div>${name}</div>
-        
         <div class="dots-discipline">
             ${[1,2,3,4,5].map(level => `
                 <label style="cursor:pointer;">
-                    <input type="radio" name="${unique}" value="${level}" ${level === addedDots ? 'checked' : ''} style="display:none;">
+                    <input type="radio" name="${unique}" value="${level}" 
+                           ${level <= dots ? 'checked' : ''} style="display:none;">
                     <span class="disc-dot" data-level="${level}"></span>
                 </label>
             `).join('')}
         </div>
-
         <small>${source}</small>
-        
         <button onclick="this.parentElement.remove(); updateDisciplineTotal()" 
                 style="background:#222; color:#ff6666; border:none; width:26px; height:26px; border-radius:50%; cursor:pointer;font-size:18px;line-height:1;">×</button>
     `;
 
     list.appendChild(item);
 
-    const inputs = item.querySelectorAll('input[type="radio"]');
-    const dots = item.querySelectorAll('.disc-dot');
-
-    function updateVisual(selected) {
-        dots.forEach(dot => {
-            const level = parseInt(dot.getAttribute('data-level'));
-            if (level <= selected && level > 0) {
-                dot.classList.add('filled');
-            } else {
-                dot.classList.remove('filled');
-            }
-        });
-    }
-
-    inputs.forEach(input => {
-        input.addEventListener('change', () => updateVisual(parseInt(input.value)));
+    // Заполняем точки визуально
+    item.querySelectorAll('.disc-dot').forEach(dot => {
+        if (parseInt(dot.dataset.level) <= dots) dot.classList.add('filled');
     });
 
-    if (addedDots > 0) updateVisual(addedDots);
     updateDisciplineTotal();
 }
 
@@ -1622,36 +1600,62 @@ function setupEventListeners() {
         });
     }
 
+    // ==================== КЛАН ====================
+const clanSelect = document.getElementById('clan-input');
+if (clanSelect) {
+    clanSelect.addEventListener('change', function() {
+        // Удаляем только дисциплины предыдущего клана
+        currentClanDisciplines.forEach(discName => {
+            document.querySelectorAll('.discipline-item').forEach(item => {
+                const title = item.querySelector('div:first-child');
+                if (title && title.textContent.trim() === discName) item.remove();
+            });
+        });
+
+        if (!this.value) {
+            openClanGallery();
+            currentClanDisciplines = [];
+        } else {
+            loadClanHint();
+            updateClanIcon();
+            const clanData = RULES.clans?.[this.value];
+            currentClanDisciplines = clanData?.disciplines || [];
+            
+            // Добавляем дисциплины клана
+            if (clanData) {
+                // Обычно 2 + 1
+                setTimeout(() => openClanDisciplineModal(this.value), 150);
+            }
+        }
+        updateDisciplineTotal();
+    });
+}
+
 // ==================== СТИЛЬ ОХОТЫ ====================
 const predatorSelect = document.getElementById('predator-input');
 if (predatorSelect) {
     predatorSelect.addEventListener('change', function() {
         loadPredatorHint();
 
-        if (!this.value || this.value === "") {
-            // Открываем галерею при пустом значении
-            openPredatorGallery();
-        } else {
-            // Если выбрали конкретный стиль — сразу открываем выбор дисциплины
-            setTimeout(() => {
-                openPredatorDisciplineModal(this.value);
-            }, 150);
-        }
-    });
-}
-
-    // ==================== КЛАН ====================
-    const clanSelect = document.getElementById('clan-input');
-    if (clanSelect) {
-        clanSelect.addEventListener('change', function() {
-            if (!this.value || this.value === "") {
-                openClanGallery();
-            } else {
-                loadClanHint();
-                updateClanIcon();
-                setTimeout(() => openClanDisciplineModal(this.value), 150);
-            }
+        // Удаляем только дисциплины предыдущего стиля охоты
+        currentPredatorDisciplines.forEach(discName => {
+            document.querySelectorAll('.discipline-item').forEach(item => {
+                const title = item.querySelector('div:first-child');
+                if (title && title.textContent.trim() === discName) item.remove();
+            });
         });
+
+        if (!this.value) {
+            openPredatorGallery();
+            currentPredatorDisciplines = [];
+        } else {
+            const predData = RULES.predator_types?.[this.value];
+            currentPredatorDisciplines = predData?.disciplines || [];
+            setTimeout(() => openPredatorDisciplineModal(this.value), 150);
+        }
+        updateDisciplineTotal();
+    });
+
     }
 }
 
