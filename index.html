@@ -35,6 +35,14 @@
             flex-shrink: 0; 
             align-items: center; 
         }
+
+        .s-badge.inactive {
+    color: #444 !important;
+    border-color: #444 !important;
+    cursor: not-allowed !important;
+    opacity: 0.6;
+    pointer-events: none !important;
+}
         .dots input { display: none; }
         .dots label {
             width: 16px; 
@@ -161,18 +169,22 @@
 <div class="guide">
     <div id="attr-tracker"></div>
     <hr style="border:0; border-top:1px solid #333; margin: 15px 0;">
+    
     <p style="font-size: 12px;">Набор навыков:</p>
-    <select id="skill-package" onchange="updateTrackers()" style="width: 100%; background: #000; color: white; border: 1px solid #444; padding: 5px; margin-bottom: 10px;">
+    <select id="skill-package" onchange="updateTrackers()" 
+            style="width: 100%; background: #000; color: white; border: 1px solid #444; padding: 5px; margin-bottom: 10px;">
+        <option value="" selected disabled>— Выберите способ развития —</option>
         <option value="specialist">Специалист</option>
-        <option value="balanced" selected>Сбалансированный</option>
+        <option value="balanced">Сбалансированный</option>
         <option value="versatile">Универсал</option>
     </select>
+    
     <div id="skill-tracker"></div>
+    
     <hr style="border:0; border-top:1px solid #333; margin: 15px 0;">
     <div id="spec-tracker">Специализации (S): 0 / 1</div>
     <p id="global-warning" style="color:#ffae00; display:none;">Внимание! Проверьте лимиты.</p>
 </div>
-
 <!-- Основной лист -->
 <div class="sheet" id="capture-area" style="position: relative; margin-right: 420px;">
     
@@ -314,7 +326,7 @@ function renderAttributes() {
 
     Object.keys(categories).forEach(cat => {
         const col = document.createElement('div');
-        col.className = 'col';
+        col.className = 'col';  
         col.innerHTML = `<div class="cat-name">${cat}</div>`;
 
         categories[cat].forEach(name => {
@@ -374,6 +386,14 @@ function renderSkills() {
 
         container.appendChild(col);
     });
+
+    // Инициализация состояния S-бейджей после рендера
+    setTimeout(() => {
+        document.querySelectorAll('.skill-name').forEach(el => {
+            const skillName = el.getAttribute('data-skill') || el.textContent.trim();
+            if (skillName) updateSBadgeState(skillName);
+        });
+    }, 150);
 }
 // ==================== ИКОНКИ КЛАНОВ ====================
 
@@ -995,7 +1015,18 @@ const SKILL_PACKAGES = {
 let counts = { attr: {4:0, 3:0, 2:0, 1:0}, skill: {4:0, 3:0, 2:0, 1:0} };
 
 // Основная функция обновления трекеров
+// Основная функция обновления трекеров
 function updateTrackers() {
+    const packageSelect = document.getElementById('skill-package');
+    
+    // Если способ развития ещё не выбран
+    if (!packageSelect.value) {
+        document.getElementById('skill-tracker').innerHTML = 
+            '<span style="color:#888; font-style:italic;">Выберите способ развития выше</span>';
+        document.getElementById('spec-tracker').textContent = 'Специализации (S): 0 / 1';
+        return;
+    }
+
     counts = { 
         attr: {5:0, 4:0, 3:0, 2:0, 1:0}, 
         skill: {5:0, 4:0, 3:0, 2:0, 1:0} 
@@ -1016,7 +1047,7 @@ function updateTrackers() {
     document.getElementById('val-wp').textContent = composure + resolve;
 
     renderTracker('attr', ATTR_LIMITS, 'attr-tracker');
-    renderTracker('skill', SKILL_PACKAGES[currentPackage], 'skill-tracker');
+    renderTracker('skill', SKILL_PACKAGES[packageSelect.value], 'skill-tracker');
 
     let specCount = document.querySelectorAll('.spec-checkbox:checked').length;
     document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / 1`;
@@ -1073,30 +1104,33 @@ function checkLimits() {
 
 // ==================== СПЕЦИАЛЬНОСТИ ====================
 
-// Обработчик клика по S-бейджу
+// ==================== СПЕЦИАЛЬНОСТИ ====================
+
+// Клик по S-бейджу
 document.addEventListener('click', function(e) {
     if (e.target.classList.contains('s-badge')) {
-        const checkbox = e.target.previousElementSibling; // input type=checkbox
-        if (!checkbox) return;
+        const checkbox = e.target.previousElementSibling;
+        if (!checkbox || checkbox.disabled) return;
 
-        const skillName = checkbox.value || checkbox.id.replace('s-', '');
+        const skillName = checkbox.id.replace('s-', '');
+        const skillDots = parseInt(document.querySelector(`input[name="${skillName}"]:checked`)?.value || 0);
+
+        if (skillDots === 0) return;
+
         const container = document.getElementById('specs-' + skillName);
-        
         if (!container) return;
 
         const isVisible = container.style.display !== 'none';
-        
-        // Переключаем видимость
         container.style.display = isVisible ? 'none' : 'flex';
 
-        // Если открываем впервые — добавляем пустую строку
         if (!isVisible && container.children.length === 0) {
             addSpecLine(skillName);
         }
+
+        updateSpecCount();
     }
 });
 
-// Добавление новой строки специальности
 function addSpecLine(skillName) {
     const container = document.getElementById('specs-' + skillName);
     if (!container) return;
@@ -1105,24 +1139,45 @@ function addSpecLine(skillName) {
     line.className = 'skill-spec-line';
     line.innerHTML = `
         <input type="text" placeholder="Название специальности" style="flex:1;">
-        <button title="Добавить ещё одну" style="background:#222;color:#ffaa00;">+</button>
+        <button title="Добавить ещё" style="background:#222;color:#ffae00;">+</button>
         <button title="Удалить" style="background:#222;color:#ff6666;">×</button>
     `;
 
-    // Кнопка "Добавить ещё"
     line.querySelector('button').addEventListener('click', () => addSpecLine(skillName));
-
-    // Кнопка "Удалить"
     line.querySelectorAll('button')[1].addEventListener('click', () => {
         line.remove();
-        if (container.children.length === 0) {
-            container.style.display = 'none';
-        }
+        updateSpecCount();
+        if (container.children.length === 0) container.style.display = 'none';
     });
 
     container.appendChild(line);
-    container.style.display = 'flex';
+    updateSpecCount();
 }
+
+function updateSBadgeState(skillName) {
+    const badge = document.querySelector(`label[for="s-${skillName}"]`);
+    const checkbox = document.getElementById(`s-${skillName}`);
+    if (!badge || !checkbox) return;
+
+    const dotsInput = document.querySelector(`input[name="${skillName}"]:checked`);
+    const dots = dotsInput ? parseInt(dotsInput.value) : 0;
+
+    if (dots === 0) {
+        badge.classList.add('inactive');
+        checkbox.disabled = true;
+        checkbox.checked = false;
+    } else {
+        badge.classList.remove('inactive');
+        checkbox.disabled = false;
+    }
+}
+
+function updateSpecCount() {
+    let totalSpecs = document.querySelectorAll('.skill-spec-line').length;
+    document.getElementById('spec-tracker').textContent = `Специализации (S): ${totalSpecs} / 1`;
+    checkLimits();
+}
+
 
 // ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
 async function preloadAllAttributes() {
@@ -1194,90 +1249,6 @@ window.onload = async function() {
 };
 
 // Настройка всех обработчиков событий
-function setupEventListeners() {
-    // Изменение пакета навыков
-    const packageSelect = document.getElementById('skill-package');
-    if (packageSelect) {
-        packageSelect.addEventListener('change', (e) => {
-            currentPackage = e.target.value;
-            updateTrackers();
-        });
-    }
-
- // Обработчик выбора клана
-const clanSelect = document.getElementById('clan-input');
-if (clanSelect) {
-    clanSelect.addEventListener('change', function() {
-        if (this.value === "") {
-            openClanGallery();        // Открываем галерею
-        } else {
-            loadClanHint();
-            updateClanIcon();
-        }
-    });
-}
-
-    // Изменение стиля охоты
-    const predatorSelect = document.getElementById('predator-input');
-    if (predatorSelect) {
-        predatorSelect.addEventListener('change', () => {
-            if (predatorSelect.value === "") {
-                openPredatorGallery();
-            } else {
-                loadPredatorHint();
-            }
-        });
-    }
-
-    // Изменение точек и специализаций
-    document.addEventListener('change', (e) => {
-        if (e.target.classList.contains('dot-input') || 
-            e.target.classList.contains('spec-checkbox')) {
-            updateTrackers();
-        }
-    });
-
-    // Сброс точки при повторном клике (клик по уже выбранной)
-    document.addEventListener('click', function(e) {
-        if (e.target.tagName === 'LABEL' && e.target.classList.contains('dot-label')) {
-            const inputId = e.target.getAttribute('for');
-            const input = document.getElementById(inputId);
-            if (!input) return;
-
-            if (input.checked) {
-                e.preventDefault();
-                const name = input.name;
-
-                // Сбрасываем все точки этого атрибута/навыка
-                document.querySelectorAll(`input[name="${name}"]`).forEach(inp => {
-                    inp.checked = false;
-                });
-
-                // Ставим 0
-                const zeroInput = document.querySelector(`input[name="${name}"][value="0"]`);
-                if (zeroInput) zeroInput.checked = true;
-
-                updateTrackers();
-            }
-        }
-    });
-
-    // Клик по S-бейджу (специальности)
-    document.addEventListener('click', function(e) {
-        if (e.target.classList.contains('s-badge')) {
-            const skillName = e.target.getAttribute('for').replace('s-', '');
-            const container = document.getElementById('specs-' + skillName);
-            if (!container) return;
-
-            const isVisible = container.style.display !== 'none';
-            container.style.display = isVisible ? 'none' : 'flex';
-
-            if (!isVisible && container.children.length === 0) {
-                addSpecLine(skillName);
-            }
-        }
-    });
-}
 
 
 // ==================== СОХРАНЕНИЕ В JPG ====================
@@ -1363,10 +1334,10 @@ document.getElementById('btn-save').addEventListener('click', function() {
 
 // ==================== ОБРАБОТЧИКИ ====================
 function setupEventListeners() {
-    document.getElementById('skill-package').addEventListener('change', (e) => {
-        currentPackage = e.target.value;
-        updateTrackers();
-    });
+  document.getElementById('skill-package').addEventListener('change', (e) => {
+    currentPackage = e.target.value;
+    updateTrackers();
+});
 
   
 
@@ -1376,11 +1347,6 @@ function setupEventListeners() {
         loadPredatorHint();
     });
 
-    document.addEventListener('change', (e) => {
-        if (e.target.classList.contains('dot-input') || e.target.classList.contains('spec-checkbox')) {
-            updateTrackers();
-        }
-    });
 
 
 
@@ -1470,6 +1436,24 @@ window.nextClan = function() {
     showSingleClan(currentClanData[currentClanIndex]);
 };
 
+    // Обновление S-бейджей при изменении точек
+    document.querySelectorAll('.dot-input[data-type="skill"]').forEach(input => {
+        input.addEventListener('change', function() {
+            const skillName = this.getAttribute('name');
+            if (skillName) {
+                updateSBadgeState(skillName);
+            }
+            updateTrackers();
+        });
+    });
+
+    // Инициализация S-бейджей после полной загрузки
+    setTimeout(() => {
+        document.querySelectorAll('.skill-name').forEach(el => {
+            const skillName = el.getAttribute('data-skill') || el.textContent.trim();
+            if (skillName) updateSBadgeState(skillName);
+        });
+    }, 300);
 
 }
 
