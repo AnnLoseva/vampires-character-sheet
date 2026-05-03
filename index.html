@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>VTM V5 Digital Sheet v1.0.5</title>
+    <title>VTM V5 Digital Sheet v1.0.8</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
@@ -469,18 +469,20 @@ function openClanGallery() {
     gallery.innerHTML = '';
 
     currentClanData = [
-        { name: "Бруха", image: "/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты. Страстные воины." },
-        { name: "Вентру", image: "/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
-        { name: "Гангрел", image: "/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
-        { name: "Малкавиан", image: "/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
-        { name: "Носферату", image: "/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
-        { name: "Тореадор", image: "/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
-        { name: "Тремер", image: "/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
-        { name: "Каитиф", image: "/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
-        { name: "Слабокровные", image: "/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
+        { name: "Бруха", image: "static/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты." },
+        { name: "Вентру", image: "static/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
+        { name: "Гангрел", image: "static/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
+        { name: "Малкавиан", image: "static/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
+        { name: "Носферату", image: "static/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
+        { name: "Тореадор", image: "static/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
+        { name: "Тремер", image: "static/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
+        { name: "Каитиф", image: "static/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
+        { name: "Слабокровные", image: "static/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
     ];
 
-    currentClanData.forEach(c => {
+    currentClanIndex = 0;
+
+    currentClanData.forEach((c, index) => {
         const div = document.createElement('div');
         div.style.cursor = 'pointer';
         div.innerHTML = `
@@ -488,67 +490,101 @@ function openClanGallery() {
             <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${c.name}</h3>
             <p style="color:#ddd; font-size:14px; padding:0 10px;">${c.desc}</p>
         `;
-        div.onclick = () => showSingleClan(c);
+        div.onclick = () => {
+            currentClanIndex = index;
+            showSingleClan(c);
+        };
         gallery.appendChild(div);
     });
 
     modal.style.display = 'block';
 }
 
-function showSingleClan(clan) {
+async function showSingleClan(clan) {
     const gallery = document.getElementById('clan-gallery');
-    gallery.innerHTML = `
-        <div style="text-align:center; padding:20px;">
-            <img src="${clan.image}" style="max-width:90%; max-height:70vh; border:4px solid #ff3131; border-radius:12px;">
-            <h2 style="color:#ff3131; margin:20px 0;">${clan.name}</h2>
-            <button onclick="selectThisClan('${clan.name}')" style="background:#ff3131;color:black;padding:12px 30px;border:none;border-radius:4px;cursor:pointer;">Выбрать этот клан</button>
-            <button onclick="openClanGallery()" style="margin-left:10px;background:transparent;color:#ff3131;border:2px solid #ff3131;padding:12px 30px;border-radius:4px;cursor:pointer;">Назад к списку</button>
+    const data = RULES.clans?.[clan.name] || {};
+
+    let html = `
+        <div style="text-align:center; padding:20px; max-width:1100px; margin:0 auto; position:relative;">
+            
+            <!-- Блок с изображением и стрелками -->
+            <div style="position:relative; display:inline-block;">
+                
+                <button onclick="prevClan()" 
+                        style="position:absolute; left: -50px; top: 50%; transform: translateY(-50%); 
+                               background: rgba(0,0,0,0.85); color: #ff3131; border: 2px solid #ff3131; 
+                               width: 70px; height: 70px; border-radius: 50%; font-size: 32px; 
+                               cursor: pointer; z-index: 25; box-shadow: 0 0 25px rgba(255,49,49,0.6);">
+                    ←
+                </button>
+
+                <button onclick="nextClan()" 
+                        style="position:absolute; right: -50px; top: 50%; transform: translateY(-50%); 
+                               background: rgba(0,0,0,0.85); color: #ff3131; border: 2px solid #ff3131; 
+                               width: 70px; height: 70px; border-radius: 50%; font-size: 32px; 
+                               cursor: pointer; z-index: 25; box-shadow: 0 0 25px rgba(255,49,49,0.6);">
+                    →
+                </button>
+
+                <img src="${clan.image}" style="max-width:100%; max-height:65vh; border:4px solid #ff3131; border-radius:12px; box-shadow:0 0 40px rgba(255,49,49,0.6);">
+            </div>
+
+            <h2 style="color:#ff3131; margin:25px 0 15px;">${clan.name}</h2>
+
+            <div style="background:#1a1a1a; border:1px solid #ff3131; border-radius:8px; padding:25px; text-align:left; font-size:15px; line-height:1.7;">
+    `;
+
+    if (data.description) html += `<p style="color:#ddd;">${data.description}</p>`;
+
+    if (data.types) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Типичные представители:</strong><br>
+                 <span style="color:#ccc;">${data.types}</span>`;
+    }
+
+    if (data.disciplines && data.disciplines.length) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Дисциплины:</strong><br>`;
+        data.disciplines.forEach(d => {
+            const desc = data.discipline_description?.[d] || '';
+            html += `• <strong>${d}</strong> — ${desc}<br>`;
+        });
+    }
+
+    if (data.bane) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ff6666;">Проклятие:</strong> 
+                 <span style="color:#ff9999;">${data.bane}</span>`;
+    }
+
+    if (data.playstyle) html += `<hr style="border-color:#333;margin:20px 0;"><strong style="color:#ffae00;">Стиль игры:</strong><br>${data.playstyle}`;
+    if (data.conflict) html += `<hr style="border-color:#333;margin:20px 0;"><strong style="color:#ffae00;">Внутренний конфликт:</strong><br>${data.conflict}`;
+
+    if (data.archetypes && data.archetypes.length) {
+        html += `<hr style="border-color:#333;margin:20px 0;">
+                 <strong style="color:#ffae00;">Архетипы:</strong><br>`;
+        data.archetypes.forEach(a => html += `• ${a}<br>`);
+    }
+
+    html += `
+            </div>
+
+            <div style="margin-top:25px;">
+                <button onclick="selectThisClan('${clan.name}')" 
+                        style="background:#ff3131; color:black; border:none; padding:16px 40px; font-size:18px; border-radius:6px; cursor:pointer; margin:0 10px;">
+                    Выбрать этот клан
+                </button>
+                <button onclick="openClanGallery()" 
+                        style="background:transparent; color:#ff3131; border:2px solid #ff3131; padding:16px 40px; font-size:18px; border-radius:6px; cursor:pointer;">
+                    ← Назад к списку
+                </button>
+            </div>
         </div>
     `;
+
+    gallery.innerHTML = html;
 }
 
-function selectThisClan(name) {
-    document.getElementById('clan-input').value = name;
-    closeClanModal();
-    loadClanHint();
-    updateClanIcon();
-}
-
-function closeClanModal() {
-    document.getElementById('clan-modal').style.display = 'none';
-}
-
-function closeClanModal() {
-    document.getElementById('clan-modal').style.display = 'none';
-}
-// Предыдущий клан
-function prevClan() {
-    currentClanIndex = (currentClanIndex - 1 + currentClanData.length) % currentClanData.length;
-    showSingleClan(currentClanData[currentClanIndex]);
-}
-
-// Следующий клан
-function nextClan() {
-    currentClanIndex = (currentClanIndex + 1) % currentClanData.length;
-    showSingleClan(currentClanData[currentClanIndex]);
-}
-
-
-
-   
-
-// Выбор клана из галереи
-function selectThisClan(name) {
-    document.getElementById('clan-input').value = name;
-    closeClanModal();
-    loadClanHint();
-    updateClanIcon();
-}
-
-// Закрытие модального окна кланов
-function closeClanModal() {
-    document.getElementById('clan-modal').style.display = 'none';
-}
 
 
 
@@ -609,10 +645,27 @@ async function showSinglePredator(pred) {
     let html = `
         <div style="text-align:center; padding:20px; max-width:1100px; margin:0 auto; position:relative;">
             
-            <button onclick="prevPredator()" style="position:absolute;left:30px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.8);color:#ff3131;border:none;width:60px;height:60px;border-radius:50%;font-size:28px;cursor:pointer;z-index:10;">←</button>
-            <button onclick="nextPredator()" style="position:absolute;right:30px;top:50%;transform:translateY(-50%);background:rgba(0,0,0,0.8);color:#ff3131;border:none;width:60px;height:60px;border-radius:50%;font-size:28px;cursor:pointer;z-index:10;">→</button>
+            <!-- Блок с изображением и стрелками -->
+            <div style="position:relative; display:inline-block;">
+                
+                <button onclick="prevPredator()" 
+                        style="position:absolute; left: -50px; top: 50%; transform: translateY(-50%); 
+                               background: rgba(0,0,0,0.85); color: #ff3131; border: 2px solid #ff3131; 
+                               width: 70px; height: 70px; border-radius: 50%; font-size: 32px; 
+                               cursor: pointer; z-index: 25; box-shadow: 0 0 25px rgba(255,49,49,0.6);">
+                    ←
+                </button>
 
-            <img src="${pred.image}" style="max-width:95%; max-height:65vh; border:4px solid #ff3131; border-radius:12px; box-shadow:0 0 40px rgba(255,49,49,0.6);">
+                <button onclick="nextPredator()" 
+                        style="position:absolute; right: -50px; top: 50%; transform: translateY(-50%); 
+                               background: rgba(0,0,0,0.85); color: #ff3131; border: 2px solid #ff3131; 
+                               width: 70px; height: 70px; border-radius: 50%; font-size: 32px; 
+                               cursor: pointer; z-index: 25; box-shadow: 0 0 25px rgba(255,49,49,0.6);">
+                    →
+                </button>
+
+                <img src="${pred.image}" style="max-width:100%; max-height:65vh; border:4px solid #ff3131; border-radius:12px; box-shadow:0 0 40px rgba(255,49,49,0.6);">
+            </div>
 
             <h2 style="color:#ff3131; margin:25px 0 15px;">${pred.name}</h2>
 
@@ -1127,14 +1180,18 @@ function setupEventListeners() {
         });
     }
 
-    // Изменение клана
-    const clanSelect = document.getElementById('clan-input');
-    if (clanSelect) {
-        clanSelect.addEventListener('change', () => {
+ // Обработчик выбора клана
+const clanSelect = document.getElementById('clan-input');
+if (clanSelect) {
+    clanSelect.addEventListener('change', function() {
+        if (this.value === "") {
+            openClanGallery();        // Открываем галерею
+        } else {
             loadClanHint();
             updateClanIcon();
-        });
-    }
+        }
+    });
+}
 
     // Изменение стиля охоты
     const predatorSelect = document.getElementById('predator-input');
@@ -1287,10 +1344,9 @@ function setupEventListeners() {
         updateTrackers();
     });
 
-    document.getElementById('clan-input').addEventListener('change', () => {
-        loadClanHint();
-        updateClanIcon();
-    });
+  
+
+    
 
     document.getElementById('predator-input').addEventListener('change', () => {
         loadPredatorHint();
@@ -1303,150 +1359,6 @@ function setupEventListeners() {
     });
 
 
-// ==================== ГАЛЕРЕЯ КЛАНОВ (полная версия) ====================
-let currentClanData = [];
-let currentClanIndex = 0;
-
-function openClanGallery() {
-    const modal = document.getElementById('clan-modal');
-    const gallery = document.getElementById('clan-gallery');
-    if (!modal || !gallery) return;
-
-    gallery.innerHTML = '';
-
-    currentClanData = [
-        { name: "Бруха", image: "static/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты." },
-        { name: "Вентру", image: "static/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
-        { name: "Гангрел", image: "static/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
-        { name: "Малкавиан", image: "static/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
-        { name: "Носферату", image: "static/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
-        { name: "Тореадор", image: "static/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
-        { name: "Тремер", image: "static/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
-        { name: "Каитиф", image: "static/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
-        { name: "Слабокровные", image: "static/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
-    ];
-
-    currentClanData.forEach(c => {
-        const div = document.createElement('div');
-        div.style.cursor = 'pointer';
-        div.innerHTML = `
-            <img src="${c.image}" style="width:100%; max-height:60vh; object-fit:contain; border-radius:8px; border:2px solid #550000;">
-            <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${c.name}</h3>
-            <p style="color:#ddd; font-size:14px; padding:0 10px;">${c.desc}</p>
-        `;
-        div.onclick = () => showSingleClan(c);
-        gallery.appendChild(div);
-    });
-
-    modal.style.display = 'block';
-}
-
-function prevClan() {
-    currentClanIndex = (currentClanIndex - 1 + currentClanData.length) % currentClanData.length;
-    showSingleClan(currentClanData[currentClanIndex]);
-}
-
-function nextClan() {
-    currentClanIndex = (currentClanIndex + 1) % currentClanData.length;
-    showSingleClan(currentClanData[currentClanIndex]);
-}
-
-async function showSingleClan(clan) {
-    const gallery = document.getElementById('clan-gallery');
-    const data = RULES.clans?.[clan.name] || {};
-
-    let html = `
-        <div style="text-align:center; padding:20px; max-width:1100px; margin:0 auto; position:relative;">
-            
-            <!-- Стрелки навигации -->
-            <button onclick="prevClan()" style="position:absolute; left:30px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.8); color:#ff3131; border:none; width:60px; height:60px; border-radius:50%; font-size:28px; cursor:pointer; z-index:10;">←</button>
-            <button onclick="nextClan()" style="position:absolute; right:30px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.8); color:#ff3131; border:none; width:60px; height:60px; border-radius:50%; font-size:28px; cursor:pointer; z-index:10;">→</button>
-
-            <img src="${clan.image}" style="max-width:95%; max-height:65vh; border:4px solid #ff3131; border-radius:12px; box-shadow:0 0 40px rgba(255,49,49,0.6);">
-
-            <h2 style="color:#ff3131; margin:25px 0 15px;">${clan.name}</h2>
-
-            <div style="background:#1a1a1a; border:1px solid #ff3131; border-radius:8px; padding:25px; text-align:left; font-size:15px; line-height:1.7;">
-    `;
-
-    // Основное описание
-    if (data.description) {
-        html += `<p style="color:#ddd;">${data.description}</p>`;
-    }
-
-    // Типы
-    if (data.types) {
-        html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Типичные представители:</strong><br>
-                 <span style="color:#ccc;">${data.types}</span>`;
-    }
-
-    // Дисциплины
-    if (data.disciplines && data.disciplines.length) {
-        html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Дисциплины:</strong><br>`;
-        data.disciplines.forEach(d => {
-            const desc = data.discipline_description?.[d] || '';
-            html += `• <strong>${d}</strong> — ${desc}<br>`;
-        });
-    }
-
-    // Изъян
-    if (data.bane) {
-        html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ff6666;">Проклятие:</strong> 
-                 <span style="color:#ff9999;">${data.bane}</span>`;
-    }
-
-    // Стиль игры
-    if (data.playstyle) {
-        html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Стиль игры:</strong><br>
-                 ${data.playstyle}`;
-    }
-
-    // Конфликт
-    if (data.conflict) {
-        html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Внутренний конфликт:</strong><br>
-                 ${data.conflict}`;
-    }
-
-    // Архетипы
-    if (data.archetypes && data.archetypes.length) {
-        html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Архетипы:</strong><br>`;
-        data.archetypes.forEach(a => html += `• ${a}<br>`);
-    }
-
-    html += `
-            </div>
-
-            <div style="margin-top:25px;">
-                <button onclick="selectThisClan('${clan.name}')" 
-                        style="background:#ff3131; color:black; border:none; padding:16px 40px; font-size:18px; border-radius:6px; cursor:pointer; margin:0 10px;">
-                    Выбрать этот клан
-                </button>
-                <button onclick="openClanGallery()" 
-                        style="background:transparent; color:#ff3131; border:2px solid #ff3131; padding:16px 40px; font-size:18px; border-radius:6px; cursor:pointer;">
-                    ← Назад к списку
-                </button>
-            </div>
-        </div>
-    `;
-
-    gallery.innerHTML = html;
-}
-
-// ==================== ОБРАБОТЧИК ВЫБОРА КЛАНА ====================
-document.getElementById('clan-input').addEventListener('change', function() {
-    if (this.value === "") {
-        openClanGallery();        // ← Галерея при пустом выборе
-    } else {
-        loadClanHint();
-        updateClanIcon();
-    }
-});
 
 
 // ==================== ОБРАБОТЧИК ВЫБОРА СТИЛЯ ОХОТЫ ====================
@@ -1460,6 +1372,18 @@ if (predatorSelect) {
         }
     });
 }
+const clanSelect = document.getElementById('clan-input');
+if (clanSelect) {
+    clanSelect.addEventListener('change', function() {
+        if (this.value === "") {
+            openClanGallery();        // Открываем галерею при пустом выборе
+        } else {
+            loadClanHint();
+            updateClanIcon();
+        }
+    });
+}
+
 
 // ==================== ДИНАМИЧЕСКИЕ ПОДСКАЗКИ ====================
 let tooltip = null;
@@ -1507,6 +1431,21 @@ document.addEventListener('mouseover', function(e) {
 document.addEventListener('mouseout', function() {
     if (tooltip) tooltip.style.display = 'none';
 });
+
+
+// ==================== ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ СТРЕЛОК ====================
+window.prevClan = function() {
+    if (!currentClanData || currentClanData.length === 0) return;
+    currentClanIndex = (currentClanIndex - 1 + currentClanData.length) % currentClanData.length;
+    showSingleClan(currentClanData[currentClanIndex]);
+};
+
+window.nextClan = function() {
+    if (!currentClanData || currentClanData.length === 0) return;
+    currentClanIndex = (currentClanIndex + 1) % currentClanData.length;
+    showSingleClan(currentClanData[currentClanIndex]);
+};
+
 
 }
 
