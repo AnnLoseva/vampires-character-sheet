@@ -508,13 +508,11 @@ function closeClanDiscModal() {
 }
 
 // ==================== ДИСЦИПЛИНЫ ОТ ТИПА ОХОТЫ ====================
-let predatorDiscipline = {}; // например { "Potence": 1 }
+let predatorDiscipline = {};
 
 function openPredatorDisciplineModal(predatorName) {
     const predData = RULES.predator_types?.[predatorName];
     if (!predData || !predData.disciplines || predData.disciplines.length === 0) return;
-
-    const options = predData.disciplines;
 
     const modalHTML = `
     <div id="pred-disc-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:20000;display:flex;align-items:center;justify-content:center;">
@@ -523,13 +521,13 @@ function openPredatorDisciplineModal(predatorName) {
             <p style="text-align:center;color:#ccc;margin-bottom:30px;">Выбери одну дисциплину (+1 точка)</p>
             
             <select id="pred-disc-select" style="width:100%;padding:14px;background:#000;color:white;border:1px solid #555;font-size:17px;margin-bottom:30px;">
-                ${options.map(d => `<option value="${d}">${d}</option>`).join('')}
+                ${predData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
             </select>
             
             <div style="text-align:center;">
                 <button onclick="confirmPredatorDiscipline()" 
                         style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;margin-right:15px;">
-                    ✅ Добавить
+                    Добавить
                 </button>
                 <button onclick="closePredDiscModal()" 
                         style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;">
@@ -547,25 +545,27 @@ window.confirmPredatorDiscipline = function() {
     const disc = document.getElementById('pred-disc-select').value;
     if (!disc) return;
 
-    // Суммируем с клановой дисциплиной
-    const existing = (clanStartingDisciplines[disc] || 0) + (predatorDiscipline[disc] || 0);
+    // Суммируем с дисциплиной от клана
+    const currentFromClan = clanStartingDisciplines[disc] || 0;
     predatorDiscipline[disc] = 1;
 
-    addDiscipline(disc, 'Охота', existing + 1);
+    addDiscipline(disc, 'Охота', currentFromClan + 1);
 
     closePredDiscModal();
 };
 
-window.closePredDiscModal = function() {
+
+function closePredDiscModal() {
     document.getElementById('pred-disc-modal')?.remove();
-};
+}
+
 
 // ==================== ДОБАВЛЕНИЕ ДИСЦИПЛИНЫ ====================
-function addDiscipline(name = '', source = 'Вручную', prefilledDots = 0) {
+function addDiscipline(name = '', source = 'Вручную', addedDots = 0) {
     const list = document.getElementById('disciplines-list');
     if (!list) return;
 
-    // Проверяем, есть ли уже такая дисциплина
+    // Ищем уже существующую дисциплину
     let existingItem = null;
     document.querySelectorAll('.discipline-item').forEach(item => {
         const title = item.querySelector('div:first-child');
@@ -576,20 +576,24 @@ function addDiscipline(name = '', source = 'Вручную', prefilledDots = 0) 
 
     if (existingItem) {
         // Суммируем точки
-        const currentDots = parseInt(existingItem.querySelector('input[type="radio"]:checked')?.value || 0);
-        const newTotal = Math.min(5, currentDots + prefilledDots); // не больше 5
+        const currentRadios = existingItem.querySelectorAll('input[type="radio"]');
+        let currentLevel = 0;
+        currentRadios.forEach(r => {
+            if (r.checked) currentLevel = parseInt(r.value);
+        });
 
-        // Обновляем выбранную точку
-        const radios = existingItem.querySelectorAll('input[type="radio"]');
-        radios.forEach(r => {
-            if (parseInt(r.value) === newTotal) r.checked = true;
+        const newLevel = Math.min(5, currentLevel + addedDots);
+
+        // Обновляем выбор
+        currentRadios.forEach(r => {
+            r.checked = (parseInt(r.value) === newLevel);
         });
 
         // Обновляем визуал
         const dots = existingItem.querySelectorAll('.disc-dot');
         dots.forEach(dot => {
             const level = parseInt(dot.getAttribute('data-level'));
-            if (level <= newTotal) dot.classList.add('filled');
+            if (level <= newLevel) dot.classList.add('filled');
             else dot.classList.remove('filled');
         });
 
@@ -597,7 +601,7 @@ function addDiscipline(name = '', source = 'Вручную', prefilledDots = 0) 
         return;
     }
 
-    // Если дисциплины ещё нет — создаём новую
+    // Создаём новую дисциплину
     const unique = 'disc-' + Date.now() + Math.random().toString(36).substr(2, 6);
 
     const item = document.createElement('div');
@@ -608,7 +612,7 @@ function addDiscipline(name = '', source = 'Вручную', prefilledDots = 0) 
         <div class="dots-discipline">
             ${[1,2,3,4,5].map(level => `
                 <label style="cursor:pointer;">
-                    <input type="radio" name="${unique}" value="${level}" ${level === prefilledDots ? 'checked' : ''} style="display:none;">
+                    <input type="radio" name="${unique}" value="${level}" ${level === addedDots ? 'checked' : ''} style="display:none;">
                     <span class="disc-dot" data-level="${level}"></span>
                 </label>
             `).join('')}
@@ -637,7 +641,7 @@ function addDiscipline(name = '', source = 'Вручную', prefilledDots = 0) 
         input.addEventListener('change', () => updateVisual(parseInt(input.value)));
     });
 
-    if (prefilledDots > 0) updateVisual(prefilledDots);
+    if (addedDots > 0) updateVisual(addedDots);
     updateDisciplineTotal();
 }
 
