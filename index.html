@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>VTM V5 Digital Sheet v1.0.11</title>
+    <title>VTM V5 Digital Sheet v1.0.12</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
@@ -337,14 +337,28 @@ function initSheet() {
 }
 
 function populateSelects() {
+    // === КЛАНЫ ===
     const clanSelect = document.getElementById('clan-input');
-    clanSelect.innerHTML = '<option value="">Выберите клан</option>'
+    clanSelect.innerHTML = '<option value="">Выберите клан</option>';
+    
     Object.keys(RULES.clans || {}).forEach(name => {
         const opt = document.createElement('option');
         opt.value = name;
         opt.textContent = name;
         clanSelect.appendChild(opt);
     });
+
+    // === СТИЛИ ОХОТЫ ===
+    const predSelect = document.getElementById('predator-input');
+    predSelect.innerHTML = '<option value="">Стиль Охоты</option>';
+    
+    Object.keys(RULES.predator_types || {}).forEach(name => {
+        const opt = document.createElement('option');
+        opt.value = name;
+        opt.textContent = name;
+        predSelect.appendChild(opt);
+    });
+}
 
     const predSelect = document.getElementById('predator-input');
     predSelect.innerHTML = '<option value="">Стиль Охоты</option>';
@@ -354,7 +368,7 @@ function populateSelects() {
         opt.textContent = name;
         predSelect.appendChild(opt);
     });
-}
+
 
 function renderAttributes() {
     const container = document.getElementById('attributes-grid');
@@ -374,11 +388,11 @@ function renderAttributes() {
 
         categories[cat].forEach(name => {
             let dotsHTML = '';
-            for (let i = 5; i >= 1; i--) {
-                dotsHTML += `
-                    <input type="radio" id="a-${name}-${i}" name="${name}" value="${i}" class="dot-input" data-type="attr" style="display:none;">
-                    <label for="a-${name}-${i}" class="dot-label" data-level="${i}" data-name="${name}"></label>`;
-            }
+           for (let i = 0; i <= 5; i++) {   // от 0 до 5
+    dotsHTML += `
+        <input type="radio" id="a-${name}-${i}" name="${name}" value="${i}" class="dot-input" data-type="attr" style="display:none;">
+        <label for="a-${name}-${i}" class="dot-label" data-level="${i}" data-name="${name}"></label>`;
+}
 
             col.innerHTML += `
                 <div class="row">
@@ -565,7 +579,7 @@ function addDiscipline(name = '', source = 'Вручную', addedDots = 0) {
     const list = document.getElementById('disciplines-list');
     if (!list) return;
 
-    // Ищем уже существующую дисциплину
+    // Поиск существующей дисциплины
     let existingItem = null;
     document.querySelectorAll('.discipline-item').forEach(item => {
         const title = item.querySelector('div:first-child');
@@ -575,33 +589,35 @@ function addDiscipline(name = '', source = 'Вручную', addedDots = 0) {
     });
 
     if (existingItem) {
-        // Суммируем точки
         const currentRadios = existingItem.querySelectorAll('input[type="radio"]');
         let currentLevel = 0;
         currentRadios.forEach(r => {
             if (r.checked) currentLevel = parseInt(r.value);
         });
 
-        const newLevel = Math.min(5, currentLevel + addedDots);
+        // Если нажали на ту же точку — сбрасываем в 0
+        let newLevel = (currentLevel === addedDots) ? 0 : addedDots;
 
-        // Обновляем выбор
+        // Применяем
         currentRadios.forEach(r => {
             r.checked = (parseInt(r.value) === newLevel);
         });
 
-        // Обновляем визуал
         const dots = existingItem.querySelectorAll('.disc-dot');
         dots.forEach(dot => {
             const level = parseInt(dot.getAttribute('data-level'));
-            if (level <= newLevel) dot.classList.add('filled');
-            else dot.classList.remove('filled');
+            if (level <= newLevel && level > 0) {
+                dot.classList.add('filled');
+            } else {
+                dot.classList.remove('filled');
+            }
         });
 
         updateDisciplineTotal();
         return;
     }
 
-    // Создаём новую дисциплину
+    // Создаём новую
     const unique = 'disc-' + Date.now() + Math.random().toString(36).substr(2, 6);
 
     const item = document.createElement('div');
@@ -632,8 +648,11 @@ function addDiscipline(name = '', source = 'Вручную', addedDots = 0) {
     function updateVisual(selected) {
         dots.forEach(dot => {
             const level = parseInt(dot.getAttribute('data-level'));
-            if (level <= selected) dot.classList.add('filled');
-            else dot.classList.remove('filled');
+            if (level <= selected && level > 0) {
+                dot.classList.add('filled');
+            } else {
+                dot.classList.remove('filled');
+            }
         });
     }
 
@@ -644,7 +663,6 @@ function addDiscipline(name = '', source = 'Вручную', addedDots = 0) {
     if (addedDots > 0) updateVisual(addedDots);
     updateDisciplineTotal();
 }
-
 
 // ==================== ИКОНКИ КЛАНОВ ====================
 
@@ -1563,6 +1581,7 @@ document.getElementById('btn-save').addEventListener('click', function() {
 
 // ==================== ОБРАБОТЧИКИ ====================
 function setupEventListeners() {
+    // Пакет навыков
     const skillPackage = document.getElementById('skill-package');
     if (skillPackage) {
         skillPackage.addEventListener('change', (e) => {
@@ -1571,15 +1590,31 @@ function setupEventListeners() {
         });
     }
 
-  
+    // Стиль Охоты
+    const predatorSelect = document.getElementById('predator-input');
+    if (predatorSelect) {
+        predatorSelect.addEventListener('change', function() {
+            loadPredatorHint();
+            if (this.value !== "") {
+                setTimeout(() => openPredatorDisciplineModal(this.value), 100);
+            }
+        });
+    }
 
-    
-
-    document.getElementById('predator-input').addEventListener('change', () => {
-        loadPredatorHint();
-    });
-
-
+    // ==================== КЛАН ====================
+    const clanSelect = document.getElementById('clan-input');
+    if (clanSelect) {
+        clanSelect.addEventListener('change', function() {
+            if (!this.value || this.value === "") {
+                openClanGallery();           // ← Галерея при пустом выборе
+            } else {
+                loadClanHint();
+                updateClanIcon();
+                setTimeout(() => openClanDisciplineModal(this.value), 150);
+            }
+        });
+    }
+}
 
 
 
@@ -1699,28 +1734,85 @@ window.nextClan = function() {
         });
     }, 300);
 
-// ==================== ОБРАБОТЧИКИ ИЗМЕНЕНИЯ ТОЧЕК ====================
+//<!-- ==================== ОБРАБОТЧИКИ ТОЧЕК ==================== -->
 
-// Главный обработчик для всех точек (атрибуты + навыки)
+// Главный обработчик кликов по точкам + сброс специальностей
+document.addEventListener('click', function(e) {
+    const label = e.target.closest('label.dot-label');
+    if (!label) return;
+
+    const inputId = label.getAttribute('for');
+    const input = document.getElementById(inputId);
+    if (!input) return;
+
+    const name = input.name;
+    const clickedValue = parseInt(input.value);
+    const currentChecked = document.querySelector(`input[name="${name}"]:checked`);
+    const currentValue = currentChecked ? parseInt(currentChecked.value) : 0;
+
+    // === СБРОС В 0 ===
+    if (clickedValue === currentValue && currentValue > 0) {
+        // Снимаем все радио
+        document.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
+            radio.checked = false;
+        });
+
+        // Активируем 0
+        const zeroRadio = document.querySelector(`input[name="${name}"][value="0"]`);
+        if (zeroRadio) zeroRadio.checked = true;
+
+        e.preventDefault();
+
+        // === УДАЛЕНИЕ СПЕЦИАЛЬНОСТЕЙ ===
+        if (input.dataset.type === 'skill') {
+            const specContainer = document.getElementById('specs-' + name);
+            if (specContainer) {
+                specContainer.innerHTML = '';           // удаляем все строки
+                specContainer.style.display = 'none';
+            }
+
+            const checkbox = document.getElementById('s-' + name);
+            if (checkbox) {
+                checkbox.checked = false;
+            }
+
+            updateSBadgeState(name);
+            updateSpecUI(name);
+        }
+
+        updateTrackers();
+        return;
+    }
+
+    // Обычное повышение уровня
+});
+
+// Дополнительный обработчик change (на случай других изменений)
 document.addEventListener('change', function(e) {
     if (e.target.classList.contains('dot-input')) {
+        const name = e.target.name;
         updateTrackers();
+
+        if (e.target.dataset.type === 'skill') {
+            // Если уровень стал 0 — чистим специальности
+            const level = parseInt(e.target.value);
+            if (level === 0) {
+                const specContainer = document.getElementById('specs-' + name);
+                if (specContainer) {
+                    specContainer.innerHTML = '';
+                    specContainer.style.display = 'none';
+                }
+                const cb = document.getElementById('s-' + name);
+                if (cb) cb.checked = false;
+            }
+            updateSBadgeState(name);
+            updateSpecUI(name);
+        }
     }
 });
 
-// Обновление при загрузке и после выбора пакета
-document.getElementById('skill-package').addEventListener('change', () => {
-    currentPackage = document.getElementById('skill-package').value;
-    updateTrackers();
-});
-
-// Принудительное обновление после рендера
-setTimeout(() => {
-    updateTrackers();
-}, 500);
 
 
-}
 
 
 
