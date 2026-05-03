@@ -388,11 +388,21 @@ function renderAttributes() {
 
         categories[cat].forEach(name => {
             let dotsHTML = '';
-           for (let i = 0; i <= 5; i++) {   // от 0 до 5
-    dotsHTML += `
-        <input type="radio" id="a-${name}-${i}" name="${name}" value="${i}" class="dot-input" data-type="attr" style="display:none;">
-        <label for="a-${name}-${i}" class="dot-label" data-level="${i}" data-name="${name}"></label>`;
-}
+            
+            // Только точки 1–5 (как у навыков)
+            for (let i = 5; i >= 1; i--) {
+                dotsHTML += `
+                    <input type="radio" id="a-${name}-${i}" name="${name}" 
+                           value="${i}" class="dot-input" data-type="attr" 
+                           style="display:none;">
+                    <label for="a-${name}-${i}" class="dot-label" 
+                           data-level="${i}" data-name="${name}"></label>`;
+            }
+
+            // Скрытое радио для сброса в 0
+            dotsHTML += `
+                <input type="radio" id="a-${name}-0" name="${name}" value="0" 
+                       class="dot-input" data-type="attr" style="display:none;" checked>`;
 
             col.innerHTML += `
                 <div class="row">
@@ -1736,7 +1746,9 @@ window.nextClan = function() {
 
 //<!-- ==================== ОБРАБОТЧИКИ ТОЧЕК ==================== -->
 
-// Главный обработчик кликов по точкам + сброс специальностей
+// ==================== ОБРАБОТЧИКИ ТОЧЕК (атрибуты + навыки) ====================
+
+// Главный обработчик кликов по точкам + сброс в 0
 document.addEventListener('click', function(e) {
     const label = e.target.closest('label.dot-label');
     if (!label) return;
@@ -1752,7 +1764,6 @@ document.addEventListener('click', function(e) {
 
     // === СБРОС В 0 ===
     if (clickedValue === currentValue && currentValue > 0) {
-        // Снимаем все радио
         document.querySelectorAll(`input[name="${name}"]`).forEach(radio => {
             radio.checked = false;
         });
@@ -1763,18 +1774,16 @@ document.addEventListener('click', function(e) {
 
         e.preventDefault();
 
-        // === УДАЛЕНИЕ СПЕЦИАЛЬНОСТЕЙ ===
+        // Для навыков — удаляем специальности
         if (input.dataset.type === 'skill') {
             const specContainer = document.getElementById('specs-' + name);
             if (specContainer) {
-                specContainer.innerHTML = '';           // удаляем все строки
+                specContainer.innerHTML = '';
                 specContainer.style.display = 'none';
             }
 
             const checkbox = document.getElementById('s-' + name);
-            if (checkbox) {
-                checkbox.checked = false;
-            }
+            if (checkbox) checkbox.checked = false;
 
             updateSBadgeState(name);
             updateSpecUI(name);
@@ -1783,19 +1792,16 @@ document.addEventListener('click', function(e) {
         updateTrackers();
         return;
     }
-
-    // Обычное повышение уровня
 });
 
-// Дополнительный обработчик change (на случай других изменений)
+// Дополнительный обработчик change
 document.addEventListener('change', function(e) {
     if (e.target.classList.contains('dot-input')) {
         const name = e.target.name;
         updateTrackers();
 
         if (e.target.dataset.type === 'skill') {
-            // Если уровень стал 0 — чистим специальности
-            const level = parseInt(e.target.value);
+            const level = parseInt(e.target.value || 0);
             if (level === 0) {
                 const specContainer = document.getElementById('specs-' + name);
                 if (specContainer) {
