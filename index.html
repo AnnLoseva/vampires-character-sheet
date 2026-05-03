@@ -277,7 +277,6 @@ async function loadRules() {
         initSheet();
     } catch (e) {
         console.error("❌ Ошибка загрузки rules.json", e);
-        alert("Положи rules.json в папку с index.html");
     }
 }
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
@@ -1100,34 +1099,33 @@ function checkLimits() {
         warning.style.display = 'none';
     }
 }
-
-
-// ==================== СПЕЦИАЛЬНОСТИ ====================
-
 // ==================== СПЕЦИАЛЬНОСТИ ====================
 
 // Клик по S-бейджу
 document.addEventListener('click', function(e) {
-    if (e.target.classList.contains('s-badge')) {
-        const checkbox = e.target.previousElementSibling;
-        if (!checkbox || checkbox.disabled) return;
+    if (!e.target.classList.contains('s-badge')) return;
 
-        const skillName = checkbox.id.replace('s-', '');
-        const skillDots = parseInt(document.querySelector(`input[name="${skillName}"]:checked`)?.value || 0);
+    const checkbox = e.target.previousElementSibling;
+    if (!checkbox || checkbox.disabled) return;
 
-        if (skillDots === 0) return;
+    const skillName = checkbox.id.replace('s-', '');
+    const dots = parseInt(document.querySelector(`input[name="${skillName}"]:checked`)?.value || 0);
+    if (dots === 0) return;
 
-        const container = document.getElementById('specs-' + skillName);
-        if (!container) return;
+    const container = document.getElementById('specs-' + skillName);
+    if (!container) return;
 
-        const isVisible = container.style.display !== 'none';
-        container.style.display = isVisible ? 'none' : 'flex';
-
-        if (!isVisible && container.children.length === 0) {
+    if (container.style.display !== 'flex') {
+        // Открываем + добавляем первую строку
+        container.style.display = 'flex';
+        if (container.children.length === 0) {
             addSpecLine(skillName);
         }
-
-        updateSpecCount();
+    } else {
+        // Второе нажатие — удаляем все строки
+        container.innerHTML = '';
+        container.style.display = 'none';
+        updateSpecUI(skillName);
     }
 });
 
@@ -1144,14 +1142,40 @@ function addSpecLine(skillName) {
     `;
 
     line.querySelector('button').addEventListener('click', () => addSpecLine(skillName));
+
     line.querySelectorAll('button')[1].addEventListener('click', () => {
         line.remove();
-        updateSpecCount();
-        if (container.children.length === 0) container.style.display = 'none';
+        updateSpecUI(skillName);
     });
 
     container.appendChild(line);
-    updateSpecCount();
+    
+    // Принудительное обновление
+    setTimeout(() => {
+        updateSpecUI(skillName);
+    }, 5);
+}
+
+function updateSpecUI(skillName = null) {
+    if (skillName) {
+        const container = document.getElementById('specs-' + skillName);
+        const checkbox = document.getElementById('s-' + skillName);
+        
+        if (container && checkbox) {
+            const hasLines = container.children.length > 0;
+            checkbox.checked = hasLines;   // ← главное
+            
+            if (!hasLines) {
+                container.style.display = 'none';
+            }
+        }
+    }
+
+    // Общий счётчик
+    const total = document.querySelectorAll('.skill-spec-line').length;
+    document.getElementById('spec-tracker').textContent = `Специализации (S): ${total} / 1`;
+    
+    checkLimits();
 }
 
 function updateSBadgeState(skillName) {
@@ -1159,8 +1183,7 @@ function updateSBadgeState(skillName) {
     const checkbox = document.getElementById(`s-${skillName}`);
     if (!badge || !checkbox) return;
 
-    const dotsInput = document.querySelector(`input[name="${skillName}"]:checked`);
-    const dots = dotsInput ? parseInt(dotsInput.value) : 0;
+    const dots = parseInt(document.querySelector(`input[name="${skillName}"]:checked`)?.value || 0);
 
     if (dots === 0) {
         badge.classList.add('inactive');
@@ -1171,43 +1194,6 @@ function updateSBadgeState(skillName) {
         checkbox.disabled = false;
     }
 }
-
-function updateSpecCount() {
-    let totalSpecs = document.querySelectorAll('.skill-spec-line').length;
-    document.getElementById('spec-tracker').textContent = `Специализации (S): ${totalSpecs} / 1`;
-    checkLimits();
-}
-
-
-// ==================== ПОДСКАЗКИ ДЛЯ АТРИБУТОВ ====================
-async function preloadAllAttributes() {
-    const attrs = Object.keys(RULES.attributes || {});
-    
-    for (let attr of attrs) {
-        const data = RULES.attributes[attr];
-        if (!data) continue;
-
-        // Название характеристики
-        document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
-            el.setAttribute('data-tooltip', 
-                `${attr}\n\n${data.description || 'Описание отсутствует'}`
-            );
-        });
-
-        // Точки
-        for (let level = 1; level <= 5; level++) {
-            const dotDesc = data[`dot${level}`];
-            if (dotDesc) {
-                const text = `${attr}   ●   ${level}\n\n${dotDesc}`;
-                document.querySelectorAll(`label[data-name="${attr}"][data-level="${level}"]`)
-                    .forEach(label => {
-                        label.setAttribute('data-tooltip', text);
-                    });
-            }
-        }
-    }
-}
-
 // ==================== ПОДСКАЗКИ ДЛЯ НАВЫКОВ ====================
 async function preloadAllSkills() {
     const skills = Object.keys(RULES.skills || {});
@@ -1436,14 +1422,14 @@ window.nextClan = function() {
     showSingleClan(currentClanData[currentClanIndex]);
 };
 
-    // Обновление S-бейджей при изменении точек
-    document.querySelectorAll('.dot-input[data-type="skill"]').forEach(input => {
-        input.addEventListener('change', function() {
-            const skillName = this.getAttribute('name');
+         // Синхронизация специализаций при изменении точек
+    document.querySelectorAll('.dot-input[data-type="skill"]').forEach(dot => {
+        dot.addEventListener('change', () => {
+            const skillName = dot.getAttribute('name');
             if (skillName) {
                 updateSBadgeState(skillName);
+                updateSpecUI(skillName);
             }
-            updateTrackers();
         });
     });
 
