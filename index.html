@@ -1600,23 +1600,30 @@ function setupEventListeners() {
         });
     }
 
-    // Стиль Охоты
-    const predatorSelect = document.getElementById('predator-input');
-    if (predatorSelect) {
-        predatorSelect.addEventListener('change', function() {
-            loadPredatorHint();
-            if (this.value !== "") {
-                setTimeout(() => openPredatorDisciplineModal(this.value), 100);
-            }
-        });
-    }
+// ==================== СТИЛЬ ОХОТЫ ====================
+const predatorSelect = document.getElementById('predator-input');
+if (predatorSelect) {
+    predatorSelect.addEventListener('change', function() {
+        loadPredatorHint();
+
+        if (!this.value || this.value === "") {
+            // Открываем галерею при пустом значении
+            openPredatorGallery();
+        } else {
+            // Если выбрали конкретный стиль — сразу открываем выбор дисциплины
+            setTimeout(() => {
+                openPredatorDisciplineModal(this.value);
+            }, 150);
+        }
+    });
+}
 
     // ==================== КЛАН ====================
     const clanSelect = document.getElementById('clan-input');
     if (clanSelect) {
         clanSelect.addEventListener('change', function() {
             if (!this.value || this.value === "") {
-                openClanGallery();           // ← Галерея при пустом выборе
+                openClanGallery();
             } else {
                 loadClanHint();
                 updateClanIcon();
