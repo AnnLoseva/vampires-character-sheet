@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>VTM V5 Digital Sheet v1.0.8</title>
+    <title>VTM V5 Digital Sheet v1.0.9</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
@@ -996,14 +996,18 @@ let counts = { attr: {4:0, 3:0, 2:0, 1:0}, skill: {4:0, 3:0, 2:0, 1:0} };
 
 // Основная функция обновления трекеров
 function updateTrackers() {
-    const counts = { attr: {4:0,3:0,2:0,1:0}, skill: {4:0,3:0,2:0,1:0} };
+    counts = { 
+        attr: {5:0, 4:0, 3:0, 2:0, 1:0}, 
+        skill: {5:0, 4:0, 3:0, 2:0, 1:0} 
+    };
 
     document.querySelectorAll('.dot-input:checked').forEach(input => {
         const val = parseInt(input.value);
-        if (val > 0) counts[input.dataset.type][val]++;
+        if (val >= 1 && val <= 5) {
+            counts[input.dataset.type][val]++;
+        }
     });
 
-    // Вторичные
     const stamina = parseInt(document.querySelector('input[name="Выносливость"]:checked')?.value || 1);
     const composure = parseInt(document.querySelector('input[name="Самообладание"]:checked')?.value || 1);
     const resolve = parseInt(document.querySelector('input[name="Упорство"]:checked')?.value || 1);
@@ -1021,12 +1025,19 @@ function updateTrackers() {
 }
 
 function renderTracker(type, limits, trackerId) {
-    let html = `<b>${type === 'attr' ? 'Атрибуты' : 'Навыки'}:</b>`;
-    for (let v of [1,2,3,4,5]) {
+    let html = `<b>${type === 'attr' ? 'Атрибуты' : 'Навыки'}:</b><br>`;
+    
+    for (let v of [1,2,3,4,5]) {   // ← Изменили порядок: от 1 до 5
         const limit = limits[v] !== undefined ? limits[v] : 0;
         const count = counts[type][v] || 0;
-        let status = (count > limit || (v === 5 && count > 0)) ? 'over-limit' : '';
-        html += `<div class="tracker-item ${status}">На ${v}: ${count} / ${limit}</div>`;
+        
+        let color = '';
+        if (v === 5 && count > 0) color = 'color:#ff3131;';           // превышение 5-й
+        else if (count > limit) color = 'color:#ff3131;';             // превышение
+        else if (count < limit) color = 'color:#ffae00;';             // мало (оранжевый)
+        // иначе — белый (ровно)
+
+        html += `<span style="${color}">На ${v}: ${count} / ${limit}</span><br>`;
     }
     document.getElementById(trackerId).innerHTML = html;
 }
@@ -1034,10 +1045,23 @@ function renderTracker(type, limits, trackerId) {
 function checkLimits() {
     const guide = document.querySelector('.guide');
     const warning = document.getElementById('global-warning');
-    const hasOver = document.querySelectorAll('.over-limit').length > 0;
-    const hasFive = counts.attr[5] > 0 || counts.skill[5] > 0;
+    
+    let hasOver = false;
 
-    if (hasOver || hasFive) {
+    // Проверка обычных лимитов
+    Object.keys(counts.attr).forEach(v => {
+        if (counts.attr[v] > ATTR_LIMITS[v]) hasOver = true;
+    });
+    Object.keys(counts.skill).forEach(v => {
+        if (counts.skill[v] > SKILL_PACKAGES[currentPackage][v]) hasOver = true;
+    });
+
+    // Специальное правило: любая 5-я точка = красный
+    if (counts.attr[5] > 0 || counts.skill[5] > 0) {
+        hasOver = true;
+    }
+
+    if (hasOver) {
         guide.classList.add('error');
         warning.style.display = 'block';
     } else {
