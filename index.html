@@ -109,15 +109,59 @@
             font-weight: bold; 
         }
         
-        .discipline-item { 
-            display: flex; 
-            align-items: center; 
-            gap: 15px; 
+        .discipline-item {
+    display: flex;
+    align-items: center;
+    gap: 25px;
+    background: #111;
+    padding: 16px 20px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    border: 1px solid #222;
+    min-height: 58px;
+}
+
+.discipline-item .dots-discipline {
+    display: flex;
+    gap: 9px;           /* увеличил расстояние между точками */
+    align-items: center;
+    flex-shrink: 0;
+    padding: 4px 0;
+}
+
+.discipline-item .disc-dot {
+  width: 16px; 
+            height: 16px; 
+            border-radius: 50%; 
+            border: 2px solid #555; 
             background: #111; 
-            padding: 12px; 
-            border-radius: 6px; 
-            margin-bottom: 8px; 
-        }
+            cursor: pointer; 
+            transition: all 0.2s;
+}
+
+.discipline-item .disc-dot.filled {
+            background: var(--v-red); 
+            border-color: var(--v-red); 
+            box-shadow: 0 0 10px var(--v-red); 
+}
+
+/* Название */
+.discipline-item > div:first-child {
+    flex: 1;
+    font-size: 16.5px;
+    color: #eee;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Источник */
+.discipline-item small {
+    color: #777;
+    font-size: 13.5px;
+    min-width: 65px;
+    text-align: right;
+}
         
         #btn-save { 
             background: transparent; 
@@ -394,7 +438,132 @@ function renderSkills() {
         });
     }, 150);
 }
+
+
+
+// ==================== ДИСЦИПЛИНЫ КЛАНА (2 + 1) ====================
+let clanStartingDisciplines = {};
+
+function openClanDisciplineModal(clanName) {
+    const clanData = RULES.clans?.[clanName];
+    if (!clanData || !clanData.disciplines || clanData.disciplines.length < 2) {
+        alert("Для клана " + clanName + " нет данных по дисциплинам.");
+        return;
+    }
+
+    const modalHTML = `
+    <div id="clan-disc-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:20000;display:flex;align-items:center;justify-content:center;">
+        <div style="background:#111;border:3px solid #ff3131;padding:40px;width:560px;border-radius:10px;max-width:95%;">
+            <h2 style="color:#ff3131;text-align:center;margin:0 0 20px;">${clanName}</h2>
+            <p style="text-align:center;color:#ccc;margin-bottom:30px;">Выбери стартовые дисциплины клана</p>
+            
+            <div style="margin-bottom:25px;">
+                <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на <span style="color:#ff3131">2 точки</span>:</label>
+                <select id="clan-disc-2" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;">
+                    ${clanData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
+                </select>
+            </div>
+            
+            <div style="margin-bottom:35px;">
+                <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на <span style="color:#ff3131">1 точку</span>:</label>
+                <select id="clan-disc-1" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;">
+                    ${clanData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
+                </select>
+            </div>
+            
+            <div style="text-align:center;">
+                <button onclick="confirmClanDisciplines('${clanName}')" 
+                        style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;cursor:pointer;margin-right:15px;">
+                    ✅ Подтвердить
+                </button>
+                <button onclick="closeClanDiscModal()" 
+                        style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;cursor:pointer;">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>`;
+
+    document.getElementById('clan-disc-modal')?.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function confirmClanDisciplines(clanName) {
+    const disc2 = document.getElementById('clan-disc-2').value;
+    const disc1 = document.getElementById('clan-disc-1').value;
+
+    if (!disc2 || !disc1 || disc2 === disc1) {
+        alert("Выбери две **разные** дисциплины!");
+        return;
+    }
+
+    addDiscipline(disc2, 'Клан', 2);
+    addDiscipline(disc1, 'Клан', 1);
+
+    closeClanDiscModal();
+}
+
+function closeClanDiscModal() {
+    document.getElementById('clan-disc-modal')?.remove();
+}
+
+// ==================== ДОБАВЛЕНИЕ ДИСЦИПЛИНЫ ====================
+function addDiscipline(name = '', source = 'Вручную', prefilledDots = 0) {
+    const list = document.getElementById('disciplines-list');
+    if (!list) return;
+
+    const unique = 'disc-' + Date.now() + Math.random().toString(36).substr(2, 6);
+
+    const item = document.createElement('div');
+    item.className = 'discipline-item';
+    item.innerHTML = `
+        <div>${name}</div>
+        
+        <div class="dots-discipline">
+            ${[1,2,3,4,5].map(level => `
+                <label style="cursor:pointer; display:flex; align-items:center;">
+                    <input type="radio" name="${unique}" value="${level}" ${level === prefilledDots ? 'checked' : ''} style="display:none;">
+                    <span class="disc-dot" data-level="${level}"></span>
+                </label>
+            `).join('')}
+        </div>
+
+        <small>${source}</small>
+        
+        <button onclick="this.parentElement.remove(); updateDisciplineTotal()" 
+                style="background:#222; color:#ff6666; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer;font-size:20px;line-height:1;">×</button>
+    `;
+
+    list.appendChild(item);
+
+    const inputs = item.querySelectorAll('input[type="radio"]');
+    const dots = item.querySelectorAll('.disc-dot');
+
+    function updateVisual(selected) {
+        dots.forEach(dot => {
+            const level = parseInt(dot.getAttribute('data-level'));
+            if (level <= selected) {
+                dot.classList.add('filled');
+            } else {
+                dot.classList.remove('filled');
+            }
+        });
+    }
+
+    inputs.forEach(input => {
+        input.addEventListener('change', () => updateVisual(parseInt(input.value)));
+    });
+
+    if (prefilledDots > 0) updateVisual(prefilledDots);
+
+    updateDisciplineTotal();
+}
+
+
 // ==================== ИКОНКИ КЛАНОВ ====================
+
+
+
 
 // Временные данные для иконок (можно расширить в rules.json позже)
 const CLAN_ICONS = {
@@ -765,6 +934,7 @@ function selectThisClan(name) {
     closeClanModal();
     loadClanHint();        // обновляем подсказку
     updateClanIcon();      // обновляем иконку
+    setTimeout(() => openClanDisciplineModal(name), 700);
 }
 
 // Закрытие модального окна кланов
@@ -785,76 +955,27 @@ function closePredatorModal() {
 }
 
 
-// ==================== ДИСЦИПЛИНЫ ====================
+// ==================== ПОДТВЕРЖДЕНИЕ И ДОБАВЛЕНИЕ ====================
+function confirmClanDisciplines(clanName) {
+    const disc2 = document.getElementById('clan-disc-2').value;
+    const disc1 = document.getElementById('clan-disc-1').value;
 
+    if (!disc2 || !disc1 || disc2 === disc1) {
+        alert("Выбери две **разные** дисциплины!");
+        return;
+    }
 
-// Обновление списка дисциплин (от клана + от стиля охоты)
-function refreshDisciplinesList() {
-    const list = document.getElementById('disciplines-list');
-    if (!list) return;
-    
-    list.innerHTML = '';  // Полная очистка
+    // Добавляем сразу с нужным количеством точек
+    addDiscipline(disc2, 'Клан', 2);
+    addDiscipline(disc1, 'Клан', 1);
 
-    // Дисциплины от клана
-    clanDisciplines.forEach(d => addDiscipline(d, 'Клан'));
-    
-    // Дисциплины от стиля охоты
-    predatorDisciplines.forEach(d => addDiscipline(d, 'Охота'));
+    closeClanDiscModal();
 }
 
-// Добавление дисциплины в список
-function addDiscipline(name = '', source = 'Вручную') {
-    const list = document.getElementById('disciplines-list');
-    if (!list) return;
-
-    const unique = 'disc-' + Date.now() + Math.random().toString(36).substr(2, 5);
-
-    const item = document.createElement('div');
-    item.className = 'discipline-item';
-    item.innerHTML = `
-        <div style="flex:1; color:#ddd; font-size:15.5px;">${name}</div>
-        
-        <div class="dots-discipline" style="display:flex; gap:6px;">
-            ${[1,2,3,4,5].map(level => `
-                <label style="cursor:pointer;">
-                    <input type="radio" name="${unique}" value="${level}" style="display:none;">
-                    <span style="width:24px; height:24px; border:2px solid #555; border-radius:50%; background:#1f1f1f; transition:all 0.2s;"></span>
-                </label>
-            `).join('')}
-        </div>
-
-        <small style="color:#777; min-width:75px; text-align:right;">${source}</small>
-        
-        <button onclick="this.parentElement.remove(); updateDisciplineTotal()" 
-                style="background:#222; color:#ff6666; border:none; width:26px; height:26px; border-radius:50%; cursor:pointer;">×</button>
-    `;
-
-    list.appendChild(item);
-
-    // Активация точек
-    const inputs = item.querySelectorAll('input[type="radio"]');
-    const spans = item.querySelectorAll('span');
-
-    inputs.forEach(input => {
-        input.addEventListener('change', () => {
-            const selected = parseInt(input.value);
-            spans.forEach((span, index) => {
-                if (index + 1 <= selected) {
-                    span.style.background = '#ff3131';
-                    span.style.borderColor = '#ff6666';
-                    span.style.boxShadow = '0 0 10px #ff3131';
-                } else {
-                    span.style.background = '#1f1f1f';
-                    span.style.borderColor = '#555';
-                    span.style.boxShadow = 'none';
-                }
-            });
-            updateDisciplineTotal();
-        });
-    });
-
-    updateDisciplineTotal();
+function closeClanDiscModal() {
+    document.getElementById('clan-disc-modal')?.remove();
 }
+
 
 // Пересчёт суммы точек дисциплин
 function updateDisciplineTotal() {
@@ -1365,10 +1486,15 @@ const clanSelect = document.getElementById('clan-input');
 if (clanSelect) {
     clanSelect.addEventListener('change', function() {
         if (this.value === "") {
-            openClanGallery();        // Открываем галерею при пустом выборе
+            openClanGallery();
         } else {
             loadClanHint();
             updateClanIcon();
+            
+            // ← НОВОЕ: открываем выбор дисциплин
+            setTimeout(() => {
+                openClanDisciplineModal(this.value);
+            }, 100); // небольшая задержка, чтобы успела открыться подсказка
         }
     });
 }
