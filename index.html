@@ -584,6 +584,7 @@ function updateHumanity() {
 
 
 
+
 // ==================== ЧИСТАЯ СИСТЕМА ДИСЦИПЛИН ====================
 
 let disciplineSources = {}; 
@@ -596,27 +597,36 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     if (!disciplineSources[name]) disciplineSources[name] = {};
 
     disciplineSources[name][source] = (disciplineSources[name][source] || 0) + dotsToAdd;
+
     const totalDots = Object.values(disciplineSources[name]).reduce((sum, val) => sum + val, 0);
 
-    console.log(`🔄 Обновляем "${name}" → ${totalDots} точек`);
+    console.log(`🔄 Обновляем "${name}" → ${totalDots} точек (${Object.keys(disciplineSources[name]).join(" + ")})`);
 
-    // === УЛУЧШЕННОЕ УДАЛЕНИЕ (игнорируем лишние символы) ===
+    updateDisciplineRow(name);
+    updateDisciplineTotal();
+    renderDisciplines();
+}
+
+// Обновление или создание строки дисциплины
+function updateDisciplineRow(name) {
+    if (!disciplineSources[name]) return;
+
+    const totalDots = Object.values(disciplineSources[name]).reduce((sum, val) => sum + val, 0);
+    const sourcesList = Object.keys(disciplineSources[name]).join(" + ");
+
+    // Удаляем все старые строки с этим именем
     document.querySelectorAll('.discipline-item').forEach(item => {
         const titleEl = item.querySelector('div:first-child');
-        if (titleEl) {
-            let currentTitle = titleEl.textContent.trim()
-                .replace(/[+\s]+$/, '')           // убираем + и пробелы в конце
-                .trim();
-            
-            if (currentTitle === name) {
-                console.log(`🗑️ УДАЛЕНА: "${currentTitle}"`);
-                item.remove();
-            }
+        if (titleEl && titleEl.textContent.trim() === name) {
+            item.remove();
         }
     });
 
-    // Создаём новую строку
-   function addDisciplineRow(name, dots = 1, sourceText = "") {
+    // Создаём новую
+    addDisciplineRow(name, totalDots, sourcesList);
+}
+
+function addDisciplineRow(name, dots = 1, sourceText = "") {
     const list = document.getElementById('disciplines-list');
     if (!list) return;
 
@@ -629,7 +639,6 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
         dotsHTML += `<div class="disc-dot ${filled}" data-level="${i}"></div>`;
     }
 
-    // Разбиваем источник на строки
     const sources = sourceText.split('+').map(s => s.trim()).filter(s => s);
 
     item.innerHTML = `
@@ -641,7 +650,7 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
         <button class="remove-disc-btn" style="background:#222;color:#ff6666;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:20px;">×</button>
     `;
 
-    // Удаление дисциплины
+    // Удаление всей дисциплины
     item.querySelector('.remove-disc-btn').addEventListener('click', () => {
         delete disciplineSources[name];
         item.remove();
@@ -650,12 +659,6 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     });
 
     list.appendChild(item);
-
-}
-
-     addDisciplineRow(name, totalDots, Object.keys(disciplineSources[name]).map(src => `${src} (${disciplineSources[name][src]} точ${disciplineSources[name][src] > 1 ? 'ек' : 'ка'})`).join(' + '));
-    updateDisciplineTotal();
-    renderDisciplines();
 }
 
 function renderDisciplines() {
@@ -871,18 +874,46 @@ function showDisciplineHint(discName) {
 }
 
 // ==================== СБРОС + ОТКРЫТИЕ ГАЛЕРЕИ ====================
-
-// ==================== ПОЛНЫЙ СБРОС КЛАНА ====================
 function resetClanDisciplines() {
-    Object.keys(clanProvidedDisciplines).forEach(disc => {
-        delete disciplineSources[disc];
+    console.log("🗑️ СБРОС КЛАНА — сохраняем только ОХОТУ");
+
+    // Сохраняем все дисциплины, у которых есть вклад от Охоты
+    const huntBackup = {};
+
+    Object.keys(disciplineSources).forEach(disc => {
+        const sources = disciplineSources[disc];
+        Object.keys(sources).forEach(src => {
+            if (src.includes("Охота")) {
+                if (!huntBackup[disc]) huntBackup[disc] = {};
+                huntBackup[disc][src] = sources[src];
+            }
+        });
     });
+
+    console.log("💾 Сохранено от Охоты:", huntBackup);
+
+    // Полная очистка
+    disciplineSources = {};
     clanProvidedDisciplines = {};
 
-    document.querySelectorAll('.discipline-item').forEach(item => {
-        const small = item.querySelector('small');
-        if (small && small.textContent.includes('Клан')) {
-            item.remove();
+    // Восстанавливаем только Охоту
+    Object.keys(huntBackup).forEach(disc => {
+        disciplineSources[disc] = { ...huntBackup[disc] };
+        const total = Object.values(disciplineSources[disc]).reduce((a, b) => a + b, 0);
+        const text = Object.keys(disciplineSources[disc]).join(" + ");
+        
+        console.log(`   ✅ Восстановлено от Охоты: ${disc} → ${total} (${text})`);
+    });
+
+    // Полная перерисовка
+    const list = document.getElementById('disciplines-list');
+    if (list) list.innerHTML = '';
+
+    Object.keys(disciplineSources).forEach(name => {
+        if (disciplineSources[name]) {
+            const total = Object.values(disciplineSources[name]).reduce((a,b)=>a+b,0);
+            const text = Object.keys(disciplineSources[name]).join(" + ");
+            addDisciplineRow(name, total, text);
         }
     });
 
@@ -890,21 +921,59 @@ function resetClanDisciplines() {
     renderDisciplines();
 }
 
+// ==================== СБРОС ОХОТЫ (оставляем Клан) ====================
 function resetPredatorDisciplines() {
-    Object.keys(predatorProvidedDisciplines).forEach(disc => {
-        delete disciplineSources[disc];
+    console.log("🗑️ СБРОС ОХОТЫ — сохраняем только КЛАН");
+
+    const clanBackup = {};
+
+    Object.keys(disciplineSources).forEach(disc => {
+        const sources = disciplineSources[disc];
+        Object.keys(sources).forEach(src => {
+            if (src.includes("Клан")) {
+                if (!clanBackup[disc]) clanBackup[disc] = {};
+                clanBackup[disc][src] = sources[src];
+            }
+        });
     });
+
+    disciplineSources = {};
     predatorProvidedDisciplines = {};
 
-    document.querySelectorAll('.discipline-item').forEach(item => {
-        const small = item.querySelector('small');
-        if (small && small.textContent.includes('Охота')) {
-            item.remove();
+    Object.keys(clanBackup).forEach(disc => {
+        disciplineSources[disc] = { ...clanBackup[disc] };
+        const total = Object.values(disciplineSources[disc]).reduce((a, b) => a + b, 0);
+        const text = Object.keys(disciplineSources[disc]).join(" + ");
+        
+        console.log(`   ✅ Восстановлено от Клана: ${disc} → ${total} (${text})`);
+    });
+
+    const list = document.getElementById('disciplines-list');
+    if (list) list.innerHTML = '';
+
+    Object.keys(disciplineSources).forEach(name => {
+        if (disciplineSources[name]) {
+            const total = Object.values(disciplineSources[name]).reduce((a,b)=>a+b,0);
+            const text = Object.keys(disciplineSources[name]).join(" + ");
+            addDisciplineRow(name, total, text);
         }
     });
 
     updateDisciplineTotal();
     renderDisciplines();
+}
+
+function updateAllDisciplineRows() {
+    const list = document.getElementById('disciplines-list');
+    if (list) list.innerHTML = '';
+
+    Object.keys(disciplineSources).forEach(name => {
+        if (disciplineSources[name]) {
+            const total = Object.values(disciplineSources[name]).reduce((a,b)=>a+b,0);
+            const text = Object.keys(disciplineSources[name]).join(" + ");
+            addDisciplineRow(name, total, text);
+        }
+    });
 }
 
 function openPowerSelectionModal(discName, maxLevel) {
