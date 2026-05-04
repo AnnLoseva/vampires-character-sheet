@@ -254,25 +254,47 @@ select option {
 <!-- Основной лист -->
 <div class="sheet" id="capture-area" style="position: relative; margin-right: 420px;">
     
-    <!-- Header -->
-    <div class="header-row">
-        <input type="text" id="char-name" placeholder="Имя персонажа" value="Kindred" style="flex:1.2;">
+ <!-- Header -->
+<div class="header-row">
+    <input type="text" id="char-name" placeholder="Имя персонажа" value="Kindred" style="flex:1.2;">
 
-        <div style="flex:1.4; display: flex; align-items: center; gap: 12px;">
+    <!-- Клан -->
+    <div style="flex:1.4; display: flex; align-items: center; gap: 8px;">
+        <button onclick="openClanGallery()" 
+                title="Открыть галерею кланов"
+                style="background:#111; border:1px solid #333; width:36px; height:32px; 
+                       border-radius:4px; cursor:pointer; flex-shrink:0; 
+                       display:flex; align-items:center; justify-content:center; 
+                       font-size:24px; color:#ff3131; transition: all 0.2s;">
+            ▿
+        </button>
+        
+        <div style="flex:1; display: flex; align-items: center; gap: 12px;">
             <select id="clan-input" onchange="loadClanHint(); updateClanIcon();" 
                     style="flex:1; background:transparent; color:white; border:none; border-bottom:1px solid #333; font-size:17px; padding:6px 0;">
                 <option value="">Выберите клан</option>
             </select>
             <div id="clan-icon-container" style="width: 38px; height: 38px; flex-shrink: 0; display:flex; align-items:center; justify-content:center;"></div>
         </div>
-
-        <div style="flex:1;">
-            <select id="predator-input" onchange="loadPredatorHint()" 
-                    style="width:100%;background:transparent;color:white;border:none;border-bottom:1px solid #333;font-size:17px;padding:6px 0;">
-                <option value="">Стиль Охоты</option>
-            </select>
-        </div>
     </div>
+
+    <!-- Стиль Охоты -->
+    <div style="flex:1; display: flex; align-items: center; gap: 8px;">
+        <button onclick="openPredatorGallery()" 
+                title="Открыть галерею стилей охоты"
+                style="background:#111; border:1px solid #333; width:36px; height:32px; 
+                       border-radius:4px; cursor:pointer; flex-shrink:0; 
+                       display:flex; align-items:center; justify-content:center; 
+                       font-size:24px; color:#ff3131; transition: all 0.2s;">
+            ▿
+        </button>
+        
+        <select id="predator-input" onchange="loadPredatorHint()" 
+                style="flex:1; background:transparent; color:white; border:none; border-bottom:1px solid #333; font-size:17px; padding:6px 0;">
+            <option value="">Стиль Охоты</option>
+        </select>
+    </div>
+</div>
 
     <h2>Характеристики</h2>
     <div class="grid" id="attributes-grid"></div>
@@ -383,15 +405,6 @@ function populateSelects() {
         predSelect.appendChild(opt);
     });
 }
-
-    const predSelect = document.getElementById('predator-input');
-    predSelect.innerHTML = '<option value="">Стиль Охоты</option>';
-    Object.keys(RULES.predator_types || {}).forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        predSelect.appendChild(opt);
-    });
 
 
 function renderAttributes() {
@@ -1590,6 +1603,8 @@ document.getElementById('btn-save').addEventListener('click', function() {
 
 
 // ==================== ОБРАБОТЧИКИ ====================
+// ==================== ОБРАБОТЧИКИ ====================
+// ==================== ОБРАБОТЧИКИ ====================
 function setupEventListeners() {
     // Пакет навыков
     const skillPackage = document.getElementById('skill-package');
@@ -1601,78 +1616,56 @@ function setupEventListeners() {
     }
 
     // ==================== КЛАН ====================
-const clanSelect = document.getElementById('clan-input');
-if (clanSelect) {
-    clanSelect.addEventListener('change', function() {
-        // Удаляем только дисциплины предыдущего клана
-        currentClanDisciplines.forEach(discName => {
-            document.querySelectorAll('.discipline-item').forEach(item => {
-                const title = item.querySelector('div:first-child');
-                if (title && title.textContent.trim() === discName) item.remove();
+    const clanSelect = document.getElementById('clan-input');
+    if (clanSelect) {
+        clanSelect.addEventListener('change', function() {
+            currentClanDisciplines.forEach(discName => {
+                document.querySelectorAll('.discipline-item').forEach(item => {
+                    const title = item.querySelector('div:first-child');
+                    if (title && title.textContent.trim() === discName) item.remove();
+                });
             });
-        });
 
-        if (!this.value) {
-            openClanGallery();
-            currentClanDisciplines = [];
-        } else {
-            loadClanHint();
-            updateClanIcon();
-            const clanData = RULES.clans?.[this.value];
-            currentClanDisciplines = clanData?.disciplines || [];
-            
-            // Добавляем дисциплины клана
-            if (clanData) {
-                // Обычно 2 + 1
+            if (!this.value) {
+                openClanGallery();
+                currentClanDisciplines = [];
+            } else {
+                loadClanHint();
+                updateClanIcon();
+                currentClanDisciplines = RULES.clans?.[this.value]?.disciplines || [];
                 setTimeout(() => openClanDisciplineModal(this.value), 150);
             }
-        }
-        updateDisciplineTotal();
-    });
-}
-
-// ==================== СТИЛЬ ОХОТЫ ====================
-const predatorSelect = document.getElementById('predator-input');
-if (predatorSelect) {
-    predatorSelect.addEventListener('change', function() {
-        loadPredatorHint();
-
-        // Удаляем только дисциплины предыдущего стиля охоты
-        currentPredatorDisciplines.forEach(discName => {
-            document.querySelectorAll('.discipline-item').forEach(item => {
-                const title = item.querySelector('div:first-child');
-                if (title && title.textContent.trim() === discName) item.remove();
-            });
+            updateDisciplineTotal();
         });
+    }
 
-        if (!this.value) {
-            openPredatorGallery();
-            currentPredatorDisciplines = [];
-        } else {
-            const predData = RULES.predator_types?.[this.value];
-            currentPredatorDisciplines = predData?.disciplines || [];
-            setTimeout(() => openPredatorDisciplineModal(this.value), 150);
-        }
-        updateDisciplineTotal();
-    });
+    // ==================== СТИЛЬ ОХОТЫ ====================
+    const predatorSelect = document.getElementById('predator-input');
+    if (predatorSelect) {
+        predatorSelect.addEventListener('change', function() {
+            loadPredatorHint();
 
+            currentPredatorDisciplines.forEach(discName => {
+                document.querySelectorAll('.discipline-item').forEach(item => {
+                    const title = item.querySelector('div:first-child');
+                    if (title && title.textContent.trim() === discName) item.remove();
+                });
+            });
+
+            if (!this.value) {
+                openPredatorGallery();
+                currentPredatorDisciplines = [];
+            } else {
+                currentPredatorDisciplines = RULES.predator_types?.[this.value]?.disciplines || [];
+                setTimeout(() => {
+                    openPredatorDisciplineModal(this.value);
+                }, 200);
+            }
+            updateDisciplineTotal();
+        });
     }
 }
 
-
-
-// ==================== ОБРАБОТЧИК ВЫБОРА СТИЛЯ ОХОТЫ ====================
-const predatorSelect = document.getElementById('predator-input');
-if (predatorSelect) {
-    predatorSelect.addEventListener('change', function() {
-        loadPredatorHint();
-        if (this.value !== "") {
-            setTimeout(() => {
-                openPredatorDisciplineModal(this.value);
-            }, 100);
-        }
-    });
-}
 
 
 // ==================== ОБРАБОТЧИК ВЫБОРА КЛАНА ====================
