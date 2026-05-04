@@ -863,23 +863,26 @@ function openPowerSelectionModal(discName, maxLevel) {
 
     const modalHTML = `
     <div id="power-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:25000;display:flex;align-items:center;justify-content:center;">
-        <div style="background:#111;border:3px solid #ff3131;padding:30px;width:920px;border-radius:12px;max-width:96%;max-height:90vh;display:flex;flex-direction:column;">
+        <div style="background:#111;border:3px solid #ff3131;padding:30px;width:1100px;border-radius:12px;max-width:96%;max-height:92vh;display:flex;gap:25px;">
             
-            <h2 style="color:#ff3131;text-align:center;margin:0 0 20px;">
-                ${discName} — Выбор способностей 
-                <span id="power-count" style="color:#ffae00;">(${selected.length}/${maxLevel})</span>
-            </h2>
-
-            <div id="power-list" style="flex:1;overflow-y:auto;padding:15px;display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));gap:14px;"></div>
-            
-            <div style="text-align:center;margin-top:20px;padding-top:15px;border-top:1px solid #333;">
-                <button id="power-cancel-btn" style="background:#333;color:white;padding:14px 40px;border:none;border-radius:8px;font-size:16px;margin:0 10px;">
-                    Отмена
-                </button>
-                <button id="power-confirm-btn" style="background:#ff3131;color:black;padding:14px 40px;border:none;border-radius:8px;font-size:16px;margin:0 10px;">
-                    ✅ Подтвердить
-                </button>
+            <!-- Левая часть - список способностей -->
+            <div style="flex:1;">
+                <h2 style="color:#ff3131;text-align:center;margin:0 0 20px;">
+                    ${discName} — Выбор способностей 
+                    <span id="power-count" style="color:#ffae00;">(${selected.length}/${maxLevel})</span>
+                </h2>
+                <div id="power-list" style="overflow-y:auto;padding:10px;height:65vh;display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:14px;"></div>
             </div>
+
+            <!-- Правая панель с описанием -->
+            <div id="power-hint-panel" style="width:420px; background:#0a0a0a; border:1px solid #333; border-radius:8px; padding:25px; color:#ddd; font-size:14.8px; line-height:1.65; overflow-y:auto; max-height:75vh;">
+                <p style="color:#666; text-align:center; font-style:italic;">Выберите способность слева, чтобы увидеть описание</p>
+            </div>
+        </div>
+        
+        <div style="position:absolute; bottom:30px; left:50%; transform:translateX(-50%); display:flex; gap:15px;">
+            <button id="power-cancel-btn" style="background:#333;color:white;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">Отмена</button>
+            <button id="power-confirm-btn" style="background:#ff3131;color:black;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">✅ Подтвердить</button>
         </div>
     </div>`;
 
@@ -887,8 +890,72 @@ function openPowerSelectionModal(discName, maxLevel) {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 
     const listContainer = document.getElementById('power-list');
+    const hintPanel = document.getElementById('power-hint-panel');
 
-    // Рендер карточек
+    function renderPowerCards() {
+        listContainer.innerHTML = '';
+        
+        for (let lvl = 1; lvl <= maxLevel; lvl++) {
+            if (!disc.powers[lvl]) continue;
+
+            Object.keys(disc.powers[lvl]).forEach(powerName => {
+                const power = disc.powers[lvl][powerName];
+                const isSelected = selected.includes(powerName);
+
+                const card = document.createElement('div');
+                card.style.cssText = `
+                    background:#1a1a1a; 
+                    padding:16px; 
+                    border-radius:8px; 
+                    border:2px solid ${isSelected ? '#ff3131' : '#444'};
+                    cursor: pointer;
+                    transition: all 0.2s;
+                `;
+
+                card.innerHTML = `
+                    <div style="color:#ffae00;font-weight:bold;">${powerName}</div>
+                    <div style="color:#666;font-size:13px;">Уровень ${lvl}</div>
+                    <div style="color:#ccc;margin-top:8px;line-height:1.5;">${power.description ? power.description.substring(0, 140) + '...' : 'Нет описания'}</div>
+                `;
+
+                card.addEventListener('click', () => {
+                    if (isSelected) {
+                        selected = selected.filter(p => p !== powerName);
+                    } else if (selected.length < maxLevel) {
+                        selected.push(powerName);
+                    }
+                    renderPowerCards();
+                    document.getElementById('power-count').textContent = `(${selected.length}/${maxLevel})`;
+                });
+
+                // Показ описания в правой панели при наведении
+                card.addEventListener('mouseenter', () => {
+                    let html = `
+                        <h3 style="color:#ff3131; margin:0 0 12px;">${powerName} <span style="color:#666;font-size:14px;">(Уровень ${lvl})</span></h3>
+                        <div style="line-height:1.65;">${power.description || 'Описание отсутствует'}</div>
+                    `;
+
+                    if (power.pool) html += `<p style="margin-top:15px;"><strong>Бросок:</strong> ${power.pool}</p>`;
+                    if (power.cost) html += `<p><strong>Стоимость:</strong> ${power.cost}</p>`;
+                    if (power.duration) html += `<p><strong>Длительность:</strong> ${power.duration}</p>`;
+
+                    hintPanel.innerHTML = html;
+                });
+
+                listContainer.appendChild(card);
+            });
+        }
+    }
+
+    renderPowerCards();
+
+    document.getElementById('power-cancel-btn').onclick = closePowerModal;
+    document.getElementById('power-confirm-btn').onclick = () => {
+        selectedPowers[discName] = selected;
+        closePowerModal();
+        renderDisciplines();
+    };
+}
     function renderPowerCards() {
         listContainer.innerHTML = '';
         
@@ -909,7 +976,14 @@ function openPowerSelectionModal(discName, maxLevel) {
                     border:2px solid ${isSelected ? '#ff3131' : '#444'};
                     cursor: pointer;
                     transition: all 0.2s;
+                    position: relative;
                 `;
+
+                // Полная подсказка
+                const tooltipText = `${powerName} (Уровень ${lvl})\n\n${power.description || 'Нет описания'}\n\n` +
+                                  (power.pool ? `Бросок: ${power.pool}\n` : '') +
+                                  (power.cost ? `Стоимость: ${power.cost}\n` : '') +
+                                  (power.duration ? `Длительность: ${power.duration}` : '');
 
                 card.innerHTML = `
                     <div style="display:flex; justify-content:space-between; align-items:start;">
@@ -924,6 +998,9 @@ function openPowerSelectionModal(discName, maxLevel) {
                     </div>
                 `;
 
+                // Добавляем data-tooltip для hover-подсказки
+                card.setAttribute('data-tooltip', tooltipText);
+
                 card.addEventListener('click', () => {
                     if (isSelected) {
                         selected = selected.filter(p => p !== powerName);
@@ -933,7 +1010,7 @@ function openPowerSelectionModal(discName, maxLevel) {
                         alert(`Максимум ${maxLevel} способностей`);
                         return;
                     }
-                    renderPowerCards();           // ← обновляем только список
+                    renderPowerCards();
                     document.getElementById('power-count').textContent = `(${selected.length}/${maxLevel})`;
                 });
 
@@ -944,14 +1021,13 @@ function openPowerSelectionModal(discName, maxLevel) {
 
     renderPowerCards();
 
-    // Кнопки
     document.getElementById('power-cancel-btn').onclick = closePowerModal;
     document.getElementById('power-confirm-btn').onclick = () => {
         selectedPowers[discName] = selected;
         closePowerModal();
         renderDisciplines();
-    };
-}
+    }
+
 
 function closePowerModal() {
     const modal = document.getElementById('power-modal');
