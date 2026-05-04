@@ -596,17 +596,26 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
 
     if (!disciplineSources[name]) disciplineSources[name] = {};
 
+    const oldTotal = Object.values(disciplineSources[name]).reduce((sum, val) => sum + val, 0);
+
     disciplineSources[name][source] = (disciplineSources[name][source] || 0) + dotsToAdd;
 
-    const totalDots = Object.values(disciplineSources[name]).reduce((sum, val) => sum + val, 0);
+    const newTotal = Object.values(disciplineSources[name]).reduce((sum, val) => sum + val, 0);
 
-    console.log(`🔄 Обновляем "${name}" → ${totalDots} точек (${Object.keys(disciplineSources[name]).join(" + ")})`);
+    console.log(`🔄 Обновляем "${name}" → ${newTotal} точек`);
+
+    // === ЖЁСТКОЕ СТИРАНИЕ ВСЕХ СПОСОБНОСТЕЙ ПРИ УМЕНЬШЕНИИ ===
+    if (newTotal < oldTotal) {
+        if (selectedPowers[name]) {
+            console.log(`🗑️ Точек стало меньше (${oldTotal} → ${newTotal}). ПОЛНОСТЬЮ удаляем ВСЕ способности у "${name}"`);
+            delete selectedPowers[name];
+        }
+    }
 
     updateDisciplineRow(name);
     updateDisciplineTotal();
     renderDisciplines();
 }
-
 // Обновление или создание строки дисциплины
 function updateDisciplineRow(name) {
     if (!disciplineSources[name]) return;
@@ -653,29 +662,53 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
     // Удаление всей дисциплины
     item.querySelector('.remove-disc-btn').addEventListener('click', () => {
         delete disciplineSources[name];
+        delete selectedPowers[name];        // ← тоже стираем способности
         item.remove();
         updateDisciplineTotal();
         renderDisciplines();
     });
 
+        // Принудительно обновляем способности при перерисовке строки
+    if (selectedPowers[name] && Object.values(disciplineSources[name] || {}).reduce((a,b)=>a+b,0) < selectedPowers[name].length) {
+        delete selectedPowers[name];
+    }
+
+
     list.appendChild(item);
+
+    // === Кнопка "+" с актуальным количеством точек ===
+    const addBtn = document.createElement('button');
+    addBtn.className = 'add-power-btn';
+    addBtn.innerHTML = '+';
+    addBtn.title = `Добавить способности (${dots} точек)`;
+    addBtn.style.cssText = `margin-left:12px;background:#ff3131;color:black;border:none;width:34px;height:34px;border-radius:50%;font-size:22px;cursor:pointer;flex-shrink:0;`;
+
+    addBtn.onclick = (e) => {
+        e.stopImmediatePropagation();
+        openPowerSelectionModal(name, dots);   // используем актуальное dots
+    };
+
+    // Вставляем кнопку после названия
+    const nameDiv = item.querySelector('div:first-child');
+    if (nameDiv) {
+        nameDiv.parentNode.insertBefore(addBtn, nameDiv.nextSibling);
+    }
 }
 
 function renderDisciplines() {
     document.querySelectorAll('.discipline-item').forEach(item => {
-        // Удаляем все старые кнопки "+" и панели способностей
-        item.querySelectorAll('.add-power-btn, .powers-panel').forEach(el => el.remove());
-
         const nameEl = item.querySelector('div:first-child');
         if (!nameEl) return;
         const discName = nameEl.textContent.trim();
 
-        let currentDots = 0;
-        item.querySelectorAll('.disc-dot.filled').forEach(() => currentDots++);
+        // Удаляем старые кнопки и панели
+        item.querySelectorAll('.add-power-btn, .powers-panel').forEach(el => el.remove());
+
+        const currentDots = Object.values(disciplineSources[discName] || {}).reduce((a,b) => a + b, 0);
 
         if (currentDots < 1) return;
 
-        // Добавляем кнопку "+" только один раз
+        // Кнопка "+"
         const addBtn = document.createElement('button');
         addBtn.className = 'add-power-btn';
         addBtn.innerHTML = '+';
@@ -687,10 +720,9 @@ function renderDisciplines() {
             openPowerSelectionModal(discName, currentDots);
         };
 
-        // Вставляем кнопку после названия
         nameEl.parentNode.insertBefore(addBtn, nameEl.nextSibling);
 
-        // Панель способностей справа
+        // Панель способностей
         if (selectedPowers[discName] && selectedPowers[discName].length > 0) {
             const panel = document.createElement('div');
             panel.className = 'powers-panel';
@@ -711,6 +743,7 @@ function renderDisciplines() {
             item.appendChild(panel);
         }
     });
+
 }
 
 // ==================== ПОДТВЕРЖДЕНИЕ ====================
