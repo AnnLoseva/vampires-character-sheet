@@ -326,9 +326,7 @@ select option {
     <div style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333;">
         <h2 style="text-align:center; margin-bottom:15px;">Дисциплины</h2>
         <div id="disciplines-list"></div>
-        <button onclick="addEmptyDiscipline()" style="background:transparent; color:var(--v-red); border:1px solid var(--v-red); padding:8px 16px; border-radius:4px; cursor:pointer; margin-top:12px;">
-            + Добавить дисциплину
-        </button>
+        
     </div>
 </div>
 
@@ -776,7 +774,7 @@ function openClanDisciplineModal(clanName) {
                 <div style="text-align:center;">
                     <button onclick="confirmClanDisciplines('${clanName}')" 
                             style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;cursor:pointer;margin-right:15px;">
-                        ✅ Подтвердить
+                        Подтвердить
                     </button>
                     <button onclick="closeClanDiscModal()" 
                             style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;cursor:pointer;">
@@ -820,7 +818,7 @@ function openPredatorDisciplineModal(predatorName) {
                 <div style="text-align:center;">
                     <button onclick="confirmPredatorDiscipline('${predatorName}')" 
                             style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;cursor:pointer;margin-right:15px;">
-                        ✅ Подтвердить
+                         Подтвердить
                     </button>
                     <button onclick="closePredDiscModal()" 
                             style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;cursor:pointer;">
@@ -947,7 +945,7 @@ function openPowerSelectionModal(discName, maxLevel) {
         </div>
         
         <div style="position:absolute; bottom:40px; left:50%; transform:translateX(-50%); display:flex; gap:15px;">
-            <button id="power-confirm-btn" style="background:#ff3131;color:black;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">✅ Подтвердить</button>
+            <button id="power-confirm-btn" style="background:#ff3131;color:black;padding:14px 40px;border:none;border-radius:8px;font-size:16px;"> Подтвердить</button>
             <button id="power-cancel-btn" style="background:#333;color:white;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">Отмена</button>
         </div>
     </div>`;
