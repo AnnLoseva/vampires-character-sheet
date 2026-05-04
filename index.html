@@ -625,35 +625,23 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
 
     let dotsHTML = '';
     for (let i = 1; i <= 5; i++) {
-        dotsHTML += `<div class="disc-dot ${i <= dots ? 'filled' : ''}" data-level="${i}"></div>`;
+        const filled = i <= dots ? 'filled' : '';
+        dotsHTML += `<div class="disc-dot ${filled}" data-level="${i}"></div>`;
     }
 
-    // Разбиваем источник на строки (по "+")
+    // Разбиваем источник на строки
     const sources = sourceText.split('+').map(s => s.trim()).filter(s => s);
 
     item.innerHTML = `
         <div style="flex: 1; font-size:16.5px;">${name}</div>
-        <div class="dots-discipline" style="display:flex; gap:9px;">${dotsHTML}</div>
+        <div class="dots-discipline" style="display:flex; gap:9px; pointer-events:none;">${dotsHTML}</div>
         <small style="color:#777; min-width:200px; line-height:1.4; text-align:right; white-space:pre-line;">
             ${sources.join('<br>')}
         </small>
         <button class="remove-disc-btn" style="background:#222;color:#ff6666;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:20px;">×</button>
     `;
 
-    // Клик по точкам
-    item.querySelectorAll('.disc-dot').forEach(dot => {
-        dot.addEventListener('click', () => {
-            const level = parseInt(dot.dataset.level);
-            item.querySelectorAll('.disc-dot').forEach((d, i) => {
-                if (i < level) d.classList.add('filled');
-                else d.classList.remove('filled');
-            });
-            updateDisciplineTotal();
-            renderDisciplines();
-        });
-    });
-
-    // Удаление
+    // Удаление дисциплины
     item.querySelector('.remove-disc-btn').addEventListener('click', () => {
         delete disciplineSources[name];
         item.remove();
@@ -662,6 +650,7 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     });
 
     list.appendChild(item);
+
 }
 
      addDisciplineRow(name, totalDots, Object.keys(disciplineSources[name]).map(src => `${src} (${disciplineSources[name][src]} точ${disciplineSources[name][src] > 1 ? 'ек' : 'ка'})`).join(' + '));
