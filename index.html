@@ -1841,6 +1841,14 @@ function addSpecLine(skillName) {
     const container = document.getElementById('specs-' + skillName);
     if (!container) return;
 
+    const currentDots = parseInt(document.querySelector(`input[name="${skillName}"]:checked`)?.value || 0);
+    const currentSpecs = container.children.length;
+
+    if (currentSpecs >= currentDots) {
+        alert(`У навыка "${skillName}" только ${currentDots} точ${currentDots === 1 ? 'ка' : 'ки'}. Больше специализаций добавить нельзя.`);
+        return;
+    }
+
     const line = document.createElement('div');
     line.className = 'skill-spec-line';
     line.innerHTML = `
@@ -1857,11 +1865,7 @@ function addSpecLine(skillName) {
     });
 
     container.appendChild(line);
-    
-    // Принудительное обновление
-    setTimeout(() => {
-        updateSpecUI(skillName);
-    }, 5);
+    updateSpecUI(skillName);
 }
 
 function updateSpecUI(skillName = null) {
@@ -2055,59 +2059,10 @@ document.getElementById('btn-save').addEventListener('click', function() {
     }, 100);
 });
 
-// ==================== ОБРАБОТЧИКИ ====================
-// ==================== ОБРАБОТЧИКИ ====================
-function setupEventListeners() {
-    // Пакет навыков
-    const skillPackage = document.getElementById('skill-package');
-    if (skillPackage) {
-        skillPackage.addEventListener('change', (e) => {
-            currentPackage = e.target.value;
-            updateTrackers();
-        });
-    }
-
-    // ==================== КЛАН ====================
-    const clanSelect = document.getElementById('clan-input');
-    if (clanSelect) {
-        clanSelect.addEventListener('change', function() {
-            const newClan = this.value.trim();
-
-            Object.keys(clanProvidedDisciplines).forEach(discName => {
-                delete disciplineSources[discName];
-            });
-            clanProvidedDisciplines = {};
-
-            document.querySelectorAll('.discipline-item').forEach(item => {
-                const small = item.querySelector('small');
-                if (small && small.textContent.includes('Клан')) {
-                    item.remove();
-                }
-            });
-
-            if (!newClan) {
-                loadClanHint();
-                updateClanIcon();
-            } else {
-                loadClanHint();
-                updateClanIcon();
-                setTimeout(() => openClanDisciplineModal(newClan), 180);
-            }
-
-            updateDisciplineTotal();
-            renderDisciplines();
-        });
-    }
-// ==================== СТИЛЬ ОХОТЫ ====================
+// ==================== СПЕЦИАЛИЗАЦИИ ОТ ОХОТЫ ====================
 let currentPredatorSpecialty = null;
 
-const predatorSelect = document.getElementById('predator-input');
-if (predatorSelect) {
-    predatorSelect.addEventListener('change', function() {
-        applyPredatorType(this.value.trim());
-    });
-}
-
+// Основная функция применения стиля охоты
 function applyPredatorType(predName) {
     console.log("🎯 Применяем стиль охоты:", predName);
 
@@ -2117,23 +2072,21 @@ function applyPredatorType(predName) {
         return;
     }
 
-    // === СБРОС СТАРОЙ СПЕЦИАЛИЗАЦИИ ===
+    // Сброс старой специализации
     if (currentPredatorSpecialty && currentPredatorSpecialty.skill) {
         const oldSkill = currentPredatorSpecialty.skill;
-        console.log(`🗑️ Стираем предыдущую специализацию: ${oldSkill}`);
+        console.log(`🗑️ Стираем старую специализацию: ${oldSkill}`);
 
-        // Удаляем строку
         const container = document.getElementById('specs-' + oldSkill);
         if (container) {
             container.innerHTML = '';
             container.style.display = 'none';
         }
 
-        // Снимаем галочку
         const checkbox = document.getElementById('s-' + oldSkill);
         if (checkbox) checkbox.checked = false;
 
-        // Сбрасываем точку (только если 1)
+        // Сброс точки
         const radios = document.querySelectorAll(`input[name="${oldSkill}"]`);
         let hasHigher = false;
         radios.forEach(r => {
@@ -2159,7 +2112,6 @@ function applyPredatorType(predName) {
 
     loadPredatorHint();
 
-    // Применяем новый стиль
     const predData = RULES.predator_types?.[predName];
     
     if (predData?.specialty) {
@@ -2178,6 +2130,113 @@ function applyPredatorType(predName) {
 
     updateTrackers();
 }
+
+function applyPredatorSpecialty(predatorName, selectedOption) {
+    const match = selectedOption.match(/(.+?)\s*\((.+?)\)/);
+    let skillName = selectedOption;
+    let specText = "";
+
+    if (match) {
+        skillName = match[1].trim();
+        specText = match[2].trim();
+    }
+
+    // Точка
+    const firstDot = document.querySelector(`input[name="${skillName}"][value="1"]`);
+    if (firstDot) {
+        const current = document.querySelector(`input[name="${skillName}"]:checked`);
+        if (!current || parseInt(current.value) === 0) firstDot.checked = true;
+    }
+
+    // Специализация
+    const specCheckbox = document.getElementById(`s-${skillName}`);
+    if (specCheckbox) specCheckbox.checked = true;
+
+    const container = document.getElementById('specs-' + skillName);
+    if (container) {
+        container.style.display = 'flex';
+        if (container.children.length === 0) addSpecLine(skillName);
+        const input = container.querySelector('input[type="text"]');
+        if (input && specText) input.value = specText;
+    }
+
+    currentPredatorSpecialty = { skill: skillName };
+
+    console.log(`✅ Применена специализация: ${skillName} (${specText})`);
+
+    closeSpecChoiceModal();
+    setTimeout(() => openPredatorDisciplineModal(predatorName), 250);
+
+    updateTrackers();
+    updateSBadgeState(skillName);
+}
+
+// ==================== ОБРАБОТЧИКИ ====================
+function setupEventListeners() {
+    // Пакет навыков
+    const skillPackage = document.getElementById('skill-package');
+    if (skillPackage) {
+        skillPackage.addEventListener('change', (e) => {
+            currentPackage = e.target.value;
+            updateTrackers();
+        });
+    }
+
+    // Клан
+    const clanSelect = document.getElementById('clan-input');
+    if (clanSelect) {
+        clanSelect.addEventListener('change', function() {
+            const newClan = this.value.trim();
+
+            Object.keys(clanProvidedDisciplines).forEach(discName => delete disciplineSources[discName]);
+            clanProvidedDisciplines = {};
+
+            document.querySelectorAll('.discipline-item').forEach(item => {
+                const small = item.querySelector('small');
+                if (small && small.textContent.includes('Клан')) item.remove();
+            });
+
+            if (newClan) {
+                loadClanHint();
+                updateClanIcon();
+                setTimeout(() => openClanDisciplineModal(newClan), 180);
+            } else {
+                loadClanHint();
+                updateClanIcon();
+            }
+
+            updateDisciplineTotal();
+            renderDisciplines();
+        });
+
+            // Автоматическое удаление лишних специализаций при уменьшении точек
+    document.addEventListener('change', function(e) {
+        if (e.target.classList.contains('dot-input') && e.target.dataset.type === 'skill') {
+            const skillName = e.target.name;
+            const newDots = parseInt(e.target.value) || 0;
+
+            const container = document.getElementById('specs-' + skillName);
+            if (container) {
+                // Удаляем лишние специализации с конца
+                while (container.children.length > newDots) {
+                    container.removeChild(container.lastElementChild);
+                }
+            }
+
+            updateSpecUI(skillName);
+            updateSBadgeState(skillName);
+        }
+    });
+    }
+
+    // Стиль Охоты
+    const predatorSelect = document.getElementById('predator-input');
+    if (predatorSelect) {
+        predatorSelect.addEventListener('change', function() {
+            applyPredatorType(this.value.trim());
+        });
+    }
+
 }
 
 // ==================== ЗАПУСК ====================
