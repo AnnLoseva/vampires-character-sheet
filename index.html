@@ -535,43 +535,39 @@ function renderSkills() {
 let disciplineSources = {}; 
 let selectedPowers = {};
 
-function getTotalDots(name) {
-    if (!disciplineSources[name]) return 0;
-    return Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
-}
-
 function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     if (!name) return;
     name = name.trim();
 
     if (!disciplineSources[name]) disciplineSources[name] = {};
-    disciplineSources[name][source] = dotsToAdd;
 
-    const total = getTotalDots(name);
+    disciplineSources[name][source] = (disciplineSources[name][source] || 0) + dotsToAdd;
+    const totalDots = Object.values(disciplineSources[name]).reduce((sum, val) => sum + val, 0);
 
-    let existing = Array.from(document.querySelectorAll('.discipline-item')).find(item => {
-        const title = item.querySelector('div:first-child');
-        return title && title.textContent.trim() === name;
+    console.log(`🔄 Обновляем "${name}" → ${totalDots} точек`);
+
+    // === УЛУЧШЕННОЕ УДАЛЕНИЕ (игнорируем лишние символы) ===
+    document.querySelectorAll('.discipline-item').forEach(item => {
+        const titleEl = item.querySelector('div:first-child');
+        if (titleEl) {
+            let currentTitle = titleEl.textContent.trim()
+                .replace(/[+\s]+$/, '')           // убираем + и пробелы в конце
+                .trim();
+            
+            if (currentTitle === name) {
+                console.log(`🗑️ УДАЛЕНА: "${currentTitle}"`);
+                item.remove();
+            }
+        }
     });
 
-    if (existing) {
-        const dotsContainer = existing.querySelector('.dots-discipline');
-        if (dotsContainer) {
-            const allDots = dotsContainer.querySelectorAll('.disc-dot');
-            allDots.forEach((dot, i) => {
-                if (i < total) dot.classList.add('filled');
-                else dot.classList.remove('filled');
-            });
-        }
-        const small = existing.querySelector('small');
-        if (small) small.textContent = Object.keys(disciplineSources[name]).join(" + ");
-    } else {
-        addDisciplineRow(name, total, Object.keys(disciplineSources[name]).join(" + "));
-    }
+    // Создаём новую строку
+    addDisciplineRow(name, totalDots, Object.keys(disciplineSources[name]).join(" + "));
 
     updateDisciplineTotal();
-    setTimeout(renderDisciplines, 100);
+    renderDisciplines();
 }
+
 function addDisciplineRow(name, dots = 1, sourceText = "") {
     const list = document.getElementById('disciplines-list');
     if (!list) return;
@@ -591,6 +587,7 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
         <button class="remove-disc-btn" style="margin-left:auto;background:#222;color:#ff6666;border:none;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:18px;">×</button>
     `;
 
+    // Клик по точкам
     item.querySelectorAll('.disc-dot').forEach(dot => {
         dot.addEventListener('click', () => {
             const level = parseInt(dot.dataset.level);
@@ -603,6 +600,7 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
         });
     });
 
+    // Кнопка удаления
     item.querySelector('.remove-disc-btn').addEventListener('click', () => {
         delete disciplineSources[name];
         item.remove();
@@ -660,17 +658,10 @@ function confirmClanDisciplines(clanName) {
     const disc2 = document.getElementById('clan-disc-2').value;
     const disc1 = document.getElementById('clan-disc-1').value;
     
-    if (disc2) {
-        mergeDiscipline(disc2, 2, `Клан ${clanName}`);
-        clanProvidedDisciplines[disc2] = 2;
-    }
-    if (disc1) {
-        mergeDiscipline(disc1, 1, `Клан ${clanName}`);
-        clanProvidedDisciplines[disc1] = 1;
-    }
-    
+    if (disc2) mergeDiscipline(disc2, 2, `Клан ${clanName}`);
+    if (disc1) mergeDiscipline(disc1, 1, `Клан ${clanName}`);
+
     closeClanDiscModal();
-    updateDisciplineTotal();
 }
 
 function confirmPredatorDiscipline(predatorName) {
@@ -678,10 +669,8 @@ function confirmPredatorDiscipline(predatorName) {
     if (!disc) return alert("Выберите дисциплину!");
 
     mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
-    predatorProvidedDisciplines[disc] = 1;
-    
+
     closePredDiscModal();
-    updateDisciplineTotal();
 }
 // ==================== МОДАЛЬНЫЕ ОКНА ДЛЯ ВЫБОРА ДИСЦИПЛИН ====================
 
@@ -1365,11 +1354,11 @@ function closePredatorModal() {
 
 
 // ==================== ПОДТВЕРЖДЕНИЕ И ДОБАВЛЕНИЕ ====================
-// Вместо создания новых строк
+// ==================== ПОДТВЕРЖДЕНИЕ КЛАНА ====================
 function confirmClanDisciplines(clanName) {
     const disc2 = document.getElementById('clan-disc-2').value;
     const disc1 = document.getElementById('clan-disc-1').value;
-    
+
     if (disc2) {
         mergeDiscipline(disc2, 2, `Клан ${clanName}`);
         clanProvidedDisciplines[disc2] = 2;
@@ -1378,18 +1367,19 @@ function confirmClanDisciplines(clanName) {
         mergeDiscipline(disc1, 1, `Клан ${clanName}`);
         clanProvidedDisciplines[disc1] = 1;
     }
-    
+
     closeClanDiscModal();
     updateDisciplineTotal();
 }
 
+// ==================== ПОДТВЕРЖДЕНИЕ ОХОТЫ ====================
 function confirmPredatorDiscipline(predatorName) {
     const disc = document.getElementById('pred-disc-select').value;
-    if (!disc) return;
+    if (!disc) return alert("Выберите дисциплину!");
 
     mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
     predatorProvidedDisciplines[disc] = 1;
-    
+
     closePredDiscModal();
     updateDisciplineTotal();
 }
