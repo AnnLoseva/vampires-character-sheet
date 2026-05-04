@@ -225,6 +225,12 @@ select option {
     color: #ddd;
     padding: 8px;
 }
+
+
+.add-power-btn:hover {
+    background: #ff5e5e !important;
+    transform: scale(1.15);
+}
   
   
   </style>
@@ -381,7 +387,12 @@ async function loadRules() {
 
 // Запускаем загрузку при старте
 window.addEventListener('load', () => {
-    loadRules();
+    loadRules().then(() => {
+        renderDisciplines();        // ← добавь эту строку
+        preloadAllSkills();
+        preloadAllAttributes();
+    });
+    setupEventListeners();
 });
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 function initSheet() {
@@ -697,7 +708,7 @@ window.confirmPredatorDiscipline = function() {
     predatorDiscipline[disc] = 1;
 
     addDiscipline(disc, 'Охота', currentFromClan + 1);
-
+    setTimeout(renderDisciplines, 100);   // ← добавь эту строку для обновления кнопок + и выбранных способностей
     closePredDiscModal();
 };
 
@@ -738,8 +749,14 @@ function addDiscipline(name = '', source = 'Вручную', dots = 0) {
             dot.classList.toggle('filled', parseInt(dot.dataset.level) <= newDots);
         });
 
-        updateDisciplineTotal();
-        return;
+        updateDisciplineTotal();    
+
+      // Обновляем кнопки + и выбранные способности
+    setTimeout(() => {
+        renderDisciplines();
+    }, 10);
+
+        
     }
 
     // Создаём новую дисциплину
@@ -771,6 +788,70 @@ function addDiscipline(name = '', source = 'Вручную', dots = 0) {
     });
 
     updateDisciplineTotal();
+}
+
+
+let selectedPowers = {};
+
+function renderDisciplines() {
+    const items = document.querySelectorAll('.discipline-item');
+    
+    items.forEach(item => {
+        // Удаляем старые элементы, чтобы не дублировались
+        item.querySelectorAll('.add-power-btn, .powers-list').forEach(el => el.remove());
+
+        const nameEl = item.querySelector('div:first-child');
+        if (!nameEl) return;
+        const discName = nameEl.textContent.trim();
+
+        // Подсчёт текущих точек
+        let currentDots = 0;
+        const radios = item.querySelectorAll('input[type="radio"]');
+        radios.forEach(r => {
+            if (r.checked) currentDots = Math.max(currentDots, parseInt(r.value));
+        });
+
+        // Если точек нет — пропускаем
+        if (currentDots < 1) return;
+
+        // Кнопка +
+        const addBtn = document.createElement('button');
+        addBtn.className = 'add-power-btn';
+        addBtn.innerHTML = '+';
+        addBtn.title = `Добавить способности (${currentDots} точек)`;
+        addBtn.style.cssText = `
+            margin-left: 12px; 
+            background:#ff3131; 
+            color:black; 
+            border:none; 
+            width:34px; 
+            height:34px; 
+            border-radius:50%; 
+            font-size:22px; 
+            cursor:pointer;
+            flex-shrink:0;
+            font-weight:bold;
+        `;
+
+        addBtn.onclick = (e) => {
+            e.stopImmediatePropagation();
+            openPowerSelectionModal(discName, currentDots);
+        };
+
+        item.style.display = 'flex';
+        item.style.alignItems = 'center';
+        item.appendChild(addBtn);
+
+        // Уже выбранные способности
+        if (selectedPowers[discName] && selectedPowers[discName].length > 0) {
+            const powersDiv = document.createElement('div');
+            powersDiv.className = 'powers-list';
+            powersDiv.style.cssText = 'margin-top:8px; padding-left:8px; color:#aaa; font-size:14px; width:100%;';
+            powersDiv.innerHTML = '<strong style="color:#ffae00;">Способности:</strong><br>' + 
+                                  selectedPowers[discName].map(p => `• ${p}`).join('<br>');
+            item.appendChild(powersDiv);
+        }
+    });
 }
 
 // ==================== ИКОНКИ КЛАНОВ ====================
@@ -1182,7 +1263,10 @@ function confirmClanDisciplines(clanName) {
     addDiscipline(disc2, 'Клан', 2);
     addDiscipline(disc1, 'Клан', 1);
 
+    setTimeout(renderDisciplines, 100);   // ← добавь
+
     closeClanDiscModal();
+
 }
 
 function closeClanDiscModal() {
