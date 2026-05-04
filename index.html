@@ -1076,31 +1076,39 @@ function applyPredatorSpecialty(predatorName, selectedOption) {
         specText = match[2].trim();
     }
 
-    // Точка в навык
+    // Добавляем точку
     const firstDot = document.querySelector(`input[name="${skillName}"][value="1"]`);
     if (firstDot) {
         const current = document.querySelector(`input[name="${skillName}"]:checked`);
-        if (!current || parseInt(current.value) === 0) firstDot.checked = true;
+        if (!current || parseInt(current.value) === 0) {
+            firstDot.checked = true;
+        }
     }
 
-    // Специализация
+    // Добавляем специализацию
     const specCheckbox = document.getElementById(`s-${skillName}`);
     if (specCheckbox) specCheckbox.checked = true;
 
     const container = document.getElementById('specs-' + skillName);
     if (container) {
         container.style.display = 'flex';
-        if (container.children.length === 0) addSpecLine(skillName);
+        if (container.children.length === 0) {
+            addSpecLine(skillName);
+        }
         const input = container.querySelector('input[type="text"]');
         if (input && specText) input.value = specText;
     }
 
+    // Запоминаем для будущего сброса
     currentPredatorSpecialty = { skill: skillName };
 
-    closeSpecChoiceModal();
+    console.log(`✅ Применена специализация: ${skillName} (${specText})`);
 
-    // После специализации — открываем выбор дисциплины
-    setTimeout(() => openPredatorDisciplineModal(predatorName), 300);
+    closeSpecChoiceModal();
+    setTimeout(() => openPredatorDisciplineModal(predatorName), 250);
+
+    updateTrackers();
+    updateSBadgeState(skillName);
 }
 
 
@@ -2101,7 +2109,7 @@ if (predatorSelect) {
 }
 
 function applyPredatorType(predName) {
-    console.log("🎯 applyPredatorType вызван с:", predName);   // ← для отладки
+    console.log("🎯 Применяем стиль охоты:", predName);
 
     if (!predName) {
         loadPredatorHint();
@@ -2109,23 +2117,33 @@ function applyPredatorType(predName) {
         return;
     }
 
-    // Сброс предыдущего
-    if (currentPredatorSpecialty) {
+    // === СБРОС СТАРОЙ СПЕЦИАЛИЗАЦИИ ===
+    if (currentPredatorSpecialty && currentPredatorSpecialty.skill) {
         const oldSkill = currentPredatorSpecialty.skill;
+        console.log(`🗑️ Стираем предыдущую специализацию: ${oldSkill}`);
+
+        // Удаляем строку
         const container = document.getElementById('specs-' + oldSkill);
         if (container) {
             container.innerHTML = '';
             container.style.display = 'none';
         }
-        const cb = document.getElementById('s-' + oldSkill);
-        if (cb) cb.checked = false;
 
+        // Снимаем галочку
+        const checkbox = document.getElementById('s-' + oldSkill);
+        if (checkbox) checkbox.checked = false;
+
+        // Сбрасываем точку (только если 1)
         const radios = document.querySelectorAll(`input[name="${oldSkill}"]`);
         let hasHigher = false;
-        radios.forEach(r => { if (parseInt(r.value) > 1 && r.checked) hasHigher = true; });
+        radios.forEach(r => {
+            if (parseInt(r.value) > 1 && r.checked) hasHigher = true;
+        });
         if (!hasHigher) {
             radios.forEach(r => r.checked = (r.value === "0"));
         }
+
+        updateSBadgeState(oldSkill);
     }
 
     currentPredatorSpecialty = null;
@@ -2141,12 +2159,11 @@ function applyPredatorType(predName) {
 
     loadPredatorHint();
 
+    // Применяем новый стиль
     const predData = RULES.predator_types?.[predName];
-    console.log("📊 Данные по охоте:", predData);
-
+    
     if (predData?.specialty) {
         const options = predData.specialty.split('или').map(s => s.trim()).filter(Boolean);
-        console.log("Варианты специализаций:", options);
 
         if (options.length > 1) {
             showSpecialtyChoiceModal(predName, options, predData);
