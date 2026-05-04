@@ -60,7 +60,7 @@
         }
         
         /* Большое красивое окно-подсказка */
-        .tooltip-trigger:hover::after,
+        /* .tooltip-trigger:hover::after,
         .dot-label:hover::after {
             content: attr(data-tooltip) !important;
             position: absolute !important;
@@ -80,7 +80,7 @@
             max-width: 420px !important;
             text-align: left !important;
             line-height: 1.55 !important;
-        }
+        } */
 
         /* Для названий немного поднимаем */
         .attr-name:hover::after,
@@ -1909,16 +1909,18 @@ function updateSBadgeState(skillName) {
 // ==================== ПОДСКАЗКИ ДЛЯ НАВЫКОВ ====================
 async function preloadAllSkills() {
     const skills = Object.keys(RULES.skills || {});
+    console.log(`Загружаем подсказки для ${skills.length} навыков`);
     
     for (let skill of skills) {
         const data = RULES.skills[skill];
         if (!data) continue;
 
-        // Название навыка
         let fullText = `${skill}\n\n${data.description || 'Описание отсутствует'}`;
         if (data.specialties && data.specialties.length) {
             fullText += `\n\nСпециализации: ${data.specialties.join(', ')}`;
         }
+
+        // Название навыка
         document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
             el.setAttribute('data-tooltip', fullText);
         });
@@ -1927,32 +1929,26 @@ async function preloadAllSkills() {
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
-                const text = `${skill}  ●    ${level} \n${dotDesc}`;
+                const text = `${skill} ● ${level}\n${dotDesc}`;
                 document.querySelectorAll(`label[data-name="${skill}"][data-level="${level}"]`)
-                    .forEach(label => {
-                        label.setAttribute('data-tooltip', text);
-                    });
+                    .forEach(label => label.setAttribute('data-tooltip', text));
             }
         }
     }
 }
 
-// ==================== ПОДСКАЗКИ ДЛЯ ХАРАКТЕРИСТИК ====================
 async function preloadAllAttributes() {
     const attributes = ["Сила", "Ловкость", "Выносливость", "Обаяние", "Манипуляция", "Самообладание", "Интеллект", "Смекалка", "Упорство"];
     
     for (let attr of attributes) {
-        // Можно добавить описания из rules.json, если они есть
         const data = RULES.attributes?.[attr] || { description: "Характеристика персонажа." };
         
         let fullText = `${attr}\n\n${data.description || 'Нет описания.'}`;
         
-        // Подсказки на названиях
         document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
             el.setAttribute('data-tooltip', fullText);
         });
 
-        // Подсказки на точках
         for (let level = 1; level <= 5; level++) {
             const dotDesc = data[`dot${level}`] || `Уровень ${level}`;
             document.querySelectorAll(`label[data-name="${attr}"][data-level="${level}"]`)
@@ -1963,13 +1959,17 @@ async function preloadAllAttributes() {
     }
 }
 
+
+
 // ==================== ЗАПУСК ====================
 window.onload = () => {
     loadRules().then(() => {
         preloadAllSkills();
         preloadAllAttributes();
+        renderSkills();
+        renderAttributes();
     });
-    setupEventListeners();       // Настраиваем обработчики
+    setupEventListeners();
 };
 
 // Настройка всех обработчиков событий
@@ -2183,68 +2183,77 @@ function applyPredatorType(predName) {
 // ==================== ЗАПУСК ====================
 window.onload = () => {
     loadRules().then(() => {
-        preloadAllSkills();
-        preloadAllAttributes();
-        renderSkills();           // добавь
-        renderAttributes();       // добавь
+        setTimeout(() => {
+            preloadAllSkills();
+            preloadAllAttributes();
+        }, 100);   // небольшая задержка, чтобы DOM точно был готов
+        renderSkills();
+        renderAttributes();
     });
     setupEventListeners();
 };
-    
 
 
 
 
-// ==================== ГЛОБАЛЬНЫЕ ПОДСКАЗКИ ====================
+// ==================== ГЛОБАЛЬНЫЕ ПОДСКАЗКИ (исправленная версия) ====================
 let tooltip = null;
 
 function createTooltip() {
     if (tooltip) return tooltip;
     tooltip = document.createElement('div');
-  tooltip.style.cssText = `
+    tooltip.style.cssText = `
         position: fixed;
         background: #111111;
         color: #e0e0e0;
-        padding: 16px 20px;
+        padding: 14px 18px;
         border: 2px solid #ff3131;
         border-radius: 8px;
         font-size: 14px;
         line-height: 1.55;
         max-width: 420px;
-        z-index: 10000;
+        z-index: 30000;
         pointer-events: none;
-        box-shadow: 0 0 30px rgba(255, 49, 49, 0.5);
+        box-shadow: 0 0 30px rgba(255,49,49,0.7);
         display: none;
         white-space: pre-line;
-    
+        word-wrap: break-word;
     `;
     document.body.appendChild(tooltip);
     return tooltip;
 }
 
+// Более надёжный обработчик
 document.addEventListener('mouseover', function(e) {
-    const target = e.target;
-    let text = target.getAttribute('data-tooltip');
-    if (text) {
+    let target = e.target;
+    
+    // Ищем ближайший элемент с data-tooltip
+    while (target && !target.hasAttribute('data-tooltip')) {
+        target = target.parentElement;
+    }
+
+    if (target && target.hasAttribute('data-tooltip')) {
+        const text = target.getAttribute('data-tooltip').trim();
+        if (!text) return;
+
         const tt = createTooltip();
         tt.textContent = text;
         tt.style.display = 'block';
-        
+
         const rect = target.getBoundingClientRect();
-        tt.style.left = (rect.left + window.scrollX + rect.width/2 - tt.offsetWidth/2) + 'px';
-        tt.style.top = (rect.top + window.scrollY - tt.offsetHeight - 15) + 'px';
+        let left = rect.left + window.scrollX + 20;
+        let top = rect.top + window.scrollY - tt.offsetHeight - 15;
+
+        if (top < 20) top = rect.bottom + window.scrollY + 15;
+
+        tt.style.left = left + 'px';
+        tt.style.top = top + 'px';
     }
 });
 
 document.addEventListener('mouseout', function() {
     if (tooltip) tooltip.style.display = 'none';
 });
-
-
-document.addEventListener('mouseout', function() {
-    if (tooltip) tooltip.style.display = 'none';
-});
-
 
 // ==================== ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ СТРЕЛОК ====================
 window.prevClan = function() {
