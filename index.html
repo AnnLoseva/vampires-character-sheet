@@ -875,37 +875,38 @@ function showDisciplineHint(discName) {
 
 // ==================== СБРОС + ОТКРЫТИЕ ГАЛЕРЕИ ====================
 function resetClanDisciplines() {
-    console.log("🗑️ СБРОС КЛАНА — сохраняем только ОХОТУ");
+    console.log("=== СБРОС КЛАНА ЗАПУЩЕН ===");
+    console.log("Текущие disciplineSources:", JSON.parse(JSON.stringify(disciplineSources)));
 
-    // Сохраняем все дисциплины, у которых есть вклад от Охоты
     const huntBackup = {};
 
     Object.keys(disciplineSources).forEach(disc => {
-        const sources = disciplineSources[disc];
-        Object.keys(sources).forEach(src => {
+        Object.keys(disciplineSources[disc]).forEach(src => {
             if (src.includes("Охота")) {
                 if (!huntBackup[disc]) huntBackup[disc] = {};
-                huntBackup[disc][src] = sources[src];
+                huntBackup[disc][src] = disciplineSources[disc][src];
+                console.log(`   ✅ НАЙДЕНО ОТ ОХОТЫ: ${disc} ← ${src} (${disciplineSources[disc][src]} точек)`);
             }
         });
     });
 
-    console.log("💾 Сохранено от Охоты:", huntBackup);
+    console.log("💾 huntBackup:", JSON.parse(JSON.stringify(huntBackup)));
 
-    // Полная очистка
+    // Очищаем
     disciplineSources = {};
     clanProvidedDisciplines = {};
 
-    // Восстанавливаем только Охоту
+    // Восстанавливаем
     Object.keys(huntBackup).forEach(disc => {
         disciplineSources[disc] = { ...huntBackup[disc] };
-        const total = Object.values(disciplineSources[disc]).reduce((a, b) => a + b, 0);
+        const total = Object.values(disciplineSources[disc]).reduce((a,b) => a+b, 0);
         const text = Object.keys(disciplineSources[disc]).join(" + ");
-        
-        console.log(`   ✅ Восстановлено от Охоты: ${disc} → ${total} (${text})`);
+        console.log(`   🔥 ВОССТАНОВЛЕНО: ${disc} → ${total} (${text})`);
     });
 
-    // Полная перерисовка
+    console.log("Итоговые disciplineSources после восстановления:", JSON.parse(JSON.stringify(disciplineSources)));
+
+    // Перерисовка
     const list = document.getElementById('disciplines-list');
     if (list) list.innerHTML = '';
 
@@ -2230,6 +2231,7 @@ function applyPredatorSpecialty(predatorName, selectedOption) {
 }
 
 // ==================== ОБРАБОТЧИКИ ====================
+// ==================== ОБРАБОТЧИКИ ====================
 function setupEventListeners() {
     // Пакет навыков
     const skillPackage = document.getElementById('skill-package');
@@ -2240,24 +2242,20 @@ function setupEventListeners() {
         });
     }
 
-    // Клан
+    // === КЛАН ===
     const clanSelect = document.getElementById('clan-input');
     if (clanSelect) {
         clanSelect.addEventListener('change', function() {
             const newClan = this.value.trim();
 
-            Object.keys(clanProvidedDisciplines).forEach(discName => delete disciplineSources[discName]);
-            clanProvidedDisciplines = {};
+            console.log(`🔄 Смена клана на: ${newClan}`);
 
-            document.querySelectorAll('.discipline-item').forEach(item => {
-                const small = item.querySelector('small');
-                if (small && small.textContent.includes('Клан')) item.remove();
-            });
+            resetClanDisciplines();           // ←←← ВАЖНО!
 
             if (newClan) {
                 loadClanHint();
                 updateClanIcon();
-                setTimeout(() => openClanDisciplineModal(newClan), 180);
+                setTimeout(() => openClanDisciplineModal(newClan), 100);
             } else {
                 loadClanHint();
                 updateClanIcon();
@@ -2266,37 +2264,27 @@ function setupEventListeners() {
             updateDisciplineTotal();
             renderDisciplines();
         });
-
-            // Автоматическое удаление лишних специализаций при уменьшении точек
-    document.addEventListener('change', function(e) {
-        if (e.target.classList.contains('dot-input') && e.target.dataset.type === 'skill') {
-            const skillName = e.target.name;
-            const newDots = parseInt(e.target.value) || 0;
-
-            const container = document.getElementById('specs-' + skillName);
-            if (container) {
-                // Удаляем лишние специализации с конца
-                while (container.children.length > newDots) {
-                    container.removeChild(container.lastElementChild);
-                }
-            }
-
-            updateSpecUI(skillName);
-            updateSBadgeState(skillName);
-        }
-    });
     }
 
-    // Стиль Охоты
+    // === СТИЛЬ ОХОТЫ ===
     const predatorSelect = document.getElementById('predator-input');
     if (predatorSelect) {
         predatorSelect.addEventListener('change', function() {
-            applyPredatorType(this.value.trim());
+            const newPredator = this.value.trim();
+            console.log(`🔄 Смена стиля охоты на: ${newPredator}`);
+
+            resetPredatorDisciplines();       // ←←← ВАЖНО!
+
+            loadPredatorHint();
+
+            if (newPredator) {
+                setTimeout(() => applyPredatorType(newPredator), 50);
+            } else {
+                updateTrackers();
+            }
         });
     }
-
 }
-
 // ==================== ЗАПУСК ====================
 window.onload = () => {
     loadRules().then(() => {
