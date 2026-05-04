@@ -539,41 +539,48 @@ function renderSkills() {
 
 
 
-// ==================== ОБНОВЛЕНИЕ ВИТАЛОВ ====================
+// ==================== ОБНОВЛЕНИЕ ВИТАЛОВ + ПОДСКАЗКИ ====================
 function updateVitals() {
-    // Здоровье = Выносливость + 3
+    // Здоровье
     const staminaInput = document.querySelector('input[name="Выносливость"]:checked');
     const stamina = staminaInput ? parseInt(staminaInput.value) : 1;
-    document.getElementById('val-hp').textContent = stamina + 3;
+    const hp = stamina + 3;
+    document.getElementById('val-hp').textContent = hp;
+    document.getElementById('val-hp').setAttribute('data-tooltip', 
+        `Здоровье = Выносливость(${stamina}) + 3 = ${hp}`);
 
-    // Сила воли = Самообладание + Упорство
+    // Сила воли
     const composureInput = document.querySelector('input[name="Самообладание"]:checked');
     const resolveInput = document.querySelector('input[name="Упорство"]:checked');
-    
     const composure = composureInput ? parseInt(composureInput.value) : 1;
     const resolve = resolveInput ? parseInt(resolveInput.value) : 1;
-    
-    document.getElementById('val-wp').textContent = composure + resolve;
+    const wp = composure + resolve;
+    document.getElementById('val-wp').textContent = wp;
+    document.getElementById('val-wp').setAttribute('data-tooltip', 
+        `Сила воли = Самообладание(${composure}) + Упорство(${resolve}) = ${wp}`);
 
     // Человечность
     updateHumanity();
 }
 
-// ==================== ОБНОВЛЕНИЕ ЧЕЛОВЕЧНОСТИ ====================
-
 function updateHumanity() {
     const predatorName = document.getElementById('predator-input').value;
     let modifier = 0;
+    let modifierText = "";
 
-    if (predatorName && RULES.predator_types?.[predatorName]?.humanity !== undefined) {
-        modifier = RULES.predator_types[predatorName].humanity;
+    if (predatorName && RULES.predator_types?.[predatorName]) {
+        modifier = RULES.predator_types[predatorName].humanity || 0;
+        modifierText = modifier >= 0 ? `+${modifier}` : modifier;
     }
 
     const humanity = 7 + modifier;
     const el = document.getElementById('val-humanity');
+    
     if (el) {
         el.textContent = humanity;
         el.style.color = 'white';
+        el.setAttribute('data-tooltip', 
+            `Человечность = 7 + модификатор от стиля охоты(${modifierText}) = ${humanity}`);
     }
 }
 
