@@ -266,7 +266,7 @@ select option {
 
     <!-- Клан -->
     <div style="flex:1.4; display: flex; align-items: center; gap: 8px;">
-        <button onclick="openClanGallery()" 
+        <button onclick="resetAndOpenClanGallery()" 
                 title="Открыть галерею кланов"
                 style="background:#111; border:1px solid #333; width:36px; height:32px; 
                        border-radius:4px; cursor:pointer; flex-shrink:0; 
@@ -286,7 +286,7 @@ select option {
 
     <!-- Стиль Охоты -->
     <div style="flex:1; display: flex; align-items: center; gap: 8px;">
-        <button onclick="openPredatorGallery()" 
+        <button onclick="resetAndOpenPredatorGallery()" 
                 title="Открыть галерею стилей охоты"
                 style="background:#111; border:1px solid #333; width:36px; height:32px; 
                        border-radius:4px; cursor:pointer; flex-shrink:0; 
@@ -363,6 +363,8 @@ let currentClanIndex = 0;
 let currentPredatorIndex = 0;
 let currentClanDisciplines = [];     // какие дисциплины дал клан
 let currentPredatorDisciplines = []; // какие дисциплины дал стиль охоты
+let clanProvidedDisciplines = {};      // дисциплины от текущего клана
+let predatorProvidedDisciplines = {};  // дисциплины от текущего стиля охоты
 
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
 async function loadRules() {
@@ -657,12 +659,18 @@ function renderDisciplines() {
 function confirmClanDisciplines(clanName) {
     const disc2 = document.getElementById('clan-disc-2').value;
     const disc1 = document.getElementById('clan-disc-1').value;
-    if (!disc2 || !disc1) return alert("Выберите дисциплины!");
-
-    mergeDiscipline(disc2, 2, `Клан ${clanName}`);
-    mergeDiscipline(disc1, 1, `Клан ${clanName}`);
-
+    
+    if (disc2) {
+        mergeDiscipline(disc2, 2, `Клан ${clanName}`);
+        clanProvidedDisciplines[disc2] = 2;
+    }
+    if (disc1) {
+        mergeDiscipline(disc1, 1, `Клан ${clanName}`);
+        clanProvidedDisciplines[disc1] = 1;
+    }
+    
     closeClanDiscModal();
+    updateDisciplineTotal();
 }
 
 function confirmPredatorDiscipline(predatorName) {
@@ -670,7 +678,10 @@ function confirmPredatorDiscipline(predatorName) {
     if (!disc) return alert("Выберите дисциплину!");
 
     mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
+    predatorProvidedDisciplines[disc] = 1;
+    
     closePredDiscModal();
+    updateDisciplineTotal();
 }
 // ==================== МОДАЛЬНЫЕ ОКНА ДЛЯ ВЫБОРА ДИСЦИПЛИН ====================
 
@@ -812,6 +823,45 @@ function showDisciplineHint(discName) {
     panel.innerHTML = html;
 }
 
+// ==================== СБРОС + ОТКРЫТИЕ ГАЛЕРЕИ ====================
+
+// ==================== ПОЛНЫЙ СБРОС КЛАНА ====================
+function resetClanDisciplines() {
+    // Очищаем данные
+    Object.keys(clanProvidedDisciplines).forEach(disc => {
+        delete disciplineSources[disc];
+    });
+    clanProvidedDisciplines = {};
+
+    // Удаляем визуально
+    document.querySelectorAll('.discipline-item').forEach(item => {
+        const small = item.querySelector('small');
+        if (small && small.textContent.includes('Клан')) {
+            item.remove();
+        }
+    });
+
+    updateDisciplineTotal();
+    renderDisciplines();
+}
+
+// ==================== ПОЛНЫЙ СБРОС ОХОТЫ ====================
+function resetPredatorDisciplines() {
+    Object.keys(predatorProvidedDisciplines).forEach(disc => {
+        delete disciplineSources[disc];
+    });
+    predatorProvidedDisciplines = {};
+
+    document.querySelectorAll('.discipline-item').forEach(item => {
+        const small = item.querySelector('small');
+        if (small && small.textContent.includes('Охота')) {
+            item.remove();
+        }
+    });
+
+    updateDisciplineTotal();
+    renderDisciplines();
+}
 
 function openPowerSelectionModal(discName, maxLevel) {
     const disc = RULES.disciplines?.[discName];
@@ -1320,22 +1370,28 @@ function confirmClanDisciplines(clanName) {
     const disc2 = document.getElementById('clan-disc-2').value;
     const disc1 = document.getElementById('clan-disc-1').value;
     
-    mergeDiscipline(disc2, 2, `Клан ${clanName}`);
-    mergeDiscipline(disc1, 1, `Клан ${clanName}`);
+    if (disc2) {
+        mergeDiscipline(disc2, 2, `Клан ${clanName}`);
+        clanProvidedDisciplines[disc2] = 2;
+    }
+    if (disc1) {
+        mergeDiscipline(disc1, 1, `Клан ${clanName}`);
+        clanProvidedDisciplines[disc1] = 1;
+    }
     
     closeClanDiscModal();
+    updateDisciplineTotal();
 }
 
-// Пример для Охоты
-function confirmPredatorDisciplines(predatorName) {
-    const pred = RULES.predator_types?.[predatorName];
-    if (!pred?.disciplines) return;
+function confirmPredatorDiscipline(predatorName) {
+    const disc = document.getElementById('pred-disc-select').value;
+    if (!disc) return;
 
-    pred.disciplines.forEach(disc => {
-        mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
-    });
-
-    closePredatorDiscModal();
+    mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
+    predatorProvidedDisciplines[disc] = 1;
+    
+    closePredDiscModal();
+    updateDisciplineTotal();
 }
 
 function closeClanDiscModal() {
@@ -1855,25 +1911,38 @@ function setupEventListeners() {
 const clanSelect = document.getElementById('clan-input');
 if (clanSelect) {
     clanSelect.addEventListener('change', function() {
-        // Жёстко удаляем ВСЕ дисциплины от любого предыдущего клана
+        const newClan = this.value.trim();
+
+        // === ПОЛНАЯ ОЧИСТКА ПРЕДЫДУЩЕГО КЛАНА ===
+        Object.keys(clanProvidedDisciplines).forEach(discName => {
+            delete disciplineSources[discName];
+        });
+        clanProvidedDisciplines = {};
+
+        // Удаляем все строки дисциплин от предыдущего клана
         document.querySelectorAll('.discipline-item').forEach(item => {
             const small = item.querySelector('small');
             if (small && small.textContent.includes('Клан')) {
-                const name = item.querySelector('div:first-child').textContent.trim();
-                delete disciplineSources[name];
                 item.remove();
             }
         });
 
-        if (!this.value) {
+        currentClanDisciplines = [];
+
+        if (!newClan) {
+            loadClanHint();
+            updateClanIcon();
             openClanGallery();
-            currentClanDisciplines = [];
         } else {
             loadClanHint();
             updateClanIcon();
-            currentClanDisciplines = RULES.clans?.[this.value]?.disciplines || [];
-            setTimeout(() => openClanDisciplineModal(this.value), 150);
+            currentClanDisciplines = RULES.clans?.[newClan]?.disciplines || [];
+            
+            setTimeout(() => {
+                openClanDisciplineModal(newClan);
+            }, 180);
         }
+
         updateDisciplineTotal();
         renderDisciplines();
     });
@@ -1883,24 +1952,31 @@ if (clanSelect) {
 const predatorSelect = document.getElementById('predator-input');
 if (predatorSelect) {
     predatorSelect.addEventListener('change', function() {
-        loadPredatorHint();
+        const newPred = this.value.trim();
 
-        // Жёстко удаляем ВСЕ дисциплины от предыдущей охоты
+        // === ПОЛНАЯ ОЧИСТКА ПРЕДЫДУЩЕЙ ОХОТЫ ===
+        Object.keys(predatorProvidedDisciplines).forEach(discName => {
+            delete disciplineSources[discName];
+        });
+        predatorProvidedDisciplines = {};
+
+        // Удаляем строки
         document.querySelectorAll('.discipline-item').forEach(item => {
             const small = item.querySelector('small');
             if (small && small.textContent.includes('Охота')) {
-                const name = item.querySelector('div:first-child').textContent.trim();
-                delete disciplineSources[name];
                 item.remove();
             }
         });
 
-        if (!this.value) {
-            currentPredatorDisciplines = [];
+        currentPredatorDisciplines = [];
+
+        if (newPred) {
+            loadPredatorHint();
+            setTimeout(() => openPredatorDisciplineModal(newPred), 180);
         } else {
-            currentPredatorDisciplines = RULES.predator_types?.[this.value]?.disciplines || [];
-            setTimeout(() => openPredatorDisciplineModal(this.value), 100);
+            loadPredatorHint();
         }
+
         updateDisciplineTotal();
         renderDisciplines();
     });
