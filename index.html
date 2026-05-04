@@ -528,14 +528,24 @@ function renderSkills() {
 
 
 
+// ==================== ЧИСТАЯ СИСТЕМА ДИСЦИПЛИН ====================
 
-// ==================== ДИСЦИПЛИНЫ (КЛАН + ОХОТА) ====================
+let disciplineSources = {}; 
+let selectedPowers = {};
 
-// Основная функция слияния — прибавляет точки
-// === ИСПРАВЛЕННАЯ mergeDiscipline ===
+function getTotalDots(name) {
+    if (!disciplineSources[name]) return 0;
+    return Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
+}
+
 function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     if (!name) return;
     name = name.trim();
+
+    if (!disciplineSources[name]) disciplineSources[name] = {};
+    disciplineSources[name][source] = dotsToAdd;
+
+    const total = getTotalDots(name);
 
     let existing = Array.from(document.querySelectorAll('.discipline-item')).find(item => {
         const title = item.querySelector('div:first-child');
@@ -544,36 +554,26 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
 
     if (existing) {
         const dotsContainer = existing.querySelector('.dots-discipline');
-        if (!dotsContainer) return;
-
-        const allDots = dotsContainer.querySelectorAll('.disc-dot');
-        let current = 0;
-        allDots.forEach(dot => {
-            if (dot.classList.contains('filled')) current++;
-        });
-
-        const newTotal = Math.min(5, current + dotsToAdd);
-
-        allDots.forEach((dot, i) => {
-            if (i < newTotal) dot.classList.add('filled');
-            else dot.classList.remove('filled');
-        });
-
+        if (dotsContainer) {
+            const allDots = dotsContainer.querySelectorAll('.disc-dot');
+            allDots.forEach((dot, i) => {
+                if (i < total) dot.classList.add('filled');
+                else dot.classList.remove('filled');
+            });
+        }
         const small = existing.querySelector('small');
-        if (small) small.textContent = source;
-
-        console.log(`✅ СЛИЯНИЕ: ${name} ${current} + ${dotsToAdd} = ${newTotal}`);
+        if (small) small.textContent = Object.keys(disciplineSources[name]).join(" + ");
     } else {
-        addDisciplineRow(name, dotsToAdd, source);
+        addDisciplineRow(name, total, Object.keys(disciplineSources[name]).join(" + "));
     }
 
     updateDisciplineTotal();
     setTimeout(renderDisciplines, 100);
 }
-
-// Создание новой дисциплины
-function addDisciplineRow(name, dots = 1, source = "") {
+function addDisciplineRow(name, dots = 1, sourceText = "") {
     const list = document.getElementById('disciplines-list');
+    if (!list) return;
+
     const item = document.createElement('div');
     item.className = 'discipline-item';
 
@@ -585,11 +585,10 @@ function addDisciplineRow(name, dots = 1, source = "") {
     item.innerHTML = `
         <div>${name}</div>
         <div class="dots-discipline">${dotsHTML}</div>
-        <small>${source}</small>
+        <small>${sourceText}</small>
         <button class="remove-disc-btn" style="margin-left:auto;background:#222;color:#ff6666;border:none;width:26px;height:26px;border-radius:50%;cursor:pointer;font-size:18px;">×</button>
     `;
 
-    // Клик по точкам
     item.querySelectorAll('.disc-dot').forEach(dot => {
         dot.addEventListener('click', () => {
             const level = parseInt(dot.dataset.level);
@@ -602,8 +601,8 @@ function addDisciplineRow(name, dots = 1, source = "") {
         });
     });
 
-    // Кнопка удаления
     item.querySelector('.remove-disc-btn').addEventListener('click', () => {
+        delete disciplineSources[name];
         item.remove();
         updateDisciplineTotal();
         renderDisciplines();
@@ -612,69 +611,24 @@ function addDisciplineRow(name, dots = 1, source = "") {
     list.appendChild(item);
 }
 
-// Подтверждение для Клана
-function confirmClanDisciplines(clanName) {
-    const disc2 = document.getElementById('clan-disc-2').value;
-    const disc1 = document.getElementById('clan-disc-1').value;
-    if (!disc2 || !disc1) return alert("Выберите дисциплины!");
-
-    mergeDiscipline(disc2, 2, `Клан ${clanName}`);
-    mergeDiscipline(disc1, 1, `Клан ${clanName}`);
-
-    closeClanDiscModal();
-}
-
-// Подтверждение для Охоты
-function confirmPredatorDiscipline(predatorName) {
-    const disc = document.getElementById('pred-disc-select').value;
-    if (!disc) return alert("Выберите дисциплину");
-
-    mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
-    closePredDiscModal();
-}
-
-// Обновление счётчика дисциплин
-function updateDisciplineTotal() {
-    let total = 0;
-    document.querySelectorAll('.disc-dot.filled').forEach(() => total++);
-    document.getElementById('discipline-total').textContent = `(${total}/5)`;
-}
-
-let selectedPowers = {};
-
 function renderDisciplines() {
-    const items = document.querySelectorAll('.discipline-item');
-    
-    items.forEach(item => {
+    document.querySelectorAll('.discipline-item').forEach(item => {
         item.querySelectorAll('.add-power-btn, .powers-list').forEach(el => el.remove());
 
         const nameEl = item.querySelector('div:first-child');
         if (!nameEl) return;
         const discName = nameEl.textContent.trim();
 
-        // Подсчёт текущих точек
         let currentDots = 0;
         item.querySelectorAll('.disc-dot.filled').forEach(() => currentDots++);
 
         if (currentDots < 1) return;
 
-        // Кнопка "+"
         const addBtn = document.createElement('button');
         addBtn.className = 'add-power-btn';
         addBtn.innerHTML = '+';
         addBtn.title = `Добавить способности (${currentDots} точек)`;
-        addBtn.style.cssText = `
-            margin-left: 12px; 
-            background:#ff3131; 
-            color:black; 
-            border:none; 
-            width:34px; 
-            height:34px; 
-            border-radius:50%; 
-            font-size:22px; 
-            cursor:pointer;
-            flex-shrink:0;
-        `;
+        addBtn.style.cssText = `margin-left:12px;background:#ff3131;color:black;border:none;width:34px;height:34px;border-radius:50%;font-size:22px;cursor:pointer;flex-shrink:0;`;
 
         addBtn.onclick = (e) => {
             e.stopImmediatePropagation();
@@ -687,29 +641,37 @@ function renderDisciplines() {
         headerDiv.appendChild(addBtn);
         nameEl.replaceWith(headerDiv);
 
-        // Список выбранных способностей
         if (selectedPowers[discName] && selectedPowers[discName].length > 0) {
             const powersDiv = document.createElement('div');
             powersDiv.className = 'powers-list';
-            powersDiv.style.cssText = `
-                margin-top: 10px; 
-                padding: 10px 12px; 
-                background: #1a1a1a; 
-                border-radius: 6px; 
-                border: 1px solid #333;
-                font-size: 14px;
-                color: #ccc;
-                line-height: 1.6;
-            `;
-            powersDiv.innerHTML = `
-                <strong style="color:#ffae00; font-size:13px;">Способности:</strong><br>
-                ${selectedPowers[discName].map(p => `• ${p}`).join('<br>')}
-            `;
+            powersDiv.style.cssText = `margin-top:10px;padding:10px 12px;background:#1a1a1a;border-radius:6px;border:1px solid #333;font-size:14px;color:#ccc;`;
+            powersDiv.innerHTML = `<strong style="color:#ffae00;font-size:13px;">Способности:</strong><br>` + 
+                selectedPowers[discName].map(p => `• ${p}`).join('<br>');
             item.appendChild(powersDiv);
         }
     });
 }
 
+// ==================== ПОДТВЕРЖДЕНИЕ ====================
+
+function confirmClanDisciplines(clanName) {
+    const disc2 = document.getElementById('clan-disc-2').value;
+    const disc1 = document.getElementById('clan-disc-1').value;
+    if (!disc2 || !disc1) return alert("Выберите дисциплины!");
+
+    mergeDiscipline(disc2, 2, `Клан ${clanName}`);
+    mergeDiscipline(disc1, 1, `Клан ${clanName}`);
+
+    closeClanDiscModal();
+}
+
+function confirmPredatorDiscipline(predatorName) {
+    const disc = document.getElementById('pred-disc-select').value;
+    if (!disc) return alert("Выберите дисциплину!");
+
+    mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
+    closePredDiscModal();
+}
 // ==================== МОДАЛЬНЫЕ ОКНА ДЛЯ ВЫБОРА ДИСЦИПЛИН ====================
 
 function openClanDisciplineModal(clanName) {
@@ -814,6 +776,42 @@ function closeClanDiscModal() {
 function closePredDiscModal() {
     document.getElementById('pred-disc-modal')?.remove();
 }
+
+// Подсказка по дисциплине в модальном окне
+function showDisciplineHint(discName) {
+    const panel = document.getElementById('discipline-hint-panel');
+    if (!panel) return;
+
+    if (!discName) {
+        panel.innerHTML = `<p style="color:#666;text-align:center;font-style:italic;">Выберите дисциплину</p>`;
+        return;
+    }
+
+    const disc = RULES.disciplines?.[discName];
+    if (!disc) {
+        panel.innerHTML = `<p style="color:#ffae00;">Дисциплина не найдена: <strong>${discName}</strong></p>`;
+        return;
+    }
+
+    let html = `
+        <h3 style="color:#ff3131; margin:0 0 12px;">${discName}</h3>
+        <div style="color:#ddd; line-height:1.65;">
+            ${disc.description || 'Описание отсутствует'}
+        </div>
+    `;
+
+    if (disc.system) {
+        html += `
+            <div style="margin-top:15px; background:#1a1a1a; padding:10px; border-radius:6px; font-size:13.5px;">
+                <strong>Тип:</strong> ${disc.system.type || '—'}<br>
+                <strong>Маскарад:</strong> ${disc.system.masquerade || '—'}
+            </div>
+        `;
+    }
+
+    panel.innerHTML = html;
+}
+
 
 function openPowerSelectionModal(discName, maxLevel) {
     const disc = RULES.disciplines?.[discName];
@@ -1853,29 +1851,33 @@ function setupEventListeners() {
         });
     }
 
-    // ==================== КЛАН ====================
-    const clanSelect = document.getElementById('clan-input');
-    if (clanSelect) {
-        clanSelect.addEventListener('change', function() {
-            currentClanDisciplines.forEach(discName => {
-                document.querySelectorAll('.discipline-item').forEach(item => {
-                    const title = item.querySelector('div:first-child');
-                    if (title && title.textContent.trim() === discName) item.remove();
-                });
-            });
-
-            if (!this.value) {
-                openClanGallery();
-                currentClanDisciplines = [];
-            } else {
-                loadClanHint();
-                updateClanIcon();
-                currentClanDisciplines = RULES.clans?.[this.value]?.disciplines || [];
-                setTimeout(() => openClanDisciplineModal(this.value), 150);
+// ==================== КЛАН ====================
+const clanSelect = document.getElementById('clan-input');
+if (clanSelect) {
+    clanSelect.addEventListener('change', function() {
+        // Жёстко удаляем ВСЕ дисциплины от любого предыдущего клана
+        document.querySelectorAll('.discipline-item').forEach(item => {
+            const small = item.querySelector('small');
+            if (small && small.textContent.includes('Клан')) {
+                const name = item.querySelector('div:first-child').textContent.trim();
+                delete disciplineSources[name];
+                item.remove();
             }
-            updateDisciplineTotal();
         });
-    }
+
+        if (!this.value) {
+            openClanGallery();
+            currentClanDisciplines = [];
+        } else {
+            loadClanHint();
+            updateClanIcon();
+            currentClanDisciplines = RULES.clans?.[this.value]?.disciplines || [];
+            setTimeout(() => openClanDisciplineModal(this.value), 150);
+        }
+        updateDisciplineTotal();
+        renderDisciplines();
+    });
+}
 
 // ==================== СТИЛЬ ОХОТЫ ====================
 const predatorSelect = document.getElementById('predator-input');
@@ -1883,17 +1885,24 @@ if (predatorSelect) {
     predatorSelect.addEventListener('change', function() {
         loadPredatorHint();
 
+        // Жёстко удаляем ВСЕ дисциплины от предыдущей охоты
+        document.querySelectorAll('.discipline-item').forEach(item => {
+            const small = item.querySelector('small');
+            if (small && small.textContent.includes('Охота')) {
+                const name = item.querySelector('div:first-child').textContent.trim();
+                delete disciplineSources[name];
+                item.remove();
+            }
+        });
+
         if (!this.value) {
             currentPredatorDisciplines = [];
-            return;
+        } else {
+            currentPredatorDisciplines = RULES.predator_types?.[this.value]?.disciplines || [];
+            setTimeout(() => openPredatorDisciplineModal(this.value), 100);
         }
-
-        currentPredatorDisciplines = RULES.predator_types?.[this.value]?.disciplines || [];
-
-        // Открываем модальное окно выбора дисциплины
-        setTimeout(() => {
-            openPredatorDisciplineModal(this.value);
-        }, 100);
+        updateDisciplineTotal();
+        renderDisciplines();
     });
 }
 
