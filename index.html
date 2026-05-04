@@ -361,14 +361,28 @@ let currentPredatorDisciplines = []; // какие дисциплины дал �
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
 async function loadRules() {
     try {
-        const res = await fetch('rules.json');
-        RULES = await res.json();
-        console.log("✅ rules.json успешно загружен!", Object.keys(RULES));
-        initSheet();
-    } catch (e) {
-        console.error("❌ Ошибка загрузки rules.json", e);
+        const response = await fetch('rules.json', { cache: 'no-cache' });
+        if (!response.ok) throw new Error('Файл не найден');
+
+        RULES = await response.json();
+        
+        console.log('✅ RULES загружены. Навыков:', Object.keys(RULES.skills || {}).length);
+
+        // ←←← ВАЖНО: вызываем рендер после загрузки
+        if (typeof renderSkills === 'function') renderSkills();
+        if (typeof renderAttributes === 'function') renderAttributes();
+        if (typeof populateSelects === 'function') populateSelects();
+
+    } catch (err) {
+        console.error('❌ Ошибка загрузки rules.json:', err);
+        alert('rules.json не загрузился. Проверь имя файла и запуск через сервер.');
     }
 }
+
+// Запускаем загрузку при старте
+window.addEventListener('load', () => {
+    loadRules();
+});
 // ==================== ИНИЦИАЛИЗАЦИЯ ====================
 function initSheet() {
     populateSelects();
@@ -514,33 +528,42 @@ function openClanDisciplineModal(clanName) {
 
     const modalHTML = `
     <div id="clan-disc-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:20000;display:flex;align-items:center;justify-content:center;">
-        <div style="background:#111;border:3px solid #ff3131;padding:40px;width:560px;border-radius:10px;max-width:95%;">
-            <h2 style="color:#ff3131;text-align:center;margin:0 0 20px;">${clanName}</h2>
-            <p style="text-align:center;color:#ccc;margin-bottom:30px;">Выбери стартовые дисциплины клана</p>
+        <div style="background:#111;border:3px solid #ff3131;padding:40px;width:960px;border-radius:10px;max-width:95%; display:flex; gap:30px;">
             
-            <div style="margin-bottom:25px;">
-                <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на <span style="color:#ff3131">2 точки</span>:</label>
-                <select id="clan-disc-2" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;">
-                    ${clanData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
-                </select>
+            <!-- Левая часть — выбор -->
+            <div style="flex:1;">
+                <h2 style="color:#ff3131;text-align:center;margin:0 0 20px;">${clanName}</h2>
+                <p style="text-align:center;color:#ccc;margin-bottom:30px;">Выбери стартовые дисциплины клана</p>
+                
+                <div style="margin-bottom:25px;">
+                    <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на <span style="color:#ff3131">2 точки</span>:</label>
+                    <select id="clan-disc-2" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;" onchange="showDisciplineHint(this.value)">
+                        ${clanData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
+                    </select>
+                </div>
+                
+                <div style="margin-bottom:35px;">
+                    <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на <span style="color:#ff3131">1 точку</span>:</label>
+                    <select id="clan-disc-1" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;" onchange="showDisciplineHint(this.value)">
+                        ${clanData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
+                    </select>
+                </div>
+                
+                <div style="text-align:center;">
+                    <button onclick="confirmClanDisciplines('${clanName}')" 
+                            style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;cursor:pointer;margin-right:15px;">
+                        ✅ Подтвердить
+                    </button>
+                    <button onclick="closeClanDiscModal()" 
+                            style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;cursor:pointer;">
+                        Отмена
+                    </button>
+                </div>
             </div>
-            
-            <div style="margin-bottom:35px;">
-                <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на <span style="color:#ff3131">1 точку</span>:</label>
-                <select id="clan-disc-1" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;">
-                    ${clanData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
-                </select>
-            </div>
-            
-            <div style="text-align:center;">
-                <button onclick="confirmClanDisciplines('${clanName}')" 
-                        style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;cursor:pointer;margin-right:15px;">
-                    ✅ Подтвердить
-                </button>
-                <button onclick="closeClanDiscModal()" 
-                        style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;cursor:pointer;">
-                    Отмена
-                </button>
+
+            <!-- Правая часть — подсказка -->
+            <div id="discipline-hint-panel" style="width:380px; background:#0a0a0a; border:1px solid #333; border-radius:8px; padding:20px; color:#ddd; font-size:14.5px; line-height:1.6; overflow-y:auto; max-height:520px;">
+                <p style="color:#666; text-align:center; font-style:italic;">Выберите дисциплину слева, чтобы увидеть описание</p>
             </div>
         </div>
     </div>`;
@@ -568,38 +591,101 @@ function closeClanDiscModal() {
     document.getElementById('clan-disc-modal')?.remove();
 }
 
+// Показывает подсказку по дисциплине
+function showDisciplineHint(discName) {
+    const panel = document.getElementById('discipline-hint-panel');
+    if (!panel) return;
+
+    if (!discName) {
+        panel.innerHTML = `<p style="color:#666;text-align:center;font-style:italic;">Выберите дисциплину</p>`;
+        return;
+    }
+
+    if (!RULES?.disciplines) {
+        panel.innerHTML = `<p style="color:#ffae00;">Данные загружаются...</p>`;
+        return;
+    }
+
+    let disc = RULES.disciplines[discName];
+    if (!disc) {
+        panel.innerHTML = `<p style="color:#ffae00;">Дисциплина не найдена: <strong>${discName}</strong></p>`;
+        return;
+    }
+
+    // Очищаем мусор от генерации
+    let cleanDesc = (disc.description || '').replace(/:contentReference\[.*?\]\{.*?\}/g, '').trim();
+
+    let html = `
+        <h3 style="color:#ff3131; margin:0 0 12px;">${discName}</h3>
+        <div style="color:#ddd; line-height:1.65; margin-bottom:18px;">
+            ${cleanDesc || 'Описание отсутствует'}
+        </div>
+    `;
+
+    if (disc.system) {
+        html += `
+            <div style="background:#1a1a1a; padding:12px; border-radius:6px; font-size:14px;">
+                <strong>Тип:</strong> ${disc.system.type || '—'}<br>
+                <strong>Маскарад:</strong> ${disc.system.masquerade || '—'}
+            </div>
+        `;
+    }
+
+    panel.innerHTML = html;
+}
 // ==================== ДИСЦИПЛИНЫ ОТ ТИПА ОХОТЫ ====================
 let predatorDiscipline = {};
 
 function openPredatorDisciplineModal(predatorName) {
-    const predData = RULES.predator_types?.[predatorName];
-    if (!predData || !predData.disciplines || predData.disciplines.length === 0) return;
+    const predatorData = RULES.predator_types?.[predatorName];
+    if (!predatorData || !predatorData.disciplines || predatorData.disciplines.length === 0) {
+        alert("Для стиля охоты " + predatorName + " нет дисциплин.");
+        return;
+    }
 
     const modalHTML = `
     <div id="pred-disc-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:20000;display:flex;align-items:center;justify-content:center;">
-        <div style="background:#111;border:3px solid #ff3131;padding:40px;width:560px;border-radius:10px;max-width:95%;">
-            <h2 style="color:#ff3131;text-align:center;margin:0 0 20px;">${predatorName}</h2>
-            <p style="text-align:center;color:#ccc;margin-bottom:30px;">Выбери одну дисциплину (+1 точка)</p>
+        <div style="background:#111;border:3px solid #ff3131;padding:40px;width:960px;border-radius:10px;max-width:95%; display:flex; gap:30px;">
             
-            <select id="pred-disc-select" style="width:100%;padding:14px;background:#000;color:white;border:1px solid #555;font-size:17px;margin-bottom:30px;">
-                ${predData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
-            </select>
-            
-            <div style="text-align:center;">
-                <button onclick="confirmPredatorDiscipline()" 
-                        style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;margin-right:15px;">
-                    Добавить
-                </button>
-                <button onclick="closePredDiscModal()" 
-                        style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;">
-                    Пропустить
-                </button>
+            <!-- Левая часть — выбор -->
+            <div style="flex:1;">
+                <h2 style="color:#ff3131;text-align:center;margin:0 0 20px;">${predatorName}</h2>
+                <p style="text-align:center;color:#ccc;margin-bottom:30px;">Выбери дополнительную дисциплину (+1 точка)</p>
+                
+                <div style="margin-bottom:35px;">
+                    <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на 1 точку:</label>
+                    <select id="pred-disc-select" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;" 
+                            onchange="showDisciplineHint(this.value)">
+                        ${predatorData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
+                    </select>
+                </div>
+
+                <div style="text-align:center;">
+                    <button onclick="confirmPredatorDiscipline('${predatorName}')" style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;cursor:pointer;margin-right:15px;">
+                        ✅ Подтвердить
+                    </button>
+                    <button onclick="closePredatorDiscModal()" style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;cursor:pointer;">
+                        Отмена
+                    </button>
+                </div>
+            </div>
+
+            <!-- Правая часть — подсказка -->
+            <div id="discipline-hint-panel" style="width:380px; background:#0a0a0a; border:1px solid #333; border-radius:8px; padding:20px; color:#ddd; font-size:14.5px; line-height:1.6; overflow-y:auto; max-height:520px;">
+                <p style="color:#666; text-align:center; font-style:italic;">Выберите дисциплину слева, чтобы увидеть описание</p>
             </div>
         </div>
     </div>`;
 
+    // Удаляем старое модальное окно, если есть
     document.getElementById('pred-disc-modal')?.remove();
     document.body.insertAdjacentHTML('beforeend', modalHTML);
+
+    // Показываем подсказку для первой дисциплины автоматически
+    setTimeout(() => {
+        const firstDisc = predatorData.disciplines[0];
+        if (firstDisc) showDisciplineHint(firstDisc);
+    }, 100);
 }
 
 window.confirmPredatorDiscipline = function() {
@@ -1040,11 +1126,16 @@ async function showSinglePredator(pred) {
     gallery.innerHTML = html;
 }
 
-// Выбор стиля охоты
+// Выбор стиля охоты из галереи
 function selectThisPredator(name) {
     document.getElementById('predator-input').value = name;
     closePredatorModal();
-    loadPredatorHint();
+    loadPredatorHint();    // обновляем подсказку
+    
+    // ←←← Вот это было пропущено
+    setTimeout(() => {
+        openPredatorDisciplineModal(name);
+    }, 300);
 }
 
 // Закрытие модального окна стилей охоты
@@ -1069,12 +1160,7 @@ function closeClanModal() {
     document.getElementById('clan-modal').style.display = 'none';
 }
 
-// Выбор стиля охоты из галереи
-function selectThisPredator(name) {
-    document.getElementById('predator-input').value = name;
-    closePredatorModal();
-    loadPredatorHint();    // обновляем подсказку
-}
+
 
 // Закрытие модального окна стилей охоты
 function closePredatorModal() {
@@ -1513,8 +1599,11 @@ async function preloadAllAttributes() {
 }
 
 // ==================== ЗАПУСК ====================
-window.onload = async function() {
-    await loadRules();           // Загружаем JSON
+window.onload = () => {
+    loadRules().then(() => {
+        preloadAllSkills();
+        preloadAllAttributes();
+    });
     setupEventListeners();       // Настраиваем обработчики
 };
 
