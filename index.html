@@ -1033,6 +1033,76 @@ function closePowerModal() {
     if (modal) modal.remove();
 }
 
+// ==================== МОДАЛЬНЫЙ ВЫБОР СПЕЦИАЛЬНОСТИ ====================
+function showSpecialtyChoiceModal(predatorName, options, predData) {
+    let html = `
+    <div id="spec-choice-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:26000;display:flex;align-items:center;justify-content:center;">
+        <div style="background:#111;border:3px solid #ff3131;padding:35px 40px;width:520px;border-radius:12px;">
+            <h3 style="color:#ff3131;text-align:center;margin:0 0 25px;">Выберите специализацию для «${predatorName}»</h3>
+            
+            <div style="display:flex;flex-direction:column;gap:12px;">`;
+
+    options.forEach((opt, i) => {
+        html += `
+            <button onclick="applyPredatorSpecialty('${predatorName}', '${opt.replace(/'/g, "\\'")}'); closeSpecChoiceModal();" 
+                    style="padding:14px 20px;background:#1a1a1a;border:1px solid #444;color:#ddd;font-size:15.5px;border-radius:6px;cursor:pointer;text-align:left;">
+                ${opt}
+            </button>`;
+    });
+
+    html += `</div>
+            <button onclick="closeSpecChoiceModal()" 
+                    style="margin-top:25px;width:100%;padding:12px;background:#333;color:white;border:none;border-radius:6px;cursor:pointer;">
+                Отмена
+            </button>
+        </div>
+    </div>`;
+
+    document.getElementById('spec-choice-modal')?.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+}
+
+function closeSpecChoiceModal() {
+    document.getElementById('spec-choice-modal')?.remove();
+}
+
+function applyPredatorSpecialty(predatorName, selectedOption) {
+    const match = selectedOption.match(/(.+?)\s*\((.+?)\)/);
+    let skillName = selectedOption;
+    let specText = "";
+
+    if (match) {
+        skillName = match[1].trim();
+        specText = match[2].trim();
+    }
+
+    // Точка в навык
+    const firstDot = document.querySelector(`input[name="${skillName}"][value="1"]`);
+    if (firstDot) {
+        const current = document.querySelector(`input[name="${skillName}"]:checked`);
+        if (!current || parseInt(current.value) === 0) firstDot.checked = true;
+    }
+
+    // Специализация
+    const specCheckbox = document.getElementById(`s-${skillName}`);
+    if (specCheckbox) specCheckbox.checked = true;
+
+    const container = document.getElementById('specs-' + skillName);
+    if (container) {
+        container.style.display = 'flex';
+        if (container.children.length === 0) addSpecLine(skillName);
+        const input = container.querySelector('input[type="text"]');
+        if (input && specText) input.value = specText;
+    }
+
+    currentPredatorSpecialty = { skill: skillName };
+
+    closeSpecChoiceModal();
+
+    // После специализации — открываем выбор дисциплины
+    setTimeout(() => openPredatorDisciplineModal(predatorName), 300);
+}
+
 
 // ==================== ИКОНКИ КЛАНОВ ====================
 
@@ -1404,12 +1474,11 @@ async function showSinglePredator(pred) {
 function selectThisPredator(name) {
     document.getElementById('predator-input').value = name;
     closePredatorModal();
-    loadPredatorHint();    // обновляем подсказку
+    loadPredatorHint();
     
-    // ←←← Вот это было пропущено
     setTimeout(() => {
-        openPredatorDisciplineModal(name);
-    }, 300);
+        applyPredatorType(name);   // ← главный вызов
+    }, 150);
 }
 
 // Закрытие модального окна стилей охоты
@@ -1426,7 +1495,7 @@ function selectThisClan(name) {
     closeClanModal();
     loadClanHint();        // обновляем подсказку
     updateClanIcon();      // обновляем иконку
-    setTimeout(() => openClanDisciplineModal(name), 700);
+    setTimeout(() => openClanDisciplineModal(name), 100);
 }
 
 // Закрытие модального окна кланов
@@ -1816,13 +1885,17 @@ function updateSBadgeState(skillName) {
 
     const dots = parseInt(document.querySelector(`input[name="${skillName}"]:checked`)?.value || 0);
 
-    if (dots === 0) {
-        badge.classList.add('inactive');
-        checkbox.disabled = true;
-        checkbox.checked = false;
-    } else {
+    if (dots >= 1) {
         badge.classList.remove('inactive');
         checkbox.disabled = false;
+        // Принудительно зажигаем красным
+        badge.style.color = '#ff3131';
+        badge.style.borderColor = '#ff3131';
+    } else {
+        badge.classList.add('inactive');
+        checkbox.disabled = true;
+        badge.style.color = '#444';
+        badge.style.borderColor = '#444';
     }
 }
 // ==================== ПОДСКАЗКИ ДЛЯ НАВЫКОВ ====================
@@ -1975,6 +2048,7 @@ document.getElementById('btn-save').addEventListener('click', function() {
 });
 
 // ==================== ОБРАБОТЧИКИ ====================
+// ==================== ОБРАБОТЧИКИ ====================
 function setupEventListeners() {
     // Пакет навыков
     const skillPackage = document.getElementById('skill-package');
@@ -1985,83 +2059,121 @@ function setupEventListeners() {
         });
     }
 
-// ==================== КЛАН ====================
-const clanSelect = document.getElementById('clan-input');
-if (clanSelect) {
-    clanSelect.addEventListener('change', function() {
-        const newClan = this.value.trim();
+    // ==================== КЛАН ====================
+    const clanSelect = document.getElementById('clan-input');
+    if (clanSelect) {
+        clanSelect.addEventListener('change', function() {
+            const newClan = this.value.trim();
 
-        // === ПОЛНАЯ ОЧИСТКА ПРЕДЫДУЩЕГО КЛАНА ===
-        Object.keys(clanProvidedDisciplines).forEach(discName => {
-            delete disciplineSources[discName];
-        });
-        clanProvidedDisciplines = {};
+            Object.keys(clanProvidedDisciplines).forEach(discName => {
+                delete disciplineSources[discName];
+            });
+            clanProvidedDisciplines = {};
 
-        // Удаляем все строки дисциплин от предыдущего клана
-        document.querySelectorAll('.discipline-item').forEach(item => {
-            const small = item.querySelector('small');
-            if (small && small.textContent.includes('Клан')) {
-                item.remove();
+            document.querySelectorAll('.discipline-item').forEach(item => {
+                const small = item.querySelector('small');
+                if (small && small.textContent.includes('Клан')) {
+                    item.remove();
+                }
+            });
+
+            if (!newClan) {
+                loadClanHint();
+                updateClanIcon();
+            } else {
+                loadClanHint();
+                updateClanIcon();
+                setTimeout(() => openClanDisciplineModal(newClan), 180);
             }
+
+            updateDisciplineTotal();
+            renderDisciplines();
         });
-
-        currentClanDisciplines = [];
-
-        if (!newClan) {
-            loadClanHint();
-            updateClanIcon();
-            openClanGallery();
-        } else {
-            loadClanHint();
-            updateClanIcon();
-            currentClanDisciplines = RULES.clans?.[newClan]?.disciplines || [];
-            
-            setTimeout(() => {
-                openClanDisciplineModal(newClan);
-            }, 180);
-        }
-
-        updateDisciplineTotal();
-        renderDisciplines();
-    });
-}
-
+    }
 // ==================== СТИЛЬ ОХОТЫ ====================
+let currentPredatorSpecialty = null;
+
 const predatorSelect = document.getElementById('predator-input');
 if (predatorSelect) {
     predatorSelect.addEventListener('change', function() {
-        const newPred = this.value.trim();
-
-        // === ПОЛНАЯ ОЧИСТКА ПРЕДЫДУЩЕЙ ОХОТЫ ===
-        Object.keys(predatorProvidedDisciplines).forEach(discName => {
-            delete disciplineSources[discName];
-        });
-        predatorProvidedDisciplines = {};
-
-        // Удаляем строки
-        document.querySelectorAll('.discipline-item').forEach(item => {
-            const small = item.querySelector('small');
-            if (small && small.textContent.includes('Охота')) {
-                item.remove();
-            }
-        });
-
-        currentPredatorDisciplines = [];
-
-        if (newPred) {
-            loadPredatorHint();
-            setTimeout(() => openPredatorDisciplineModal(newPred), 180);
-        } else {
-            loadPredatorHint();
-        }
-
-        updateDisciplineTotal();
-        renderDisciplines();
-        updateHumanity();        
+        applyPredatorType(this.value.trim());
     });
 }
 
+function applyPredatorType(predName) {
+    console.log("🎯 applyPredatorType вызван с:", predName);   // ← для отладки
+
+    if (!predName) {
+        loadPredatorHint();
+        updateTrackers();
+        return;
+    }
+
+    // Сброс предыдущего
+    if (currentPredatorSpecialty) {
+        const oldSkill = currentPredatorSpecialty.skill;
+        const container = document.getElementById('specs-' + oldSkill);
+        if (container) {
+            container.innerHTML = '';
+            container.style.display = 'none';
+        }
+        const cb = document.getElementById('s-' + oldSkill);
+        if (cb) cb.checked = false;
+
+        const radios = document.querySelectorAll(`input[name="${oldSkill}"]`);
+        let hasHigher = false;
+        radios.forEach(r => { if (parseInt(r.value) > 1 && r.checked) hasHigher = true; });
+        if (!hasHigher) {
+            radios.forEach(r => r.checked = (r.value === "0"));
+        }
+    }
+
+    currentPredatorSpecialty = null;
+
+    // Очистка дисциплин
+    Object.keys(predatorProvidedDisciplines).forEach(d => delete disciplineSources[d]);
+    predatorProvidedDisciplines = {};
+
+    document.querySelectorAll('.discipline-item').forEach(item => {
+        const small = item.querySelector('small');
+        if (small && small.textContent.includes('Охота')) item.remove();
+    });
+
+    loadPredatorHint();
+
+    const predData = RULES.predator_types?.[predName];
+    console.log("📊 Данные по охоте:", predData);
+
+    if (predData?.specialty) {
+        const options = predData.specialty.split('или').map(s => s.trim()).filter(Boolean);
+        console.log("Варианты специализаций:", options);
+
+        if (options.length > 1) {
+            showSpecialtyChoiceModal(predName, options, predData);
+        } else if (options.length === 1) {
+            applyPredatorSpecialty(predName, options[0]);
+        } else {
+            setTimeout(() => openPredatorDisciplineModal(predName), 200);
+        }
+    } else {
+        setTimeout(() => openPredatorDisciplineModal(predName), 200);
+    }
+
+    updateTrackers();
 }
+}
+
+// ==================== ЗАПУСК ====================
+window.onload = () => {
+    loadRules().then(() => {
+        preloadAllSkills();
+        preloadAllAttributes();
+        renderSkills();           // добавь
+        renderAttributes();       // добавь
+    });
+    setupEventListeners();
+};
+    
 
 
 
