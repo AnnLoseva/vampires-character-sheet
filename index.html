@@ -330,20 +330,33 @@ select option {
     </div>
 
 
-        <!-- === ПРЕИМУЩЕСТВА И НЕДОСТАТКИ === -->
-    <div style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333;">
-        <h2 style="text-align:center; margin-bottom:15px;">
-            Преимущества и Недостатки 
-            <span id="merits-total" style="color:#ffae00; font-size:18px;">(0 / 0)</span>
-        </h2>
-        <div id="merits-flaws-list" style="display:flex; flex-direction:column; gap:8px;"></div>
-        
-        <button onclick="openMeritsFlawsModal()" 
-                style="background:transparent; color:var(--v-red); border:1px solid var(--v-red); 
-                       padding:10px 20px; border-radius:4px; cursor:pointer; margin-top:15px; width:100%;">
-            + Добавить преимущество / недостаток
-        </button>
+   <!-- === ПРЕИМУЩЕСТВА И НЕДОСТАТКИ === -->
+<div style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333; border-radius:8px;">
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ПРЕИМУЩЕСТВА И НЕДОСТАТКИ</h2>
+    
+    <!-- Преимущества -->
+    <div id="merits-section" style="margin-bottom:25px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h3 style="margin:0; color:#ffcc00;">Преимущества</h3>
+            <div id="merits-dots" style="display:flex; gap:6px;"></div>
+        </div>
+        <div id="selected-merits-list" style="min-height:60px;"></div>
     </div>
+
+    <!-- Недостатки -->
+    <div id="flaws-section">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+            <h3 style="margin:0; color:#ff6666;">Недостатки</h3>
+            <div id="flaws-dots" style="display:flex; gap:6px;"></div>
+        </div>
+        <div id="selected-flaws-list" style="min-height:60px;"></div>
+    </div>
+
+    <button onclick="openMeritsFlawsModal()" 
+            style="margin-top:20px; width:100%; padding:12px; background:#222; color:#fff; border:1px solid #ff3131; border-radius:6px; font-size:16px; cursor:pointer;">
+        + Добавить преимущество / недостаток
+    </button>
+</div>
 
 </div>   <!-- ←←← ЗАКРЫТИЕ .sheet -->
 
@@ -2659,22 +2672,73 @@ function renderVariantsInCategory(category, tab) {
 
 // Отображение выбранных
 function renderSelectedMeritsFlaws() {
-    const container = document.getElementById('merits-flaws-list');
+    let totalMerits = 0;
+    let totalFlaws = 0;
+
+    // Преимущества
+    const meritsContainer = document.getElementById('selected-merits-list');
+    meritsContainer.innerHTML = '';
+    selectedMerits.forEach((item, index) => {
+        totalMerits += item.points || 0;
+        meritsContainer.appendChild(createSelectedItem(item, index, true));
+    });
+
+    // Недостатки
+    const flawsContainer = document.getElementById('selected-flaws-list');
+    flawsContainer.innerHTML = '';
+    selectedFlaws.forEach((item, index) => {
+        totalFlaws += item.points || 0;
+        flawsContainer.appendChild(createSelectedItem(item, index, false));
+    });
+
+    renderDots('merits-dots', totalMerits);
+    renderDots('flaws-dots', totalFlaws);
+}
+
+function renderDots(containerId, points) {
+    const container = document.getElementById(containerId);
     container.innerHTML = '';
+    for (let i = 1; i <= 7; i++) {  // можно поменять максимум
+        const dot = document.createElement('div');
+        dot.style.cssText = `
+            width: 22px; height: 22px; border-radius: 50%; 
+            background: ${i <= points ? '#ff3131' : '#333'};
+            border: 2px solid ${i <= points ? '#ff6666' : '#555'};
+            box-shadow: ${i <= points ? '0 0 8px #ff3131' : 'none'};
+        `;
+        container.appendChild(dot);
+    }
+}
 
-    let totalMerits = 0, totalFlaws = 0;
+function createSelectedItem(item, index, isMerit) {
+    const points = item.points || item.точки || 0;
+    
+    let dotsHTML = '';
+    for (let i = 1; i <= 5; i++) {   // максимум 5 точек на пункт
+        dotsHTML += `
+            <div style="width:18px; height:18px; border-radius:50%; 
+                        background: ${i <= points ? '#ff3131' : '#333'}; 
+                        border: 2px solid ${i <= points ? '#ff6666' : '#555'}; 
+                        box-shadow: ${i <= points ? '0 0 6px #ff3131' : 'none'}; 
+                        margin-left: 3px;">
+            </div>`;
+    }
 
-    selectedMerits.forEach((m, i) => {
-        totalMerits += m.points;
-        container.appendChild(createMeritItem(m, i, true));
-    });
-
-    selectedFlaws.forEach((f, i) => {
-        totalFlaws += f.points;
-        container.appendChild(createMeritItem(f, i, false));
-    });
-
-    document.getElementById('merits-total').textContent = `(${totalMerits} / ${totalFlaws})`;
+    const div = document.createElement('div');
+    div.style.cssText = `
+        background:#1a1a1a; padding:10px 14px; margin-bottom:6px; border-radius:6px;
+        border-left:4px solid ${isMerit ? '#ffcc00' : '#ff6666'}; 
+        display:flex; justify-content:space-between; align-items:center;
+    `;
+    div.innerHTML = `
+        <div style="display:flex; align-items:center; gap:12px; flex:1;">
+            <strong style="flex:1;">${item.name || item.название_пункта}</strong>
+            <div style="display:flex; gap:3px;">${dotsHTML}</div>
+        </div>
+        <button onclick="${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
+                style="background:none; border:none; color:#ff3131; font-size:22px; cursor:pointer; padding:0 8px;">×</button>
+    `;
+    return div;
 }
 
 function createMeritItem(item, index, isMerit) {
