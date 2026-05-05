@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>VTM V5 Digital Sheet v1.0.14</title>
+    <title>VTM V5 Digital Sheet v1.0.15</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
@@ -328,6 +328,49 @@ select option {
         <div id="disciplines-list"></div>
     
     </div>
+
+
+        <!-- === ПРЕИМУЩЕСТВА И НЕДОСТАТКИ === -->
+    <div style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333;">
+        <h2 style="text-align:center; margin-bottom:15px;">
+            Преимущества и Недостатки 
+            <span id="merits-total" style="color:#ffae00; font-size:18px;">(0 / 0)</span>
+        </h2>
+        <div id="merits-flaws-list" style="display:flex; flex-direction:column; gap:8px;"></div>
+        
+        <button onclick="openMeritsFlawsModal()" 
+                style="background:transparent; color:var(--v-red); border:1px solid var(--v-red); 
+                       padding:10px 20px; border-radius:4px; cursor:pointer; margin-top:15px; width:100%;">
+            + Добавить преимущество / недостаток
+        </button>
+    </div>
+
+</div>   <!-- ←←← ЗАКРЫТИЕ .sheet -->
+
+<!-- Модальное окно (оставляем вне .sheet) -->
+<!-- Модал Преимуществ/Недостатков -->
+<div id="merits-flaws-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
+     background:rgba(0,0,0,0.96); z-index:11000; overflow:auto; padding:20px;">
+    <div style="max-width:1100px; margin:30px auto; background:#111; padding:25px; border-radius:8px; border:2px solid #ff3131;">
+        <button onclick="closeMeritsFlawsModal()" 
+                style="position:absolute; top:15px; right:25px; font-size:32px; color:#ff3131; background:none; border:none; cursor:pointer;">×</button>
+        
+        <h2 style="text-align:center; color:#ff3131; margin-bottom:20px;">Преимущества & Недостатки</h2>
+        
+        <!-- Вкладки -->
+        <div style="display:flex; margin-bottom:20px; border-bottom:1px solid #333;">
+            <button onclick="switchMeritsTab(0)" id="tab-merits" 
+                    style="flex:1; padding:12px; background:#222; border:none; color:white; font-weight:bold;">Преимущества</button>
+            <button onclick="switchMeritsTab(1)" id="tab-flaws" 
+                    style="flex:1; padding:12px; background:#111; border:none; color:white; font-weight:bold;">Недостатки</button>
+        </div>
+
+        <input type="text" id="merits-search" placeholder="Поиск..." 
+               style="width:100%; padding:10px; background:#000; border:1px solid #444; color:white; margin-bottom:15px; font-size:16px;">
+
+        <div id="merits-list" style="max-height:550px; overflow-y:auto;"></div>
+    </div>
+</div>
 </div>
 
 <!-- Правая панель -->
@@ -355,6 +398,9 @@ select option {
         <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px;">Выбор Стиля Охоты</h2>
         <div id="predator-gallery" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px;"></div>
     </div>
+
+
+
 </div>
 </body>
 <script>
@@ -372,26 +418,30 @@ let currentClanDisciplines = [];     // какие дисциплины дал �
 let currentPredatorDisciplines = []; // какие дисциплины дал стиль охоты
 let clanProvidedDisciplines = {};      // дисциплины от текущего клана
 let predatorProvidedDisciplines = {};  // дисциплины от текущего стиля охоты
+let selectedMerits = [];   // {category, name, points, fullDesc, mechanic}
+let selectedFlaws = [];
 
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
 async function loadRules() {
     try {
         const response = await fetch('rules.json', { cache: 'no-cache' });
-        if (!response.ok) throw new Error('Файл не найден');
+        if (!response.ok) throw new Error('rules.json не найден');
 
         RULES = await response.json();
-        
-        console.log('✅ RULES загружены. Навыков:', Object.keys(RULES.skills || {}).length);
 
-        // ←←← ВАЖНО: вызываем рендер после загрузки
-        if (typeof renderSkills === 'function') renderSkills();
-        if (typeof renderAttributes === 'function') renderAttributes();
-        if (typeof populateSelects === 'function') populateSelects();
+        console.log('✅ RULES успешно загружены');
+        console.log('Преимуществ:', Object.keys(RULES.advantages?.merits || {}).length);
+        console.log('Недостатков:', Object.keys(RULES.flaws || {}).length);
 
     } catch (err) {
         console.error('❌ Ошибка загрузки rules.json:', err);
-        alert('rules.json не загрузился. Проверь имя файла и запуск через сервер.');
+        alert('Не удалось загрузить rules.json');
     }
+
+    // Инициализация
+    renderAttributes();
+    renderSkills();
+    populateSelects();
 }
 
 // Запускаем загрузку при старте
@@ -2499,7 +2549,164 @@ document.addEventListener('change', function(e) {
 });
 
 
+// ==================== ПРЕИМУЩЕСТВА И НЕДОСТАТКИ ====================
 
+function openMeritsFlawsModal() {
+    document.getElementById('merits-flaws-modal').style.display = 'block';
+    switchMeritsTab(0); // по умолчанию открываем Преимущества
+}
+
+function closeMeritsFlawsModal() {
+    document.getElementById('merits-flaws-modal').style.display = 'none';
+}
+
+function switchMeritsTab(tab) {
+    document.getElementById('tab-merits').style.background = tab === 0 ? '#222' : '#111';
+    document.getElementById('tab-flaws').style.background = tab === 1 ? '#222' : '#111';
+    renderCategories(tab);
+}
+
+function renderCategories(tab) {
+    const container = document.getElementById('merits-list');
+    container.innerHTML = '';
+    const search = document.getElementById('merits-search').value.toLowerCase().trim();
+
+    let source = {};
+
+    if (tab === 0) {
+        // Преимущества
+        source = RULES.advantages?.merits || {};
+    } else {
+        // Недостатки — они тоже внутри advantages
+        source = RULES.advantages?.flaws || RULES.flaws || {};
+    }
+
+    if (Object.keys(source).length === 0) {
+        container.innerHTML = `<p style="color:#ff6666; text-align:center; padding:60px 20px;">
+            Данные не загружены<br><small>Проверь структуру rules.json</small>
+        </p>`;
+        return;
+    }
+
+    Object.keys(source).forEach(catKey => {
+        const category = source[catKey];
+        const catName = category.название || catKey;
+
+        if (search && !catName.toLowerCase().includes(search)) return;
+
+        const count = category.варианты ? category.варианты.length : 0;
+
+        const div = document.createElement('div');
+        div.style.cssText = `
+            background:#1a1a1a; padding:16px; margin-bottom:8px; border-radius:6px; 
+            border:1px solid #444; cursor:pointer; font-size:16px;
+        `;
+        div.innerHTML = `<strong>${catName}</strong> <span style="color:#666; font-size:14px;">(${count} вариантов)</span>`;
+
+        div.onclick = () => renderVariantsInCategory(category, tab);
+        container.appendChild(div);
+    });
+
+    if (container.children.length === 0) {
+        container.innerHTML = `<p style="color:#666; text-align:center; padding:60px;">Ничего не найдено</p>`;
+    }
+}
+
+function renderVariantsInCategory(category, tab) {
+    const container = document.getElementById('merits-list');
+    container.innerHTML = `
+        <button onclick="switchMeritsTab(${tab})" 
+                style="margin-bottom:15px; background:#333; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">
+            ← Назад к категориям
+        </button>
+        <h3 style="color:#ffae00; margin-bottom:15px;">${category.название}</h3>
+    `;
+
+    category.варианты.forEach(variant => {
+        const name = variant.название_пункта;
+        const alreadyTaken = tab === 0 
+            ? selectedMerits.some(m => m.name === name)
+            : selectedFlaws.some(f => f.name === name);
+
+        const div = document.createElement('div');
+        div.style.cssText = `background:#222; padding:14px; border-radius:6px; margin-bottom:8px; border:1px solid ${alreadyTaken ? '#555' : '#ff3131'}; cursor:pointer;`;
+
+        div.innerHTML = `
+            <strong>${name} — ${variant.точки} точек</strong><br>
+            <small style="color:#aaa;">${variant.полное_описание}</small><br>
+            <small style="color:#ffae00;">${variant.механика}</small>
+        `;
+
+        if (!alreadyTaken) {
+            div.onclick = () => {
+                const item = {
+                    category: category.название,
+                    name: name,
+                    points: variant.точки,
+                    desc: variant.полное_описание,
+                    mechanic: variant.механика
+                };
+                if (tab === 0) selectedMerits.push(item);
+                else selectedFlaws.push(item);
+
+                renderSelectedMeritsFlaws();
+                closeMeritsFlawsModal();
+            };
+        }
+        container.appendChild(div);
+    });
+}
+
+// Отображение выбранных
+function renderSelectedMeritsFlaws() {
+    const container = document.getElementById('merits-flaws-list');
+    container.innerHTML = '';
+
+    let totalMerits = 0, totalFlaws = 0;
+
+    selectedMerits.forEach((m, i) => {
+        totalMerits += m.points;
+        container.appendChild(createMeritItem(m, i, true));
+    });
+
+    selectedFlaws.forEach((f, i) => {
+        totalFlaws += f.points;
+        container.appendChild(createMeritItem(f, i, false));
+    });
+
+    document.getElementById('merits-total').textContent = `(${totalMerits} / ${totalFlaws})`;
+}
+
+function createMeritItem(item, index, isMerit) {
+    const div = document.createElement('div');
+    div.style.cssText = 'background:#1f1f1f; padding:12px 16px; border-radius:6px; border-left:4px solid #ff3131; display:flex; justify-content:space-between; align-items:center;';
+    div.innerHTML = `
+        <div style="flex:1">
+            <strong>${item.category} — ${item.name}</strong> 
+            <span style="color:#ffae00">(${item.points} т.)</span><br>
+            <small style="color:#ccc">${item.desc}</small>
+        </div>
+        <button onclick="${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
+                style="background:#330000; color:#ff6666; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:18px;">×</button>
+    `;
+    return div;
+}
+
+window.removeMerit = function(i) { 
+    selectedMerits.splice(i,1); 
+    renderSelectedMeritsFlaws(); 
+};
+
+window.removeFlaw = function(i) { 
+    selectedFlaws.splice(i,1); 
+    renderSelectedMeritsFlaws(); 
+};
+
+// Поиск
+document.getElementById('merits-search').addEventListener('input', () => {
+    const activeTab = document.getElementById('tab-merits').style.backgroundColor === 'rgb(34, 34, 34)' ? 0 : 1;
+    renderCategories(activeTab);
+});
 
 
 
