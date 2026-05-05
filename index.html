@@ -434,6 +434,7 @@ let predatorProvidedDisciplines = {};  // дисциплины от текуще
 let selectedMerits = [];   // {category, name, points, fullDesc, mechanic}
 let selectedFlaws = [];
 
+
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
 async function loadRules() {
     try {
@@ -881,49 +882,29 @@ function openClanDisciplineModal(clanName) {
     document.body.insertAdjacentHTML('beforeend', modalHTML);
 }
 
-function openPredatorDisciplineModal(predatorName) {
-    const predatorData = RULES.predator_types?.[predatorName];
-    if (!predatorData || !predatorData.disciplines?.length) {
-        alert("Для стиля охоты " + predatorName + " нет дисциплин в rules.json");
+function openPredatorDisciplineModal(predName) {
+    const predData = RULES.predator_types?.[predName];
+    if (!predData) return;
+
+    // Проверяем новый формат
+    const hasDisciplines = predData.disciplines?.increase?.options && 
+                          predData.disciplines.increase.options.length > 0;
+
+    if (!hasDisciplines) {
+        console.log(`ℹ️ Для стиля ${predName} нет дисциплин для выбора`);
+        // Убираем alert, просто пропускаем
         return;
     }
 
-    const modalHTML = `
-    <div id="pred-disc-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:20000;display:flex;align-items:center;justify-content:center;">
-        <div style="background:#111;border:3px solid #ff3131;padding:40px;width:960px;border-radius:10px;max-width:95%; display:flex; gap:30px;">
-            <div style="flex:1;">
-                <h2 style="color:#ff3131;text-align:center;margin:0 0 20px;">${predatorName}</h2>
-                <p style="text-align:center;color:#ccc;margin-bottom:30px;">Выбери дополнительную дисциплину (+1 точка)</p>
-                
-                <div style="margin-bottom:35px;">
-                    <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на 1 точку:</label>
-                    <select id="pred-disc-select" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;" 
-                            onchange="showDisciplineHint(this.value)">
-                        ${predatorData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
-                    </select>
-                </div>
+    // Если дисциплины есть — открываем окно выбора
+    const options = predData.disciplines.increase.options;
+    const value = predData.disciplines.increase.value || 1;
 
-                <div style="text-align:center;">
-                    <button onclick="confirmPredatorDiscipline('${predatorName}')" 
-                            style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;cursor:pointer;margin-right:15px;">
-                         Подтвердить
-                    </button>
-                    <button onclick="closePredDiscModal()" 
-                            style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;cursor:pointer;">
-                        Отмена
-                    </button>
-                </div>
-            </div>
+    console.log(`Открываем выбор дисциплины для ${predName}:`, options);
 
-            <div id="discipline-hint-panel" style="width:380px; background:#0a0a0a; border:1px solid #333; border-radius:8px; padding:20px; color:#ddd; font-size:14.5px; line-height:1.6; overflow-y:auto; max-height:520px;">
-                <p style="color:#666; text-align:center; font-style:italic;">Выберите дисциплину слева</p>
-            </div>
-        </div>
-    </div>`;
-
-    // Удаляем старое модальное окно перед созданием нового
-    document.getElementById('pred-disc-modal')?.remove();
-    document.body.insertAdjacentHTML('beforeend', modalHTML);
+    // Здесь твой существующий код открытия модального окна дисциплин
+    // (если у тебя есть функция showDisciplineChoiceModal или подобная)
+    showPredatorDisciplineChoice(predName, options, value); 
 }
 
 function closeClanDiscModal() {
@@ -1552,71 +1533,37 @@ async function showSinglePredator(pred) {
 
     let html = `
         <div style="text-align:center; padding:20px; max-width:1100px; margin:0 auto; position:relative;">
-            
-            <!-- Блок с изображением и стрелками -->
             <div style="position:relative; display:inline-block;">
-                
-                <button onclick="prevPredator()" 
-                        style="position:absolute; left: -50px; top: 50%; transform: translateY(-50%); 
-                               background: rgba(0,0,0,0.85); color: #ff3131; border: 2px solid #ff3131; 
-                               width: 70px; height: 70px; border-radius: 50%; font-size: 32px; 
-                               cursor: pointer; z-index: 25; box-shadow: 0 0 25px rgba(255,49,49,0.6);">
-                    ←
-                </button>
-
-                <button onclick="nextPredator()" 
-                        style="position:absolute; right: -50px; top: 50%; transform: translateY(-50%); 
-                               background: rgba(0,0,0,0.85); color: #ff3131; border: 2px solid #ff3131; 
-                               width: 70px; height: 70px; border-radius: 50%; font-size: 32px; 
-                               cursor: pointer; z-index: 25; box-shadow: 0 0 25px rgba(255,49,49,0.6);">
-                    →
-                </button>
-
+                <button onclick="prevPredator()" style="position:absolute; left: -50px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.85); color: #ff3131; border: 2px solid #ff3131; width: 70px; height: 70px; border-radius: 50%; font-size: 32px; cursor: pointer; z-index: 25;">←</button>
+                <button onclick="nextPredator()" style="position:absolute; right: -50px; top: 50%; transform: translateY(-50%); background: rgba(0,0,0,0.85); color: #ff3131; border: 2px solid #ff3131; width: 70px; height: 70px; border-radius: 50%; font-size: 32px; cursor: pointer; z-index: 25;">→</button>
                 <img src="${pred.image}" style="max-width:100%; max-height:65vh; border:4px solid #ff3131; border-radius:12px; box-shadow:0 0 40px rgba(255,49,49,0.6);">
             </div>
 
             <h2 style="color:#ff3131; margin:25px 0 15px;">${pred.name}</h2>
 
             <div style="background:#1a1a1a; border:1px solid #ff3131; border-radius:8px; padding:25px; text-align:left; font-size:15px; line-height:1.7;">
+                <p style="color:#ddd;">${data.description || 'Описание отсутствует'}</p>
     `;
 
-    if (data.description) {
-        html += `<p style="color:#ddd;">${data.description}</p>`;
-    }
-
-    if (data.specialty) {
+    if (data.specialty?.options) {
         html += `<hr style="border-color:#333;margin:20px 0;">
                  <strong style="color:#ffae00;">Специализация:</strong><br>
-                 ${data.specialty}`;
-    }
-
-    if (data.disciplines && data.disciplines.length) {
-        html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Дисциплины:</strong><br>
-                 ${data.disciplines.join(', ')}`;
+                 ${data.specialty.options.join(', ')}`;
     }
 
     if (data.advantages && data.advantages.length) {
         html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Преимущества:</strong><br>`;
-        data.advantages.forEach(a => html += `• ${a}<br>`);
+                 <strong style="color:#ffcc00;">Преимущества:</strong><br>`;
+        data.advantages.forEach(a => html += `• ${typeof a === 'string' ? a : a.name || a}<br>`);
     }
 
     if (data.disadvantages && data.disadvantages.length) {
         html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Недостатки:</strong><br>`;
-        data.disadvantages.forEach(d => html += `• ${d}<br>`);
+                 <strong style="color:#ff6666;">Недостатки:</strong><br>`;
+        data.disadvantages.forEach(d => html += `• ${typeof d === 'string' ? d : d.name || d}<br>`);
     }
 
-    if (data.humanity !== undefined) {
-        html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Изменение Человечности:</strong> 
-                 <span style="color:#ffd700;font-size:18px;">${data.humanity > 0 ? '+' : ''}${data.humanity}</span>`;
-    }
-
-    html += `
-            </div>
-
+    html += `</div>
             <div style="margin-top:25px;">
                 <button onclick="selectThisPredator('${pred.name}')" 
                         style="background:#ff3131;color:black;border:none;padding:16px 40px;font-size:18px;border-radius:6px;cursor:pointer;">
@@ -1627,8 +1574,7 @@ async function showSinglePredator(pred) {
                     ← Назад к списку
                 </button>
             </div>
-        </div>
-    `;
+        </div>`;
 
     gallery.innerHTML = html;
 }
@@ -1811,40 +1757,25 @@ function loadPredatorHint() {
 
     let html = `
         <strong style="color:#ff3131; font-size:21px;">${name}</strong><br><br>
-        
-        <div style="color:#ddd; line-height:1.7; font-size:14.8px;">
-            ${pred.description || 'Описание отсутствует'}
-        </div>
+        <div style="color:#ddd; line-height:1.6;">${pred.description || 'Описание отсутствует'}</div>
     `;
 
-    if (pred.specialty) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
+    if (pred.specialty?.options) {
+        html += `<hr style="border-color:#333;margin:15px 0;">
                  <strong style="color:#ffae00;">Специализация:</strong><br>
-                 ${pred.specialty}`;
+                 ${pred.specialty.options.join(', ')}`;
     }
 
-    if (pred.disciplines && pred.disciplines.length) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ffae00;">Дисциплины:</strong><br>
-                 ${pred.disciplines.join(', ')}`;
-    }
-
-    if (pred.advantages && pred.advantages.length) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ffae00;">Преимущества:</strong><br>`;
-        pred.advantages.forEach(a => html += `• ${a}<br>`);
-    }
-
-    if (pred.disadvantages && pred.disadvantages.length) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ffae00;">Недостатки:</strong><br>`;
-        pred.disadvantages.forEach(d => html += `• ${d}<br>`);
+    if (pred.disciplines?.increase?.options) {
+        html += `<hr style="border-color:#333;margin:15px 0;">
+                 <strong style="color:#ffae00;">Дисциплина (+1):</strong><br>
+                 ${pred.disciplines.increase.options.join(', ')}`;
     }
 
     if (pred.humanity !== undefined) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ffae00;">Изменение Человечности:</strong> 
-                 <span style="color:#ffd700; font-size:17px;">${pred.humanity > 0 ? '+' : ''}${pred.humanity}</span>`;
+        html += `<hr style="border-color:#333;margin:15px 0;">
+                 <strong style="color:#ffae00;">Человечность:</strong> 
+                 <span style="color:#ffd700;">${pred.humanity > 0 ? '+' : ''}${pred.humanity}</span>`;
     }
 
     box.innerHTML = html;
@@ -2120,18 +2051,7 @@ async function preloadAllAttributes() {
 
 
 
-// ==================== ЗАПУСК ====================
-window.onload = () => {
-    loadRules().then(() => {
-        preloadAllSkills();
-        preloadAllAttributes();
-        renderSkills();
-        renderAttributes();
-    });
-    setupEventListeners();
-};
 
-// Настройка всех обработчиков событий
 
 
 // ==================== СОХРАНЕНИЕ В JPG ====================
@@ -2217,7 +2137,6 @@ document.getElementById('btn-save').addEventListener('click', function() {
 // ==================== СПЕЦИАЛИЗАЦИИ ОТ ОХОТЫ ====================
 let currentPredatorSpecialty = null;
 
-// Основная функция применения стиля охоты
 function applyPredatorType(predName) {
     console.log("🎯 Применяем стиль охоты:", predName);
 
@@ -2227,103 +2146,71 @@ function applyPredatorType(predName) {
         return;
     }
 
-    // Сброс старой специализации
-    if (currentPredatorSpecialty && currentPredatorSpecialty.skill) {
-        const oldSkill = currentPredatorSpecialty.skill;
-        console.log(`🗑️ Стираем старую специализацию: ${oldSkill}`);
-
-        const container = document.getElementById('specs-' + oldSkill);
-        if (container) {
-            container.innerHTML = '';
-            container.style.display = 'none';
-        }
-
-        const checkbox = document.getElementById('s-' + oldSkill);
-        if (checkbox) checkbox.checked = false;
-
-        // Сброс точки
-        const radios = document.querySelectorAll(`input[name="${oldSkill}"]`);
-        let hasHigher = false;
-        radios.forEach(r => {
-            if (parseInt(r.value) > 1 && r.checked) hasHigher = true;
-        });
-        if (!hasHigher) {
-            radios.forEach(r => r.checked = (r.value === "0"));
-        }
-
-        updateSBadgeState(oldSkill);
+    const predData = RULES.predator_types?.[predName];
+    if (!predData) {
+        loadPredatorHint();
+        updateTrackers();
+        return;
     }
 
-    currentPredatorSpecialty = null;
+    // Сброс старых дисциплин от предыдущей охоты
+    resetPredatorDisciplines();
 
-    // Очистка дисциплин
-    Object.keys(predatorProvidedDisciplines).forEach(d => delete disciplineSources[d]);
-    predatorProvidedDisciplines = {};
+    // Добавляем преимущества и недостатки от охоты
+    if (predData.advantages && predData.advantages.length) {
+        predData.advantages.forEach(adv => {
+            const name = typeof adv === 'string' ? adv : (adv.name || adv);
+            if (!selectedMerits.some(m => m.name === name)) {
+                selectedMerits.push({
+                    category: "Стиль Охоты",
+                    name: name,
+                    points: 0,
+                    desc: `Бесплатно от стиля охоты «${predName}»`,
+                    mechanic: "",
+                    fromPredator: true,
+                    predatorType: predName
+                });
+            }
+        });
+    }
 
-    document.querySelectorAll('.discipline-item').forEach(item => {
-        const small = item.querySelector('small');
-        if (small && small.textContent.includes('Охота')) item.remove();
-    });
+    if (predData.disadvantages && predData.disadvantages.length) {
+        predData.disadvantages.forEach(dis => {
+            const name = typeof dis === 'string' ? dis : (dis.name || dis);
+            if (!selectedFlaws.some(f => f.name === name)) {
+                selectedFlaws.push({
+                    category: "Стиль Охоты",
+                    name: name,
+                    points: 0,
+                    desc: `Бесплатно от стиля охоты «${predName}»`,
+                    mechanic: "",
+                    fromPredator: true,
+                    predatorType: predName
+                });
+            }
+        });
+    }
 
     loadPredatorHint();
+    renderSelectedMeritsFlaws();
 
-    const predData = RULES.predator_types?.[predName];
-    
-    if (predData?.specialty) {
-        const options = predData.specialty.split('или').map(s => s.trim()).filter(Boolean);
+     // === Специализация + Дисциплина ===
+    const hasSpecialty = predData?.specialty?.options && predData.specialty.options.length > 0;
+    const hasDisciplines = predData?.disciplines?.increase?.options && 
+                          predData.disciplines.increase.options.length > 0;
 
+    if (hasSpecialty) {
+        const options = predData.specialty.options;
         if (options.length > 1) {
             showSpecialtyChoiceModal(predName, options, predData);
         } else if (options.length === 1) {
             applyPredatorSpecialty(predName, options[0]);
-        } else {
-            setTimeout(() => openPredatorDisciplineModal(predName), 200);
+        } else if (hasDisciplines) {
+            setTimeout(() => openPredatorDisciplineModal(predName), 250);
         }
-    } else {
-        setTimeout(() => openPredatorDisciplineModal(predName), 200);
+    } else if (hasDisciplines) {
+        setTimeout(() => openPredatorDisciplineModal(predName), 250);
     }
-
-    updateTrackers();
-}
-
-function applyPredatorSpecialty(predatorName, selectedOption) {
-    const match = selectedOption.match(/(.+?)\s*\((.+?)\)/);
-    let skillName = selectedOption;
-    let specText = "";
-
-    if (match) {
-        skillName = match[1].trim();
-        specText = match[2].trim();
-    }
-
-    // Точка
-    const firstDot = document.querySelector(`input[name="${skillName}"][value="1"]`);
-    if (firstDot) {
-        const current = document.querySelector(`input[name="${skillName}"]:checked`);
-        if (!current || parseInt(current.value) === 0) firstDot.checked = true;
-    }
-
-    // Специализация
-    const specCheckbox = document.getElementById(`s-${skillName}`);
-    if (specCheckbox) specCheckbox.checked = true;
-
-    const container = document.getElementById('specs-' + skillName);
-    if (container) {
-        container.style.display = 'flex';
-        if (container.children.length === 0) addSpecLine(skillName);
-        const input = container.querySelector('input[type="text"]');
-        if (input && specText) input.value = specText;
-    }
-
-    currentPredatorSpecialty = { skill: skillName };
-
-    console.log(`✅ Применена специализация: ${skillName} (${specText})`);
-
-    closeSpecChoiceModal();
-    setTimeout(() => openPredatorDisciplineModal(predatorName), 250);
-
-    updateTrackers();
-    updateSBadgeState(skillName);
 }
 
 // ==================== ОБРАБОТЧИКИ ====================
@@ -2381,19 +2268,6 @@ function setupEventListeners() {
         });
     }
 }
-// ==================== ЗАПУСК ====================
-window.onload = () => {
-    loadRules().then(() => {
-        setTimeout(() => {
-            preloadAllSkills();
-            preloadAllAttributes();
-        }, 100);   // небольшая задержка, чтобы DOM точно был готов
-        renderSkills();
-        renderAttributes();
-    });
-    setupEventListeners();
-};
-
 
 
 
@@ -2654,30 +2528,31 @@ function renderVariantsInCategory(category, tab) {
             <small style="color:#ffae00;">${variant.механика}</small>
         `;
 
-        if (!alreadyTaken) {
-            div.onclick = () => {
-                const canAdd = tab === 0 ? canAddMerit(points) : canAddFlaw(points);
-                
-                if (!canAdd) {
-                    showLimitWarning(tab === 0);
-                    return;
-                }
-
-                const item = {
-                    category: category.название,
-                    name: name,
-                    points: points,
-                    desc: variant.полное_описание,
-                    mechanic: variant.механика
-                };
-
-                if (tab === 0) selectedMerits.push(item);
-                else selectedFlaws.push(item);
-
-                renderSelectedMeritsFlaws();
-                closeMeritsFlawsModal();
-            };
+       if (!alreadyTaken) {
+    div.onclick = () => {
+        const canAdd = tab === 0 ? canAddMerit(points) : canAddFlaw(points);
+        
+        if (!canAdd) {
+            showLimitWarning(tab === 0);
+            return;
         }
+
+        const item = {
+            category: category.название,
+            categoryDesc: category.описание || '',   // ← добавили описание раздела
+            name: name,
+            points: points,
+            desc: variant.полное_описание,
+            mechanic: variant.механика
+        };
+
+        if (tab === 0) selectedMerits.push(item);
+        else selectedFlaws.push(item);
+
+        renderSelectedMeritsFlaws();
+        closeMeritsFlawsModal();
+    };
+}
         container.appendChild(div);
     });
 }
@@ -2730,34 +2605,208 @@ function renderDots(containerId, points, isMerit) {
 
 function createSelectedItem(item, index, isMerit) {
     const points = item.points || item.точки || 0;
+    const isFromPredator = item.fromPredator === true;
+    const categoryName = item.category || '';
+    let displayName = item.name || item.название_пункта || '';
     
+    if (categoryName && !displayName.toLowerCase().includes(categoryName.toLowerCase().slice(0, 15))) {
+        displayName = `${categoryName} • ${displayName}`;
+    }
+
+    const maxDots = 5;
     let dotsHTML = '';
-    for (let i = 1; i <= 5; i++) {   // максимум 5 точек на пункт
-        dotsHTML += `
-            <div style="width:18px; height:18px; border-radius:50%; 
-                        background: ${i <= points ? '#ff3131' : '#333'}; 
-                        border: 2px solid ${i <= points ? '#ff6666' : '#555'}; 
-                        box-shadow: ${i <= points ? '0 0 6px #ff3131' : 'none'}; 
-                        margin-left: 3px;">
-            </div>`;
+
+    if (isFromPredator) {
+        dotsHTML = `<span style="color:#ffae00; font-size:14px; font-weight:bold; padding:0 8px;">Тип охоты: ${item.predatorType || ''}</span>`;
+    } else {
+        for (let i = 1; i <= maxDots; i++) {
+            dotsHTML += `
+                <div style="width:18px; height:18px; border-radius:50%; 
+                            background: ${i <= points ? '#ff3131' : '#333'}; 
+                            border: 2px solid ${i <= points ? '#ff6666' : '#555'}; 
+                            margin-left: 3px;"></div>`;
+        }
     }
 
     const div = document.createElement('div');
+    div.className = 'selected-item';
     div.style.cssText = `
-        background:#1a1a1a; padding:10px 14px; margin-bottom:6px; border-radius:6px;
+        background:#1a1a1a; padding:12px 14px; margin-bottom:6px; border-radius:6px;
         border-left:4px solid ${isMerit ? '#ffcc00' : '#ff6666'}; 
-        display:flex; justify-content:space-between; align-items:center;
+        cursor: pointer; overflow: hidden; transition: all 0.3s;
     `;
     div.innerHTML = `
-        <div style="display:flex; align-items:center; gap:12px; flex:1;">
-            <strong style="flex:1;">${item.name || item.название_пункта}</strong>
-            <div style="display:flex; gap:3px;">${dotsHTML}</div>
+        <div style="display:flex; align-items:center; justify-content:space-between;">
+            <div style="display:flex; align-items:center; gap:12px; flex:1;">
+                <strong style="flex:1;">${displayName}</strong>
+                <div style="display:flex; gap:3px; align-items:center;">${dotsHTML}</div>
+            </div>
+            ${!isFromPredator ? `
+            <button onclick="event.stopImmediatePropagation(); ${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
+                    style="background:none; border:none; color:#ff3131; font-size:22px; cursor:pointer; padding:0 8px;">×</button>` : ''}
         </div>
-        <button onclick="${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
-                style="background:none; border:none; color:#ff3131; font-size:22px; cursor:pointer; padding:0 8px;">×</button>
+        
+        <!-- Раскрывающаяся часть -->
+        <div class="detail-content" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #333; color:#ccc; font-size:14.5px; line-height:1.55;">
+            ${item.categoryDesc ? `
+            <div style="margin-bottom:16px;">
+                <strong style="color:#ffae00;">Раздел «${item.category}»:</strong><br>
+                ${item.categoryDesc}
+            </div>` : ''}
+            
+            <div>
+                <strong style="color:#ffae00;">Описание пункта:</strong><br>
+                ${item.desc || item.полное_описание || '—'}
+            </div>
+            
+            ${item.mechanic ? `
+            <div style="margin-top:16px;">
+                <strong style="color:#ffae00;">Механика:</strong><br>
+                ${item.mechanic}
+            </div>` : ''}
+        </div>
     `;
+
+    div.addEventListener('click', function(e) {
+        if (e.target.tagName === 'BUTTON') return;
+        const content = this.querySelector('.detail-content');
+        content.style.display = content.style.display === 'none' ? 'block' : 'none';
+    });
+
     return div;
 }
+
+
+// Окно выбора преимуществ и недостатков от стиля охоты
+function showPredatorMeritsFlawsSelection(predName, predData) {
+    let html = `
+    <div id="predator-selection-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.95); z-index:13000; display:flex; align-items:center; justify-content:center;">
+        <div style="background:#111; border:2px solid #ff3131; border-radius:10px; width:90%; max-width:820px; max-height:85vh; overflow:auto; padding:25px; position:relative;">
+            <button onclick="closePredatorSelectionModal()" 
+                    style="position:absolute; top:15px; right:20px; font-size:32px; color:#ff3131; background:none; border:none; cursor:pointer;">×</button>
+            
+            <h2 style="color:#ff3131; text-align:center; margin:0 0 10px;">${predName}</h2>
+            <p style="text-align:center; color:#aaa; margin-bottom:20px;">Выберите, что добавить от этого стиля охоты</p>
+            
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:25px;">`;
+
+    // Преимущества
+    if (predData.advantages && predData.advantages.length > 0) {
+        html += `<div><strong style="color:#ffcc00; display:block; margin-bottom:12px;">Преимущества:</strong>`;
+        predData.advantages.forEach(adv => {
+            const name = typeof adv === 'string' ? adv : (adv.name || adv);
+            html += `<label style="display:block; margin:8px 0; color:#ddd; cursor:pointer;">
+                        <input type="checkbox" class="pred-adv" value="${name}" checked> ${name}
+                     </label>`;
+        });
+        html += `</div>`;
+    }
+
+    // Недостатки
+    if (predData.disadvantages && predData.disadvantages.length > 0) {
+        html += `<div><strong style="color:#ff6666; display:block; margin-bottom:12px;">Недостатки:</strong>`;
+        predData.disadvantages.forEach(dis => {
+            const name = typeof dis === 'string' ? dis : (dis.name || dis);
+            html += `<label style="display:block; margin:8px 0; color:#ddd; cursor:pointer;">
+                        <input type="checkbox" class="pred-flaw" value="${name}" checked> ${name}
+                     </label>`;
+        });
+        html += `</div>`;
+    }
+
+    html += `</div>
+            <div style="margin-top:30px; text-align:center;">
+                <button id="pred-confirm-btn" 
+                        style="background:#ff3131; color:black; padding:14px 40px; border:none; border-radius:6px; font-size:17px; margin-right:15px;">
+                    Применить выбранное
+                </button>
+                <button onclick="closePredatorSelectionModal()" 
+                        style="background:#333; color:white; padding:14px 35px; border:none; border-radius:6px; font-size:17px;">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>`;
+
+    document.getElementById('predator-selection-modal')?.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+
+    setTimeout(() => {
+        const btn = document.getElementById('pred-confirm-btn');
+        if (btn) btn.onclick = () => confirmPredatorSelection(predName);
+    }, 100);
+}
+
+
+function confirmPredatorSelection(predName) {
+    const predData = RULES.predator_types?.[predName];
+    if (!predData) return;
+
+    // Преимущества
+    document.querySelectorAll('.pred-adv:checked').forEach(cb => {
+        const name = cb.value;
+        if (!selectedMerits.some(m => m.name === name)) {
+            selectedMerits.push({
+                category: "Стиль Охоты",
+                name: name,
+                points: 0,
+                desc: `Бесплатно от стиля охоты «${predName}»`,
+                mechanic: "",
+                fromPredator: true,
+                predatorType: predName
+            });
+        }
+    });
+
+    // Недостатки
+    document.querySelectorAll('.pred-flaw:checked').forEach(cb => {
+        const name = cb.value;
+        if (!selectedFlaws.some(f => f.name === name)) {
+            selectedFlaws.push({
+                category: "Стиль Охоты",
+                name: name,
+                points: 0,
+                desc: `Бесплатно от стиля охоты «${predName}»`,
+                mechanic: "",
+                fromPredator: true,
+                predatorType: predName
+            });
+        }
+    });
+
+    closePredatorSelectionModal();
+    renderSelectedMeritsFlaws();
+}
+
+function confirmPredatorDiscipline(predatorName) {
+    const disc = document.getElementById('pred-disc-select').value;
+    if (!disc) return alert("Выберите дисциплину!");
+
+    // Добавляем дисциплину
+    mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
+    predatorProvidedDisciplines[disc] = 1;
+
+    closePredDiscModal();
+
+    // === НОВОЕ: После выбора дисциплины показываем окно преимуществ/недостатков ===
+    const predData = RULES.predator_types?.[predatorName];
+    if (predData && ((predData.advantages && predData.advantages.length) || 
+                     (predData.disadvantages && predData.disadvantages.length))) {
+        
+        setTimeout(() => {
+            showPredatorMeritsFlawsSelection(predatorName, predData);
+        }, 400);   // небольшая задержка, чтобы модал дисциплины успел закрыться
+    } else {
+        updateTrackers();
+        renderSelectedMeritsFlaws();
+    }
+}
+
+function closePredatorSelectionModal() {
+    document.getElementById('predator-selection-modal')?.remove();
+}
+
+
 
 
 // Проверка лимитов
@@ -2822,7 +2871,23 @@ document.getElementById('merits-search').addEventListener('input', () => {
 
 
 
+// ==================== ГЛОБАЛЬНЫЕ ОКНА ДЛЯ ОХОТЫ ====================
+window.showPredatorMeritsFlawsSelection = showPredatorMeritsFlawsSelection;
+window.confirmPredatorSelection = confirmPredatorSelection;
+window.closePredatorSelectionModal = closePredatorSelectionModal;
 
+// ==================== ЗАПУСК ====================
+window.onload = () => {
+    loadRules().then(() => {
+        setTimeout(() => {
+            preloadAllSkills();
+            preloadAllAttributes();
+        }, 100);
+        renderSkills();
+        renderAttributes();
+    });
+    setupEventListeners();
+};
 
 </script>
 </body>
