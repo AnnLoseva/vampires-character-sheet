@@ -833,8 +833,9 @@
   "humanity": -1,
 
   "advantages": [
-    {
+        {
       "category": "Информаторы",
+      "name": "Информаторы",
       "details": "криминальные круги",
       "dots": 0
     }
@@ -867,10 +868,11 @@
   "humanity": 0,
 
   "advantages": [
-    {
-      "category": "Стадо",
-      "dots": 0
-    }
+        {
+          "category": "Стадо",
+          "name": "Стадо",
+          "dots": 0
+        }
   ],
 
   "disadvantages": [
@@ -952,14 +954,16 @@
   "humanity": 0,
 
   "advantages": [
-    {
-      "category": "Слава",
-      "dots": 0
-    },
-    {
-      "category": "Информаторы",
-      "dots": 0
-    }
+{
+  "category": "Слава",
+  "name": "Слава",
+  "dots": 0
+},
+{
+  "category": "Информаторы",
+  "name": "Информаторы",
+  "dots": 0
+}
   ],
 
   "disadvantages": [

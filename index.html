@@ -2292,6 +2292,14 @@ function applyPredatorType(predName) {
             console.log("✅ Открываем окно преимуществ/недостатков");
             showPredatorMeritsFlawsSelection(predName, predData);
         }
+
+
+
+                    // После всех if (в конце applyPredatorType)
+            if (!hasSpecialty && !hasDisciplines && !hasPredItems) {
+                console.warn(`Стиль охоты ${predName} не имеет ни одной механики — показываем хотя бы окно merits/flaws`);
+                showPredatorMeritsFlawsSelection(predName, predData); // или alert
+}
     }, 250);
 }
 
