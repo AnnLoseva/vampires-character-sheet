@@ -1062,28 +1062,52 @@ function resetPredatorDisciplines() {
 
 // Сброс специализаций от предыдущего стиля охоты
 function resetPredatorSpecialties() {
-    console.log("🗑️ Сброс специализаций от старой охоты");
+    console.log("🗑️ ЖЁСТКИЙ полный сброс эффектов предыдущей охоты");
 
-    // Убираем все S-бейджи и текстовые специализации
+    // 1. Сбрасываем все S-бейджи и текстовые специализации
     document.querySelectorAll('.spec-checkbox').forEach(checkbox => {
-        const skillName = checkbox.id.replace('s-', '');
+        checkbox.checked = false;
         
-        // Проверяем, была ли эта специализация от охоты
-        if (currentPredatorSpecialty && currentPredatorSpecialty.skill === skillName) {
-            checkbox.checked = false;
-            
-            const specsContainer = document.getElementById('specs-' + skillName);
-            if (specsContainer) {
-                specsContainer.innerHTML = '';
-                specsContainer.style.display = 'none';
-            }
-            
-            updateSBadgeState(skillName);
+        const skillName = checkbox.id.replace('s-', '');
+        const container = document.getElementById('specs-' + skillName);
+        
+        if (container) {
+            container.innerHTML = '';
+            container.style.display = 'none';
         }
+
+        updateSBadgeState(skillName);
     });
 
     currentPredatorSpecialty = null;
+
+    // 2. Жёстко сбрасываем точки в навыках (ставим на 0)
+    const allSkillInputs = document.querySelectorAll('.dot-input[data-type="skill"]');
+    
+    allSkillInputs.forEach(input => {
+        const skillName = input.name;
+        if (!skillName) return;
+
+        // Сбрасываем все радио-кнопки этого навыка
+        document.querySelectorAll(`input[name="${skillName}"]`).forEach(radio => {
+            radio.checked = false;
+        });
+
+        // Ставим на 0
+        const zeroRadio = document.querySelector(`input[name="${skillName}"][value="0"]`);
+        if (zeroRadio) zeroRadio.checked = true;
+    });
+
+    // 3. Финальное обновление интерфейса
+    setTimeout(() => {
+        updateTrackers();
+        updateSBadgeState(''); // обновляем все бейджи
+    }, 50);
 }
+
+
+
+
 
 function updateAllDisciplineRows() {
     const list = document.getElementById('disciplines-list');
@@ -2184,59 +2208,53 @@ let currentPredatorSpecialty = null;
 function applyPredatorType(predName) {
     console.log("🎯 Применяем стиль охоты:", predName);
 
-    // Полная очистка старых модалок
+    // Очистка всех модалок
     document.querySelectorAll('#pred-disc-modal, #spec-choice-modal, #predator-selection-modal, #power-modal').forEach(m => m.remove());
 
-    if (!predName) {
-        loadPredatorHint();
-        updateTrackers();
-        return;
-    }
+    if (!predName) return;
 
     const predData = RULES.predator_types?.[predName];
     if (!predData) {
-        console.warn("Нет данных для", predName);
-        loadPredatorHint();
-        updateTrackers();
+        console.warn("Нет данных для стиля:", predName);
         return;
     }
 
-    // Сброс предыдущей охоты
+    // Сброс старого
     resetPredatorDisciplines();
     resetPredatorSpecialties();
 
-    // Автоматически добавляем все бесплатные пункты
+    // Удаляем старые пункты от охоты
+    selectedMerits = selectedMerits.filter(item => !item.fromPredator);
+    selectedFlaws = selectedFlaws.filter(item => !item.fromPredator);
+
+    // Добавляем новые
     if (predData.advantages?.length) {
         predData.advantages.forEach(adv => {
             const name = typeof adv === 'string' ? adv : (adv.name || adv);
-            if (!selectedMerits.some(m => m.fromPredator && m.name === name)) {
-                selectedMerits.push({
-                    category: "Стиль Охоты",
-                    name: name,
-                    points: 0,
-                    desc: `Бесплатно от «${predName}»`,
-                    mechanic: "",
-                    fromPredator: true,
-                    predatorType: predName
-                });
-            }
+            selectedMerits.push({
+                category: "Стиль Охоты",
+                name: name,
+                points: 0,
+                desc: `Бесплатно от «${predName}»`,
+                mechanic: "",
+                fromPredator: true,
+                predatorType: predName
+            });
         });
     }
 
     if (predData.disadvantages?.length) {
         predData.disadvantages.forEach(dis => {
             const name = typeof dis === 'string' ? dis : (dis.name || dis);
-            if (!selectedFlaws.some(f => f.fromPredator && f.name === name)) {
-                selectedFlaws.push({
-                    category: "Стиль Охоты",
-                    name: name,
-                    points: 0,
-                    desc: `Бесплатно от «${predName}»`,
-                    mechanic: "",
-                    fromPredator: true,
-                    predatorType: predName
-                });
-            }
+            selectedFlaws.push({
+                category: "Стиль Охоты",
+                name: name,
+                points: 0,
+                desc: `Бесплатно от «${predName}»`,
+                mechanic: "",
+                fromPredator: true,
+                predatorType: predName
+            });
         });
     }
 
@@ -2244,15 +2262,18 @@ function applyPredatorType(predName) {
     renderSelectedMeritsFlaws();
     updateTrackers();
 
-    // === ПОСЛЕДОВАТЕЛЬНОСТЬ ===
-    const hasSpecialty = predData?.specialty?.options?.length > 0;
-    const hasDisciplines = predData?.disciplines?.increase?.options?.length > 0;
+    // === НАДЁЖНАЯ ЛОГИКА ОТКРЫТИЯ ===
+    const hasSpecialty = predData?.specialty?.options && predData.specialty.options.length > 0;
+    const hasDisciplines = predData?.disciplines?.increase?.options && predData.disciplines.increase.options.length > 0;
     const hasPredItems = (predData.advantages?.length || 0) + (predData.disadvantages?.length || 0) > 0;
 
     setTimeout(() => {
+        console.log(`Для ${predName} → specialty: ${hasSpecialty} (${predData.specialty?.options?.length || 0} вариантов), disciplines: ${hasDisciplines}, predItems: ${hasPredItems}`);
+
         if (hasSpecialty) {
             const options = predData.specialty.options;
             if (options.length > 1) {
+                console.log("✅ Открываем выбор специализации");
                 showSpecialtyChoiceModal(predName, options, predData);
                 return;
             } else if (options.length === 1) {
@@ -2262,18 +2283,18 @@ function applyPredatorType(predName) {
         }
 
         if (hasDisciplines) {
+            console.log("✅ Открываем дисциплины");
             openPredatorDisciplineModal(predName);
             return;
         }
 
-        // Если ничего выше не открылось — открываем окно выбора преимуществ/недостатков
         if (hasPredItems) {
+            console.log("✅ Открываем окно преимуществ/недостатков");
             showPredatorMeritsFlawsSelection(predName, predData);
         }
-    }, 180);
+    }, 250);
 }
 
-// ==================== ОБРАБОТЧИКИ ====================
 // ==================== ОБРАБОТЧИКИ ====================
 function setupEventListeners() {
     // Пакет навыков
