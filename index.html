@@ -2584,19 +2584,13 @@ function renderCategories(tab) {
     container.innerHTML = '';
     const search = document.getElementById('merits-search').value.toLowerCase().trim();
 
-    let source = {};
-
-    if (tab === 0) {
-        // Преимущества
-        source = RULES.advantages?.merits || {};
-    } else {
-        // Недостатки — они тоже внутри advantages
-        source = RULES.advantages?.flaws || RULES.flaws || {};
-    }
+    let source = tab === 0 
+        ? (RULES.advantages?.merits || {}) 
+        : (RULES.advantages?.flaws || RULES.flaws || {});
 
     if (Object.keys(source).length === 0) {
         container.innerHTML = `<p style="color:#ff6666; text-align:center; padding:60px 20px;">
-            Данные не загружены<br><small>Проверь структуру rules.json</small>
+            Данные не загружены
         </p>`;
         return;
     }
@@ -2604,6 +2598,7 @@ function renderCategories(tab) {
     Object.keys(source).forEach(catKey => {
         const category = source[catKey];
         const catName = category.название || catKey;
+        const description = category.описание || "Нет описания";
 
         if (search && !catName.toLowerCase().includes(search)) return;
 
@@ -2611,10 +2606,17 @@ function renderCategories(tab) {
 
         const div = document.createElement('div');
         div.style.cssText = `
-            background:#1a1a1a; padding:16px; margin-bottom:8px; border-radius:6px; 
+            background:#1a1a1a; padding:16px; margin-bottom:10px; border-radius:6px; 
             border:1px solid #444; cursor:pointer; font-size:16px;
         `;
-        div.innerHTML = `<strong>${catName}</strong> <span style="color:#666; font-size:14px;">(${count} вариантов)</span>`;
+
+        div.innerHTML = `
+            <strong>${catName}</strong> 
+            <span style="color:#666; font-size:14px;">(${count} вариантов)</span>
+            <div style="margin-top:8px; font-size:14px; color:#aaa; line-height:1.4;">
+                ${description}
+            </div>
+        `;
 
         div.onclick = () => renderVariantsInCategory(category, tab);
         container.appendChild(div);
@@ -2637,6 +2639,8 @@ function renderVariantsInCategory(category, tab) {
 
     category.варианты.forEach(variant => {
         const name = variant.название_пункта;
+        const points = variant.точки;
+
         const alreadyTaken = tab === 0 
             ? selectedMerits.some(m => m.name === name)
             : selectedFlaws.some(f => f.name === name);
@@ -2645,20 +2649,28 @@ function renderVariantsInCategory(category, tab) {
         div.style.cssText = `background:#222; padding:14px; border-radius:6px; margin-bottom:8px; border:1px solid ${alreadyTaken ? '#555' : '#ff3131'}; cursor:pointer;`;
 
         div.innerHTML = `
-            <strong>${name} — ${variant.точки} точек</strong><br>
+            <strong>${name} — ${points} точек</strong><br>
             <small style="color:#aaa;">${variant.полное_описание}</small><br>
             <small style="color:#ffae00;">${variant.механика}</small>
         `;
 
         if (!alreadyTaken) {
             div.onclick = () => {
+                const canAdd = tab === 0 ? canAddMerit(points) : canAddFlaw(points);
+                
+                if (!canAdd) {
+                    showLimitWarning(tab === 0);
+                    return;
+                }
+
                 const item = {
                     category: category.название,
                     name: name,
-                    points: variant.точки,
+                    points: points,
                     desc: variant.полное_описание,
                     mechanic: variant.механика
                 };
+
                 if (tab === 0) selectedMerits.push(item);
                 else selectedFlaws.push(item);
 
@@ -2691,17 +2703,23 @@ function renderSelectedMeritsFlaws() {
         flawsContainer.appendChild(createSelectedItem(item, index, false));
     });
 
-    renderDots('merits-dots', totalMerits);
-    renderDots('flaws-dots', totalFlaws);
+    // Обновляем точки с разным максимумом
+    renderDots('merits-dots', totalMerits, true);   // 7 точек
+    renderDots('flaws-dots', totalFlaws, false);   // 2 точки
 }
 
-function renderDots(containerId, points) {
+function renderDots(containerId, points, isMerit) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
-    for (let i = 1; i <= 7; i++) {  // можно поменять максимум
+    
+    const max = isMerit ? 7 : 2;   // ← главное изменение
+    
+    for (let i = 1; i <= max; i++) {
         const dot = document.createElement('div');
         dot.style.cssText = `
-            width: 22px; height: 22px; border-radius: 50%; 
+            width: 22px; 
+            height: 22px; 
+            border-radius: 50%; 
             background: ${i <= points ? '#ff3131' : '#333'};
             border: 2px solid ${i <= points ? '#ff6666' : '#555'};
             box-shadow: ${i <= points ? '0 0 8px #ff3131' : 'none'};
@@ -2739,6 +2757,36 @@ function createSelectedItem(item, index, isMerit) {
                 style="background:none; border:none; color:#ff3131; font-size:22px; cursor:pointer; padding:0 8px;">×</button>
     `;
     return div;
+}
+
+
+// Проверка лимитов
+function canAddMerit(newPoints) {
+    const currentTotal = selectedMerits.reduce((sum, item) => sum + (item.points || 0), 0);
+    return currentTotal + newPoints <= 7;
+}
+
+function canAddFlaw(newPoints) {
+    const currentTotal = selectedFlaws.reduce((sum, item) => sum + (item.points || 0), 0);
+    return currentTotal + newPoints <= 2;
+}
+
+// Показываем предупреждение при превышении
+function showLimitWarning(isMerit) {
+    const msg = isMerit 
+        ? "❌ Максимум 7 точек преимуществ!" 
+        : "❌ Максимум 2 точки недостатков!";
+    
+    const warning = document.createElement('div');
+    warning.style.cssText = `
+        position:fixed; top:20px; left:50%; transform:translateX(-50%);
+        background:#330000; color:#ff6666; padding:12px 24px; border-radius:6px;
+        border:2px solid #ff3131; z-index:99999; font-weight:bold;
+    `;
+    warning.textContent = msg;
+    document.body.appendChild(warning);
+
+    setTimeout(() => warning.remove(), 2500);
 }
 
 function createMeritItem(item, index, isMerit) {
