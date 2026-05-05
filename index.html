@@ -1052,8 +1052,37 @@ function resetPredatorDisciplines() {
         }
     });
 
+    resetPredatorSpecialties();
+
+    document.querySelectorAll('#pred-disc-modal, #spec-choice-modal').forEach(m => m.remove());
+
     updateDisciplineTotal();
     renderDisciplines();
+}
+
+// Сброс специализаций от предыдущего стиля охоты
+function resetPredatorSpecialties() {
+    console.log("🗑️ Сброс специализаций от старой охоты");
+
+    // Убираем все S-бейджи и текстовые специализации
+    document.querySelectorAll('.spec-checkbox').forEach(checkbox => {
+        const skillName = checkbox.id.replace('s-', '');
+        
+        // Проверяем, была ли эта специализация от охоты
+        if (currentPredatorSpecialty && currentPredatorSpecialty.skill === skillName) {
+            checkbox.checked = false;
+            
+            const specsContainer = document.getElementById('specs-' + skillName);
+            if (specsContainer) {
+                specsContainer.innerHTML = '';
+                specsContainer.style.display = 'none';
+            }
+            
+            updateSBadgeState(skillName);
+        }
+    });
+
+    currentPredatorSpecialty = null;
 }
 
 function updateAllDisciplineRows() {
@@ -2155,8 +2184,8 @@ let currentPredatorSpecialty = null;
 function applyPredatorType(predName) {
     console.log("🎯 Применяем стиль охоты:", predName);
 
-    // === ЖЁСТКАЯ ОЧИСТКА ВСЕХ МОДАЛОК ОХОТЫ ===
-    document.querySelectorAll('#pred-disc-modal, #spec-choice-modal, #predator-selection-modal').forEach(modal => modal.remove());
+    // Полная очистка старых модалок
+    document.querySelectorAll('#pred-disc-modal, #spec-choice-modal, #predator-selection-modal, #power-modal').forEach(m => m.remove());
 
     if (!predName) {
         loadPredatorHint();
@@ -2172,10 +2201,11 @@ function applyPredatorType(predName) {
         return;
     }
 
-    // Полный сброс предыдущей охоты
+    // Сброс предыдущей охоты
     resetPredatorDisciplines();
+    resetPredatorSpecialties();
 
-    // Добавляем бесплатные merits/flaws
+    // Автоматически добавляем все бесплатные пункты
     if (predData.advantages?.length) {
         predData.advantages.forEach(adv => {
             const name = typeof adv === 'string' ? adv : (adv.name || adv);
@@ -2184,7 +2214,7 @@ function applyPredatorType(predName) {
                     category: "Стиль Охоты",
                     name: name,
                     points: 0,
-                    desc: `Бесплатно от стиля охоты «${predName}»`,
+                    desc: `Бесплатно от «${predName}»`,
                     mechanic: "",
                     fromPredator: true,
                     predatorType: predName
@@ -2201,7 +2231,7 @@ function applyPredatorType(predName) {
                     category: "Стиль Охоты",
                     name: name,
                     points: 0,
-                    desc: `Бесплатно от стиля охоты «${predName}»`,
+                    desc: `Бесплатно от «${predName}»`,
                     mechanic: "",
                     fromPredator: true,
                     predatorType: predName
@@ -2214,25 +2244,33 @@ function applyPredatorType(predName) {
     renderSelectedMeritsFlaws();
     updateTrackers();
 
-    // === Последовательность окон ===
+    // === ПОСЛЕДОВАТЕЛЬНОСТЬ ===
     const hasSpecialty = predData?.specialty?.options?.length > 0;
     const hasDisciplines = predData?.disciplines?.increase?.options?.length > 0;
+    const hasPredItems = (predData.advantages?.length || 0) + (predData.disadvantages?.length || 0) > 0;
 
-    // Небольшая задержка, чтобы предыдущие модалки точно исчезли
     setTimeout(() => {
         if (hasSpecialty) {
             const options = predData.specialty.options;
             if (options.length > 1) {
                 showSpecialtyChoiceModal(predName, options, predData);
+                return;
             } else if (options.length === 1) {
                 applyPredatorSpecialty(predName, options[0]);
-            } else if (hasDisciplines) {
-                openPredatorDisciplineModal(predName);
+                return;
             }
-        } else if (hasDisciplines) {
-            openPredatorDisciplineModal(predName);
         }
-    }, 150);
+
+        if (hasDisciplines) {
+            openPredatorDisciplineModal(predName);
+            return;
+        }
+
+        // Если ничего выше не открылось — открываем окно выбора преимуществ/недостатков
+        if (hasPredItems) {
+            showPredatorMeritsFlawsSelection(predName, predData);
+        }
+    }, 180);
 }
 
 // ==================== ОБРАБОТЧИКИ ====================
@@ -2523,6 +2561,7 @@ function renderCategories(tab) {
     }
 }
 
+
 function renderVariantsInCategory(category, tab) {
     const container = document.getElementById('merits-list');
     container.innerHTML = `
@@ -2535,48 +2574,100 @@ function renderVariantsInCategory(category, tab) {
 
     category.варианты.forEach(variant => {
         const name = variant.название_пункта;
-        const points = variant.точки;
+        const points = variant.точки || 0;
 
         const alreadyTaken = tab === 0 
             ? selectedMerits.some(m => m.name === name)
             : selectedFlaws.some(f => f.name === name);
 
         const div = document.createElement('div');
-        div.style.cssText = `background:#222; padding:14px; border-radius:6px; margin-bottom:8px; border:1px solid ${alreadyTaken ? '#555' : '#ff3131'}; cursor:pointer;`;
+        div.style.cssText = `
+            background:#222; 
+            padding:14px; 
+            border-radius:6px; 
+            margin-bottom:10px; 
+            border:2px solid ${alreadyTaken ? '#555' : '#ff3131'}; 
+            cursor: ${alreadyTaken ? 'default' : 'pointer'};
+            opacity: ${alreadyTaken ? '0.6' : '1'};
+        `;
 
         div.innerHTML = `
             <strong>${name} — ${points} точек</strong><br>
-            <small style="color:#aaa;">${variant.полное_описание}</small><br>
-            <small style="color:#ffae00;">${variant.механика}</small>
+            <small style="color:#aaa;">${variant.полное_описание || ''}</small><br>
+            <small style="color:#ffae00;">${variant.механика || ''}</small>
         `;
 
-       if (!alreadyTaken) {
-    div.onclick = () => {
-        const canAdd = tab === 0 ? canAddMerit(points) : canAddFlaw(points);
-        
-        if (!canAdd) {
-            showLimitWarning(tab === 0);
-            return;
+        // Клик только если ещё не взято
+        if (!alreadyTaken) {
+            div.addEventListener('click', () => {
+                const canAdd = tab === 0 ? canAddMerit(points) : canAddFlaw(points);
+                
+                if (!canAdd) {
+                    showLimitWarning(tab === 0);
+                    return;
+                }
+
+                const item = {
+                    category: category.название,
+                    categoryDesc: category.описание || '',
+                    name: name,
+                    points: points,
+                    desc: variant.полное_описание || '',
+                    mechanic: variant.механика || ''
+                };
+
+                if (tab === 0) selectedMerits.push(item);
+                else selectedFlaws.push(item);
+
+                renderSelectedMeritsFlaws();
+                closeMeritsFlawsModal();
+            });
         }
 
-        const item = {
-            category: category.название,
-            categoryDesc: category.описание || '',   // ← добавили описание раздела
-            name: name,
-            points: points,
-            desc: variant.полное_описание,
-            mechanic: variant.механика
-        };
-
-        if (tab === 0) selectedMerits.push(item);
-        else selectedFlaws.push(item);
-
-        renderSelectedMeritsFlaws();
-        closeMeritsFlawsModal();
-    };
-}
         container.appendChild(div);
     });
+}
+
+
+function confirmPredatorSelection(predName) {
+    const predData = RULES.predator_types?.[predName];
+    if (!predData) return;
+
+    // Преимущества
+    document.querySelectorAll('.pred-adv:checked').forEach(cb => {
+        const name = cb.value;
+        // Проверяем, нет ли уже (включая от охоты)
+        if (!selectedMerits.some(m => m.name === name)) {
+            selectedMerits.push({
+                category: "Стиль Охоты",
+                name: name,
+                points: 0,
+                desc: `Бесплатно от стиля охоты «${predName}»`,
+                mechanic: "",
+                fromPredator: true,
+                predatorType: predName
+            });
+        }
+    });
+
+    // Недостатки
+    document.querySelectorAll('.pred-flaw:checked').forEach(cb => {
+        const name = cb.value;
+        if (!selectedFlaws.some(f => f.name === name)) {
+            selectedFlaws.push({
+                category: "Стиль Охоты",
+                name: name,
+                points: 0,
+                desc: `Бесплатно от стиля охоты «${predName}»`,
+                mechanic: "",
+                fromPredator: true,
+                predatorType: predName
+            });
+        }
+    });
+
+    closePredatorSelectionModal();
+    renderSelectedMeritsFlaws();
 }
 
 // Отображение выбранных
@@ -2584,26 +2675,27 @@ function renderSelectedMeritsFlaws() {
     let totalMerits = 0;
     let totalFlaws = 0;
 
-    // Преимущества
     const meritsContainer = document.getElementById('selected-merits-list');
     meritsContainer.innerHTML = '';
     selectedMerits.forEach((item, index) => {
-        totalMerits += item.points || 0;
+        if (!item.fromPredator) totalMerits += item.points || 0;
         meritsContainer.appendChild(createSelectedItem(item, index, true));
     });
 
-    // Недостатки
     const flawsContainer = document.getElementById('selected-flaws-list');
     flawsContainer.innerHTML = '';
     selectedFlaws.forEach((item, index) => {
-        totalFlaws += item.points || 0;
+        if (!item.fromPredator) totalFlaws += item.points || 0;
         flawsContainer.appendChild(createSelectedItem(item, index, false));
     });
 
-    // Обновляем точки с разным максимумом
-    renderDots('merits-dots', totalMerits, true);   // 7 точек
-    renderDots('flaws-dots', totalFlaws, false);   // 2 точки
+    renderDots('merits-dots', totalMerits, true);
+    renderDots('flaws-dots', totalFlaws, false);
 }
+
+
+
+
 
 function renderDots(containerId, points, isMerit) {
     const container = document.getElementById(containerId);
@@ -2638,10 +2730,15 @@ function createSelectedItem(item, index, isMerit) {
     const maxDots = 5;
     let dotsHTML = '';
 
-    if (isFromPredator) {
-        dotsHTML = `<span style="color:#ffae00; font-size:14px; font-weight:bold; padding:0 8px;">Тип охоты: ${item.predatorType || ''}</span>`;
+        if (isFromPredator) {
+        dotsHTML = `
+            <span style="color:#ffae00; font-weight:bold; background:#1a1a1a; 
+                         padding:4px 10px; border-radius:6px; border:1px solid #444;">
+                0 точек • Тип охоты: ${item.predatorType || ''}
+            </span>`;
     } else {
-        for (let i = 1; i <= maxDots; i++) {
+        // обычные точки (до 5)
+        for (let i = 1; i <= 5; i++) {
             dotsHTML += `
                 <div style="width:18px; height:18px; border-radius:50%; 
                             background: ${i <= points ? '#ff3131' : '#333'}; 
@@ -2767,6 +2864,7 @@ function confirmPredatorSelection(predName) {
     // Преимущества
     document.querySelectorAll('.pred-adv:checked').forEach(cb => {
         const name = cb.value;
+        // Проверяем, нет ли уже (включая от охоты)
         if (!selectedMerits.some(m => m.name === name)) {
             selectedMerits.push({
                 category: "Стиль Охоты",
@@ -2800,6 +2898,10 @@ function confirmPredatorSelection(predName) {
     renderSelectedMeritsFlaws();
 }
 
+
+
+
+
 function confirmPredatorDiscipline(predatorName) {
     const disc = document.getElementById('pred-disc-select').value;
     if (!disc) return alert("Выберите дисциплину!");
@@ -2831,14 +2933,23 @@ function closePredatorSelectionModal() {
 
 
 
-// Проверка лимитов
+// Проверка лимита преимуществ (игнорируем пункты от охоты)
 function canAddMerit(newPoints) {
-    const currentTotal = selectedMerits.reduce((sum, item) => sum + (item.points || 0), 0);
+    const currentTotal = selectedMerits.reduce((sum, item) => {
+        if (item.fromPredator) return sum;        // бесплатно от охоты — не считаем
+        return sum + (item.points || 0);
+    }, 0);
+
     return currentTotal + newPoints <= 7;
 }
 
+// Проверка лимита недостатков (игнорируем пункты от охоты)
 function canAddFlaw(newPoints) {
-    const currentTotal = selectedFlaws.reduce((sum, item) => sum + (item.points || 0), 0);
+    const currentTotal = selectedFlaws.reduce((sum, item) => {
+        if (item.fromPredator) return sum;        // бесплатно от охоты — не считаем
+        return sum + (item.points || 0);
+    }, 0);
+
     return currentTotal + newPoints <= 2;
 }
 
