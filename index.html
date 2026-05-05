@@ -239,7 +239,15 @@ select option {
 <body></body>
 <!-- Левая панель -->
 <div class="guide">
+
+     <button onclick="importFromJSON()" 
+        style="width:100%; margin:8px 0 12px 0; padding:10px; background:#222; color:#ffae00; 
+               border:1px solid #a14600; border-radius:4px; cursor:pointer; font-size:14px;">
+     Импорт персонажа (JSON)
+</button>
+
     <div id="attr-tracker"></div>
+
     <hr style="border:0; border-top:1px solid #333; margin: 15px 0;">
     
     <p style="font-size: 12px;">Набор навыков:</p>
@@ -392,13 +400,20 @@ select option {
 </div>
 
 <!-- Правая панель -->
-<div style="position: absolute; right: 40px; top: 80px; width: 380px; display: flex; flex-direction: column; gap: 20px;">
+<div style="position: absolute; right: 40px; top: 80px; width: 380px; display: flex; flex-direction: column; gap: 12px;">
     <div id="clan-hint-box" style="background: #1a1a1a; border: 1px solid var(--v-red); padding: 20px; border-radius: 6px; display: none; max-height: 420px; overflow-y: auto;"></div>
     <div id="predator-hint-box" style="background: #1a1a1a; border: 1px solid var(--v-red); padding: 20px; border-radius: 6px; display: none; max-height: 420px; overflow-y: auto;"></div>
 
-    <button id="btn-save" style="padding: 18px; font-size: 16px; width: 100%;">
+    <button id="btn-save" style="padding: 18px; font-size: 16px;">
         Скачать как картинку (JPG)
     </button>
+
+    <button onclick="exportToJSON()" 
+            style="padding: 16px; font-size: 16px; background:#111; color:#ffae00; border:2px solid #a14600;">
+        Экспорт в JSON
+    </button>
+</div>
+    
 </div>
 
 <!-- Модальные окна -->
@@ -3055,6 +3070,157 @@ window.onload = () => {
     });
     setupEventListeners();
 };
+
+
+// ====================== ЭКСПОРТ / ИМПОРТ JSON ======================
+
+function exportToJSON() {
+    const character = {
+        version: "1.0",
+        timestamp: new Date().toISOString(),
+        name: document.getElementById('char-name').value.trim() || "Безымянный",
+        clan: document.getElementById('clan-input').value,
+        predator: document.getElementById('predator-input').value,
+        skillPackage: document.getElementById('skill-package').value,
+        
+        attributes: {},
+        skills: {},
+        disciplines: disciplineSources,
+        selectedPowers: selectedPowers,
+        merits: selectedMerits,
+        flaws: selectedFlaws
+    };
+
+    // Атрибуты
+    document.querySelectorAll('.dot-input[data-type="attr"]:checked').forEach(input => {
+        if (parseInt(input.value) > 0) {
+            character.attributes[input.name] = parseInt(input.value);
+        }
+    });
+
+    // Навыки + специализации
+    document.querySelectorAll('.dot-input[data-type="skill"]:checked').forEach(input => {
+        const val = parseInt(input.value);
+        if (val > 0) {
+            const skillName = input.name;
+            character.skills[skillName] = { dots: val, specs: [] };
+
+            const container = document.getElementById('specs-' + skillName);
+            if (container) {
+                container.querySelectorAll('input[type="text"]').forEach(inp => {
+                    if (inp.value.trim()) character.skills[skillName].specs.push(inp.value.trim());
+                });
+            }
+        }
+    });
+
+    const dataStr = JSON.stringify(character, null, 2);
+    const blob = new Blob([dataStr], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `V5_${character.name.replace(/[^a-zA-Z0-9а-яА-Я]/g, '_')}.json`;
+    link.click();
+
+    URL.revokeObjectURL(url);
+}
+
+// ====================== ИМПОРТ ======================
+
+function importFromJSON() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    
+    input.onchange = e => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(ev) {
+            try {
+                const data = JSON.parse(ev.target.result);
+                
+                // Базовая информация
+                if (data.name) document.getElementById('char-name').value = data.name;
+                if (data.clan) {
+                    document.getElementById('clan-input').value = data.clan;
+                    loadClanHint();
+                    updateClanIcon();
+                }
+                if (data.predator) {
+                    document.getElementById('predator-input').value = data.predator;
+                    loadPredatorHint();
+                }
+                if (data.skillPackage) {
+                    document.getElementById('skill-package').value = data.skillPackage;
+                }
+
+                // Атрибуты
+                if (data.attributes) {
+                    Object.keys(data.attributes).forEach(attr => {
+                        const val = data.attributes[attr];
+                        const radio = document.querySelector(`input[name="${attr}"][value="${val}"]`);
+                        if (radio) radio.checked = true;
+                    });
+                }
+
+                // Навыки
+                if (data.skills) {
+                    Object.keys(data.skills).forEach(skill => {
+                        const s = data.skills[skill];
+                        const radio = document.querySelector(`input[name="${skill}"][value="${s.dots}"]`);
+                        if (radio) radio.checked = true;
+
+                        // Специализации
+                        if (s.specs && s.specs.length) {
+                            const container = document.getElementById('specs-' + skill);
+                            if (container) {
+                                container.innerHTML = '';
+                                s.specs.forEach(specText => {
+                                    const line = document.createElement('div');
+                                    line.className = 'skill-spec-line';
+                                    line.innerHTML = `
+                                        <input type="text" value="${specText}" style="flex:1;">
+                                        <button>+</button>
+                                        <button>×</button>
+                                    `;
+                                    container.appendChild(line);
+                                });
+                                container.style.display = 'flex';
+                                document.getElementById('s-' + skill).checked = true;
+                            }
+                        }
+                    });
+                }
+
+                // Дисциплины и способности
+                if (data.disciplines) disciplineSources = data.disciplines;
+                if (data.selectedPowers) selectedPowers = data.selectedPowers;
+
+                // Преимущества и недостатки
+                if (data.merits) selectedMerits = data.merits;
+                if (data.flaws) selectedFlaws = data.flaws;
+
+                // Перерисовка
+                renderDisciplines();
+                renderSelectedMeritsFlaws();
+                updateTrackers();
+
+                alert(`Персонаж «${data.name || 'Без имени'}» успешно загружен!`);
+                
+            } catch (err) {
+                alert('Ошибка при чтении JSON-файла: ' + err.message);
+                console.error(err);
+            }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+
 
 </script>
 </body>
