@@ -886,25 +886,40 @@ function openPredatorDisciplineModal(predName) {
     const predData = RULES.predator_types?.[predName];
     if (!predData) return;
 
-    // Проверяем новый формат
-    const hasDisciplines = predData.disciplines?.increase?.options && 
-                          predData.disciplines.increase.options.length > 0;
-
+    const hasDisciplines = predData.disciplines?.increase?.options?.length > 0;
     if (!hasDisciplines) {
-        console.log(`ℹ️ Для стиля ${predName} нет дисциплин для выбора`);
-        // Убираем alert, просто пропускаем
+        console.log(`ℹ️ Для ${predName} нет дисциплин`);
         return;
     }
 
-    // Если дисциплины есть — открываем окно выбора
     const options = predData.disciplines.increase.options;
     const value = predData.disciplines.increase.value || 1;
 
-    console.log(`Открываем выбор дисциплины для ${predName}:`, options);
+    const modalHTML = `
+    <div id="pred-disc-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.97);z-index:20000;display:flex;align-items:center;justify-content:center;">
+        <div style="background:#111;border:3px solid #ff3131;padding:40px;width:620px;border-radius:10px;">
+            <h2 style="color:#ff3131;text-align:center;margin:0 0 25px;">${predName}</h2>
+            <p style="text-align:center;color:#ccc;margin-bottom:25px;">Выбери дисциплину (+${value} точка)</p>
+            
+            <select id="pred-disc-select" style="width:100%;padding:14px;background:#000;color:white;border:1px solid #555;font-size:17px;margin-bottom:30px;">
+                ${options.map(d => `<option value="${d}">${d}</option>`).join('')}
+            </select>
+            
+            <div style="text-align:center;">
+                <button onclick="confirmPredatorDiscipline('${predName}')" 
+                        style="background:#ff3131;color:black;padding:14px 40px;border:none;font-size:17px;border-radius:6px;margin-right:12px;">
+                    Подтвердить
+                </button>
+                <button onclick="closePredDiscModal()" 
+                        style="background:#333;color:white;padding:14px 35px;border:none;font-size:17px;border-radius:6px;">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>`;
 
-    // Здесь твой существующий код открытия модального окна дисциплин
-    // (если у тебя есть функция showDisciplineChoiceModal или подобная)
-    showPredatorDisciplineChoice(predName, options, value); 
+    document.getElementById('pred-disc-modal')?.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
 }
 
 function closeClanDiscModal() {
@@ -2140,6 +2155,9 @@ let currentPredatorSpecialty = null;
 function applyPredatorType(predName) {
     console.log("🎯 Применяем стиль охоты:", predName);
 
+    // === ЖЁСТКАЯ ОЧИСТКА ВСЕХ МОДАЛОК ОХОТЫ ===
+    document.querySelectorAll('#pred-disc-modal, #spec-choice-modal, #predator-selection-modal').forEach(modal => modal.remove());
+
     if (!predName) {
         loadPredatorHint();
         updateTrackers();
@@ -2148,19 +2166,20 @@ function applyPredatorType(predName) {
 
     const predData = RULES.predator_types?.[predName];
     if (!predData) {
+        console.warn("Нет данных для", predName);
         loadPredatorHint();
         updateTrackers();
         return;
     }
 
-    // Сброс старых дисциплин от предыдущей охоты
+    // Полный сброс предыдущей охоты
     resetPredatorDisciplines();
 
-    // Добавляем преимущества и недостатки от охоты
-    if (predData.advantages && predData.advantages.length) {
+    // Добавляем бесплатные merits/flaws
+    if (predData.advantages?.length) {
         predData.advantages.forEach(adv => {
             const name = typeof adv === 'string' ? adv : (adv.name || adv);
-            if (!selectedMerits.some(m => m.name === name)) {
+            if (!selectedMerits.some(m => m.fromPredator && m.name === name)) {
                 selectedMerits.push({
                     category: "Стиль Охоты",
                     name: name,
@@ -2174,10 +2193,10 @@ function applyPredatorType(predName) {
         });
     }
 
-    if (predData.disadvantages && predData.disadvantages.length) {
+    if (predData.disadvantages?.length) {
         predData.disadvantages.forEach(dis => {
             const name = typeof dis === 'string' ? dis : (dis.name || dis);
-            if (!selectedFlaws.some(f => f.name === name)) {
+            if (!selectedFlaws.some(f => f.fromPredator && f.name === name)) {
                 selectedFlaws.push({
                     category: "Стиль Охоты",
                     name: name,
@@ -2193,24 +2212,27 @@ function applyPredatorType(predName) {
 
     loadPredatorHint();
     renderSelectedMeritsFlaws();
+    updateTrackers();
 
-     // === Специализация + Дисциплина ===
-    const hasSpecialty = predData?.specialty?.options && predData.specialty.options.length > 0;
-    const hasDisciplines = predData?.disciplines?.increase?.options && 
-                          predData.disciplines.increase.options.length > 0;
+    // === Последовательность окон ===
+    const hasSpecialty = predData?.specialty?.options?.length > 0;
+    const hasDisciplines = predData?.disciplines?.increase?.options?.length > 0;
 
-    if (hasSpecialty) {
-        const options = predData.specialty.options;
-        if (options.length > 1) {
-            showSpecialtyChoiceModal(predName, options, predData);
-        } else if (options.length === 1) {
-            applyPredatorSpecialty(predName, options[0]);
+    // Небольшая задержка, чтобы предыдущие модалки точно исчезли
+    setTimeout(() => {
+        if (hasSpecialty) {
+            const options = predData.specialty.options;
+            if (options.length > 1) {
+                showSpecialtyChoiceModal(predName, options, predData);
+            } else if (options.length === 1) {
+                applyPredatorSpecialty(predName, options[0]);
+            } else if (hasDisciplines) {
+                openPredatorDisciplineModal(predName);
+            }
         } else if (hasDisciplines) {
-            setTimeout(() => openPredatorDisciplineModal(predName), 250);
+            openPredatorDisciplineModal(predName);
         }
-    } else if (hasDisciplines) {
-        setTimeout(() => openPredatorDisciplineModal(predName), 250);
-    }
+    }, 150);
 }
 
 // ==================== ОБРАБОТЧИКИ ====================
