@@ -364,10 +364,15 @@ select option {
 <!-- Модал Преимуществ/Недостатков -->
 <div id="merits-flaws-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; 
      background:rgba(0,0,0,0.96); z-index:11000; overflow:auto; padding:20px;">
-    <div style="max-width:1100px; margin:30px auto; background:#111; padding:25px; border-radius:8px; border:2px solid #ff3131;">
-        <button onclick="closeMeritsFlawsModal()" 
-                style="position:absolute; top:15px; right:25px; font-size:32px; color:#ff3131; background:none; border:none; cursor:pointer;">×</button>
+    
+    <div style="max-width:1100px; margin:30px auto; background:#111; padding:25px; border-radius:8px; 
+                border:2px solid #ff3131; position: relative;">   <!-- ← position: relative здесь -->
         
+        <button onclick="closeMeritsFlawsModal()" 
+                style="position:absolute; top:18px; right:25px; font-size:36px; color:#ff3131; 
+                       background:none; border:none; cursor:pointer; z-index:10; line-height:1;">
+            ×
+        </button>
         <h2 style="text-align:center; color:#ff3131; margin-bottom:20px;">Преимущества & Недостатки</h2>
         
         <!-- Вкладки -->
