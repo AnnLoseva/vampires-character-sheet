@@ -10,7 +10,7 @@ export default function VampireSheet() {
         border: "none",
         display: "block"
       }}
-      title="VTM Character Sheet"
+      title="VTM Character Sheet v1"
     />
   );
 }
