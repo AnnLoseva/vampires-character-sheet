@@ -1,16 +1,17 @@
 'use client';
 
-export default function VampireSheet() {
+export default function Home() {
   return (
-    <iframe 
-      src="/sheet.html" 
-      style={{
-        width: "100vw",
-        height: "100vh",
-        border: "none",
-        display: "block"
-      }}
-      title="VTM Character Sheet v1"
-    />
+    <div style={{ width: "100vw", height: "100vh" }}>
+      <iframe 
+        src="/sheet.html" 
+        style={{ 
+          width: "100%", 
+          height: "100%", 
+          border: "none" 
+        }} 
+        title="VTM Sheet"
+      />
+    </div>
   );
 }
