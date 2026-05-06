@@ -449,12 +449,6 @@ select option {
 
 </div>
 
-    <!-- 1. Supabase (самое важное) -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-    
-    <!-- 2. html2canvas -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
 </body>
 <script>
 
@@ -3242,7 +3236,14 @@ function importFromJSON() {
 }
 
 
-// ==================== SUPABASE (в самом конце) ====================
+
+</script>
+
+<!-- SUPABASE — только здесь -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+// ==================== SUPABASE + КНОПКИ ====================
 
 let supabase = null;
 
@@ -3253,76 +3254,26 @@ function initSupabase() {
     try {
         supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         console.log("✅ Supabase подключён");
-    } catch (e) {
-        console.error("❌ Supabase ошибка:", e);
+    } catch(e) {
+        console.error("Supabase ошибка", e);
     }
 }
 
-window.addEventListener('load', () => {
-    loadRules().then(() => {
-        renderDisciplines();
-        preloadAllSkills();
-        preloadAllAttributes();
-        initSupabase();           // ← добавили
-    });
-    setupEventListeners();
-});
-
-// ==================== СОХРАНЕНИЕ ====================
+window.addEventListener('load', initSupabase);
 
 async function saveCharacter() {
     if (!supabase) {
-        alert("Supabase ещё не загрузился. Обнови страницу (Ctrl+F5)");
+        alert("Supabase ещё загружается. Обнови страницу (Ctrl+F5)");
         return;
     }
-
     const name = document.getElementById('char-name').value.trim() || "Без имени";
-
-    const characterData = {
-        name: name,
-        clan: document.getElementById('clan-input')?.value || "",
-        predator: document.getElementById('predator-input')?.value || "",
-        timestamp: new Date().toISOString()
-    };
-
-    const { error } = await supabase
-        .from('characters')
-        .insert({ name: name, data: characterData });
-
-    if (error) alert("❌ Ошибка: " + error.message);
-    else alert(`✅ "${name}" успешно сохранён!`);
+    alert(`Тест: пытаемся сохранить "${name}"`);   // временно для проверки
 }
 
 async function showMyCharacters() {
-    if (!supabase) {
-        alert("Supabase ещё не загрузился. Обнови страницу");
-        return;
-    }
-
-    const { data, error } = await supabase
-        .from('characters')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        alert("❌ Ошибка: " + error.message);
-        return;
-    }
-
-    if (data.length === 0) {
-        alert("📭 Пока нет сохранённых персонажей.");
-        return;
-    }
-
-    let text = "📋 Твои персонажи:\n\n";
-    data.forEach((char, i) => {
-        const date = new Date(char.created_at).toLocaleDateString('ru-RU');
-        text += `${i+1}. ${char.name || 'Без имени'} — ${date}\n`;
-    });
-
-    alert(text);
+    alert("Открываем список персонажей (пока тест)");
 }
-
 </script>
+
 </body>
 </html>
