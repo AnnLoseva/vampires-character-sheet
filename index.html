@@ -3246,7 +3246,9 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-// Сохранение текущего персонажа
+console.log("✅ Supabase подключён");
+
+// Сохранение персонажа
 async function saveCharacter() {
     const name = document.getElementById('char-name').value.trim() || "Без имени";
 
@@ -3254,8 +3256,7 @@ async function saveCharacter() {
         name: name,
         clan: document.getElementById('clan-input')?.value || "",
         predator: document.getElementById('predator-input')?.value || "",
-        timestamp: new Date().toISOString(),
-        // Можно добавить больше данных позже
+        timestamp: new Date().toISOString()
     };
 
     const { error } = await supabase
@@ -3266,9 +3267,9 @@ async function saveCharacter() {
         });
 
     if (error) {
-        alert("❌ Ошибка сохранения:\n" + error.message);
+        alert("❌ Ошибка: " + error.message);
     } else {
-        alert(`✅ Персонаж "${name}" успешно сохранён в личный кабинет!`);
+        alert(`✅ "${name}" сохранён в личный кабинет!`);
     }
 }
 
@@ -3280,7 +3281,7 @@ async function showMyCharacters() {
         .order('created_at', { ascending: false });
 
     if (error) {
-        alert("❌ Ошибка загрузки:\n" + error.message);
+        alert("❌ Ошибка загрузки: " + error.message);
         return;
     }
 
@@ -3289,7 +3290,7 @@ async function showMyCharacters() {
         return;
     }
 
-    let text = "📋 Твои сохранённые персонажи:\n\n";
+    let text = "📋 Твои персонажи:\n\n";
     data.forEach((char, i) => {
         const date = new Date(char.created_at).toLocaleDateString('ru-RU');
         text += `${i+1}. ${char.name || 'Без имени'} — ${date}\n`;
@@ -3298,34 +3299,7 @@ async function showMyCharacters() {
     alert(text);
 }
 
-// ==================== ПРОВЕРКА SUPABASE ====================
-console.log("Supabase загружен:", typeof supabase !== 'undefined' ? "Да" : "Нет");
-
-async function saveCharacter() {
-    console.log("Кнопка сохранения нажата");
-    const name = document.getElementById('char-name').value.trim() || "Без имени";
-    
-    alert(`Пока тест: пытаемся сохранить "${name}"`);
-    
-    // Потом раскомментируем настоящее сохранение
-    /*
-    const { error } = await supabase
-        .from('characters')
-        .insert({ name: name, data: { name } });
-
-    if (error) alert("Ошибка: " + error.message);
-    else alert("Сохранено!");
-    */
-}
-
-async function showMyCharacters() {
-    alert("Пока тест: открываем список персонажей");
-    // Потом сделаем реальный список
-}
-
-
 
 </script>
-<script type="module" src="supabase.js"></script>
 </body>
 </html>
