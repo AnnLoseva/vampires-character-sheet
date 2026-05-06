@@ -3222,27 +3222,6 @@ function importFromJSON() {
 
 
 
-// Отправка данных персонажа в родительское окно
-window.addEventListener('message', function(event) {
-  if (event.data?.type === 'GET_CHARACTER_DATA') {
-    // Собираем все данные из твоего листа
-    const charData = {
-      name: document.getElementById('char-name')?.value || 'Без имени',
-      clan: document.getElementById('clan-input')?.value,
-      predator: document.getElementById('predator-input')?.value,
-      // Можно добавить больше полей позже
-      timestamp: new Date().toISOString()
-    };
-
-    // Отправляем обратно
-    window.parent.postMessage({ 
-      type: 'CHARACTER_DATA', 
-      data: charData 
-    }, '*');
-  }
-});
-
-
 </script>
 </body>
 </html>
