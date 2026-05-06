@@ -3239,7 +3239,7 @@ function importFromJSON() {
 }
 
 
-// ==================== SUPABASE ====================
+// ==================== SUPABASE (в самом конце) ====================
 
 let supabase = null;
 
@@ -3249,20 +3249,27 @@ function initSupabase() {
 
     try {
         supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log("✅ Supabase успешно подключён");
+        console.log("✅ Supabase подключён");
     } catch (e) {
-        console.error("❌ Ошибка Supabase:", e);
+        console.error("❌ Supabase ошибка:", e);
     }
 }
 
-// Инициализируем после загрузки страницы
-window.addEventListener('load', initSupabase);
+window.addEventListener('load', () => {
+    loadRules().then(() => {
+        renderDisciplines();
+        preloadAllSkills();
+        preloadAllAttributes();
+        initSupabase();           // ← добавили
+    });
+    setupEventListeners();
+});
 
-// ==================== ФУНКЦИИ ====================
+// ==================== СОХРАНЕНИЕ ====================
 
 async function saveCharacter() {
     if (!supabase) {
-        alert("Supabase ещё не подключён. Обнови страницу.");
+        alert("Supabase ещё не загрузился. Обнови страницу (Ctrl+F5)");
         return;
     }
 
@@ -3279,16 +3286,13 @@ async function saveCharacter() {
         .from('characters')
         .insert({ name: name, data: characterData });
 
-    if (error) {
-        alert("❌ Ошибка: " + error.message);
-    } else {
-        alert(`✅ "${name}" успешно сохранён!`);
-    }
+    if (error) alert("❌ Ошибка: " + error.message);
+    else alert(`✅ "${name}" успешно сохранён!`);
 }
 
 async function showMyCharacters() {
     if (!supabase) {
-        alert("Supabase ещё не подключён. Обнови страницу.");
+        alert("Supabase ещё не загрузился. Обнови страницу");
         return;
     }
 
