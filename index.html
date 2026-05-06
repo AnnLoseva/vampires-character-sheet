@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <title>VTM V5 Digital Sheet v1.0.15</title>
 
-    <script type="module" src="supabase.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
     <style>
         :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
@@ -416,15 +415,15 @@ select option {
         Экспорт в JSON
     </button>
 
-    <button onclick="saveCharacterToSupabase()" 
-        style="padding: 16px; font-size: 16px; background:#ff3131; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
-    💾 Сохранить в Личный кабинет
-</button>
+        <button onclick="saveCharacter()" 
+                style="padding: 16px; font-size: 16px; background:#ff3131; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
+            💾 Сохранить в Личный кабинет
+        </button>
 
-<button onclick="showMyCharacters()" 
-        style="padding: 16px; font-size: 16px; background:#444; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
-    📋 Мои персонажи
-</button>
+        <button onclick="showMyCharacters()" 
+                style="padding: 16px; font-size: 16px; background:#444; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
+            📋 Мои персонажи
+        </button>
 </div>
     
 </div>
@@ -3233,6 +3232,65 @@ function importFromJSON() {
     input.click();
 }
 
+
+// ==================== SUPABASE ЛИЧНЫЙ КАБИНЕТ ====================
+
+const SUPABASE_URL = 'https://klhxbaagarqxanrvurr.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaHhiYWFnYXJxeGFxbnJ2dXJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzkwNjAsImV4cCI6MjA5MzY1NTA2MH0.Cy2496DJgJhqZkERL9h19FkiiTfkcW2pauPaJU5r5oY';
+
+const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Сохранение текущего персонажа
+async function saveCharacter() {
+    const name = document.getElementById('char-name').value.trim() || "Без имени";
+
+    const characterData = {
+        name: name,
+        clan: document.getElementById('clan-input')?.value || "",
+        predator: document.getElementById('predator-input')?.value || "",
+        timestamp: new Date().toISOString(),
+        // Можно добавить больше данных позже
+    };
+
+    const { error } = await supabase
+        .from('characters')
+        .insert({ 
+            name: name,
+            data: characterData 
+        });
+
+    if (error) {
+        alert("❌ Ошибка сохранения:\n" + error.message);
+    } else {
+        alert(`✅ Персонаж "${name}" успешно сохранён в личный кабинет!`);
+    }
+}
+
+// Показать мои персонажи
+async function showMyCharacters() {
+    const { data, error } = await supabase
+        .from('characters')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+    if (error) {
+        alert("❌ Ошибка загрузки:\n" + error.message);
+        return;
+    }
+
+    if (data.length === 0) {
+        alert("📭 У тебя пока нет сохранённых персонажей.");
+        return;
+    }
+
+    let text = "📋 Твои сохранённые персонажи:\n\n";
+    data.forEach((char, i) => {
+        const date = new Date(char.created_at).toLocaleDateString('ru-RU');
+        text += `${i+1}. ${char.name || 'Без имени'} — ${date}\n`;
+    });
+
+    alert(text);
+}
 
 
 </script>
