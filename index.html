@@ -2,10 +2,15 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>VTM V5 Digital Sheet v1.0.15</title>
+    <title>VTM V5 Digital Sheet v1.0.16</title>
     
 
+    <!-- 1. Supabase (самое важное) -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     
+    <!-- 2. html2canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
     <style>
         :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
         body { background: var(--v-bg); color: #d0d0d0; font-family: 'Courier New', Courier, monospace; display: flex; justify-content: center; padding: 30px 20px; gap: 25px; }
@@ -449,11 +454,6 @@ select option {
 </div>
 </body>
 <script>
-
-
-src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
-
-
 
 // ==================== ВЕСЬ СКРИПТ (все части вместе) ====================
 // ==================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ====================
@@ -3239,17 +3239,33 @@ function importFromJSON() {
 }
 
 
-// ==================== SUPABASE ЛИЧНЫЙ КАБИНЕТ ====================
+// ==================== SUPABASE ====================
 
-const SUPABASE_URL = 'https://klhxbaagarqxanrvurr.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaHhiYWFnYXJxeGFxbnJ2dXJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzkwNjAsImV4cCI6MjA5MzY1NTA2MH0.Cy2496DJgJhqZkERL9h19FkiiTfkcW2pauPaJU5r5oY';
+let supabase = null;
 
-const supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+function initSupabase() {
+    const SUPABASE_URL = 'https://klhxbaagarqxanrvurr.supabase.co';
+    const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaHhiYWFnYXJxeGFxbnJ2dXJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzkwNjAsImV4cCI6MjA5MzY1NTA2MH0.Cy2496DJgJhqZkERL9h19FkiiTfkcW2pauPaJU5r5oY';
 
-console.log("✅ Supabase подключён");
+    try {
+        supabase = Supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        console.log("✅ Supabase успешно подключён");
+    } catch (e) {
+        console.error("❌ Ошибка Supabase:", e);
+    }
+}
 
-// Сохранение персонажа
+// Инициализируем после загрузки страницы
+window.addEventListener('load', initSupabase);
+
+// ==================== ФУНКЦИИ ====================
+
 async function saveCharacter() {
+    if (!supabase) {
+        alert("Supabase ещё не подключён. Обнови страницу.");
+        return;
+    }
+
     const name = document.getElementById('char-name').value.trim() || "Без имени";
 
     const characterData = {
@@ -3261,32 +3277,33 @@ async function saveCharacter() {
 
     const { error } = await supabase
         .from('characters')
-        .insert({ 
-            name: name,
-            data: characterData 
-        });
+        .insert({ name: name, data: characterData });
 
     if (error) {
         alert("❌ Ошибка: " + error.message);
     } else {
-        alert(`✅ "${name}" сохранён в личный кабинет!`);
+        alert(`✅ "${name}" успешно сохранён!`);
     }
 }
 
-// Показать мои персонажи
 async function showMyCharacters() {
+    if (!supabase) {
+        alert("Supabase ещё не подключён. Обнови страницу.");
+        return;
+    }
+
     const { data, error } = await supabase
         .from('characters')
         .select('*')
         .order('created_at', { ascending: false });
 
     if (error) {
-        alert("❌ Ошибка загрузки: " + error.message);
+        alert("❌ Ошибка: " + error.message);
         return;
     }
 
     if (data.length === 0) {
-        alert("📭 У тебя пока нет сохранённых персонажей.");
+        alert("📭 Пока нет сохранённых персонажей.");
         return;
     }
 
@@ -3298,7 +3315,6 @@ async function showMyCharacters() {
 
     alert(text);
 }
-
 
 </script>
 </body>
