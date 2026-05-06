@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>VTM V5 Digital Sheet v1.0.15</title>
-
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     
     <style>
@@ -3298,7 +3298,34 @@ async function showMyCharacters() {
     alert(text);
 }
 
+// ==================== ПРОВЕРКА SUPABASE ====================
+console.log("Supabase загружен:", typeof supabase !== 'undefined' ? "Да" : "Нет");
+
+async function saveCharacter() {
+    console.log("Кнопка сохранения нажата");
+    const name = document.getElementById('char-name').value.trim() || "Без имени";
+    
+    alert(`Пока тест: пытаемся сохранить "${name}"`);
+    
+    // Потом раскомментируем настоящее сохранение
+    /*
+    const { error } = await supabase
+        .from('characters')
+        .insert({ name: name, data: { name } });
+
+    if (error) alert("Ошибка: " + error.message);
+    else alert("Сохранено!");
+    */
+}
+
+async function showMyCharacters() {
+    alert("Пока тест: открываем список персонажей");
+    // Потом сделаем реальный список
+}
+
+
 
 </script>
+<script type="module" src="supabase.js"></script>
 </body>
 </html>
