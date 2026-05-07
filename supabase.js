@@ -255,6 +255,28 @@ async function saveCharacter() {
 }
 
 
+// ==================== ЗАГРУЗКА ПЕРСОНАЖА ====================
+window.loadCharacter = async function(id) {
+    if (!supabaseClient) return alert("Supabase не готов");
+
+    const { data, error } = await supabaseClient
+        .from('characters')
+        .select('data')
+        .eq('id', id)
+        .single();
+
+    if (error || !data?.data) {
+        console.error(error);
+        return alert("Не удалось загрузить персонажа");
+    }
+
+    loadFullCharacter(data.data);
+    closeModal();
+    alert(`✅ Персонаж "${data.data.name}" успешно загружен!`);
+};
+
+
+
 
 window.deleteCharacter = async function(id) {
     if (!confirm("Удалить этого персонажа навсегда?")) return;
