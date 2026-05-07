@@ -1,6 +1,7 @@
 {
   "rewrites": [
-    { "source": "/old-sheet.html", "destination": "/old-sheet.html" },
-    { "source": "/:path*", "destination": "/index.html" }
+    { "source": "/old", "destination": "/old" },
+    { "source": "/table", "destination": "/table" },
+    { "source": "/(.*)", "destination": "/$1" }
   ]
 }
