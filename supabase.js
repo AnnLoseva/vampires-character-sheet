@@ -66,42 +66,6 @@ async function logout() {
 }
 
 // ==================== ПОЛНОЕ СОХРАНЕНИЕ ====================
-async function saveCharacter() {
-    if (!currentUser) {
-        if (confirm("Нужно войти через Google")) loginWithGoogle();
-        return;
-    }
-
-    const fullData = getFullCharacterData();
-
-    const { error } = await supabaseClient
-        .from('characters')
-        .insert({
-            user_id: currentUser.id,
-            name: fullData.name,
-            data: fullData
-        });
-
-    if (error) alert("❌ Ошибка сохранения: " + error.message);
-    else alert(`✅ "${fullData.name}" полностью сохранён!`);
-}
-
-// ==================== ПОЛНАЯ ЗАГРУЗКА ====================
-window.loadCharacter = async function(id) {
-    const { data, error } = await supabaseClient
-        .from('characters')
-        .select('data')
-        .eq('id', id)
-        .single();
-
-    if (error || !data?.data) return alert("Не удалось загрузить");
-
-    loadFullCharacter(data.data);
-    closeModal();
-    alert(`✅ Персонаж "${data.data.name}" полностью загружен!`);
-};
-
-// ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
 // ==================== ПОЛНОЕ СОХРАНЕНИЕ ====================
 function getFullCharacterData() {
     const data = {
@@ -113,10 +77,10 @@ function getFullCharacterData() {
         skillPackage: document.getElementById('skill-package').value,
         attributes: {},
         skills: {},
-        disciplines: { ...disciplineSources },     // глубокая копия
-        selectedPowers: { ...selectedPowers },
-        merits: [...selectedMerits],
-        flaws: [...selectedFlaws]
+        disciplines: JSON.parse(JSON.stringify(disciplineSources || {})),   // глубокая копия
+        selectedPowers: JSON.parse(JSON.stringify(selectedPowers || {})),
+        merits: [...(selectedMerits || [])],
+        flaws: [...(selectedFlaws || [])]
     };
 
     // Атрибуты
@@ -139,11 +103,14 @@ function getFullCharacterData() {
         }
     });
 
+    console.log("💾 Сохраняем дисциплины:", Object.keys(data.disciplines));
     return data;
 }
 
 // ==================== ПОЛНАЯ ЗАГРУЗКА ====================
 function loadFullCharacter(d) {
+    console.log("🔄 Загружаем персонажа с дисциплинами:", Object.keys(d.disciplines || {}));
+
     // Основные поля
     if (d.name) document.getElementById('char-name').value = d.name;
     if (d.clan) document.getElementById('clan-input').value = d.clan;
@@ -178,18 +145,20 @@ function loadFullCharacter(d) {
         }
     });
 
-    // === ДИСЦИПЛИНЫ ===
+    // === ДИСЦИПЛИНЫ (самое важное) ===
     if (d.disciplines) {
-        disciplineSources = { ...d.disciplines };
+        disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
     }
     if (d.selectedPowers) {
-        selectedPowers = { ...d.selectedPowers };
+        selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
     }
 
-    // Перерисовываем дисциплины
-    const list = document.getElementById('disciplines-list');
-    if (list) list.innerHTML = '';
-    renderDisciplines();
+    // Полная перерисовка дисциплин
+    const disciplinesList = document.getElementById('disciplines-list');
+    if (disciplinesList) disciplinesList.innerHTML = '';
+    
+    renderDisciplines();           // ← главное
+    updateDisciplineTotal();
 
     // Преимущества и недостатки
     if (d.merits) selectedMerits = [...d.merits];
@@ -199,7 +168,7 @@ function loadFullCharacter(d) {
     updateTrackers();
     updateVitals();
 
-    console.log("✅ Полностью загружен персонаж с дисциплинами");
+    console.log("✅ Дисциплины загружены:", Object.keys(disciplineSources));
 }
 
 // ==================== ЛИЧНЫЙ КАБИНЕТ ====================
