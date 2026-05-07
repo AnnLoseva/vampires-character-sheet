@@ -9,7 +9,53 @@
 
     <style>
         :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
-        body { background: var(--v-bg); color: #d0d0d0; font-family: 'Courier New', Courier, monospace; display: flex; justify-content: center; padding: 30px 20px; gap: 25px; }
+       body {
+    background: var(--v-bg);
+    color: #d0d0d0;
+    font-family: 'Courier New', Courier, monospace;
+    padding: 30px 20px;
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;     /* важно */
+    min-height: 100vh;
+    overflow-x: hidden;          /* ← запрещаем горизонтальный скролл */
+    gap: 25px;
+}
+
+/* Главная обёртка — фиксированная ширина */
+.main-container {
+    display: flex;
+    gap: 25px;
+    max-width: 1520px;           /* 1080 + 310 + 380 + отступы */
+    width: 100%;
+    margin: 0 auto;
+}
+
+/* Лист — жёстко фиксируем ширину */
+.sheet {
+    width: 1080px;               /* можно чуть уменьшить до 1050px, если хочешь */
+    min-width: 1080px;           /* важно! */
+    flex-shrink: 0;              /* не сжимается */
+    background: #000;
+    padding: 40px 45px;
+    border: 1px solid #222;
+    box-shadow: 0 0 40px rgba(255,49,49,0.1);
+    position: relative;
+}
+
+/* Гайд тоже фиксируем */
+.guide {
+    width: 310px;
+    min-width: 310px;
+    flex-shrink: 0;
+    background: var(--v-panel);
+    padding: 20px;
+    border: 1px solid #333;
+    height: fit-content;
+    position: sticky;
+    top: 20px;
+    z-index: 100;
+}
         
         .guide { width: 310px; background: var(--v-panel); padding: 20px; border: 1px solid #333; height: fit-content; position: sticky; top: 20px; z-index: 100; }
         .guide.error { border-color: #ff3131 !important; box-shadow: 0 0 15px rgba(255,49,49,0.6); background: #1a0f0f; }
@@ -237,13 +283,43 @@ select option {
   
   
 
+.right-panel {
+    width: 380px;
+    min-width: 380px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+}
 
+
+* {
+    box-sizing: border-box;
+}
+
+.grid, .header-row, .vitals, .discipline-item {
+    max-width: 100%;
+}
+
+input, select, button {
+    max-width: 100%;
+}
+
+/* Запрещаем любому контенту вылезать за пределы листа */
+.sheet * {
+    max-width: 100%;
+}
 
   </style>
 </head>
 
 <body></body>
 <!-- Левая панель -->
+
+<div class="main-container"></div>
 <div class="guide">
 
      <button onclick="importFromJSON()" 
@@ -405,6 +481,8 @@ select option {
 </div>
 </div>
 
+<div class="right-panel"></div>
+
 <!-- Правая панель -->
 <div style="position: absolute; right: 40px; top: 80px; width: 380px; display: flex; flex-direction: column; gap: 12px;">
 
@@ -439,6 +517,7 @@ select option {
             📋 Мои персонажи
         </button>
 </div>
+</div>
     
 </div>
 
@@ -460,6 +539,7 @@ select option {
 
 
 
+</div>
 </div>
 
 </body>
