@@ -235,6 +235,26 @@ window.closeModal = () => {
 };
 
 
+async function saveCharacter() {
+    if (!supabaseClient) return alert("Supabase не готов");
+    if (!currentUser) {
+        if (confirm("Для сохранения нужно войти через Google")) loginWithGoogle();
+        return;
+    }
+
+    const fullData = getFullCharacterData();
+
+    const { error } = await supabaseClient.from('characters').insert({
+        user_id: currentUser.id,
+        name: fullData.name,
+        data: fullData
+    });
+
+    if (error) alert("❌ Ошибка: " + error.message);
+    else alert(`✅ "${fullData.name}" сохранён!`);
+}
+
+
 
 window.deleteCharacter = async function(id) {
     if (!confirm("Удалить этого персонажа навсегда?")) return;
