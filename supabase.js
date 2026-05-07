@@ -94,18 +94,20 @@ function getFullCharacterData() {
 }
 
 // ==================== ПОЛНАЯ ЗАГРУЗКА ====================
+// ==================== ПОЛНАЯ ЗАГРУЗКА В ЛИСТ ====================
+// ==================== ПОЛНАЯ ЗАГРУЗКА ====================
 function loadFullCharacter(d) {
-    console.log("🔄 Загружаем персонажа с дисциплинами:", Object.keys(d.disciplines || {}));
+    console.log("🔄 Загружаем персонажа... Дисциплины:", Object.keys(d.disciplines || {}));
 
-    // Основные поля
+    // Основная информация
     if (d.name) document.getElementById('char-name').value = d.name;
     if (d.clan) document.getElementById('clan-input').value = d.clan;
     if (d.predator) document.getElementById('predator-input').value = d.predator;
     if (d.skillPackage) document.getElementById('skill-package').value = d.skillPackage;
 
     // Атрибуты
-    Object.keys(d.attributes || {}).forEach(attr => {
-        const radio = document.querySelector(`input[name="${attr}"][value="${d.attributes[attr]}"]`);
+    Object.keys(d.attributes || {}).forEach(name => {
+        const radio = document.querySelector(`input[name="${name}"][value="${d.attributes[name]}"]`);
         if (radio) radio.checked = true;
     });
 
@@ -131,7 +133,7 @@ function loadFullCharacter(d) {
         }
     });
 
-    // === ДИСЦИПЛИНЫ (самое важное) ===
+    // === ДИСЦИПЛИНЫ — ИСПРАВЛЕННАЯ ВЕРСИЯ ===
     if (d.disciplines) {
         disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
     }
@@ -139,12 +141,11 @@ function loadFullCharacter(d) {
         selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
     }
 
-    // Полная перерисовка дисциплин
-    const disciplinesList = document.getElementById('disciplines-list');
-    if (disciplinesList) disciplinesList.innerHTML = '';
-    
-    renderDisciplines();           // ← главное
-    updateDisciplineTotal();
+    // Полная очистка и перерисовка списка дисциплин
+    const list = document.getElementById('disciplines-list');
+    if (list) list.innerHTML = '';
+
+    renderDisciplines();           // ← Это обязательно!
 
     // Преимущества и недостатки
     if (d.merits) selectedMerits = [...d.merits];
@@ -154,7 +155,7 @@ function loadFullCharacter(d) {
     updateTrackers();
     updateVitals();
 
-    console.log("✅ Дисциплины загружены:", Object.keys(disciplineSources));
+    console.log("✅ Загрузка завершена. Дисциплины:", Object.keys(disciplineSources));
 }
 
 // ==================== ЛИЧНЫЙ КАБИНЕТ ====================
