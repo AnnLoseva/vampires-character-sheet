@@ -93,9 +93,7 @@ function getFullCharacterData() {
     return data;
 }
 
-// ==================== ПОЛНАЯ ЗАГРУЗКА ====================
-// ==================== ПОЛНАЯ ЗАГРУЗКА В ЛИСТ ====================
-// ==================== ПОЛНАЯ ЗАГРУЗКА ====================
+// ==================== ПОЛНАЯ ЗАГРУЗКА =====================
 function loadFullCharacter(d) {
     console.log("🔄 Загружаем персонажа... Дисциплины:", Object.keys(d.disciplines || {}));
 
@@ -133,7 +131,7 @@ function loadFullCharacter(d) {
         }
     });
 
-    // === ДИСЦИПЛИНЫ — ИСПРАВЛЕННАЯ ВЕРСИЯ ===
+    // === ДИСЦИПЛИНЫ — ИСПРАВЛЕНИЕ ===
     if (d.disciplines) {
         disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
     }
@@ -141,11 +139,19 @@ function loadFullCharacter(d) {
         selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
     }
 
-    // Полная очистка и перерисовка списка дисциплин
+    // Полная перерисовка
     const list = document.getElementById('disciplines-list');
     if (list) list.innerHTML = '';
 
-    renderDisciplines();           // ← Это обязательно!
+    // Главное исправление — вызываем полную перестройку
+    Object.keys(disciplineSources).forEach(name => {
+        const total = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
+        const sourcesText = Object.keys(disciplineSources[name]).join(" + ");
+        addDisciplineRow(name, total, sourcesText);
+    });
+
+    renderDisciplines();   // дополнительная перерисовка кнопок "+"
+    updateDisciplineTotal();
 
     // Преимущества и недостатки
     if (d.merits) selectedMerits = [...d.merits];
@@ -155,7 +161,7 @@ function loadFullCharacter(d) {
     updateTrackers();
     updateVitals();
 
-    console.log("✅ Загрузка завершена. Дисциплины:", Object.keys(disciplineSources));
+    console.log("✅ Загрузка завершена. Дисциплины загружены:", Object.keys(disciplineSources));
 }
 
 // ==================== ЛИЧНЫЙ КАБИНЕТ ====================
