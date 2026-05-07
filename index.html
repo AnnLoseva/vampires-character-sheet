@@ -2079,6 +2079,8 @@ function updateSpecUI(skillName = null) {
     checkLimits();
 }
 
+// ==================== СПЕЦИАЛИЗАЦИИ (S-БЕЙДЖ) ====================
+
 function updateSBadgeState(skillName) {
     const badge = document.querySelector(`label[for="s-${skillName}"]`);
     const checkbox = document.getElementById(`s-${skillName}`);
@@ -2089,9 +2091,9 @@ function updateSBadgeState(skillName) {
     if (dots >= 1) {
         badge.classList.remove('inactive');
         checkbox.disabled = false;
-        // Принудительно зажигаем красным
-        badge.style.color = '#ff3131';
-        badge.style.borderColor = '#ff3131';
+        // ←←← УБИРАЕМ АВТО-ЗАГОРАНИЕ
+        // badge.style.color = '#ff3131';
+        // badge.style.borderColor = '#ff3131';
     } else {
         badge.classList.add('inactive');
         checkbox.disabled = true;
