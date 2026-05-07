@@ -2701,9 +2701,8 @@ function exportToJSON() {
     URL.revokeObjectURL(url);
 }
 
-// ====================== ИМПОРТ ======================
 
-f// ====================== ИМПОРТ ИЗ JSON (ПОЛНАЯ ЗАГРУЗКА) ======================
+// ====================== ИМПОРТ ИЗ JSON (ПОЛНАЯ ЗАГРУЗКА) ======================
 function importFromJSON() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -2717,7 +2716,6 @@ function importFromJSON() {
         reader.onload = function(ev) {
             try {
                 const d = JSON.parse(ev.target.result);
-                
                 console.log("📥 Импорт JSON:", d);
 
                 // Основная информация
@@ -2727,8 +2725,8 @@ function importFromJSON() {
                 if (d.skillPackage) document.getElementById('skill-package').value = d.skillPackage;
 
                 // Атрибуты
-                Object.keys(d.attributes || {}).forEach(attr => {
-                    const radio = document.querySelector(`input[name="${attr}"][value="${d.attributes[attr]}"]`);
+                Object.keys(d.attributes || {}).forEach(name => {
+                    const radio = document.querySelector(`input[name="${name}"][value="${d.attributes[name]}"]`);
                     if (radio) radio.checked = true;
                 });
 
@@ -2754,7 +2752,7 @@ function importFromJSON() {
                     }
                 });
 
-                // === ДИСЦИПЛИНЫ ===
+                // === ДИСЦИПЛИНЫ (точно как в loadFullCharacter) ===
                 if (d.disciplines) {
                     disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
                 }
@@ -2765,7 +2763,14 @@ function importFromJSON() {
                 // Полная перерисовка дисциплин
                 const list = document.getElementById('disciplines-list');
                 if (list) list.innerHTML = '';
-                renderDisciplines();
+
+                Object.keys(disciplineSources).forEach(name => {
+                    const total = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
+                    const sourcesText = Object.keys(disciplineSources[name]).join(" + ");
+                    addDisciplineRow(name, total, sourcesText);
+                });
+
+                renderDisciplines();   // кнопки "+" и панели способностей
 
                 // Преимущества и недостатки
                 if (d.merits) selectedMerits = [...d.merits];
@@ -2775,7 +2780,7 @@ function importFromJSON() {
                 updateTrackers();
                 updateVitals();
 
-                alert(`✅ Персонаж «${d.name || 'Без имени'}» успешно загружен из JSON!`);
+                alert(`✅ Персонаж «${d.name || 'Без имени'}» полностью загружен из JSON!`);
 
             } catch (err) {
                 alert('Ошибка при чтении JSON: ' + err.message);
