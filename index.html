@@ -121,6 +121,42 @@
                     margin-bottom: 14px; 
                     font-weight: bold;
                     display: block;
+
+
+
+                    .exp-container {
+    background: #111;
+    border: 1px solid #333;
+    padding: 16px;
+    border-radius: 8px;
+    margin-top: 18px;
+}
+
+.exp-title {
+    text-align: center;
+    font-size: 12px;
+    color: #777;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 8px;
+}
+
+#free-exp {
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid var(--v-red);
+    color: #ffcc00;
+    font-size: 28px;
+    font-weight: bold;
+    text-align: center;
+    width: 100%;
+    padding: 4px 0;
+}
+
+#free-exp:focus {
+    outline: none;
+    border-color: #ff6666;
+}
 }
         .vitals { 
             display: flex; 
@@ -477,7 +513,19 @@ input, select, button {
             <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
             <div id="spec-tracker">Специализации (S): 0 / 1</div>
             <p id="global-warning" style="color:#ffae00; display:none;">Внимание! Проверьте лимиты.</p>
+
+ <hr style="border:0; border-top:1px solid #333; margin: 18px 0;">
+
+    <!-- Окно опыта -->
+    <div class="exp-container">
+        <div class="exp-title">Свободный опыт</div>
+        <input type="number" id="free-exp" value="0" min="0">
+        <div id="exp-bonus-info" style="text-align:center; margin-top:8px; font-size:13px; color:#777;">
+            Бонус от типа персонажа
         </div>
+    </div>
+        </div>
+
 
         <!-- Основной лист -->
         <div class="sheet" id="capture-area">
@@ -538,11 +586,11 @@ input, select, button {
         <div style="flex: 1;">
             <span class="header-label">Поколение</span>
             <select id="generation-input" onchange="updateGenerationHint()">
-                <option value="">—</option>
+                <option value=""selected>—</option>
                 <option value="16">16 — Птенец Слабокровный</option>
                 <option value="15">15 — Птенец Слабокровный</option>
                 <option value="14">14 — Птенец Слабокровный</option>
-                <option value="13" selected>13 — Птенец/Неонат</option>
+                <option value="13">13 — Птенец/Неонат</option>
                 <option value="12">12 — Птенец/Неонат</option>
                 <option value="11">11 — Анцилла</option>
                 <option value="10">10 — Анцилла</option>
@@ -559,9 +607,9 @@ input, select, button {
         <div style="flex: 1.4;">
             <span class="header-label">Тип</span>
             <select id="type-input">
-                <option value="">— Выберите тип —</option>
+                <option value=""selected>— Выберите тип —</option>
                 <option value="childe">Птенец (Childe)</option>
-                <option value="neonate" selected>Неонат (Neonate)</option>
+                <option value="neonate" >Неонат (Neonate)</option>
                 <option value="ancilla">Анцилла (Ancilla)</option>
                 <option value="elder">Старейшина (Elder)</option>
                 <option value="methuselah">Матузалем (Methuselah)</option>

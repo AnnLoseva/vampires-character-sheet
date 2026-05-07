@@ -2837,3 +2837,77 @@ window.addEventListener('load', () => {
         updateBloodPotencyAndBonuses(); // первый запуск
     }, 800);
 });
+
+
+
+// ==================== ОБНОВЛЕНИЕ ОПЫТА ====================
+function updateExperienceBonus() {
+    const type = document.getElementById('type-input').value;
+    const expInput = document.getElementById('free-exp');
+    const infoEl = document.getElementById('exp-bonus-info');
+
+    if (!expInput) return;
+
+    let bonus = 0;
+    let text = 'Базовый опыт';
+
+    switch(type) {
+        case 'childe':
+            bonus = 0;
+            text = '0 опыта (Птенец)';
+            break;
+        case 'neonate':
+            bonus = 15;
+            text = '+15 опыта (Неонат)';
+            break;
+        case 'ancilla':
+            bonus = 35;
+            text = '+35 опыта (Анцилла)';
+            break;
+        case 'elder':
+            bonus = 50;
+            text = '+50 опыта (Старейшина)';
+            break;
+        case 'methuselah':
+            bonus = 75;
+            text = '+75 опыта (Матузалем)';
+            break;
+        default:
+            bonus = 0;
+            text = '—';
+    }
+
+    // Автоматически ставим бонус, только если поле ещё не трогали или стоит 0/15
+    const currentValue = parseInt(expInput.value) || 0;
+    
+        expInput.value = bonus;
+   
+
+    if (infoEl) {
+        infoEl.innerHTML = `<strong style="color:#ffcc00;">${text}</strong>`;
+    }
+}
+
+// Привязываем события
+function setupExperienceListener() {
+    const typeSelect = document.getElementById('type-input');
+    if (typeSelect) {
+        typeSelect.addEventListener('change', updateExperienceBonus);
+    }
+    
+    // Также обновляем при загрузке
+    window.addEventListener('load', () => {
+        setTimeout(updateExperienceBonus, 100);
+    });
+}
+
+// Запускаем
+setupExperienceListener();
+
+// Привязываем к изменениям типа
+document.getElementById('type-input').addEventListener('change', updateExperienceBonus);
+
+// Инициализация
+window.addEventListener('load', () => {
+    setTimeout(updateExperienceBonus, 800);
+});
