@@ -1,4 +1,4 @@
-// supabase.js — с popup-окном Google
+// supabase.js — надёжный вариант с редиректом
 
 const SUPABASE_URL = 'https://klhxbaagarqxaqnrvurr.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_DEqlrxf3M7MzsoSkrEuBXQ_ndTxg9e1';
@@ -8,9 +8,7 @@ let currentUser = null;
 
 function initSupabase() {
     if (typeof supabase !== 'undefined') {
-        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
-            auth: { persistSession: true }
-        });
+        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
         console.log("✅ Supabase подключён");
         checkUserSession();
         return true;
@@ -25,28 +23,25 @@ async function checkUserSession() {
     if (currentUser) console.log("👤 Авторизован:", currentUser.email);
 }
 
-// Popup вход через Google
-async function loginWithGoogle() {
-    if (!supabaseClient) return alert("Supabase не готов");
+// Вход через Google (редирект)
+function loginWithGoogle() {
+    if (!supabaseClient) return alert("Supabase ещё не готов");
 
-    const { error } = await supabaseClient.auth.signInWithOAuth({
+    supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: {
-            redirectTo: window.location.origin,
-            skipBrowserRedirect: true   // важно для popup
+            redirectTo: window.location.href   // возвращаемся на текущую страницу
         }
     });
-
-    if (error) alert("Ошибка входа: " + error.message);
 }
 
 async function saveCharacter() {
     if (!supabaseClient) return alert("Supabase не готов");
 
-    // Если не авторизован — открываем popup
     if (!currentUser) {
-        alert("Для сохранения нужно войти через Google");
-        loginWithGoogle();
+        if (confirm("Для сохранения нужно войти через Google.\n\nПерейти к входу?")) {
+            loginWithGoogle();
+        }
         return;
     }
 
@@ -99,7 +94,6 @@ async function showMyCharacters() {
     }
 }
 
-// Глобальные функции
 window.loginWithGoogle = loginWithGoogle;
 window.saveCharacter = saveCharacter;
 window.showMyCharacters = showMyCharacters;
@@ -112,4 +106,4 @@ window.addEventListener('load', () => {
     }, 250);
 });
 
-console.log("✅ Supabase + Google Popup готов");
+console.log("✅ Supabase + Google Auth (редирект) готов");
