@@ -1,7 +1,6 @@
 {
   "rewrites": [
     { "source": "/old", "destination": "/old" },
-    { "source": "/table", "destination": "/table" },
     { "source": "/(.*)", "destination": "/$1" }
   ]
 }
