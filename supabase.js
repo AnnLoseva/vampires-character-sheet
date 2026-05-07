@@ -1,4 +1,4 @@
-// supabase.js — Красивый Личный кабинет + полная загрузка
+// supabase.js — с динамической кнопкой Войти / Выйти
 
 const SUPABASE_URL = 'https://klhxbaagarqxaqnrvurr.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_DEqlrxf3M7MzsoSkrEuBXQ_ndTxg9e1';
@@ -20,15 +20,50 @@ async function checkUserSession() {
     if (!supabaseClient) return;
     const { data: { session } } = await supabaseClient.auth.getSession();
     currentUser = session?.user || null;
+    updateAuthButton();
+}
+
+function updateAuthButton() {
+    let btn = document.getElementById('auth-button');
+    if (!btn) {
+        // Создаём кнопку, если её ещё нет
+        const panel = document.querySelector('.sheet').parentElement || document.body;
+        btn = document.createElement('button');
+        btn.id = 'auth-button';
+        btn.style.cssText = `padding:14px 20px; font-size:16px; border:none; border-radius:6px; cursor:pointer; width:100%; margin-top:12px;`;
+        // Вставляем перед кнопкой "Мои персонажи" или в конец правой панели
+        const rightPanel = document.querySelector('#btn-save').parentElement;
+        if (rightPanel) rightPanel.insertBefore(btn, rightPanel.querySelector('button[onclick="showMyCharacters"]'));
+        else document.body.appendChild(btn);
+    }
+
+    if (currentUser) {
+        btn.innerHTML = `👤 ${currentUser.email.split('@')[0]}<br><small style="opacity:0.7">Выйти</small>`;
+        btn.style.background = '#333';
+        btn.onclick = logout;
+    } else {
+        btn.textContent = '🔑 Войти через Google';
+        btn.style.background = '#4285F4';
+        btn.onclick = loginWithGoogle;
+    }
 }
 
 function loginWithGoogle() {
+    if (!supabaseClient) return alert("Supabase не готов");
     supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.href }
     });
 }
 
+async function logout() {
+    if (supabaseClient) {
+        await supabaseClient.auth.signOut();
+        currentUser = null;
+        updateAuthButton();
+        alert("👋 Вы вышли из аккаунта");
+    }
+}
 // ==================== СОХРАНЕНИЕ ====================
 async function saveCharacter() {
     if (!supabaseClient || !currentUser) {
@@ -183,7 +218,9 @@ window.deleteCharacter = async function(id) {
     }
 };
 
+// Глобальные функции
 window.loginWithGoogle = loginWithGoogle;
+window.logout = logout;
 window.saveCharacter = saveCharacter;
 window.showMyCharacters = showMyCharacters;
 
@@ -195,4 +232,4 @@ window.addEventListener('load', () => {
     }, 250);
 });
 
-console.log("✅ Красивый Личный кабинет готов");
+console.log("✅ Supabase + динамическая кнопка Войти/Выйти готов");
