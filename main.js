@@ -2703,6 +2703,7 @@ function exportToJSON() {
 
 // ====================== ИМПОРТ ======================
 
+f// ====================== ИМПОРТ ИЗ JSON (ПОЛНАЯ ЗАГРУЗКА) ======================
 function importFromJSON() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -2715,78 +2716,69 @@ function importFromJSON() {
         const reader = new FileReader();
         reader.onload = function(ev) {
             try {
-                const data = JSON.parse(ev.target.result);
+                const d = JSON.parse(ev.target.result);
                 
-                // Базовая информация
-                if (data.name) document.getElementById('char-name').value = data.name;
-                if (data.clan) {
-                    document.getElementById('clan-input').value = data.clan;
-                    loadClanHint();
-                    updateClanIcon();
-                }
-                if (data.predator) {
-                    document.getElementById('predator-input').value = data.predator;
-                    loadPredatorHint();
-                }
-                if (data.skillPackage) {
-                    document.getElementById('skill-package').value = data.skillPackage;
-                }
+                console.log("📥 Импорт JSON:", d);
+
+                // Основная информация
+                if (d.name) document.getElementById('char-name').value = d.name;
+                if (d.clan) document.getElementById('clan-input').value = d.clan;
+                if (d.predator) document.getElementById('predator-input').value = d.predator;
+                if (d.skillPackage) document.getElementById('skill-package').value = d.skillPackage;
 
                 // Атрибуты
-                if (data.attributes) {
-                    Object.keys(data.attributes).forEach(attr => {
-                        const val = data.attributes[attr];
-                        const radio = document.querySelector(`input[name="${attr}"][value="${val}"]`);
-                        if (radio) radio.checked = true;
-                    });
+                Object.keys(d.attributes || {}).forEach(attr => {
+                    const radio = document.querySelector(`input[name="${attr}"][value="${d.attributes[attr]}"]`);
+                    if (radio) radio.checked = true;
+                });
+
+                // Навыки + специализации
+                Object.keys(d.skills || {}).forEach(skill => {
+                    const s = d.skills[skill];
+                    const radio = document.querySelector(`input[name="${skill}"][value="${s.dots}"]`);
+                    if (radio) radio.checked = true;
+
+                    const container = document.getElementById('specs-' + skill);
+                    if (container && s.specs?.length) {
+                        container.innerHTML = '';
+                        container.style.display = 'flex';
+                        document.getElementById('s-' + skill).checked = true;
+
+                        s.specs.forEach(text => {
+                            const line = document.createElement('div');
+                            line.className = 'skill-spec-line';
+                            line.innerHTML = `<input type="text" value="${text}" style="flex:1;">
+                                              <button>+</button><button>×</button>`;
+                            container.appendChild(line);
+                        });
+                    }
+                });
+
+                // === ДИСЦИПЛИНЫ ===
+                if (d.disciplines) {
+                    disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
+                }
+                if (d.selectedPowers) {
+                    selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
                 }
 
-                // Навыки
-                if (data.skills) {
-                    Object.keys(data.skills).forEach(skill => {
-                        const s = data.skills[skill];
-                        const radio = document.querySelector(`input[name="${skill}"][value="${s.dots}"]`);
-                        if (radio) radio.checked = true;
-
-                        // Специализации
-                        if (s.specs && s.specs.length) {
-                            const container = document.getElementById('specs-' + skill);
-                            if (container) {
-                                container.innerHTML = '';
-                                s.specs.forEach(specText => {
-                                    const line = document.createElement('div');
-                                    line.className = 'skill-spec-line';
-                                    line.innerHTML = `
-                                        <input type="text" value="${specText}" style="flex:1;">
-                                        <button>+</button>
-                                        <button>×</button>
-                                    `;
-                                    container.appendChild(line);
-                                });
-                                container.style.display = 'flex';
-                                document.getElementById('s-' + skill).checked = true;
-                            }
-                        }
-                    });
-                }
-
-                // Дисциплины и способности
-                if (data.disciplines) disciplineSources = data.disciplines;
-                if (data.selectedPowers) selectedPowers = data.selectedPowers;
+                // Полная перерисовка дисциплин
+                const list = document.getElementById('disciplines-list');
+                if (list) list.innerHTML = '';
+                renderDisciplines();
 
                 // Преимущества и недостатки
-                if (data.merits) selectedMerits = data.merits;
-                if (data.flaws) selectedFlaws = data.flaws;
+                if (d.merits) selectedMerits = [...d.merits];
+                if (d.flaws) selectedFlaws = [...d.flaws];
 
-                // Перерисовка
-                renderDisciplines();
                 renderSelectedMeritsFlaws();
                 updateTrackers();
+                updateVitals();
 
-                alert(`Персонаж «${data.name || 'Без имени'}» успешно загружен!`);
-                
+                alert(`✅ Персонаж «${d.name || 'Без имени'}» успешно загружен из JSON!`);
+
             } catch (err) {
-                alert('Ошибка при чтении JSON-файла: ' + err.message);
+                alert('Ошибка при чтении JSON: ' + err.message);
                 console.error(err);
             }
         };
