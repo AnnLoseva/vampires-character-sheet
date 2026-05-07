@@ -102,6 +102,7 @@ window.loadCharacter = async function(id) {
 };
 
 // ==================== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ====================
+// ==================== ПОЛНОЕ СОХРАНЕНИЕ ====================
 function getFullCharacterData() {
     const data = {
         version: "1.0.18",
@@ -112,10 +113,10 @@ function getFullCharacterData() {
         skillPackage: document.getElementById('skill-package').value,
         attributes: {},
         skills: {},
-        disciplines: disciplineSources || {},
-        selectedPowers: selectedPowers || {},
-        merits: selectedMerits || [],
-        flaws: selectedFlaws || []
+        disciplines: { ...disciplineSources },     // глубокая копия
+        selectedPowers: { ...selectedPowers },
+        merits: [...selectedMerits],
+        flaws: [...selectedFlaws]
     };
 
     // Атрибуты
@@ -141,6 +142,7 @@ function getFullCharacterData() {
     return data;
 }
 
+// ==================== ПОЛНАЯ ЗАГРУЗКА ====================
 function loadFullCharacter(d) {
     // Основные поля
     if (d.name) document.getElementById('char-name').value = d.name;
@@ -176,18 +178,28 @@ function loadFullCharacter(d) {
         }
     });
 
-    // Дисциплины и способности
-    if (d.disciplines) disciplineSources = d.disciplines;
-    if (d.selectedPowers) selectedPowers = d.selectedPowers;
+    // === ДИСЦИПЛИНЫ ===
+    if (d.disciplines) {
+        disciplineSources = { ...d.disciplines };
+    }
+    if (d.selectedPowers) {
+        selectedPowers = { ...d.selectedPowers };
+    }
+
+    // Перерисовываем дисциплины
+    const list = document.getElementById('disciplines-list');
+    if (list) list.innerHTML = '';
+    renderDisciplines();
 
     // Преимущества и недостатки
-    if (d.merits) selectedMerits = d.merits;
-    if (d.flaws) selectedFlaws = d.flaws;
+    if (d.merits) selectedMerits = [...d.merits];
+    if (d.flaws) selectedFlaws = [...d.flaws];
 
-    // Перерисовка
-    renderDisciplines();
     renderSelectedMeritsFlaws();
     updateTrackers();
+    updateVitals();
+
+    console.log("✅ Полностью загружен персонаж с дисциплинами");
 }
 
 // ==================== ЛИЧНЫЙ КАБИНЕТ ====================
@@ -287,11 +299,8 @@ window.saveCharacter = saveCharacter;
 window.showMyCharacters = showMyCharacters;
 
 window.addEventListener('load', () => {
-    let attempts = 0;
-    const interval = setInterval(() => {
-        attempts++;
-        if (initSupabase() || attempts > 30) clearInterval(interval);
-    }, 250);
+    let i = 0;
+    const int = setInterval(() => { if (initSupabase() || ++i > 30) clearInterval(int); }, 250);
 });
 
 console.log("✅ Supabase + динамическая кнопка Войти/Выйти готов");
