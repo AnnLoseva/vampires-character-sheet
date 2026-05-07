@@ -96,15 +96,32 @@
             margin: 35px 0 20px; 
         }
         
-        .grid { 
-            display: grid; 
-            grid-template-columns: repeat(3, 1fr); 
-            border: 1px solid #222; 
-        }
-        
-        .col { border-right: 1px solid #222; padding: 10px 16px; }
-        .col:last-child { border-right: none; }
+             .grid { 
+                    display: grid; 
+                    grid-template-columns: repeat(3, 1fr); 
+                    border: 1px solid #222; 
+                }
 
+                .col { 
+                    border-right: 1px solid #222; 
+                    padding: 16px 18px; 
+                    text-align: left;
+                }
+
+                .col:last-child { 
+                    border-right: none; 
+                }
+
+                .cat-name { 
+                    text-align: center; 
+                    font-size: 11.5px; 
+                    color: #777; 
+                    text-transform: uppercase; 
+                    letter-spacing: 1.5px;
+                    margin-bottom: 14px; 
+                    font-weight: bold;
+                    display: block;
+}
         .vitals { 
             display: flex; 
             justify-content: space-around; 
@@ -325,6 +342,8 @@ select option {
     background: #ff5e5e !important;
     transform: scale(1.15);
 }
+
+
 
 
 /* Поколение и Тип */
