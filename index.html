@@ -273,6 +273,78 @@ body > div:last-child {          /* правая панель */
     padding-bottom: 10px;
 }
 
+/* ====================== АДАПТИВНЫЙ ЛЕЙАУТ ====================== */
+html, body {
+    margin: 0;
+    padding: 20px;
+    background: var(--v-bg);
+    color: #d0d0d0;
+    font-family: 'Courier New', Courier, monospace;
+    min-width: 1400px;           /* минимальная ширина для скролла */
+    overflow-x: auto;            /* горизонтальный скролл */
+    overflow-y: auto;
+}
+
+body {
+    display: flex;
+    justify-content: center;
+    gap: 25px;
+    align-items: flex-start;
+    flex-wrap: nowrap;           /* важно — не переносить */
+}
+
+/* Основной лист персонажа */
+.sheet {
+    width: 1080px;
+    min-width: 1080px;           /* фиксированная минимальная ширина */
+    background: #000;
+    padding: 40px 45px;
+    border: 1px solid #222;
+    box-shadow: 0 0 40px rgba(255,49,49,0.1);
+    flex-shrink: 0;              /* не сжимается */
+    border-radius: 8px;
+}
+
+/* Левая панель (гид) */
+.guide {
+    width: 310px;
+    min-width: 310px;
+    flex-shrink: 0;
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+}
+
+/* Правая панель */
+div[style*="right: 40px"], .right-panel {
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+    min-width: 380px;
+    flex-shrink: 0;
+}
+
+/* Если дисциплин много */
+#disciplines-list {
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 10px;
+}
+
+/* Красивый скроллбар */
+::-webkit-scrollbar {
+    height: 8px;
+}
+::-webkit-scrollbar-track {
+    background: #1a1a1a;
+}
+::-webkit-scrollbar-thumb {
+    background: #ff3131;
+    border-radius: 4px;
+}
+
+
+
 
   </style>
 </head>
