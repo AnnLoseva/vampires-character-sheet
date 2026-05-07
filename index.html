@@ -8,40 +8,74 @@
 
 
     <style>
-        :root { --v-red: #ff3131; --v-grey: #2a2a2a; --v-bg: #0a0a0a; --v-panel: #111; }
-       body {
+       :root { 
+    --v-red: #ff3131; 
+    --v-grey: #2a2a2a; 
+    --v-bg: #0a0a0a; 
+    --v-panel: #111; 
+}
+
+body {
     background: var(--v-bg);
     color: #d0d0d0;
     font-family: 'Courier New', Courier, monospace;
-    padding: 30px 20px;
+    padding: 20px 15px;
     display: flex;
     justify-content: center;
-    align-items: flex-start;     /* важно */
+    align-items: flex-start;
     min-height: 100vh;
-    overflow-x: hidden;          /* ← запрещаем горизонтальный скролл */
-    gap: 25px;
+    overflow-x: hidden;           /* важно */
+    gap: 20px;
 }
 
-/* Главная обёртка — фиксированная ширина */
+/* Главная обёртка — теперь responsive */
 .main-container {
     display: flex;
-    gap: 25px;
-    max-width: 1520px;           /* 1080 + 310 + 380 + отступы */
+    gap: 20px;
     width: 100%;
+    max-width: 1720px;            /* чуть меньше твоего экрана */
     margin: 0 auto;
 }
 
-/* Лист — жёстко фиксируем ширину */
+/* Лист — жёсткая ширина */
 .sheet {
-    width: 1080px;               /* можно чуть уменьшить до 1050px, если хочешь */
-    min-width: 1080px;           /* важно! */
-    flex-shrink: 0;              /* не сжимается */
+    width: 1000px;                /* ← УМЕНЬШИЛИ с 1080 */
+    min-width: 1000px;
+    flex-shrink: 0;
     background: #000;
-    padding: 40px 45px;
+    padding: 35px 40px;
     border: 1px solid #222;
     box-shadow: 0 0 40px rgba(255,49,49,0.1);
-    position: relative;
 }
+
+/* Левая панель */
+.guide {
+    width: 290px;                 /* чуть уже */
+    min-width: 290px;
+    flex-shrink: 0;
+    background: var(--v-panel);
+    padding: 20px;
+    border: 1px solid #333;
+    height: fit-content;
+    position: sticky;
+    top: 20px;
+    z-index: 100;
+}
+
+/* Правая панель */
+.right-panel {
+    width: 340px;                 /* чуть уже */
+    min-width: 340px;
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: sticky;
+    top: 20px;
+    align-self: flex-start;
+}
+
+
 
 /* Гайд тоже фиксируем */
 .guide {
@@ -281,19 +315,7 @@ select option {
     transform: scale(1.15);
 }
   
-  
 
-.right-panel {
-    width: 380px;
-    min-width: 380px;
-    flex-shrink: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    position: sticky;
-    top: 20px;
-    align-self: flex-start;
-}
 
 
 * {
@@ -319,7 +341,7 @@ input, select, button {
 <body></body>
 <!-- Левая панель -->
 
-<div class="main-container"></div>
+<div class="main-container">
 <div class="guide">
 
      <button onclick="importFromJSON()" 
@@ -539,6 +561,7 @@ input, select, button {
 
 
 
+</div>
 </div>
 </div>
 
