@@ -67,12 +67,12 @@ export default function CharacterSheet() {
           </button>
 
           {/* Переход на старый sheet */}
-          <button 
-            onClick={goToOldSheet}
-            className="w-full py-6 bg-red-700 hover:bg-red-600 rounded-3xl text-2xl font-medium transition flex items-center justify-center gap-4"
-          >
-            ✍️ Создать / Редактировать персонажа
-          </button>
+                            <button 
+                    onClick={() => window.location.href = '/old'}
+                    className="w-full py-6 bg-red-700 hover:bg-red-600 rounded-3xl text-2xl font-medium transition"
+                    >
+                    ✍️ Создать / Редактировать персонажа
+                    </button>
 
           {/* Игровой стол */}
           <a 

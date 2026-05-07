@@ -2,10 +2,12 @@
 
 export default function OldSheet() {
   return (
-    <iframe 
-      src="/old-sheet.html" 
-      className="w-screen h-screen border-0"
-      title="Старый Character Sheet"
-    />
+    <div className="h-screen w-screen">
+      <iframe 
+        src="/old-sheet.html" 
+        className="w-full h-full border-0"
+        title="Character Sheet"
+      />
+    </div>
   )
 }
