@@ -1,4 +1,4 @@
-// supabase.js — с динамической кнопкой Войти / Выйти
+// supabase.js — Полная версия с динамической кнопкой + исправленные дисциплины
 
 const SUPABASE_URL = 'https://klhxbaagarqxaqnrvurr.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_DEqlrxf3M7MzsoSkrEuBXQ_ndTxg9e1';
@@ -23,16 +23,16 @@ async function checkUserSession() {
     updateAuthButton();
 }
 
+// ==================== ДИНАМИЧЕСКАЯ КНОПКА ====================
 function updateAuthButton() {
     let btn = document.getElementById('auth-button');
     if (!btn) {
-        // Создаём кнопку, если её ещё нет
-        const panel = document.querySelector('.sheet').parentElement || document.body;
+        const rightPanel = document.querySelector('.sheet').parentElement?.querySelector('div[style*="right: 40px"]') || 
+                          document.querySelector('#btn-save').parentElement;
+        
         btn = document.createElement('button');
         btn.id = 'auth-button';
-        btn.style.cssText = `padding:14px 20px; font-size:16px; border:none; border-radius:6px; cursor:pointer; width:100%; margin-top:12px;`;
-        // Вставляем перед кнопкой "Мои персонажи" или в конец правой панели
-        const rightPanel = document.querySelector('#btn-save').parentElement;
+        btn.style.cssText = `padding:14px 20px; font-size:16px; border:none; border-radius:6px; cursor:pointer; width:100%; margin-top:8px;`;
         if (rightPanel) rightPanel.insertBefore(btn, rightPanel.querySelector('button[onclick="showMyCharacters"]'));
         else document.body.appendChild(btn);
     }
@@ -49,7 +49,6 @@ function updateAuthButton() {
 }
 
 function loginWithGoogle() {
-    if (!supabaseClient) return alert("Supabase не готов");
     supabaseClient.auth.signInWithOAuth({
         provider: 'google',
         options: { redirectTo: window.location.href }
@@ -57,15 +56,12 @@ function loginWithGoogle() {
 }
 
 async function logout() {
-    if (supabaseClient) {
-        await supabaseClient.auth.signOut();
-        currentUser = null;
-        updateAuthButton();
-        alert("👋 Вы вышли из аккаунта");
-    }
+    await supabaseClient.auth.signOut();
+    currentUser = null;
+    updateAuthButton();
+    alert("👋 Вы вышли");
 }
 
-// ==================== ПОЛНОЕ СОХРАНЕНИЕ ====================
 // ==================== ПОЛНОЕ СОХРАНЕНИЕ ====================
 function getFullCharacterData() {
     const data = {
@@ -261,15 +257,13 @@ window.deleteCharacter = async function(id) {
     }
 };
 
-// Глобальные функции
+// Глобальные
 window.loginWithGoogle = loginWithGoogle;
-window.logout = logout;
 window.saveCharacter = saveCharacter;
 window.showMyCharacters = showMyCharacters;
+window.loadCharacter = loadCharacter;
 
 window.addEventListener('load', () => {
     let i = 0;
     const int = setInterval(() => { if (initSupabase() || ++i > 30) clearInterval(int); }, 250);
 });
-
-console.log("✅ Supabase + динамическая кнопка Войти/Выйти готов");
