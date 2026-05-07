@@ -67,7 +67,7 @@ async function logout() {
 // ==================== СОХРАНЕНИЕ ====================
 async function saveCharacter() {
     if (!supabaseClient || !currentUser) {
-        if (confirm("Для сохранения нужно войти через Google.\nВойти сейчас?")) loginWithGoogle();
+        if (confirm("Для сохранения нужно войти через Google.")) 
         return;
     }
 
@@ -110,7 +110,7 @@ async function saveCharacter() {
 // ==================== ЛИЧНЫЙ КАБИНЕТ ====================
 async function showMyCharacters() {
     if (!currentUser) {
-        if (confirm("Войдите через Google")) loginWithGoogle();
+        if (confirm("Войдите через Google"));
         return;
     }
 
