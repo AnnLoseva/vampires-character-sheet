@@ -25,17 +25,8 @@ async function checkUserSession() {
 
 // ==================== ДИНАМИЧЕСКАЯ КНОПКА ====================
 function updateAuthButton() {
-    let btn = document.getElementById('auth-button');
-    if (!btn) {
-        const rightPanel = document.querySelector('.sheet').parentElement?.querySelector('div[style*="right: 40px"]') || 
-                          document.querySelector('#btn-save').parentElement;
-        
-        btn = document.createElement('button');
-        btn.id = 'auth-button';
-        btn.style.cssText = `padding:14px 20px; font-size:16px; border:none; border-radius:6px; cursor:pointer; width:100%; margin-top:8px;`;
-        if (rightPanel) rightPanel.insertBefore(btn, rightPanel.querySelector('button[onclick="showMyCharacters"]'));
-        else document.body.appendChild(btn);
-    }
+    const btn = document.getElementById('auth-button');
+    if (!btn) return;
 
     if (currentUser) {
         btn.innerHTML = `👤 ${currentUser.email.split('@')[0]}<br><small style="opacity:0.7">Выйти</small>`;
@@ -47,7 +38,6 @@ function updateAuthButton() {
         btn.onclick = loginWithGoogle;
     }
 }
-
 function loginWithGoogle() {
     supabaseClient.auth.signInWithOAuth({
         provider: 'google',
