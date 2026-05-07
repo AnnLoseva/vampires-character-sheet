@@ -1096,48 +1096,49 @@ function resetPredatorDisciplines() {
 }
 
 // Сброс специализаций от предыдущего стиля охоты
+// ==================== СБРОС ТОЛЬКО СПЕЦИАЛИЗАЦИЙ ОТ ОХОТЫ ====================
+// ==================== СБРОС ТОЛЬКО ОТ ОХОТЫ (включая точку) ====================
 function resetPredatorSpecialties() {
-    console.log("🗑️ ЖЁСТКИЙ полный сброс эффектов предыдущей охоты");
+    console.log("🔄 Сбрасываем специализации + автоматические точки от предыдущей охоты");
 
-    // 1. Сбрасываем все S-бейджи и текстовые специализации
+    let removedCount = 0;
+
+    document.querySelectorAll('.skill-spec-line').forEach(line => {
+        const input = line.querySelector('input[type="text"]');
+        if (input && input.value.includes('(от охоты)')) {
+            const skillName = line.closest('.skill-specs').id.replace('specs-', '');
+            
+            // Удаляем строку специализации
+            line.remove();
+            removedCount++;
+
+            // Сбрасываем точку в навыке (если она была добавлена автоматически)
+            const radios = document.querySelectorAll(`input[name="${skillName}"]`);
+            const currentDot = document.querySelector(`input[name="${skillName}"]:checked`);
+            
+            if (currentDot && parseInt(currentDot.value) === 1) {
+                // Сбрасываем на 0
+                radios.forEach(r => r.checked = false);
+                const zeroRadio = document.querySelector(`input[name="${skillName}"][value="0"]`);
+                if (zeroRadio) zeroRadio.checked = true;
+            }
+        }
+    });
+
+    // Обновляем всё
     document.querySelectorAll('.spec-checkbox').forEach(checkbox => {
-        checkbox.checked = false;
-        
         const skillName = checkbox.id.replace('s-', '');
         const container = document.getElementById('specs-' + skillName);
         
-        if (container) {
-            container.innerHTML = '';
-            container.style.display = 'none';
+        if (container && container.children.length === 0) {
+            checkbox.checked = false;
         }
-
         updateSBadgeState(skillName);
     });
 
-    currentPredatorSpecialty = null;
+    updateTrackers();
 
-    // 2. Жёстко сбрасываем точки в навыках (ставим на 0)
-    const allSkillInputs = document.querySelectorAll('.dot-input[data-type="skill"]');
-    
-    allSkillInputs.forEach(input => {
-        const skillName = input.name;
-        if (!skillName) return;
-
-        // Сбрасываем все радио-кнопки этого навыка
-        document.querySelectorAll(`input[name="${skillName}"]`).forEach(radio => {
-            radio.checked = false;
-        });
-
-        // Ставим на 0
-        const zeroRadio = document.querySelector(`input[name="${skillName}"][value="0"]`);
-        if (zeroRadio) zeroRadio.checked = true;
-    });
-
-    // 3. Финальное обновление интерфейса
-    setTimeout(() => {
-        updateTrackers();
-        updateSBadgeState(''); // обновляем все бейджи
-    }, 50);
+    console.log(`✅ Удалено ${removedCount} специализаций + автоматические точки от охоты`);
 }
 
 
@@ -1315,7 +1316,7 @@ function applyPredatorSpecialty(predatorName, selectedOption) {
         specText = match[2].trim();
     }
 
-    // Добавляем точку
+    // Добавляем точку (если ещё нет)
     const firstDot = document.querySelector(`input[name="${skillName}"][value="1"]`);
     if (firstDot) {
         const current = document.querySelector(`input[name="${skillName}"]:checked`);
@@ -1324,24 +1325,27 @@ function applyPredatorSpecialty(predatorName, selectedOption) {
         }
     }
 
-    // Добавляем специализацию
-    const specCheckbox = document.getElementById(`s-${skillName}`);
-    if (specCheckbox) specCheckbox.checked = true;
-
+    // Добавляем/открываем специализацию
     const container = document.getElementById('specs-' + skillName);
     if (container) {
         container.style.display = 'flex';
+        
+        // Если ещё нет ни одной строки — создаём
         if (container.children.length === 0) {
             addSpecLine(skillName);
         }
+
         const input = container.querySelector('input[type="text"]');
-        if (input && specText) input.value = specText;
+        if (input && specText) {
+            input.value = specText + " (от охоты)";
+        }
     }
 
-    // Запоминаем для будущего сброса
-    currentPredatorSpecialty = { skill: skillName };
+    // Активируем чекбокс
+    const specCheckbox = document.getElementById(`s-${skillName}`);
+    if (specCheckbox) specCheckbox.checked = true;
 
-    console.log(`✅ Применена специализация: ${skillName} (${specText})`);
+    console.log(`✅ Применена специализация от охоты: ${skillName} (${specText})`);
 
     closeSpecChoiceModal();
     setTimeout(() => openPredatorDisciplineModal(predatorName), 250);
@@ -1993,37 +1997,23 @@ document.addEventListener('click', function(e) {
     if (!checkbox || checkbox.disabled) return;
 
     const skillName = checkbox.id.replace('s-', '');
-    const dots = parseInt(document.querySelector(`input[name="${skillName}"]:checked`)?.value || 0);
-    if (dots === 0) return;
-
     const container = document.getElementById('specs-' + skillName);
-    if (!container) return;
 
-    if (container.style.display !== 'flex') {
+    if (container.style.display === 'flex') {
+        // Закрываем и гасим
+        container.innerHTML = '';
+        container.style.display = 'none';
+        checkbox.checked = false;
+    } else {
         // Открываем
         container.style.display = 'flex';
         if (container.children.length === 0) {
             addSpecLine(skillName);
         }
-    } else {
-        // Второе нажатие — удаляем + гарантированно гасим
-        container.innerHTML = '';
-        container.style.display = 'none';
-
-        const cb = document.getElementById('s-' + skillName);
-        if (cb) {
-            cb.checked = false;
-        }
-
-        // Принудительное обновление вида бейджа
-        const badge = document.querySelector(`label[for="s-${skillName}"]`);
-        if (badge) {
-            badge.style.color = '#444';
-            badge.style.borderColor = '#444';
-        }
-
-        updateSpecUI(skillName);
+        checkbox.checked = true;
     }
+
+    updateSBadgeState(skillName);
 });
 
 function addSpecLine(skillName) {
@@ -2034,7 +2024,7 @@ function addSpecLine(skillName) {
     const currentSpecs = container.children.length;
 
     if (currentSpecs >= currentDots) {
-        alert(`У навыка "${skillName}" только ${currentDots} точ${currentDots === 1 ? 'ка' : 'ки'}. Больше специализаций добавить нельзя.`);
+        alert(`У навыка "${skillName}" только ${currentDots} точ${currentDots === 1 ? 'ка' : 'ки'}.`);
         return;
     }
 
@@ -2046,15 +2036,19 @@ function addSpecLine(skillName) {
         <button title="Удалить" style="background:#222;color:#ff6666;">×</button>
     `;
 
-    line.querySelector('button').addEventListener('click', () => addSpecLine(skillName));
+    // Кнопка "+"
+    line.querySelectorAll('button')[0].addEventListener('click', () => addSpecLine(skillName));
 
+    // Кнопка "×" — исправленный обработчик
     line.querySelectorAll('button')[1].addEventListener('click', () => {
         line.remove();
-        updateSpecUI(skillName);
+        setTimeout(() => {
+            updateSBadgeState(skillName);
+        }, 10);
     });
 
     container.appendChild(line);
-    updateSpecUI(skillName);
+    updateSBadgeState(skillName);
 }
 
 function updateSpecUI(skillName = null) {
@@ -2084,23 +2078,39 @@ function updateSpecUI(skillName = null) {
 function updateSBadgeState(skillName) {
     const badge = document.querySelector(`label[for="s-${skillName}"]`);
     const checkbox = document.getElementById(`s-${skillName}`);
+    const container = document.getElementById('specs-' + skillName);
+    
     if (!badge || !checkbox) return;
 
     const dots = parseInt(document.querySelector(`input[name="${skillName}"]:checked`)?.value || 0);
+    const hasActiveSpecs = container && container.children.length > 0;
 
-    if (dots >= 1) {
-        badge.classList.remove('inactive');
-        checkbox.disabled = false;
-        // ←←← УБИРАЕМ АВТО-ЗАГОРАНИЕ
-        // badge.style.color = '#ff3131';
-        // badge.style.borderColor = '#ff3131';
-    } else {
-        badge.classList.add('inactive');
-        checkbox.disabled = true;
+    if (dots === 0) {
+        // Нет точек — полностью выключаем
         badge.style.color = '#444';
         badge.style.borderColor = '#444';
+        checkbox.checked = false;
+        if (container) container.style.display = 'none';
+    } else {
+        // Есть точки
+        if (hasActiveSpecs) {
+            // Зажжён
+            badge.style.color = '#ff3131';
+            badge.style.borderColor = '#ff3131';
+            checkbox.checked = true;
+        } else {
+            // Должен быть серым
+            badge.style.color = '#444';
+            badge.style.borderColor = '#444';
+            checkbox.checked = false;
+        }
     }
 }
+
+
+
+
+
 // ==================== ПОДСКАЗКИ ДЛЯ НАВЫКОВ ====================
 async function preloadAllSkills() {
     const skills = Object.keys(RULES.skills || {});
