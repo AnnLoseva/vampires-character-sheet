@@ -1319,14 +1319,23 @@ function updateDisciplineTotal() {
 
 // ==================== ПОДСКАЗКИ (ХИНТЫ) ====================
 
-// Подсказка по клану
+
+// Универсальная функция сворачивания
+function toggleHint(boxId) {
+    const box = document.getElementById(boxId);
+    if (!box) return;
+    box.classList.toggle('collapsed');
+}
+
+// ==================== КЛАН ====================
 function loadClanHint() {
     const clanName = document.getElementById('clan-input').value.trim();
     const box = document.getElementById('clan-hint-box');
+    const content = document.getElementById('clan-hint-content');
     
-    if (!clanName) { 
-        box.style.display = 'none'; 
-        return; 
+    if (!clanName || !box || !content) {
+        if (box) box.style.display = 'none';
+        return;
     }
 
     const clan = RULES.clans?.[clanName];
@@ -1335,74 +1344,36 @@ function loadClanHint() {
         return;
     }
 
+    // Короткая строка при свёрнутом состоянии
+    box.dataset.short = `Клан: ${clanName}`;
+
     let html = `
-        <strong style="color:#ff3131; font-size:21px;">${clanName}</strong><br><br>
-        
         <div style="color:#ddd; line-height:1.65; font-size:14.8px;">
             ${clan.description || 'Описание отсутствует'}
         </div>
     `;
 
-    // Типы персонажей
-    if (clan.types) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ffae00;">Типичные представители:</strong><br>
-                 <span style="color:#ccc;">${clan.types}</span>`;
+    if (clan.types) html += `<hr style="border-color:#333;margin:15px 0;"><strong style="color:#ffae00;">Типичные представители:</strong><br><span style="color:#ccc;">${clan.types}</span>`;
+    if (clan.disciplines?.length) {
+        html += `<hr style="border-color:#333;margin:15px 0;"><strong style="color:#ffae00;">Дисциплины:</strong><br>`;
+        clan.disciplines.forEach(d => html += `• ${d}<br>`);
     }
+    if (clan.bane) html += `<hr style="border-color:#333;margin:15px 0;"><strong style="color:#ff6666;">Проклятие:</strong> ${clan.bane}`;
 
-    // Дисциплины + их описание
-    if (clan.disciplines && clan.disciplines.length) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ffae00;">Дисциплины клана:</strong><br>`;
-        
-        clan.disciplines.forEach(d => {
-            const desc = clan.discipline_description?.[d] || '';
-            html += `• <strong>${d}</strong> — ${desc}<br>`;
-        });
-    }
-
-    // Изъян
-    if (clan.bane) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ff6666;">Проклятие клана:</strong><br>
-                 <span style="color:#ff9999;">${clan.bane}</span>`;
-    }
-
-    // Стиль игры
-    if (clan.playstyle) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ffae00;">Стиль игры:</strong><br>
-                 ${clan.playstyle}`;
-    }
-
-    // Конфликт
-    if (clan.conflict) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ffae00;">Внутренний конфликт:</strong><br>
-                 ${clan.conflict}`;
-    }
-
-    // Архетипы
-    if (clan.archetypes && clan.archetypes.length) {
-        html += `<hr style="border-color:#333; margin:18px 0;">
-                 <strong style="color:#ffae00;">Архетипы:</strong><br>`;
-        clan.archetypes.forEach(a => {
-            html += `• ${a}<br>`;
-        });
-    }
-
-    box.innerHTML = html;
+    content.innerHTML = html;
     box.style.display = 'block';
 }
 
+// ==================== СТИЛЬ ОХОТЫ ====================
+// ==================== СТИЛЬ ОХОТЫ ====================
 function loadPredatorHint() {
     const name = document.getElementById('predator-input').value;
     const box = document.getElementById('predator-hint-box');
+    const content = document.getElementById('predator-hint-content');
     
-    if (!name) { 
-        box.style.display = 'none'; 
-        return; 
-    }
+    if (!name || !box || !content) return;
+
+    box.dataset.short = `Стиль Охоты: ${name}`;
 
     const pred = RULES.predator_types?.[name];
     if (!pred) {
@@ -1410,30 +1381,85 @@ function loadPredatorHint() {
         return;
     }
 
-    let html = `
-        <strong style="color:#ff3131; font-size:21px;">${name}</strong><br><br>
-        <div style="color:#ddd; line-height:1.6;">${pred.description || 'Описание отсутствует'}</div>
-    `;
+    let html = `<div style="color:#ddd; line-height:1.6;">${pred.description || 'Описание отсутствует'}</div>`;
 
-    if (pred.specialty?.options) {
+    // Специализация
+    if (pred.specialty?.options && pred.specialty.options.length) {
         html += `<hr style="border-color:#333;margin:15px 0;">
                  <strong style="color:#ffae00;">Специализация:</strong><br>
                  ${pred.specialty.options.join(', ')}`;
     }
 
-    if (pred.disciplines?.increase?.options) {
+    // Дисциплина
+    if (pred.disciplines?.increase?.options && pred.disciplines.increase.options.length) {
+        const value = pred.disciplines.increase.value || 1;
         html += `<hr style="border-color:#333;margin:15px 0;">
-                 <strong style="color:#ffae00;">Дисциплина (+1):</strong><br>
+                 <strong style="color:#ffae00;">Дисциплина (+${value}):</strong><br>
                  ${pred.disciplines.increase.options.join(', ')}`;
     }
 
+    // Преимущества
+    if (pred.advantages && pred.advantages.length) {
+        html += `<hr style="border-color:#333;margin:15px 0;">
+                 <strong style="color:#ffcc00;">Преимущества:</strong><br>`;
+        pred.advantages.forEach(a => {
+            const advName = typeof a === 'string' ? a : (a.name || a);
+            html += `• ${advName}<br>`;
+        });
+    }
+
+    // Недостатки
+    if (pred.disadvantages && pred.disadvantages.length) {
+        html += `<hr style="border-color:#333;margin:15px 0;">
+                 <strong style="color:#ff6666;">Недостатки:</strong><br>`;
+        pred.disadvantages.forEach(d => {
+            const flawName = typeof d === 'string' ? d : (d.name || d);
+            html += `• ${flawName}<br>`;
+        });
+    }
+
+    // Человечность
     if (pred.humanity !== undefined) {
         html += `<hr style="border-color:#333;margin:15px 0;">
                  <strong style="color:#ffae00;">Человечность:</strong> 
                  <span style="color:#ffd700;">${pred.humanity > 0 ? '+' : ''}${pred.humanity}</span>`;
     }
 
-    box.innerHTML = html;
+    content.innerHTML = html;
+    box.style.display = 'block';
+}
+
+// ==================== ПОКОЛЕНИЕ + ТИП ====================
+function updateBloodPotencyAndBonuses() {
+    const type = document.getElementById('type-input').value;
+    const genValue = document.getElementById('generation-input').value;
+    const generation = parseInt(genValue) || 13;
+    
+    const box = document.getElementById('generation-hint-box');
+    const content = document.getElementById('generation-hint-content');
+    
+    if (!box || !content) return;
+
+    let shortText = `Поколение: ${genValue || '?'}`;
+    if (type) shortText += ` — ${type === 'childe' ? 'Птенец' : type === 'neonate' ? 'Неонат' : type === 'ancilla' ? 'Анцилла' : type === 'elder' ? 'Старейшина' : type}`;
+
+    box.dataset.short = shortText;
+
+    let hintHTML = '';
+
+    if (type === 'childe') {
+        hintHTML = `<strong>Птенец (Childe)</strong><br>• Становление ≤ 15 лет назад<br>• <strong>Сила Крови: 0</strong><br>• +15 опыта`;
+    } else if (type === 'neonate') {
+        const potency = (generation <= 13) ? 1 : 0;
+        hintHTML = `<strong>Неонат (Neonate)</strong><br>• Становление после 1940 г.<br>• <strong>Сила Крови: ${potency}</strong><br>• +15 опыта`;
+    } else if (type === 'ancilla') {
+        const potency = (generation <= 11) ? 2 : 1;
+        hintHTML = `<strong>Анцилла (Ancilla)</strong><br>• Становление 1780–1940 гг.<br>• <strong>Сила Крови: ${potency}</strong><br>• +2 Преим. • +2 Недост.<br>• −1 Человечность<br>• +35 опыта`;
+    } else if (type === 'elder' || type === 'methuselah' || type === 'antediluvian') {
+        hintHTML = `<strong>Старейшина / Матузалем</strong><br>• Очень старый вампир<br>• <strong>Сила Крови: 3+</strong>`;
+    }
+
+    content.innerHTML = hintHTML || 'Выберите Поколение и Тип';
     box.style.display = 'block';
 }
 
@@ -2791,3 +2817,23 @@ function importFromJSON() {
     };
     input.click();
 }
+
+
+
+
+// Привязываем события
+function setupGenerationHint() {
+    const typeSelect = document.getElementById('type-input');
+    const genSelect = document.getElementById('generation-input');
+
+    if (typeSelect) typeSelect.addEventListener('change', updateBloodPotencyAndBonuses);
+    if (genSelect) genSelect.addEventListener('change', updateBloodPotencyAndBonuses);
+}
+
+// Запускаем после полной загрузки
+window.addEventListener('load', () => {
+    setTimeout(() => {
+        setupGenerationHint();
+        updateBloodPotencyAndBonuses(); // первый запуск
+    }, 800);
+});
