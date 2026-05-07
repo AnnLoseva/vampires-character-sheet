@@ -306,3 +306,16 @@ window.addEventListener('load', () => {
     let i = 0;
     const int = setInterval(() => { if (initSupabase() || ++i > 30) clearInterval(int); }, 250);
 });
+
+
+
+import { Tldraw } from 'tldraw'
+import { useEffect, useState } from 'react' // если перейдёшь на React
+
+// Supabase realtime channel
+const channel = supabase.channel('table-room')
+channel
+  .on('broadcast', { event: 'canvas-update' }, ({ payload }) => {
+    // применить изменения
+  })
+  .subscribe()
