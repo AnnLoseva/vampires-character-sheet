@@ -3075,12 +3075,23 @@ async function loginWithGoogle() {
     }
 }
 
-// Слушаем изменение сессии (чтобы понять, что пользователь вошёл)
-supabaseClient.auth.onAuthStateChange((event, session) => {
-    console.log('🔐 Auth event:', event, session?.user?.email);
+async function loginWithGoogle() {
+    if (!supabaseClient) return alert("Supabase не подключён");
 
-    if (event === 'SIGNED_IN') {
-        alert(`Добро пожаловать, ${session.user.user_metadata.full_name || session.user.email}!`);
-        // Можно обновить UI, показать имя пользователя и т.д.
+    try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: 'http://localhost:3000/old',   // ← именно так
+                queryParams: {
+                    prompt: 'select_account'   // чтобы можно было выбрать аккаунт
+                }
+            }
+        });
+
+        if (error) throw error;
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка Google входа:\n" + err.message);
     }
-});
+}
