@@ -3259,6 +3259,9 @@ function closeExpModal() {
 // ====================== ФУНКЦИИ ======================
 
 function spendModalAttribute() {
+    if (!startingSheetFixed) {
+        alert("Сначала зафиксируй стартовый лист!");
+        return;
     const name = prompt("Какую характеристику повышаем?");
     if (!name) return;
     const current = getCurrentLevel(name);
@@ -3280,20 +3283,17 @@ function getCurrentLevel(name) {
 }
 
 // Установка уровня + окраска ВСЕХ точек, купленных за опыт
-function setLevel(name, targetLevel, isFromExp = false) {
+function setLevel(name, targetLevel, isFromExp = true) {
     const radios = document.querySelectorAll(`input[name="${name}"]`);
 
     radios.forEach(radio => {
         const value = parseInt(radio.value);
         radio.checked = (value === targetLevel);
 
-        // Находим точку
-        let dot = radio.parentElement.querySelector('.dot');
-        if (!dot) dot = radio.nextElementSibling?.querySelector('.dot');
-        if (!dot) dot = radio.closest('label');
+        let dot = radio.parentElement.querySelector('.dot') || radio.nextElementSibling;
 
         if (dot) {
-            if (isFromExp && value <= targetLevel && value > 0) {
+            if (isFromExp && value > (baseLevels[name] || 0)) {
                 dot.classList.add('exp-purchased');
             } else {
                 dot.classList.remove('exp-purchased');
@@ -3302,8 +3302,48 @@ function setLevel(name, targetLevel, isFromExp = false) {
     });
 }
 
-function calculateCumulativeCost(current, target, mult) {
-    let sum = 0;
-    for (let i = current + 1; i <= target; i++) sum += i * mult;
-    return sum;
+
+
+// ==================== ФИКСАЦИЯ СТАРТОВОГО ЛИСТА ====================
+
+let startingSheetFixed = false;
+let baseLevels = {}; // запоминаем базовые уровни
+
+function fixStartingSheet() {
+    if (startingSheetFixed) {
+        if (confirm("Сбросить фиксацию стартового листа?")) {
+            startingSheetFixed = false;
+            document.getElementById('fix-start-btn').textContent = "🔒 Зафиксировать стартовый лист";
+            document.getElementById('fix-start-btn').style.background = "#ff3131";
+        }
+        return;
+    }
+
+    if (!confirm("Зафиксировать текущие значения как стартовый лист?\nПосле этого повышать можно будет только за опыт.")) {
+        return;
+    }
+
+    // Сохраняем текущие уровни как базовые
+    baseLevels = {};
+
+    // Характеристики
+    document.querySelectorAll('input[name^="Сила"], input[name^="Ловкость"], input[name^="Выносливость"], input[name^="Интеллект"], input[name^="Восприятие"], input[name^="Обаяние"]').forEach(radio => {
+        if (radio.checked) {
+            baseLevels[radio.name] = parseInt(radio.value);
+        }
+    });
+
+    // Навыки (добавь все свои навыки)
+    document.querySelectorAll('.dots input').forEach(radio => {
+        if (radio.checked && radio.name) {
+            baseLevels[radio.name] = parseInt(radio.value);
+        }
+    });
+
+    startingSheetFixed = true;
+    document.getElementById('fix-start-btn').textContent = "✅ Стартовый лист зафиксирован";
+    document.getElementById('fix-start-btn').style.background = "#666";
+
+    alert("✅ Стартовый лист зафиксирован!\nТеперь трать опыт для повышения.");
+}
 }
