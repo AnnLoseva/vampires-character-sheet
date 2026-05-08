@@ -3082,7 +3082,7 @@ async function loginWithGoogle() {
         const { error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: 'http://localhost:3000/old',   // ← именно так
+                redirectTo: 'https://vampires-character-sheet.vercel.app/old',   // ← именно так
                 queryParams: {
                     prompt: 'select_account'   // чтобы можно было выбрать аккаунт
                 }
