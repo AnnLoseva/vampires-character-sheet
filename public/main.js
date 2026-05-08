@@ -3006,13 +3006,13 @@ function setupSupabaseButtons() {
 }
 
 // ==================== ЗАПУСК ====================
+// ==================== ЗАПУСК ====================
 async function initializeApp() {
     console.log("🚀 Запуск приложения...");
 
     try {
         await loadRules();
 
-        // Основной рендер
         renderAttributes();
         renderSkills();
         populateSelects();
@@ -3027,7 +3027,6 @@ async function initializeApp() {
 
         await initSupabase();
 
-        // Дополнительные настройки
         setupGenerationHint();
         setupExperienceListener();
         updateBloodPotencyAndBonuses();
@@ -3039,6 +3038,7 @@ async function initializeApp() {
         console.error("❌ Критическая ошибка запуска:", err);
     }
 }
+
 
 // Один единственный listener
 window.addEventListener('load', initializeApp);
