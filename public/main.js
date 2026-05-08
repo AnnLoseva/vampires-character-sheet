@@ -3076,15 +3076,18 @@ async function loginWithGoogle() {
 }
 
 async function loginWithGoogle() {
-    if (!supabaseClient) return alert("Supabase не подключён");
+    if (!supabaseClient) {
+        alert("Supabase не подключён");
+        return;
+    }
 
     try {
         const { error } = await supabaseClient.auth.signInWithOAuth({
             provider: 'google',
             options: {
-                redirectTo: 'https://vampires-character-sheet.vercel.app',   // ← именно так
+                redirectTo: 'https://vampires-character-sheet.vercel.app/old',   // ← ИСПРАВИЛА НА ТВОЙ РЕАЛЬНЫЙ ДОМЕН
                 queryParams: {
-                    prompt: 'select_account'   // чтобы можно было выбрать аккаунт
+                    prompt: 'select_account'
                 }
             }
         });
