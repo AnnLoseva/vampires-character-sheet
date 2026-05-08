@@ -249,34 +249,45 @@
             box-shadow: 0 0 10px var(--v-red); 
         }
         
-        /* Большое красивое окно-подсказка */
-        /* .tooltip-trigger:hover::after,
-        .dot-label:hover::after {
-            content: attr(data-tooltip) !important;
-            position: absolute !important;
-            bottom: 160% !important;
-            left: 50% !important;
-            transform: translateX(-50%) !important;
-            background: #111111 !important;
-            color: #e0e0e0 !important;
-            padding: 16px 20px !important;
-            border: 2px solid #ff3131 !important;
-            border-radius: 8px !important;
-            font-size: 14px !important;
-            white-space: pre-line !important;
-            z-index: 10000 !important;
-            pointer-events: none !important;
-            box-shadow: 0 0 30px rgba(255, 49, 49, 0.5) !important;
-            max-width: 420px !important;
-            text-align: left !important;
-            line-height: 1.55 !important;
-        } */
+     /* Большое красивое окно-подсказка */
+.tooltip-trigger:hover::after,
+.dot-label:hover::after,
+.vital-item div:hover::after {
+    content: attr(data-tooltip) !important;
+    position: absolute !important;
+    bottom: 160% !important;
+    left: 50% !important;
+    transform: translateX(-50%) !important;
+    background: #111111 !important;
+    color: #e0e0e0 !important;
+    padding: 16px 20px !important;
+    border: 2px solid #ff3131 !important;
+    border-radius: 8px !important;
+    font-size: 14px !important;
+    white-space: pre-line !important;
+    z-index: 10000 !important;
+    pointer-events: none !important;
+    box-shadow: 0 0 30px rgba(255, 49, 49, 0.5) !important;
+    max-width: 420px !important;
+    text-align: left !important;
+    line-height: 1.55 !important;
+}
 
-        /* Для названий немного поднимаем */
-        .attr-name:hover::after,
-        .skill-name:hover::after {
-            bottom: 170% !important;
-        }
+/* Родительские элементы должны иметь position: relative */
+.attr-name,
+.skill-name,
+.dot-label,
+.tooltip-trigger,
+.vital-item div {
+    position: relative !important;
+    display: inline-block !important;
+}
+
+/* Для названий немного поднимаем */
+.attr-name:hover::after,
+.skill-name:hover::after {
+    bottom: 170% !important;
+}
                         
         .vitals { 
             display: flex; 

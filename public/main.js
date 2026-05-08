@@ -36,6 +36,8 @@ async function loadRules() {
     }
 
     // Инициализация
+    preloadAllSkills();      // ← обязательно
+    preloadAllAttributes();  // ← обязательно
     renderAttributes();
     renderSkills();
     populateSelects();
@@ -51,8 +53,7 @@ async function initializeApp() {
         // Ждём, пока RULES загрузятся и DOM готов
         await new Promise(r => setTimeout(r, 100));
 
-        preloadAllSkills();
-        preloadAllAttributes();
+       
         renderDisciplines();
         renderSkills();
         renderAttributes();
