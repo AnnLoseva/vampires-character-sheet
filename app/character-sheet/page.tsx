@@ -2,13 +2,22 @@
 
 export default function CharacterSheetPage() {
   return (
-    <div className="fixed inset-0 w-screen h-screen bg-[#0a0a0a] overflow-hidden">
-      <iframe 
-        src="/sheet.html" 
-        className="w-full h-full border-0"
-        title="VTM V5 Character Sheet"
-      />
+    <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center">
+      <div className="text-center">
+        <h1 className="text-6xl font-bold text-red-600 mb-8">🩸 ЛИСТ ПЕРСОНАЖА</h1>
+        <p className="text-3xl text-gray-400">Страница успешно открылась!</p>
+        
+        <div className="mt-12">
+          <button 
+            onClick={() => window.history.back()}
+            className="px-8 py-4 bg-red-700 hover:bg-red-600 rounded-2xl text-xl"
+          >
+            ← Вернуться назад
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
+
   
