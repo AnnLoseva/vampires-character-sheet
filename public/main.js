@@ -40,19 +40,6 @@ async function loadRules() {
     renderSkills();
     populateSelects();
 }
-
-// Запускаем загрузку при старте
-window.addEventListener('load', () => {
-    loadRules().then(() => {
-        renderDisciplines();        // ← добавь эту строку
-        preloadAllSkills();
-        preloadAllAttributes();
-        await initSupabase();
-        setupSupabaseButtons();
-        setupSaveButton();
-    });
-    setupEventListeners();
-});
 // ==================== ЗАПУСК ====================
 
 async function initializeApp() {
@@ -2767,13 +2754,6 @@ function setupGenerationHint() {
     if (genSelect) genSelect.addEventListener('change', updateBloodPotencyAndBonuses);
 }
 
-// Запускаем после полной загрузки
-window.addEventListener('load', () => {
-    setTimeout(() => {
-        setupGenerationHint();
-        updateBloodPotencyAndBonuses(); // первый запуск
-    }, 800);
-});
 
 
 
@@ -2844,10 +2824,6 @@ setupExperienceListener();
 // Привязываем к изменениям типа
 document.getElementById('type-input').addEventListener('change', updateExperienceBonus);
 
-// Инициализация
-window.addEventListener('load', () => {
-    setTimeout(updateExperienceBonus, 800);
-});
 
 
 
@@ -2925,11 +2901,6 @@ function setupSaveButton() {
     }
 }
 
-// Вызвать при загрузке
-window.addEventListener('load', () => {
-    setTimeout(setupSaveButton, 500);
-});
-
 
 // ==================== SUPABASE ====================
 let supabaseClient = null;
@@ -3005,40 +2976,4 @@ function setupSupabaseButtons() {
     if (loadBtn) loadBtn.addEventListener('click', loadCharactersList);
 }
 
-// ==================== ЗАПУСК ====================
-// ==================== ЗАПУСК ====================
-async function initializeApp() {
-    console.log("🚀 Запуск приложения...");
 
-    try {
-        await loadRules();
-
-        renderAttributes();
-        renderSkills();
-        populateSelects();
-        renderDisciplines();
-
-        preloadAllSkills();
-        preloadAllAttributes();
-
-        setupEventListeners();
-        setupSaveButton();
-        setupSupabaseButtons();
-
-        await initSupabase();
-
-        setupGenerationHint();
-        setupExperienceListener();
-        updateBloodPotencyAndBonuses();
-        updateExperienceBonus();
-        updateTrackers();
-
-        console.log("✅ Приложение полностью готово!");
-    } catch (err) {
-        console.error("❌ Критическая ошибка запуска:", err);
-    }
-}
-
-
-// Один единственный listener
-window.addEventListener('load', initializeApp);
