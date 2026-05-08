@@ -11,8 +11,8 @@ export default function Home() {
 
         <div className="space-y-6">
           <Link
-            href="/character-sheet"
-            className="block w-full py-6 bg-red-700 hover:bg-red-600 rounded-3xl text-2xl font-medium transition-all active:scale-95"
+            href="/old"
+            className="block w-full py-6 bg-red-700 hover:bg-red-600 rounded-3xl text-2xl font-medium transition"
           >
             ✍️ Создать / Редактировать персонажа
           </Link>

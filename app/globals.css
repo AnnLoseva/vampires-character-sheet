@@ -465,34 +465,6 @@ select option {
 }
 
 
-/* Убираем все отступы и серые рамки */
-html, body, #__next {
-  margin: 0 !important;
-  padding: 0 !important;
-  height: 100% !important;
-  overflow: hidden !important;
-  background: #0a0a0a !important;
-}
-
-/* Красивый красный ползунок */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: #111;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #991b1b;
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: #ff3131;
-}
-
 
 * {
     box-sizing: border-box;
