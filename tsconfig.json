@@ -32,7 +32,8 @@
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    ".next/types/**/*.d.ts",
+    ".next/types/**/*.d.ts" // ← добавь эту строку
+    ,
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts"
   ],

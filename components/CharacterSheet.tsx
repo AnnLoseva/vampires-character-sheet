@@ -29,7 +29,7 @@ export default function CharacterSheet() {
   }
 
   const goToOldSheet = () => {
-    window.open('/old-sheet.html', '_blank')
+    window.open('/sheet.html', '_blank')
   }
 
   if (loading) {
@@ -68,7 +68,7 @@ export default function CharacterSheet() {
 
           {/* Переход на старый sheet */}
                             <button 
-                    onClick={() => window.location.href = '/old'}
+                    onClick={() => window.location.href = '/sheet.html'}
                     className="w-full py-6 bg-red-700 hover:bg-red-600 rounded-3xl text-2xl font-medium transition"
                     >
                     ✍️ Создать / Редактировать персонажа
