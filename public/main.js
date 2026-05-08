@@ -44,6 +44,9 @@ async function loadRules() {
 // Запускаем загрузку при старте
 window.addEventListener('load', () => {
     loadRules().then(() => {
+        await initSupabase();
+        setupSupabaseButtons();
+        setupSaveButton();
         renderDisciplines();        // ← добавь эту строку
         preloadAllSkills();
         preloadAllAttributes();
@@ -2911,3 +2914,197 @@ document.getElementById('type-input').addEventListener('change', updateExperienc
 window.addEventListener('load', () => {
     setTimeout(updateExperienceBonus, 800);
 });
+
+
+
+// ==================== УЛУЧШЕННАЯ ГЕНЕРАЦИЯ JPG ====================
+async function generateSheetImage() {
+    const area = document.getElementById('capture-area');
+    const charName = (document.getElementById('char-name')?.value || 'Kindred').trim();
+    
+    const btn = document.getElementById('btn-save');
+    const originalText = btn?.textContent || 'Сохранить в JPG';
+    
+    if (btn) {
+        btn.textContent = 'Генерируем...';
+        btn.disabled = true;
+    }
+
+    try {
+        // Подготовка специальностей
+        const specContainers = area.querySelectorAll('.skill-specs');
+        specContainers.forEach(container => {
+            if (container.children.length > 0) {
+                container.style.display = 'flex';
+                container.style.flexDirection = 'column';
+                container.style.height = 'auto';
+            }
+        });
+
+        // Ждём рендер
+        await new Promise(r => setTimeout(r, 150));
+
+        const canvas = await html2canvas(area, {
+            scale: 3,
+            useCORS: true,
+            allowTaint: true,
+            backgroundColor: '#0a0a0a',
+            logging: false,
+            width: area.offsetWidth,
+            height: area.offsetHeight + 30,
+            onclone: (clonedDoc) => {
+                // Превращаем input'ы спецов в текст
+                clonedDoc.querySelectorAll('.skill-spec-line input').forEach(input => {
+                    if (input.value.trim()) {
+                        const span = clonedDoc.createElement('span');
+                        span.textContent = input.value.trim();
+                        span.style.cssText = `color:#ccc; font-size:13px; border-bottom:1px solid #555; padding:2px 6px;`;
+                        input.parentNode.replaceChild(span, input);
+                    }
+                });
+            }
+        });
+
+        // Скачивание
+        const link = document.createElement('a');
+        link.download = `V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.jpg`;
+        link.href = canvas.toDataURL('image/jpeg', 0.92);
+        link.click();
+
+    } catch (err) {
+        console.error("html2canvas error:", err);
+        alert("Ошибка генерации изображения. Убедись, что html2canvas подключён.");
+    } finally {
+        if (btn) {
+            btn.textContent = originalText;
+            btn.disabled = false;
+        }
+    }
+}
+
+// Привязываем кнопку
+function setupSaveButton() {
+    const btn = document.getElementById('btn-save');
+    if (btn) {
+        btn.addEventListener('click', generateSheetImage);
+        console.log('✅ Кнопка JPG привязана');
+    }
+}
+
+// Вызвать при загрузке
+window.addEventListener('load', () => {
+    setTimeout(setupSaveButton, 500);
+});
+
+
+// ==================== SUPABASE ====================
+let supabaseClient = null;
+
+async function initSupabase() {
+    if (typeof supabase === 'undefined') {
+        console.warn("Supabase SDK не подключён");
+        return false;
+    }
+
+    try {
+        supabaseClient = supabase.createClient(
+            'https://твой-проект.supabase.co',           // ← Замени
+            'твой_anon_key'                              // ← Замени
+        );
+        console.log('✅ Supabase инициализирован');
+        return true;
+    } catch (e) {
+        console.error('❌ Ошибка Supabase:', e);
+        return false;
+    }
+}
+
+
+// Сохранить персонажа
+async function saveCharacter() {
+    if (!supabaseClient) {
+        alert("Supabase не инициализирован");
+        return;
+    }
+
+    const charName = document.getElementById('char-name').value.trim() || "Безымянный";
+
+    const character = {
+        name: charName,
+        clan: document.getElementById('clan-input').value,
+        predator: document.getElementById('predator-input').value,
+        skillPackage: document.getElementById('skill-package').value,
+        generation: document.getElementById('generation-input').value,
+        type: document.getElementById('type-input').value,
+        
+        attributes: {},
+        skills: {},
+        disciplines: disciplineSources,
+        selectedPowers: selectedPowers,
+        merits: selectedMerits,
+        flaws: selectedFlaws,
+        created_at: new Date().toISOString()
+    };
+
+    // Атрибуты
+    document.querySelectorAll('.dot-input[data-type="attr"]:checked').forEach(inp => {
+        if (+inp.value > 0) character.attributes[inp.name] = +inp.value;
+    });
+
+    // Навыки + спецы
+    document.querySelectorAll('.dot-input[data-type="skill"]:checked').forEach(inp => {
+        const val = +inp.value;
+        if (val > 0) {
+            const skillName = inp.name;
+            character.skills[skillName] = { dots: val, specs: [] };
+            
+            const container = document.getElementById('specs-' + skillName);
+            if (container) {
+                container.querySelectorAll('input[type="text"]').forEach(i => {
+                    if (i.value.trim()) character.skills[skillName].specs.push(i.value.trim());
+                });
+            }
+        }
+    });
+
+    try {
+        const { error } = await supabaseClient
+            .from('characters')
+            .insert([character]);
+
+        if (error) throw error;
+        alert(`✅ Персонаж «${charName}» успешно сохранён в Supabase!`);
+    } catch (err) {
+        console.error(err);
+        alert('Ошибка сохранения: ' + err.message);
+    }
+}
+
+// Загрузить список персонажей
+async function loadCharactersList() {
+    if (!supabaseClient) return;
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('characters')
+            .select('id, name, clan, predator, created_at')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Здесь можно открыть модалку со списком
+        console.table(data);
+        alert(`Загружено ${data.length} персонажей. Реализуй модалку под себя.`);
+        
+    } catch (err) {
+        alert('Ошибка загрузки списка: ' + err.message);
+    }
+}
+
+function setupSupabaseButtons() {
+    const saveBtn = document.getElementById('btn-save-supabase');
+    const loadBtn = document.getElementById('btn-load-supabase');
+
+    if (saveBtn) saveBtn.addEventListener('click', saveCharacter);
+    if (loadBtn) loadBtn.addEventListener('click', loadCharactersList);
+}
