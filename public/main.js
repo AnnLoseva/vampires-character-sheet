@@ -3098,3 +3098,212 @@ async function loginWithGoogle() {
         alert("Ошибка Google входа:\n" + err.message);
     }
 }
+
+
+// ==================== ТРАТА ОПЫТА — АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ УРОВНЯ ====================
+
+let expLog = [];
+
+function logExp(text, cost) {
+    const freeExpEl = document.getElementById('free-exp');
+    if (freeExpEl) {
+        let current = parseInt(freeExpEl.value) || 0;
+        freeExpEl.value = Math.max(0, current - cost);
+    }
+
+    expLog.unshift(`-${cost} XP → ${text}`);
+    if (expLog.length > 12) expLog.pop();
+
+    const logEl = document.getElementById('exp-log');
+    if (logEl) logEl.innerHTML = expLog.join('<br>');
+}
+
+// Вспомогательная функция кумулятивного расчёта
+function calculateCumulativeCost(current, target, multiplier) {
+    let total = 0;
+    for (let i = current + 1; i <= target; i++) {
+        total += i * multiplier;
+    }
+    return total;
+}
+
+// ====================== ХАРАКТЕРИСТИКА ======================
+function spendOnAttribute() {
+    const name = prompt("Какую характеристику хочешь повысить?");
+    if (!name) return;
+
+    // Автоматически берём текущий уровень
+    const currentRadio = document.querySelector(`input[name="${name}"]:checked`);
+    const current = currentRadio ? parseInt(currentRadio.value) : 0;
+
+    const target = parseInt(prompt(`Текущий уровень: ${current}\nНовый уровень?`));
+    if (!target || target <= current || target > 5) return alert("Неверный уровень");
+
+    const cost = calculateCumulativeCost(current, target, 5);
+
+    if (confirm(`Повысить ${name} с ${current} → ${target} за ${cost} XP?`)) {
+        const newRadio = document.querySelector(`input[name="${name}"][value="${target}"]`);
+        if (newRadio) newRadio.checked = true;
+
+        logExp(`${name} ${current}→${target}`, cost);
+        updateVitals();
+        alert(`✅ ${name} повышена!`);
+    }
+}
+
+// ====================== НАВЫК ======================
+function spendOnSkill() {
+    const name = prompt("Какой навык хочешь повысить?");
+    if (!name) return;
+
+    const currentRadio = document.querySelector(`input[name="${name}"]:checked`);
+    const current = currentRadio ? parseInt(currentRadio.value) : 0;
+
+    const target = parseInt(prompt(`Текущий уровень: ${current}\nНовый уровень?`));
+    if (!target || target <= current || target > 5) return alert("Неверный уровень");
+
+    const cost = calculateCumulativeCost(current, target, 3);
+
+    if (confirm(`Повысить ${name} с ${current} → ${target} за ${cost} XP?`)) {
+        const newRadio = document.querySelector(`input[name="${name}"][value="${target}"]`);
+        if (newRadio) newRadio.checked = true;
+
+        logExp(`${name} ${current}→${target}`, cost);
+        alert(`✅ ${name} повышен!`);
+    }
+}
+
+// ====================== СПЕЦИАЛИЗАЦИЯ ======================
+function spendOnSpecialty() {
+    const skill = prompt("Для какого навыка добавляем специализацию?");
+    if (!skill) return;
+    const spec = prompt("Название специализации?");
+
+    if (confirm(`Добавить "${spec}" за 3 XP?`)) {
+        const container = document.getElementById(`specs-${skill}`);
+        if (container) {
+            const div = document.createElement('div');
+            div.className = 'skill-spec-line';
+            div.innerHTML = `• ${spec} <small>(3 XP)</small>`;
+            container.appendChild(div);
+            container.style.display = 'block';
+        }
+        logExp(`Специализация "${spec}" (${skill})`, 3);
+    }
+}
+
+// ====================== ПРЕИМУЩЕСТВО ======================
+function spendOnMerit() {
+    const name = prompt("Какое преимущество покупаешь/повышаешь?");
+    if (!name) return;
+    const dots = parseInt(prompt("Сколько пунктов добавить?") || "1");
+
+    const cost = dots * 3;
+
+    if (confirm(`Добавить "${name}" (+${dots} пунктов) за ${cost} XP?`)) {
+        logExp(`Преимущество "${name}" +${dots}`, cost);
+        alert(`✅ Добавлено!`);
+    }
+}
+
+// ====================== ДИСЦИПЛИНА ======================
+function spendOnDiscipline() {
+    const name = prompt("Название дисциплины?");
+    if (!name) return;
+
+    // Автоматически считаем текущий уровень дисциплины
+    let current = 0;
+    if (disciplineSources[name]) {
+        current = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
+    }
+
+    const target = parseInt(prompt(`Текущий уровень: ${current}\nНовый уровень?`));
+    if (!target || target <= current || target > 5) return;
+
+    const isClan = confirm("Это **клановая** дисциплина?");
+    const multiplier = isClan ? 5 : 7;
+
+    const cost = calculateCumulativeCost(current, target, multiplier);
+
+    if (confirm(`Повысить ${name} с ${current} → ${target} за ${cost} XP?`)) {
+        mergeDiscipline(name, target - current, "Опыт");
+        logExp(`Дисциплина ${name} ${current}→${target}`, cost);
+    }
+}
+
+// ==================== КРАСИВОЕ МОДАЛЬНОЕ ОКНО ТРАТЫ ОПЫТА ====================
+
+let expLogModal = [];
+
+function logModal(text, cost) {
+    const freeExp = document.getElementById('free-exp');
+    if (freeExp) freeExp.value = Math.max(0, parseInt(freeExp.value) || 0 - cost);
+
+    expLogModal.unshift(`-${cost} XP → ${text}`);
+    if (expLogModal.length > 8) expLogModal.pop();
+
+    const logEl = document.getElementById('modal-log');
+    if (logEl) logEl.innerHTML = expLogModal.join('<br>');
+}
+
+function openExpModal() {
+    document.getElementById('exp-modal').style.display = 'flex';
+    expLogModal = []; // очищаем лог при открытии
+    document.getElementById('modal-log').innerHTML = '';
+}
+
+function closeExpModal() {
+    document.getElementById('exp-modal').style.display = 'none';
+}
+
+// ====================== ФУНКЦИИ ======================
+
+function spendModalAttribute() {
+    const name = prompt("Какую характеристику повышаем?");
+    if (!name) return;
+    const current = getCurrentLevel(name);
+    const target = parseInt(prompt(`Текущий: ${current}\nНовый уровень?`));
+    if (!target || target <= current) return;
+
+    const cost = calculateCumulativeCost(current, target, 5);
+    if (confirm(`Повысить ${name} → ${target} за ${cost} XP?`)) {
+        setLevel(name, target, true);   // true = за опыт
+        logModal(`${name} ${current}→${target}`, cost);
+    }
+}
+
+
+// Вспомогательные функции
+function getCurrentLevel(name) {
+    const checked = document.querySelector(`input[name="${name}"]:checked`);
+    return checked ? parseInt(checked.value) : 0;
+}
+
+// Установка уровня + окраска ВСЕХ точек, купленных за опыт
+function setLevel(name, targetLevel, isFromExp = false) {
+    const radios = document.querySelectorAll(`input[name="${name}"]`);
+
+    radios.forEach(radio => {
+        const value = parseInt(radio.value);
+        radio.checked = (value === targetLevel);
+
+        // Находим точку
+        let dot = radio.parentElement.querySelector('.dot');
+        if (!dot) dot = radio.nextElementSibling?.querySelector('.dot');
+        if (!dot) dot = radio.closest('label');
+
+        if (dot) {
+            if (isFromExp && value <= targetLevel && value > 0) {
+                dot.classList.add('exp-purchased');
+            } else {
+                dot.classList.remove('exp-purchased');
+            }
+        }
+    });
+}
+
+function calculateCumulativeCost(current, target, mult) {
+    let sum = 0;
+    for (let i = current + 1; i <= target; i++) sum += i * mult;
+    return sum;
+}

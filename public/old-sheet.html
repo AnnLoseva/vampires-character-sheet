@@ -7,119 +7,141 @@
 
 
 
-    <style>
+ <style>
+    /* ==================== БАЗОВЫЕ СТИЛИ ==================== */
+    html, body {
+        margin: 0;
+        padding: 0;
+        background: #0a0a0a;
+        color: #d0d0d0;
+        font-family: 'Courier New', Courier, monospace;
+        min-height: 100vh;
+        overflow-x: hidden;
+    }
 
-        /* Возвращаем оригинальную ширину и центрирование */
-  html, body {
-    margin: 0 !important;
-    padding: 0 !important;
-    background: #0a0a0a !important;
-    height: 100vh !important;
-    overflow: auto !important;
-  }
+    .main-container {
+        display: flex;
+        justify-content: center;
+        gap: 20px;
+        padding: 20px 10px;
+        min-height: 100vh;
+    }
 
-  .main-container {
-    display: flex;
-    justify-content: center;
-    gap: 20px;
-    padding: 20px 10px;
-    min-height: 100vh;
-  }
+    .sheet {
+        width: 980px;
+        max-width: 980px;
+        margin: 0 auto;
+        background: #000;
+        padding: 35px 40px;
+        border: 1px solid #222;
+        box-shadow: 0 0 40px rgba(255, 49, 49, 0.1);
+    }
 
-  .sheet {
-    width: 980px !important;        /* твоя оригинальная ширина */
-    max-width: 980px !important;
-    margin: 0 auto !important;
-    background: #000 !important;
-    padding: 35px 40px !important;
-  }
+    /* ==================== СКРОЛЛБАР ==================== */
+    ::-webkit-scrollbar {
+        width: 10px;
+        height: 10px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #111;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #991b1b;
+        border-radius: 5px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #ff3131;
+    }
 
-  /* Красный скроллбар */
-  ::-webkit-scrollbar {
-    width: 10px;
-    height: 10px;
-  }
-  ::-webkit-scrollbar-track {
-    background: #111;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #991b1b;
-    border-radius: 5px;
-  }
-  ::-webkit-scrollbar-thumb:hover {
-    background: #ff3131;
-  }
-
-
+  
+    /* ==================== ПЕРЕМЕННЫЕ ==================== */
     :root { 
-            --v-red: #ff3131; 
-            --v-grey: #2a2a2a; 
-            --v-bg: #0a0a0a; 
-            --v-panel: #111; 
+        --v-red: #ff3131; 
+        --v-orange: #ff9500;
+        --v-grey: #2a2a2a; 
+        --v-bg: #0a0a0a; 
+        --v-panel: #111; 
+    }
+
+    /* ==================== BODY И ОСНОВНАЯ РАЗМЕТКА ==================== */
+    body {
+        background: var(--v-bg);
+        color: #d0d0d0;
+        font-family: 'Courier New', Courier, monospace;
+        padding: 20px 15px 20px 30px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        min-height: 100vh;
+        overflow-x: hidden;
+        gap: 18px;
+    }
+
+    .main-container {
+        display: flex;
+        gap: 18px;
+        width: 100%;
+        max-width: 1680px;
+        margin: 0 auto;
+    }
+
+    /* ==================== ЛИСТ ПЕРСОНАЖА ==================== */
+    .sheet {
+        width: 980px;
+        min-width: 980px;
+        flex-shrink: 0;
+        background: #000;
+        padding: 35px 40px;
+        border: 1px solid #222;
+        box-shadow: 0 0 40px rgba(255,49,49,0.1);
+        position: relative;
+    }
+
+    /* ==================== БОКОВЫЕ ПАНЕЛИ ==================== */
+    .guide {
+        width: 280px;
+        min-width: 280px;
+        flex-shrink: 0;
+        background: var(--v-panel);
+        padding: 20px;
+        border: 1px solid #333;
+        height: fit-content;
+        position: sticky;
+        top: 20px;
+        z-index: 100;
+    }
+
+    .right-panel {
+        width: 320px;
+        min-width: 320px;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        position: sticky;
+        top: 20px;
+        align-self: flex-start;
+        background: var(--v-panel);
+        border: 1px solid #333;
+        border-radius: 8px;
+        padding: 20px;
+    }
+               /* ==================== ОСТАЛЬНЫЕ ОСНОВНЫЕ СТИЛИ ==================== */
+
+        .guide.error { 
+            border-color: #ff3131 !important; 
+            box-shadow: 0 0 15px rgba(255,49,49,0.6); 
+            background: #1a0f0f; 
         }
 
-        body {
-            background: var(--v-bg);
-            color: #d0d0d0;
-            font-family: 'Courier New', Courier, monospace;
-            padding: 20px 15px 20px 30px;
-            display: flex;
-            justify-content: center;
-            align-items: flex-start;
-            min-height: 100vh;
-            overflow-x: hidden;
-            gap: 18px;
+        .header-row { 
+            display: flex; 
+            gap: 25px; 
+            margin-bottom: 25px; 
         }
 
-        .main-container {
-            display: flex;
-            gap: 18px;
-            width: 100%;
-            max-width: 1680px;
-            margin: 0 auto;
-        }
-
-        .sheet {
-            width: 980px;
-            min-width: 980px;
-            flex-shrink: 0;
-            background: #000;
-            padding: 35px 40px;
-            border: 1px solid #222;
-            box-shadow: 0 0 40px rgba(255,49,49,0.1);
-            position: relative;
-        }
-
-        .guide {
-            width: 280px;
-            min-width: 280px;
-            flex-shrink: 0;
-            background: var(--v-panel);
-            padding: 20px;
-            border: 1px solid #333;
-            height: fit-content;
-            position: sticky;
-            top: 20px;
-            z-index: 100;
-        }
-
-        .right-panel {
-            width: 320px;
-            min-width: 320px;
-            flex-shrink: 0;
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-            position: sticky;
-            top: 20px;
-            align-self: flex-start;
-        }
-
-        /* ================== Остальные стили ================== */
-        .guide.error { border-color: #ff3131 !important; box-shadow: 0 0 15px rgba(255,49,49,0.6); background: #1a0f0f; }
-        
-        .header-row { display: flex; gap: 25px; margin-bottom: 25px; }
-        input[type="text"], select { 
+        input[type="text"], 
+        select { 
             background: transparent; 
             border: none; 
             border-bottom: 1px solid #333; 
@@ -128,7 +150,7 @@
             font-size: 17px; 
             padding: 6px 0; 
         }
-        
+
         h2 { 
             text-align: center; 
             text-transform: uppercase; 
@@ -138,69 +160,72 @@
             padding-bottom: 12px; 
             margin: 35px 0 20px; 
         }
-        
-             .grid { 
-                    display: grid; 
-                    grid-template-columns: repeat(3, 1fr); 
-                    border: 1px solid #222; 
-                }
 
-                .col { 
-                    border-right: 1px solid #222; 
-                    padding: 16px 18px; 
-                    text-align: left;
-                }
+        .grid { 
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            border: 1px solid #222; 
+        }
 
-                .col:last-child { 
-                    border-right: none; 
-                }
+        .col { 
+            border-right: 1px solid #222; 
+            padding: 16px 18px; 
+            text-align: left;
+        }
 
-                .cat-name { 
-                    text-align: center; 
-                    font-size: 11.5px; 
-                    color: #777; 
-                    text-transform: uppercase; 
-                    letter-spacing: 1.5px;
-                    margin-bottom: 14px; 
-                    font-weight: bold;
-                    display: block;
+        .col:last-child { 
+            border-right: none; 
+        }
+
+        .cat-name { 
+            text-align: center; 
+            font-size: 11.5px; 
+            color: #777; 
+            text-transform: uppercase; 
+            letter-spacing: 1.5px;
+            margin-bottom: 14px; 
+            font-weight: bold;
+            display: block;
+        }
 
 
+                        /* ==================== БЛОК ОПЫТА И ВИТАЛЫ ==================== */
 
-                    .exp-container {
-    background: #111;
-    border: 1px solid #333;
-    padding: 16px;
-    border-radius: 8px;
-    margin-top: 18px;
-}
+        .exp-container {
+            background: #111;
+            border: 1px solid #333;
+            padding: 16px;
+            border-radius: 8px;
+            margin-top: 18px;
+        }
 
-.exp-title {
-    text-align: center;
-    font-size: 12px;
-    color: #777;
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    margin-bottom: 8px;
-}
+        .exp-title {
+            text-align: center;
+            font-size: 12px;
+            color: #777;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+        }
 
-#free-exp {
-    background: transparent;
-    border: none;
-    border-bottom: 2px solid var(--v-red);
-    color: #ffcc00;
-    font-size: 28px;
-    font-weight: bold;
-    text-align: center;
-    width: 100%;
-    padding: 4px 0;
-}
+        #free-exp {
+            background: transparent;
+            border: none;
+            border-bottom: 2px solid var(--v-red);
+            color: #ffcc00;
+            font-size: 28px;
+            font-weight: bold;
+            text-align: center;
+            width: 100%;
+            padding: 4px 0;
+        }
 
-#free-exp:focus {
-    outline: none;
-    border-color: #ff6666;
-}
-}
+        #free-exp:focus {
+            outline: none;
+            border-color: #ff6666;
+        }
+
+        /* ==================== ВИТАЛЫ ==================== */
         .vitals { 
             display: flex; 
             justify-content: space-around; 
@@ -208,17 +233,59 @@
             padding: 25px; 
             background: #080808; 
             border: 1px solid #333; 
+            border-radius: 8px;
         }
-        
-        
-        .row { display: flex; align-items: center; margin-bottom: 3px; min-height: 24px; gap: 20px; }
-        .label-group { display: flex; align-items: center; gap: 5px; font-size: 12.8px; flex: 1; }
-        .attr-name, .skill-name { font-size: 13px; flex: 1; cursor: help; }
-        
-        .s-badge { font-size: 10px; border: 1px solid #444; padding: 1px 4px; color: #444; cursor: pointer; font-weight: bold; min-width: 16px; text-align: center; }
-        input[type="checkbox"]:checked + .s-badge { color: var(--v-red); border-color: var(--v-red); }
-        
-                .dots { 
+
+        .row { 
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 3px; 
+            min-height: 24px; 
+            gap: 20px; 
+        }
+
+        .label-group { 
+            display: flex; 
+            align-items: center; 
+            gap: 5px; 
+            font-size: 12.8px; 
+            flex: 1; 
+        }
+
+        .attr-name, 
+        .skill-name { 
+            font-size: 13px; 
+            flex: 1; 
+            cursor: help; 
+        }
+
+        /* ==================== СПЕЦИАЛИЗАЦИИ И БАДЖИ ==================== */
+        .s-badge { 
+            font-size: 10px; 
+            border: 1px solid #444; 
+            padding: 1px 4px; 
+            color: #444; 
+            cursor: pointer; 
+            font-weight: bold; 
+            min-width: 16px; 
+            text-align: center; 
+        }
+
+        input[type="checkbox"]:checked + .s-badge { 
+            color: var(--v-red); 
+            border-color: var(--v-red); 
+        }
+
+        .s-badge.inactive {
+            color: #444 !important;
+            border-color: #444 !important;
+            cursor: not-allowed !important;
+            opacity: 0.6;
+            pointer-events: none !important;
+        }
+
+        /* ==================== ТОЧКИ ==================== */
+        .dots { 
             display: flex; 
             gap: 5px; 
             direction: rtl; 
@@ -226,14 +293,6 @@
             align-items: center; 
         }
 
-        .s-badge.inactive {
-    color: #444 !important;
-    border-color: #444 !important;
-    cursor: not-allowed !important;
-    opacity: 0.6;
-    pointer-events: none !important;
-}
-        .dots input { display: none; }
         .dots label {
             width: 16px; 
             height: 16px; 
@@ -243,112 +302,111 @@
             cursor: pointer; 
             transition: all 0.2s;
         }
+
         .dots input:checked ~ label { 
             background: var(--v-red); 
             border-color: var(--v-red); 
             box-shadow: 0 0 10px var(--v-red); 
         }
         
-     /* Большое красивое окно-подсказка */
-.tooltip-trigger:hover::after,
-.dot-label:hover::after,
-.vital-item div:hover::after {
-    content: attr(data-tooltip) !important;
-    position: absolute !important;
-    bottom: 160% !important;
-    left: 50% !important;
-    transform: translateX(-50%) !important;
-    background: #111111 !important;
-    color: #e0e0e0 !important;
-    padding: 16px 20px !important;
-    border: 2px solid #ff3131 !important;
-    border-radius: 8px !important;
-    font-size: 14px !important;
-    white-space: pre-line !important;
-    z-index: 10000 !important;
-    pointer-events: none !important;
-    box-shadow: 0 0 30px rgba(255, 49, 49, 0.5) !important;
-    max-width: 420px !important;
-    text-align: left !important;
-    line-height: 1.55 !important;
-}
-
-                        
-        .vitals { 
-            display: flex; 
-            justify-content: space-around; 
-            margin-top: 45px; 
-            padding: 25px; 
-            background: #080808; 
-            border: 1px solid #333; 
+           /* ==================== ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ ==================== */
+        .tooltip-trigger:hover::after,
+        .dot-label:hover::after,
+        .vital-item div:hover::after {
+            content: attr(data-tooltip) !important;
+            position: absolute !important;
+            bottom: 160% !important;
+            left: 50% !important;
+            transform: translateX(-50%) !important;
+            background: #111111 !important;
+            color: #e0e0e0 !important;
+            padding: 16px 20px !important;
+            border: 2px solid #ff3131 !important;
+            border-radius: 8px !important;
+            font-size: 14px !important;
+            white-space: pre-line !important;
+            z-index: 10000 !important;
+            pointer-events: none !important;
+            box-shadow: 0 0 30px rgba(255, 49, 49, 0.5) !important;
+            max-width: 420px !important;
+            text-align: left !important;
+            line-height: 1.55 !important;
         }
-        .vital-item { text-align: center; }
+
+        /* ==================== ВИТАЛЫ ==================== */
+        .vital-item { 
+            text-align: center; 
+        }
+
         .vital-item span { 
             display: block; 
             font-size: 11px; 
             color: #666; 
             margin-bottom: 6px; 
         }
+
         .vital-item div { 
             font-size: 32px; 
             color: var(--v-red); 
             font-weight: bold; 
         }
-        
+
+        /* ==================== ДИСЦИПЛИНЫ ==================== */
         .discipline-item {
-    display: flex;
-    align-items: center;
-    gap: 25px;
-    background: #111;
-    padding: 16px 20px;
-    border-radius: 8px;
-    margin-bottom: 12px;
-    border: 1px solid #222;
-    min-height: 58px;
-}
+            display: flex;
+            align-items: center;
+            gap: 25px;
+            background: #111;
+            padding: 16px 20px;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            border: 1px solid #222;
+            min-height: 58px;
+        }
 
-.discipline-item .dots-discipline {
-    display: flex;
-    gap: 9px;           /* увеличил расстояние между точками */
-    align-items: center;
-    flex-shrink: 0;
-    padding: 4px 0;
-}
+        .discipline-item .dots-discipline {
+            display: flex;
+            gap: 9px;
+            align-items: center;
+            flex-shrink: 0;
+            padding: 4px 0;
+        }
 
-.discipline-item .disc-dot {
-  width: 16px; 
+        .discipline-item .disc-dot {
+            width: 16px; 
             height: 16px; 
             border-radius: 50%; 
             border: 2px solid #555; 
             background: #111; 
             cursor: pointer; 
             transition: all 0.2s;
-}
+        }
 
-.discipline-item .disc-dot.filled {
+        .discipline-item .disc-dot.filled {
             background: var(--v-red); 
             border-color: var(--v-red); 
             box-shadow: 0 0 10px var(--v-red); 
-}
+        }
 
-/* Название */
-.discipline-item > div:first-child {
-    flex: 1;
-    font-size: 16.5px;
-    color: #eee;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
+        /* Название дисциплины */
+        .discipline-item > div:first-child {
+            flex: 1;
+            font-size: 16.5px;
+            color: #eee;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
 
-/* Источник */
-.discipline-item small {
-    color: #777;
-    font-size: 13.5px;
-    min-width: 65px;
-    text-align: right;
-}
-        
+        /* Источник дисциплины */
+        .discipline-item small {
+            color: #777;
+            font-size: 13.5px;
+            min-width: 65px;
+            text-align: right;
+        }
+
+        /* ==================== КНОПКА СОХРАНЕНИЯ ==================== */
         #btn-save { 
             background: transparent; 
             color: var(--v-red); 
@@ -358,8 +416,15 @@
             margin-top: 35px; 
             cursor: pointer; 
             font-weight: bold; 
+            border-radius: 6px;
+            transition: all 0.2s;
         }
-        
+
+        #btn-save:hover {
+            background: rgba(255, 49, 49, 0.1);
+        }
+
+        /* ==================== СПЕЦИАЛИЗАЦИИ ==================== */
         .skill-specs { 
             margin-left: 38px; 
             margin-top: 4px; 
@@ -367,11 +432,13 @@
             flex-direction: column; 
             gap: 4px; 
         }
+
         .skill-spec-line { 
             display: flex; 
             align-items: center; 
             gap: 6px; 
         }
+
         .skill-spec-line input { 
             background: transparent; 
             border: none; 
@@ -381,7 +448,8 @@
             padding: 2px 4px; 
             width: 150px; 
         }
-  
+
+        /* ==================== ИКОНКА КЛАНА ==================== */
         .clan-icon {
             width: 36px;
             height: 36px;
@@ -390,144 +458,188 @@
             border-radius: 4px;
         }
 
-        /* Красивый кастомный select для всей страницы */
-select {
-    background: #000000 !important;
-    color: #ddd !important;
-    border: 1px solid #606060 !important;
-    border-radius: 4px !important;
-    padding: 8px 12px !important;
-    font-size: 17px !important;
-    appearance: none !important;
-    -webkit-appearance: none !important;
-    -moz-appearance: none !important;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23ff3131' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.025 2.345 4 3.204 4h9.592c.86 0 1.32 1.025.753 1.658L8.753 11.14a.5.5 0 01-.706 0z'/%3E%3C/svg%3E") !important;
-    background-repeat: no-repeat !important;
-    background-position: right 12px center !important;
-}
-
-select option {
-    background: #111;
-    color: #ddd;
-    padding: 8px;
-}
-
-
-.add-power-btn:hover {
-    background: #ff5e5e !important;
-    transform: scale(1.15);
-}
 
 
 
+              /* ==================== КАСТОМНЫЙ SELECT ==================== */
+        select {
+            background: #000000 !important;
+            color: #ddd !important;
+            border: 1px solid #606060 !important;
+            border-radius: 4px !important;
+            padding: 8px 12px !important;
+            font-size: 17px !important;
+            appearance: none !important;
+            -webkit-appearance: none !important;
+            -moz-appearance: none !important;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%23ff3131' viewBox='0 0 16 16'%3E%3Cpath d='M7.247 11.14L2.451 5.658C1.885 5.025 2.345 4 3.204 4h9.592c.86 0 1.32 1.025.753 1.658L8.753 11.14a.5.5 0 01-.706 0z'/%3E%3C/svg%3E") !important;
+            background-repeat: no-repeat !important;
+            background-position: right 12px center !important;
+        }
 
-/* Поколение и Тип */
-.generation-select {
-    background: transparent;
-    color: white;
-    border: none;
-    border-bottom: 1px solid #333;
-    font-size: 17px;
-    padding: 6px 0;
-    width: 100%;
-}
+        select option {
+            background: #111;
+            color: #ddd;
+            padding: 8px;
+        }
 
-.type-select {
-    background: transparent;
-    color: white;
-    border: none;
-    border-bottom: 1px solid #333;
-    font-size: 17px;
-    padding: 6px 0;
-    width: 100%;
-}
+        /* ==================== КНОПКА ДОБАВЛЕНИЯ СИЛ ==================== */
+        .add-power-btn:hover {
+            background: #ff5e5e !important;
+            transform: scale(1.15);
+        }
 
-.header-label {
-    font-size: 11px;
-    color: #666;
-    text-transform: uppercase;
-    margin-bottom: 4px;
-    display: block;
-}
-  
+        /* ==================== ПОКОЛЕНИЕ И ТИП ==================== */
+        .generation-select,
+        .type-select {
+            background: transparent;
+            color: white;
+            border: none;
+            border-bottom: 1px solid #333;
+            font-size: 17px;
+            padding: 6px 0;
+            width: 100%;
+        }
 
-/* Сила Крови */
-.blood-potency {
-    font-size: 28px;
-    font-weight: bold;
-    color: var(--v-red);
-    text-align: center;
-    margin: 8px 0 4px;
-}
+        .header-label {
+            font-size: 11px;
+            color: #666;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+            display: block;
+        }
 
-#generation-hint-box {
-    background: #1a1a1a;
-    border: 1px solid var(--v-red);
-    padding: 18px 20px;
-    border-radius: 6px;
-    display: none;
-    max-height: 520px;
-    overflow-y: auto;
-    line-height: 1.5;
-    font-size: 14px;
-}
+        /* ==================== СИЛА КРОВИ ==================== */
+        .blood-potency {
+            font-size: 28px;
+            font-weight: bold;
+            color: var(--v-red);
+            text-align: center;
+            margin: 8px 0 4px;
+        }
 
-#generation-hint-box strong {
-    color: #ffcc00;
-}
+        /* ==================== ХИНТЫ И ПОДСКАЗКИ ==================== */
+        #generation-hint-box {
+            background: #1a1a1a;
+            border: 1px solid var(--v-red);
+            padding: 18px 20px;
+            border-radius: 6px;
+            display: none;
+            max-height: 520px;
+            overflow-y: auto;
+            line-height: 1.5;
+            font-size: 14px;
+        }
+
+        #generation-hint-box strong {
+            color: #ffcc00;
+        }
+
+        .hint-box {
+            background: #1a1a1a;
+            border: 1px solid var(--v-red);
+            padding: 14px 18px;
+            border-radius: 6px;
+            margin-bottom: 12px;
+            position: relative;
+        }
+
+        .hint-box.collapsed .hint-content {
+            display: none;
+        }
+
+        .hint-box .hint-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            cursor: pointer;
+            font-size: 15px;
+        }
+
+        .hint-box .hint-header strong {
+            color: #ff3131;
+        }
+
+        .hint-box .toggle-btn {
+            font-size: 18px;
+            transition: transform 0.25s;
+        }
+
+        .hint-box.collapsed .toggle-btn {
+            transform: rotate(-90deg);
+        }
+
+        /* ==================== ОБЩИЕ ОГРАНИЧЕНИЯ ==================== */
+        * {
+            box-sizing: border-box;
+        }
+
+        .grid, 
+        .header-row, 
+        .vitals, 
+        .discipline-item {
+            max-width: 100%;
+        }
+
+        input, 
+        select, 
+        button {
+            max-width: 100%;
+        }
+
+        /* ==================== ТОЧКИ ЗА ОПЫТ (ОРАНЖЕВЫЕ) ==================== */
+        /* Базовая подсветка */
+        .exp-purchased {
+            color: #ff9500 !important;
+            font-weight: bold;
+        }
+
+        /* Основные оранжевые точки */
+        .dot.exp-purchased,
+        input[type="radio"]:checked + label .dot.exp-purchased,
+        .exp-purchased .dot,
+        .exp-purchased label,
+        .dots input:checked ~ label.exp-purchased {
+            background-color: #ff9500 !important;
+            border-color: #ffb733 !important;
+            box-shadow: 0 0 12px #ffaa00 !important;
+            filter: brightness(1.15) !important;
+        }
+
+        /* Подсветка всей строки */
+        .attribute-row.exp-purchased,
+        .skill-row.exp-purchased,
+        label.exp-purchased {
+            color: #ffcc66 !important;
+        }
 
 
+        /* ==================== МОДАЛЬНОЕ ОКНО ==================== */
+        .modal-btn {
+            padding: 16px;
+            font-size: 15px;
+            background: #222;
+            color: white;
+            border: 1px solid #555;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
 
-.hint-box {
-    background: #1a1a1a;
-    border: 1px solid var(--v-red);
-    padding: 14px 18px;
-    border-radius: 6px;
-    margin-bottom: 12px;
-    position: relative;
-}
+        .modal-btn:hover { 
+            background: #ff3131; 
+            border-color: #ff3131; 
+            transform: translateY(-1px);
+        }
 
-.hint-box.collapsed .hint-content {
-    display: none;
-}
+        /* ==================== ГЛОБАЛЬНЫЕ ПРАВИЛА ==================== */
+        * { 
+            box-sizing: border-box; 
+        }
 
-.hint-box .hint-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    font-size: 15px;
-}
-
-.hint-box .hint-header strong {
-    color: #ff3131;
-}
-
-.hint-box .toggle-btn {
-    font-size: 18px;
-    transition: transform 0.25s;
-}
-
-.hint-box.collapsed .toggle-btn {
-    transform: rotate(-90deg);
-}
-
-
-
-* {
-    box-sizing: border-box;
-}
-
-.grid, .header-row, .vitals, .discipline-item {
-    max-width: 100%;
-}
-
-input, select, button {
-    max-width: 100%;
-}
-
-* { box-sizing: border-box; }
-        .sheet * { max-width: 100%; }
+        .sheet * { 
+            max-width: 100%; 
+        }
   </style>
 </head>
 
@@ -562,6 +674,21 @@ input, select, button {
         <div id="exp-bonus-info" style="text-align:center; margin-top:8px; font-size:13px; color:#777;">
             Бонус от типа персонажа
         </div>
+
+
+        <!-- ТРАТА ОПЫТА -->
+<div class="exp-spend-container" style="margin-top:20px; background:#111; padding:18px; border:1px solid #444; border-radius:8px;">
+    <h3 style="color:#ff3131; text-align:center; margin:0 0 15px 0;">Трата Опыта</h3>
+    
+   <button onclick="openExpModal()" 
+        style="margin-top:15px; padding:14px 24px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:8px; cursor:pointer; width:100%;">
+    Магазин опыта
+</button>
+    <div id="exp-log" style="margin-top:12px; font-size:13px; color:#aaa; max-height:160px; overflow-y:auto; line-height:1.4;"></div>
+</div>
+
+
+        
     </div>
         </div>
 
@@ -747,10 +874,10 @@ input, select, button {
 </div>
 </div>
 
+<!-- Правая панель -->
 <div class="right-panel">
 
-<!-- Правая панель -->
-        <div class="right-panel">
+
 
    <button onclick="loginWithGoogle()" class="google-btn">
     <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/3/3c/Google_Favicon_2025.svg/1920px-Google_Favicon_2025.svg.png" width="18" height="18" alt="Google">
@@ -821,7 +948,36 @@ input, select, button {
         <div id="predator-gallery" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px;"></div>
     </div>
 </div>
-</div>
+
+
+
+<!-- МОДАЛЬНОЕ ОКНО ТРАТЫ ОПЫТА -->
+<div id="exp-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; align-items:center; justify-content:center;">
+    <div style="background:#1a1a1a; width:90%; max-width:820px; border-radius:12px; padding:25px; border:2px solid #ff3131; color:#eee; max-height:92vh; overflow-y:auto;">
+        <h2 style="text-align:center; color:#ff3131; margin-top:0;">💰 Трата Опыта</h2>
+        
+        <table style="width:100%; border-collapse:collapse; margin:20px 0;">
+            <tr style="background:#222;"><th style="padding:10px; text-align:left;">Что повышаем</th><th style="padding:10px;">Множитель</th><th style="padding:10px;">Формула</th></tr>
+            <tr><td>Характеристика</td><td>×5</td><td>1+2+3+...+N</td></tr>
+            <tr><td>Навык</td><td>×3</td><td>1+2+3+...+N</td></tr>
+            <tr><td>Специализация</td><td>—</td><td>3 XP</td></tr>
+            <tr><td>Преимущество</td><td>×3</td><td>за каждый пункт</td></tr>
+            <tr><td>Клановая Дисциплина</td><td>×5</td><td>1+2+3+...+N</td></tr>
+            <tr><td>Сторонняя Дисциплина</td><td>×7</td><td>1+2+3+...+N</td></tr>
+        </table>
+
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:20px;">
+            <button onclick="spendModalAttribute()" class="modal-btn">Характеристика</button>
+            <button onclick="spendModalSkill()" class="modal-btn">Навык</button>
+            <button onclick="spendModalSpecialty()" class="modal-btn">Специализация (3 XP)</button>
+            <button onclick="spendModalMerit()" class="modal-btn">Преимущество</button>
+            <button onclick="spendModalDiscipline()" class="modal-btn" style="grid-column: span 2;">Дисциплина</button>
+        </div>
+
+        <div id="modal-log" style="margin-top:20px; background:#111; padding:12px; border-radius:6px; min-height:80px; font-size:14px;"></div>
+
+        <button onclick="closeExpModal()" style="margin-top:20px; padding:12px 30px; background:#333; border:none; color:white; border-radius:8px; float:right;">Закрыть</button>
+    </div>
 
 
 
