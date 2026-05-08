@@ -44,27 +44,52 @@ async function loadRules() {
 // Запускаем загрузку при старте
 window.addEventListener('load', () => {
     loadRules().then(() => {
-        await initSupabase();
-        setupSupabaseButtons();
-        setupSaveButton();
         renderDisciplines();        // ← добавь эту строку
         preloadAllSkills();
         preloadAllAttributes();
+        await initSupabase();
+        setupSupabaseButtons();
+        setupSaveButton();
     });
     setupEventListeners();
 });
-// ==================== ИНИЦИАЛИЗАЦИЯ ====================
-function initSheet() {
-    populateSelects();
-    renderAttributes();
-    renderSkills();
-    updateTrackers();
-    preloadAllAttributes();
-    preloadAllSkills();
+// ==================== ЗАПУСК ====================
 
-        console.log("Тест точек:", document.querySelectorAll('.dot-label').length);
+async function initializeApp() {
+    try {
+        console.log("🚀 Инициализация приложения...");
 
+        await loadRules();
+        
+        // Ждём, пока RULES загрузятся и DOM готов
+        await new Promise(r => setTimeout(r, 100));
+
+        preloadAllSkills();
+        preloadAllAttributes();
+        renderDisciplines();
+        renderSkills();
+        renderAttributes();
+        setupEventListeners();
+
+        // Supabase + JPG
+        await initSupabase();
+        setupSupabaseButtons();
+        setupSaveButton();
+
+        // Дополнительные настройки
+        setupGenerationHint();
+        setupExperienceListener();
+        updateBloodPotencyAndBonuses();
+        updateExperienceBonus();
+
+        console.log("✅ Приложение полностью инициализировано");
+    } catch (err) {
+        console.error("❌ Ошибка инициализации:", err);
+    }
 }
+
+// Один единственный load listener
+window.addEventListener('load', initializeApp);
 
 function populateSelects() {
     // === КЛАНЫ ===
@@ -1746,85 +1771,7 @@ async function preloadAllAttributes() {
 
 
 
-// ==================== СОХРАНЕНИЕ В JPG ====================
 
-document.getElementById('btn-save').addEventListener('click', function() {
-    const area = document.getElementById('capture-area');
-    const charName = document.getElementById('char-name').value.trim() || 'Kindred';
-    
-    const btn = this;
-    const originalText = btn.textContent;
-    
-    btn.textContent = 'Генерируем картинку...';
-    btn.disabled = true;
-
-    // Фикс специальностей перед захватом
-    const specContainers = area.querySelectorAll('.skill-specs');
-    specContainers.forEach(container => {
-        if (container.children.length > 0) {
-            container.style.display = 'flex';
-            container.style.flexDirection = 'column';
-            container.style.minHeight = container.scrollHeight + 'px';
-            container.style.overflow = 'visible';
-        }
-    });
-
-    setTimeout(() => {
-        html2canvas(area, {
-            scale: 3,                    // высокое качество
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#000000',
-            logging: false,
-            width: area.offsetWidth,
-            height: area.offsetHeight + 50,
-
-            onclone: (clonedDoc) => {
-                // Финальная подготовка специальностей в клоне
-                const clonedSpecs = clonedDoc.querySelectorAll('.skill-specs');
-                clonedSpecs.forEach(container => {
-                    if (container.children.length > 0) {
-                        container.style.display = 'flex';
-                        container.style.flexDirection = 'column';
-                        container.style.height = 'auto';
-                        container.style.minHeight = container.scrollHeight + 'px';
-                    }
-                });
-
-                // Превращаем input'ы специальностей в текст
-                clonedDoc.querySelectorAll('.skill-spec-line input').forEach(input => {
-                    if (input.value.trim()) {
-                        const span = clonedDoc.createElement('span');
-                        span.textContent = input.value.trim();
-                        span.style.cssText = `
-                            color: #ccc;
-                            font-size: 12.5px;
-                            border-bottom: 1px solid #555;
-                            padding: 2px 4px;
-                            display: inline-block;
-                            min-width: 160px;
-                        `;
-                        input.parentNode.replaceChild(span, input);
-                    }
-                });
-            }
-        }).then(canvas => {
-            const link = document.createElement('a');
-            link.download = `V5_Sheet_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.jpg`;
-            link.href = canvas.toDataURL('image/jpeg', 0.95);
-            link.click();
-
-            // Возвращаем кнопку в исходное состояние
-            btn.textContent = originalText;
-            btn.disabled = false;
-        }).catch(err => {
-            console.error("Ошибка html2canvas:", err);
-            alert("Не удалось создать изображение.");
-            btn.textContent = originalText;
-            btn.disabled = false;
-        });
-    }, 100);
-});
 
 // ==================== СПЕЦИАЛИЗАЦИИ ОТ ОХОТЫ ====================
 let currentPredatorSpecialty = null;
@@ -3008,8 +2955,8 @@ async function initSupabase() {
 
     try {
         supabaseClient = supabase.createClient(
-            'https://твой-проект.supabase.co',           // ← Замени
-            'твой_anon_key'                              // ← Замени
+            'https://klhxbaagarqxaqnrvurr.supabase.co',           // ← Замени
+            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaHhiYWFnYXJxeGFxbnJ2dXJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzkwNjAsImV4cCI6MjA5MzY1NTA2MH0.Cy2496DJgJhqZkERL9h19FkiiTfkcW2pauPaJU5r5oY'                              // ← Замени
         );
         console.log('✅ Supabase инициализирован');
         return true;
