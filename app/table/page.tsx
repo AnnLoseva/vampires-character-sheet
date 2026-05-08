@@ -10,8 +10,7 @@ export default function Home() {
         <div className="space-y-6 max-w-md mx-auto">
           <Link
             href="/old"
-            className="block w-full py-6 bg-red-700 hover:bg-red-600 rounded-3xl text-2xl font-medium transition"
-          >
+                    className="block w-full py-6 bg-red-700 hover:bg-red-600 rounded-3xl text-2xl font-medium transition text-center"          >
             ✍️ Создать / Редактировать персонажа
           </Link>
 

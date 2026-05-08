@@ -8,6 +8,47 @@
 
 
     <style>
+/* Возвращаем оригинальную ширину и центрирование */
+  html, body {
+    margin: 0 !important;
+    padding: 0 !important;
+    background: #0a0a0a !important;
+    height: 100vh !important;
+    overflow: auto !important;
+  }
+
+  .main-container {
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+    padding: 20px 10px;
+    min-height: 100vh;
+  }
+
+  .sheet {
+    width: 980px !important;        /* твоя оригинальная ширина */
+    max-width: 980px !important;
+    margin: 0 auto !important;
+    background: #000 !important;
+    padding: 35px 40px !important;
+  }
+
+  /* Красный скроллбар */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: #111;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #991b1b;
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #ff3131;
+  }
+
     :root { 
             --v-red: #ff3131; 
             --v-grey: #2a2a2a; 
