@@ -2981,3 +2981,106 @@ function setupSupabaseButtons() {
 }
 
 
+// ==================== SUPABASE: СОХРАНЕНИЕ И ЗАГРУЗКА ====================
+
+async function saveCharacter() {
+    if (!supabaseClient) {
+        alert("Supabase не подключён");
+        return;
+    }
+
+    const characterData = getCurrentCharacterData(); // ← нужно будет сделать эту функцию
+
+    try {
+        const { error } = await supabaseClient
+            .from('characters')
+            .upsert({
+                id: characterData.id || crypto.randomUUID(),
+                name: characterData.name,
+                clan: characterData.clan,
+                data: characterData,
+                updated_at: new Date().toISOString()
+            });
+
+        if (error) throw error;
+        alert("✅ Персонаж успешно сохранён в Личный кабинет!");
+    } catch (err) {
+        console.error(err);
+        alert("❌ Ошибка сохранения: " + err.message);
+    }
+}
+
+async function showMyCharacters() {
+    if (!supabaseClient) {
+        alert("Supabase не подключён");
+        return;
+    }
+
+    try {
+        const { data, error } = await supabaseClient
+            .from('characters')
+            .select('*')
+            .order('updated_at', { ascending: false });
+
+        if (error) throw error;
+
+        if (!data || data.length === 0) {
+            alert("У тебя пока нет сохранённых персонажей");
+            return;
+        }
+
+        let text = "📋 Твои персонажи:\n\n";
+        data.forEach((ch, i) => {
+            text += `${i+1}. ${ch.name || 'Без имени'} (${ch.clan || '—'}) — ${new Date(ch.updated_at).toLocaleDateString()}\n`;
+        });
+
+        alert(text);
+        // Позже можно сделать красивое модальное окно
+    } catch (err) {
+        console.error(err);
+        alert("❌ Ошибка загрузки списка");
+    }
+}
+
+// Вспомогательная функция — собирает все данные персонажа
+function getCurrentCharacterData() {
+    return {
+        id: document.getElementById('char-id')?.value || '',
+        name: document.getElementById('char-name')?.value || 'Без имени',
+        clan: document.getElementById('clan-name')?.textContent || '',
+        // можно добавить больше полей позже
+    };
+}
+
+// ==================== GOOGLE LOGIN ====================
+
+async function loginWithGoogle() {
+    if (!supabaseClient) {
+        alert("Supabase ещё не подключён");
+        return;
+    }
+
+    try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+                redirectTo: window.location.origin + '/old',   // после входа вернёт обратно
+            }
+        });
+
+        if (error) throw error;
+    } catch (err) {
+        console.error(err);
+        alert("Ошибка входа через Google: " + err.message);
+    }
+}
+
+// Слушаем изменение сессии (чтобы понять, что пользователь вошёл)
+supabaseClient.auth.onAuthStateChange((event, session) => {
+    console.log('🔐 Auth event:', event, session?.user?.email);
+
+    if (event === 'SIGNED_IN') {
+        alert(`Добро пожаловать, ${session.user.user_metadata.full_name || session.user.email}!`);
+        // Можно обновить UI, показать имя пользователя и т.д.
+    }
+});
