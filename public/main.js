@@ -33,13 +33,18 @@ async function loadRules() {
     } catch (err) {
         console.error('❌ Ошибка загрузки rules.json:', err);
         alert('Не удалось загрузить rules.json');
+        return;
     }
 
-    // Инициализация
-    preloadAllSkills();      // ← обязательно
-    preloadAllAttributes();  // ← обязательно
+    // ←←← ИСПРАВЛЕНИЕ: сначала рендерим, потом заполняем подсказки
     renderAttributes();
     renderSkills();
+
+    await new Promise(r => setTimeout(r, 50)); // маленький таймаут
+
+    preloadAllSkills();
+    preloadAllAttributes();
+
     populateSelects();
 }
 // ==================== ЗАПУСК ====================
@@ -55,8 +60,6 @@ async function initializeApp() {
 
        
         renderDisciplines();
-        renderSkills();
-        renderAttributes();
         setupEventListeners();
 
         // Supabase + JPG
