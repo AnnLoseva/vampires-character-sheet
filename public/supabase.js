@@ -1,4 +1,4 @@
-// supabase.js — Полная версия с динамической кнопкой + исправленные дисциплины
+// ==================== ПРОСТАЯ АВТОРИЗАЦИЯ (username + password) ====================
 
 const SUPABASE_URL = 'https://klhxbaagarqxaqnrvurr.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaHhiYWFnYXJxeGFxbnJ2dXJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzkwNjAsImV4cCI6MjA5MzY1NTA2MH0.Cy2496DJgJhqZkERL9h19FkiiTfkcW2pauPaJU5r5oY';
@@ -7,315 +7,215 @@ let supabaseClient = null;
 let currentUser = null;
 
 function initSupabase() {
-    if (typeof supabase !== 'undefined') {
-        supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-        console.log("✅ Supabase подключён");
-        checkUserSession();
-        return true;
-    }
-    return false;
+    if (supabaseClient) return;
+    
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    console.log("✅ Supabase подключён (простая авторизация)");
+    checkUserSession();
 }
 
 async function checkUserSession() {
-    if (!supabaseClient) return;
-    const { data: { session } } = await supabaseClient.auth.getSession();
-    currentUser = session?.user || null;
+    // Можно добавить сохранение в localStorage позже
     updateAuthButton();
 }
 
-// ==================== ДИНАМИЧЕСКАЯ КНОПКА ====================
+// ==================== UI КНОПКИ ====================
 function updateAuthButton() {
-    const btn = document.getElementById('google-btn');
+    const btn = document.getElementById('auth-btn');
     if (!btn) return;
 
     if (currentUser) {
-        btn.innerHTML = `👤 ${currentUser.email.split('@')[0]}<br><small style="opacity:0.7">Выйти</small>`;
-        btn.style.background = '#333';
-        btn.onclick = logout;
+        btn.innerHTML = `👤 ${currentUser.username}<br><small onclick="logout()" style="cursor:pointer">Выйти</small>`;
+        btn.style.background = '#28a745';
     } else {
-        btn.textContent = '🔑 Войти через Google';
-        btn.style.background = '#4285F4';
-        btn.onclick = loginWithGoogle;
+        btn.textContent = '🔑 Войти в аккаунт';
+        btn.style.background = '#ff3131';
+        btn.onclick = showAuthModal;
     }
 }
-function loginWithGoogle() {
-    supabaseClient.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.href }
-    });
-}
 
-async function logout() {
-    await supabaseClient.auth.signOut();
-    currentUser = null;
-    updateAuthButton();
-    alert("👋 Вы вышли");
-}
-
-// ==================== ПОЛНОЕ СОХРАНЕНИЕ ====================
-function getFullCharacterData() {
-    const data = {
-        version: "1.0.18",
-        timestamp: new Date().toISOString(),
-        name: document.getElementById('char-name').value.trim() || "Без имени",
-        clan: document.getElementById('clan-input')?.value || "",
-        predator: document.getElementById('predator-input')?.value || "",
-        skillPackage: document.getElementById('skill-package').value,
-        attributes: {},
-        skills: {},
-        disciplines: JSON.parse(JSON.stringify(disciplineSources || {})),   // глубокая копия
-        selectedPowers: JSON.parse(JSON.stringify(selectedPowers || {})),
-        merits: [...(selectedMerits || [])],
-        flaws: [...(selectedFlaws || [])]
-    };
-
-    // Атрибуты
-    document.querySelectorAll('.dot-input[data-type="attr"]:checked').forEach(inp => {
-        if (+inp.value > 0) data.attributes[inp.name] = +inp.value;
-    });
-
-    // Навыки + специализации
-    document.querySelectorAll('.dot-input[data-type="skill"]:checked').forEach(inp => {
-        const val = +inp.value;
-        if (val > 0) {
-            const skillName = inp.name;
-            data.skills[skillName] = { dots: val, specs: [] };
-            const container = document.getElementById('specs-' + skillName);
-            if (container) {
-                container.querySelectorAll('input[type="text"]').forEach(s => {
-                    if (s.value.trim()) data.skills[skillName].specs.push(s.value.trim());
-                });
-            }
-        }
-    });
-
-    console.log("💾 Сохраняем дисциплины:", Object.keys(data.disciplines));
-    return data;
-}
-
-// ==================== ПОЛНАЯ ЗАГРУЗКА =====================
-function loadFullCharacter(d) {
-    console.log("🔄 Загружаем персонажа... Дисциплины:", Object.keys(d.disciplines || {}));
-
-    // Основная информация
-    if (d.name) document.getElementById('char-name').value = d.name;
-    if (d.clan) document.getElementById('clan-input').value = d.clan;
-    if (d.predator) document.getElementById('predator-input').value = d.predator;
-    if (d.skillPackage) document.getElementById('skill-package').value = d.skillPackage;
-
-    // Атрибуты
-    Object.keys(d.attributes || {}).forEach(name => {
-        const radio = document.querySelector(`input[name="${name}"][value="${d.attributes[name]}"]`);
-        if (radio) radio.checked = true;
-    });
-
-    // Навыки + специализации
-    Object.keys(d.skills || {}).forEach(skill => {
-        const s = d.skills[skill];
-        const radio = document.querySelector(`input[name="${skill}"][value="${s.dots}"]`);
-        if (radio) radio.checked = true;
-
-        const container = document.getElementById('specs-' + skill);
-        if (container && s.specs?.length) {
-            container.innerHTML = '';
-            container.style.display = 'flex';
-            document.getElementById('s-' + skill).checked = true;
-
-            s.specs.forEach(text => {
-                const line = document.createElement('div');
-                line.className = 'skill-spec-line';
-                line.innerHTML = `<input type="text" value="${text}" style="flex:1;"> 
-                                  <button>+</button><button>×</button>`;
-                container.appendChild(line);
-            });
-        }
-    });
-
-    // === ДИСЦИПЛИНЫ — ИСПРАВЛЕНИЕ ===
-    if (d.disciplines) {
-        disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
-    }
-    if (d.selectedPowers) {
-        selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
-    }
-
-    // Полная перерисовка
-    const list = document.getElementById('disciplines-list');
-    if (list) list.innerHTML = '';
-
-    // Главное исправление — вызываем полную перестройку
-    Object.keys(disciplineSources).forEach(name => {
-        const total = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
-        const sourcesText = Object.keys(disciplineSources[name]).join(" + ");
-        addDisciplineRow(name, total, sourcesText);
-    });
-
-    renderDisciplines();   // дополнительная перерисовка кнопок "+"
-    updateDisciplineTotal();
-
-    // Преимущества и недостатки
-    if (d.merits) selectedMerits = [...d.merits];
-    if (d.flaws) selectedFlaws = [...d.flaws];
-
-    renderSelectedMeritsFlaws();
-    updateTrackers();
-    updateVitals();
-
-    console.log("✅ Загрузка завершена. Дисциплины загружены:", Object.keys(disciplineSources));
-}
-
-// ==================== ЛИЧНЫЙ КАБИНЕТ ====================
-async function showMyCharacters() {
-    if (!currentUser) {
-        if (confirm("Войдите через Google"));
-        return;
-    }
-
-    const { data, error } = await supabaseClient
-        .from('characters')
-        .select('*')
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false });
-
-    if (error) return alert("Ошибка загрузки");
-    if (!data?.length) return alert("📭 У вас пока нет сохранённых персонажей");
-
-    let html = `
-    <div style="padding:20px;">
-        <h2 style="color:#ff3131; text-align:center; margin:0 0 20px 0;">📋 ЛИЧНЫЙ КАБИНЕТ</h2>
+// ==================== МОДАЛЬНОЕ ОКНО ====================
+function showAuthModal() {
+    const html = `
+    <div style="padding:35px; max-width:420px; margin:auto; background:#1a1a1a; border:3px solid #ff3131; border-radius:12px; color:#eee;">
+        <h2 style="text-align:center; color:#ff3131; margin:0 0 25px 0;">Вход / Регистрация</h2>
         
-        <table style="width:100%; border-collapse:collapse; background:#1a1a1a;">
-            <thead>
-                <tr style="background:#222;">
-                    <th style="padding:14px; text-align:left; width:45%;">Имя персонажа</th>
-                    <th style="padding:14px; text-align:center;">Дата</th>
-                    <th style="padding:14px; text-align:center; width:180px;">Действия</th>
-                </tr>
-            </thead>
-            <tbody>`;
-
-    data.forEach(char => {
-        const date = new Date(char.created_at).toLocaleDateString('ru-RU', { hour: '2-digit', minute: '2-digit' });
-        html += `
-            <tr style="border-bottom:1px solid #333;">
-                <td style="padding:14px; font-weight:500;">${char.name}</td>
-                <td style="padding:14px; color:#888; text-align:center;">${date}</td>
-                <td style="padding:14px; text-align:center;">
-                    <button onclick="loadCharacter('${char.id}');closeModal()" 
-                            style="background:#ff3131; color:white; border:none; padding:10px 16px; margin:0 4px; border-radius:6px; cursor:pointer; font-size:15px;">
-                        📥 Загрузить
-                    </button>
-                    <button onclick="deleteCharacter('${char.id}')" 
-                            style="background:#333; color:#ff6666; border:none; padding:10px 16px; margin:0 4px; border-radius:6px; cursor:pointer; font-size:15px;">
-                        🗑 Удалить
-                    </button>
-                </td>
-            </tr>`;
-    });
-
-    html += `</tbody></table>
-        <div style="text-align:center; margin-top:25px;">
-            <button onclick="closeModal()" style="padding:12px 32px; background:#444; color:white; border:none; border-radius:8px; font-size:16px; cursor:pointer;">
-                Закрыть
-            </button>
-        </div>
+        <input id="auth-username" type="text" placeholder="Имя пользователя" style="width:100%; padding:14px; margin:10px 0; background:#222; border:none; color:white; border-radius:6px;"><br>
+        <input id="auth-password" type="password" placeholder="Пароль" style="width:100%; padding:14px; margin:10px 0; background:#222; border:none; color:white; border-radius:6px;"><br>
+        
+        <button onclick="handleLogin()" style="width:100%; padding:15px; margin:12px 0 8px 0; background:#ff3131; color:white; border:none; border-radius:8px; font-size:16px;">Войти</button>
+        <button onclick="handleRegister()" style="width:100%; padding:15px; background:#444; color:white; border:none; border-radius:8px; font-size:16px;">Создать аккаунт</button>
+        
+        <button onclick="closeModal()" style="width:100%; margin-top:20px; padding:12px; background:transparent; color:#888; border:none;">Закрыть</button>
     </div>`;
 
     showModal(html);
 }
 
+// ==================== РЕГИСТРАЦИЯ ====================
+window.handleRegister = async () => {
+    const username = document.getElementById('auth-username').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
+
+    if (!username || username.length < 3) return alert("Имя пользователя минимум 3 символа");
+    if (password.length < 6) return alert("Пароль минимум 6 символов");
+
+    // Простой hash (для теста)
+    const passwordHash = btoa(password); // временно, потом заменим на нормальный
+
+    const { error } = await supabaseClient
+        .from('users')
+        .insert({ username, password_hash: passwordHash });
+
+    if (error) {
+        if (error.code === '23505') alert("Пользователь с таким именем уже существует");
+        else alert("Ошибка регистрации: " + error.message);
+    } else {
+        alert(`✅ Аккаунт создан!\nЛогин: ${username}`);
+        closeModal();
+    }
+};
+
+// ==================== ВХОД ====================
+window.handleLogin = async () => {
+    const username = document.getElementById('auth-username').value.trim();
+    const password = document.getElementById('auth-password').value.trim();
+
+    if (!username || !password) return alert("Введите логин и пароль");
+
+    const passwordHash = btoa(password);
+
+    const { data, error } = await supabaseClient
+        .from('users')
+        .select('*')
+        .eq('username', username)
+        .eq('password_hash', passwordHash)
+        .single();
+
+    if (error || !data) {
+        alert("❌ Неверный логин или пароль");
+    } else {
+        currentUser = data;
+        updateAuthButton();
+        closeModal();
+        alert(`✅ Добро пожаловать, ${username}!`);
+    }
+};
+
+async function logout() {
+    currentUser = null;
+    updateAuthButton();
+    alert("👋 Вы вышли");
+}
+
+// Модальное окно
 function showModal(html) {
-    let modal = document.getElementById('char-modal');
+    let modal = document.getElementById('auth-modal');
     if (!modal) {
         modal = document.createElement('div');
-        modal.id = 'char-modal';
-        modal.style.cssText = `position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:30000;display:flex;align-items:center;justify-content:center;`;
+        modal.id = 'auth-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:30000;display:flex;align-items:center;justify-content:center;';
         document.body.appendChild(modal);
     }
-    modal.innerHTML = `<div style="background:#0f0f0f;border:3px solid #ff3131;border-radius:12px;max-width:820px;width:92%;max-height:85vh;overflow:auto;">${html}</div>`;
+    modal.innerHTML = html;
     modal.style.display = 'flex';
 }
 
 window.closeModal = () => {
-    const m = document.getElementById('char-modal');
-    if (m) m.style.display = 'none';
+    const modal = document.getElementById('auth-modal');
+    if (modal) modal.style.display = 'none';
 };
 
+// Автозапуск
+window.addEventListener('load', () => setTimeout(initSupabase, 600)
+
+
+
+
+
+
+);
+
+
+// ==================== СОХРАНЕНИЕ ПЕРСОНАЖЕЙ ====================
 
 async function saveCharacter() {
-    if (!supabaseClient) return alert("Supabase не готов");
     if (!currentUser) {
-        if (confirm("Для сохранения нужно войти через Google")) loginWithGoogle();
+        alert("❌ Войдите в аккаунт, чтобы сохранить персонажа!");
+        showAuthModal();
         return;
     }
 
-    const fullData = getFullCharacterData();
+    const characterData = window.getFullCharacterData ? window.getFullCharacterData() : getFullCharacterData?.() || {};
 
-    const { error } = await supabaseClient.from('characters').insert({
-        user_id: currentUser.id,
-        name: fullData.name,
-        data: fullData
-    });
+    if (!characterData.name) characterData.name = "Без имени";
 
-    if (error) alert("❌ Ошибка: " + error.message);
-    else alert(`✅ "${fullData.name}" сохранён!`);
+    const { error } = await supabaseClient
+        .from('characters')
+        .insert({
+            user_id: currentUser.id,
+            name: characterData.name,
+            clan: characterData.clan || null,
+            data: characterData
+        });
+
+    if (error) {
+        console.error(error);
+        alert("❌ Ошибка сохранения:\n" + error.message);
+    } else {
+        alert(`✅ Персонаж "${characterData.name}" успешно сохранён!`);
+    }
 }
 
-
-// ==================== ЗАГРУЗКА ПЕРСОНАЖА ====================
-window.loadCharacter = async function(id) {
-    if (!supabaseClient) return alert("Supabase не готов");
+async function showMyCharacters() {
+    if (!currentUser) {
+        alert("❌ Войдите в аккаунт!");
+        showAuthModal();
+        return;
+    }
 
     const { data, error } = await supabaseClient
         .from('characters')
-        .select('data')
-        .eq('id', id)
-        .single();
+        .select('id, name, clan, created_at')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
 
-    if (error || !data?.data) {
+    if (error) {
         console.error(error);
-        return alert("Не удалось загрузить персонажа");
+        return alert("Ошибка загрузки списка");
     }
 
-    loadFullCharacter(data.data);
-    closeModal();
-    alert(`✅ Персонаж "${data.data.name}" успешно загружен!`);
-};
-
-
-
-
-window.deleteCharacter = async function(id) {
-    if (!confirm("Удалить этого персонажа навсегда?")) return;
-    
-    const { error } = await supabaseClient.from('characters').delete().eq('id', id);
-    if (error) alert("Ошибка удаления");
-    else {
-        alert("Персонаж удалён");
-        showMyCharacters(); // обновляем список
+    if (!data || data.length === 0) {
+        return alert("У вас пока нет сохранённых персонажей.");
     }
-};
 
-// Глобальные
-window.loginWithGoogle = loginWithGoogle;
+    let html = `<div style="padding:20px;">
+        <h2 style="color:#ff3131; text-align:center;">📋 Мои персонажи (${data.length})</h2>
+        <table style="width:100%; border-collapse:collapse; background:#111;">
+            <thead><tr style="background:#222;">
+                <th style="padding:12px; text-align:left;">Имя</th>
+                <th style="padding:12px; text-align:center;">Клан</th>
+                <th style="padding:12px; text-align:center;">Дата</th>
+                <th style="padding:12px; text-align:center;">Действия</th>
+            </tr></thead><tbody>`;
+
+    data.forEach(char => {
+        const date = new Date(char.created_at).toLocaleDateString('ru-RU');
+        html += `
+            <tr style="border-bottom:1px solid #333;">
+                <td style="padding:12px;">${char.name}</td>
+                <td style="padding:12px; text-align:center; color:#aaa;">${char.clan || '—'}</td>
+                <td style="padding:12px; text-align:center; color:#aaa;">${date}</td>
+                <td style="padding:12px; text-align:center;">
+                    <button onclick="loadCharacter('${char.id}');closeModal()" style="background:#ff3131; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer;">Загрузить</button>
+                </td>
+            </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+    showModal(html);
+}
+
+// Глобальные функции
 window.saveCharacter = saveCharacter;
 window.showMyCharacters = showMyCharacters;
-window.loadCharacter = loadCharacter;
-
-window.addEventListener('load', () => {
-    let i = 0;
-    const int = setInterval(() => { if (initSupabase() || ++i > 30) clearInterval(int); }, 250);
-});
-
-
-
-import { Tldraw } from 'tldraw'
-import { useEffect, useState } from 'react' // если перейдёшь на React
-
-// Supabase realtime channel
-const channel = supabase.channel('table-room')
-channel
-  .on('broadcast', { event: 'canvas-update' }, ({ payload }) => {
-    // применить изменения
-  })
-  .subscribe()

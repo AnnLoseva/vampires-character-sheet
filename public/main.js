@@ -62,11 +62,6 @@ async function initializeApp() {
         renderDisciplines();
         setupEventListeners();
 
-        // Supabase + JPG
-        await initSupabase();
-        setupSupabaseButtons();
-        setupSaveButton();
-
         // Дополнительные настройки
         setupGenerationHint();
         setupExperienceListener();
@@ -2831,102 +2826,6 @@ document.getElementById('type-input').addEventListener('change', updateExperienc
 
 
 
-// ==================== УЛУЧШЕННАЯ ГЕНЕРАЦИЯ JPG ====================
-async function generateSheetImage() {
-    const area = document.getElementById('capture-area');
-    const charName = (document.getElementById('char-name')?.value || 'Kindred').trim();
-    
-    const btn = document.getElementById('btn-save');
-    const originalText = btn?.textContent || 'Сохранить в JPG';
-    
-    if (btn) {
-        btn.textContent = 'Генерируем...';
-        btn.disabled = true;
-    }
-
-    try {
-        // Подготовка специальностей
-        const specContainers = area.querySelectorAll('.skill-specs');
-        specContainers.forEach(container => {
-            if (container.children.length > 0) {
-                container.style.display = 'flex';
-                container.style.flexDirection = 'column';
-                container.style.height = 'auto';
-            }
-        });
-
-        // Ждём рендер
-        await new Promise(r => setTimeout(r, 150));
-
-        const canvas = await html2canvas(area, {
-            scale: 3,
-            useCORS: true,
-            allowTaint: true,
-            backgroundColor: '#0a0a0a',
-            logging: false,
-            width: area.offsetWidth,
-            height: area.offsetHeight + 30,
-            onclone: (clonedDoc) => {
-                // Превращаем input'ы спецов в текст
-                clonedDoc.querySelectorAll('.skill-spec-line input').forEach(input => {
-                    if (input.value.trim()) {
-                        const span = clonedDoc.createElement('span');
-                        span.textContent = input.value.trim();
-                        span.style.cssText = `color:#ccc; font-size:13px; border-bottom:1px solid #555; padding:2px 6px;`;
-                        input.parentNode.replaceChild(span, input);
-                    }
-                });
-            }
-        });
-
-        // Скачивание
-        const link = document.createElement('a');
-        link.download = `V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.jpg`;
-        link.href = canvas.toDataURL('image/jpeg', 0.92);
-        link.click();
-
-    } catch (err) {
-        console.error("html2canvas error:", err);
-        alert("Ошибка генерации изображения. Убедись, что html2canvas подключён.");
-    } finally {
-        if (btn) {
-            btn.textContent = originalText;
-            btn.disabled = false;
-        }
-    }
-}
-
-// Привязываем кнопку
-function setupSaveButton() {
-    const btn = document.getElementById('btn-save');
-    if (btn) {
-        btn.addEventListener('click', generateSheetImage);
-        console.log('✅ Кнопка JPG привязана');
-    }
-}
-
-
-// ==================== SUPABASE ====================
-let supabaseClient = null;
-
-async function initSupabase() {
-    if (typeof supabase === 'undefined') {
-        console.warn("⚠️ Supabase SDK не подключён. Добавь в HTML: <script src='https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2'></script>");
-        return false;
-    }
-
-    try {
-        supabaseClient = supabase.createClient(
-            'https://klhxbaagarqxaqnrvurr.supabase.co',
-            'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaHhiYWFnYXJxeGFxbnJ2dXJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzkwNjAsImV4cCI6MjA5MzY1NTA2MH0.Cy2496DJgJhqZkERL9h19FkiiTfkcW2pauPaJU5r5oY'
-        );
-        console.log('✅ Supabase успешно подключён');
-        return true;
-    } catch (e) {
-        console.error('❌ Ошибка Supabase:', e);
-        return false;
-    }
-}
 
 // ==================== УЛУЧШЕННАЯ ГЕНЕРАЦИЯ JPG ====================
 async function generateSheetImage() {
@@ -2972,14 +2871,6 @@ function setupSaveButton() {
     const btn = document.getElementById('btn-save');
     if (btn) btn.addEventListener('click', generateSheetImage);
 }
-
-function setupSupabaseButtons() {
-    const saveBtn = document.getElementById('btn-save-supabase');
-    const loadBtn = document.getElementById('btn-load-supabase');
-    if (saveBtn) saveBtn.addEventListener('click', saveCharacter);
-    if (loadBtn) loadBtn.addEventListener('click', loadCharactersList);
-}
-
 
 // ==================== ТРАТА ОПЫТА — АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ УРОВНЯ ====================
 
