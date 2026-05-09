@@ -25,7 +25,7 @@ async function checkUserSession() {
 
 // ==================== ДИНАМИЧЕСКАЯ КНОПКА ====================
 function updateAuthButton() {
-    const btn = document.getElementById('auth-button');
+    const btn = document.getElementById('google-btn');
     if (!btn) return;
 
     if (currentUser) {
