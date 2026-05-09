@@ -1224,13 +1224,13 @@ async function showSinglePredator(pred) {
     if (data.advantages && data.advantages.length) {
         html += `<hr style="border-color:#333;margin:20px 0;">
                  <strong style="color:#ffcc00;">Преимущества:</strong><br>`;
-        data.advantages.forEach(a => html += `• ${typeof a === 'string' ? a : a.name || a}<br>`);
+        data.advantages.forEach(a => html += `• ${formatPredatorTraitLine(a, true)}<br>`);
     }
 
     if (data.disadvantages && data.disadvantages.length) {
         html += `<hr style="border-color:#333;margin:20px 0;">
                  <strong style="color:#ff6666;">Недостатки:</strong><br>`;
-        data.disadvantages.forEach(d => html += `• ${typeof d === 'string' ? d : d.name || d}<br>`);
+        data.disadvantages.forEach(d => html += `• ${formatPredatorTraitLine(d, false)}<br>`);
     }
 
     html += `</div>
@@ -1418,8 +1418,7 @@ function loadPredatorHint() {
         html += `<hr style="border-color:#333;margin:15px 0;">
                  <strong style="color:#ffcc00;">Преимущества:</strong><br>`;
         pred.advantages.forEach(a => {
-            const advName = typeof a === 'string' ? a : (a.name || a);
-            html += `• ${advName}<br>`;
+            html += `• ${formatPredatorTraitLine(a, true)}<br>`;
         });
     }
 
@@ -1428,8 +1427,7 @@ function loadPredatorHint() {
         html += `<hr style="border-color:#333;margin:15px 0;">
                  <strong style="color:#ff6666;">Недостатки:</strong><br>`;
         pred.disadvantages.forEach(d => {
-            const flawName = typeof d === 'string' ? d : (d.name || d);
-            html += `• ${flawName}<br>`;
+            html += `• ${formatPredatorTraitLine(d, false)}<br>`;
         });
     }
 
@@ -1792,6 +1790,91 @@ async function preloadAllAttributes() {
 // ==================== СПЕЦИАЛИЗАЦИИ ОТ ОХОТЫ ====================
 let currentPredatorSpecialty = null;
 
+function getTraitPoints(item) {
+    return item?.points ?? item?.dots ?? item?.точки ?? 0;
+}
+
+function findTraitDefinition(rawItem, isMerit) {
+    const source = isMerit
+        ? (RULES.advantages?.merits || {})
+        : (RULES.advantages?.flaws || RULES.flaws || {});
+    const rawCategory = rawItem?.category || rawItem?.категория || '';
+    const rawName = rawItem?.name || rawItem?.название_пункта || rawItem || '';
+    const rawVariant = rawItem?.variant || rawItem?.вариант || '';
+    const requestedPoints = getTraitPoints(rawItem);
+
+    const categories = Object.values(source);
+    const category = categories.find(cat => (cat.название || '').toLowerCase() === String(rawCategory).toLowerCase())
+        || categories.find(cat => (cat.варианты || []).some(v => (v.название_пункта || '').toLowerCase() === String(rawName).toLowerCase()));
+
+    if (!category) return null;
+
+    const variants = category.варианты || [];
+    const wantedName = rawVariant || rawName;
+    let variant = variants.find(v => (v.название_пункта || '').toLowerCase() === String(wantedName).toLowerCase());
+
+    if (!variant && requestedPoints > 0) {
+        variant = variants.find(v => (v.точки || 0) === requestedPoints);
+    }
+
+    if (!variant && rawCategory && String(rawName).toLowerCase() === String(rawCategory).toLowerCase()) {
+        variant = variants[0];
+    }
+
+    return variant ? { category, variant } : null;
+}
+
+function buildPredatorTrait(rawItem, isMerit, predName) {
+    const resolved = findTraitDefinition(rawItem, isMerit);
+    const category = resolved?.category;
+    const variant = resolved?.variant;
+    const details = rawItem?.details || rawItem?.уточнение || '';
+    const name = rawItem?.name || variant?.название_пункта || rawItem;
+    const points = getTraitPoints(rawItem) || variant?.точки || 0;
+
+    const descParts = [];
+    const baseDesc = rawItem?.desc || rawItem?.полное_описание || variant?.полное_описание || '';
+    if (baseDesc) descParts.push(baseDesc);
+    if (details) descParts.push(`<em>Уточнение от типа охоты:</em> ${details}`);
+
+    return {
+        category: rawItem?.category || category?.название || 'Стиль охоты',
+        categoryDesc: rawItem?.categoryDesc || category?.описание || '',
+        name,
+        points,
+        dots: points,
+        desc: descParts.join('<br><br>'),
+        mechanic: rawItem?.mechanic || rawItem?.механика || variant?.механика || '',
+        fromPredator: true,
+        predatorType: predName
+    };
+}
+
+function formatPredatorTraitLine(rawItem, isMerit) {
+    const resolved = findTraitDefinition(rawItem, isMerit);
+    const name = rawItem?.name || resolved?.variant?.название_пункта || rawItem;
+    const points = getTraitPoints(rawItem) || resolved?.variant?.точки || 0;
+    const details = rawItem?.details || rawItem?.уточнение || '';
+    return `${name}${points ? ` (${points})` : ''}${details ? ` — ${details}` : ''}`;
+}
+
+function addPredatorTraits(predName, predData) {
+    selectedMerits = selectedMerits.filter(item => !item.fromPredator);
+    selectedFlaws = selectedFlaws.filter(item => !item.fromPredator);
+
+    (predData.advantages || []).forEach(adv => {
+        const item = buildPredatorTrait(adv, true, predName);
+        const exists = selectedMerits.some(m => m.fromPredator && m.predatorType === predName && m.category === item.category && m.name === item.name);
+        if (!exists) selectedMerits.push(item);
+    });
+
+    (predData.disadvantages || []).forEach(dis => {
+        const item = buildPredatorTrait(dis, false, predName);
+        const exists = selectedFlaws.some(f => f.fromPredator && f.predatorType === predName && f.category === item.category && f.name === item.name);
+        if (!exists) selectedFlaws.push(item);
+    });
+}
+
 function applyPredatorType(predName) {
     console.log("🎯 Применяем стиль охоты:", predName);
 
@@ -1810,40 +1893,7 @@ function applyPredatorType(predName) {
     resetPredatorDisciplines();
     resetPredatorSpecialties();
 
-    // Удаляем старые пункты от охоты
-    selectedMerits = selectedMerits.filter(item => !item.fromPredator);
-    selectedFlaws = selectedFlaws.filter(item => !item.fromPredator);
-
-    // Добавляем новые
-    if (predData.advantages?.length) {
-        predData.advantages.forEach(adv => {
-            const name = typeof adv === 'string' ? adv : (adv.name || adv);
-            selectedMerits.push({
-                category: "Стиль Охоты",
-                name: name,
-                points: 0,
-                desc: `Бесплатно от «${predName}»`,
-                mechanic: "",
-                fromPredator: true,
-                predatorType: predName
-            });
-        });
-    }
-
-    if (predData.disadvantages?.length) {
-        predData.disadvantages.forEach(dis => {
-            const name = typeof dis === 'string' ? dis : (dis.name || dis);
-            selectedFlaws.push({
-                category: "Стиль Охоты",
-                name: name,
-                points: 0,
-                desc: `Бесплатно от «${predName}»`,
-                mechanic: "",
-                fromPredator: true,
-                predatorType: predName
-            });
-        });
-    }
+    addPredatorTraits(predName, predData);
 
     loadPredatorHint();
     renderSelectedMeritsFlaws();
@@ -1876,17 +1926,12 @@ function applyPredatorType(predName) {
         }
 
         if (hasPredItems) {
-            console.log("✅ Открываем окно преимуществ/недостатков");
-            showPredatorMeritsFlawsSelection(predName, predData);
+            console.log("✅ Преимущества/недостатки от охоты добавлены автоматически");
         }
 
-
-
-                    // После всех if (в конце applyPredatorType)
-            if (!hasSpecialty && !hasDisciplines && !hasPredItems) {
-                console.warn(`Стиль охоты ${predName} не имеет ни одной механики — показываем хотя бы окно merits/flaws`);
-                showPredatorMeritsFlawsSelection(predName, predData); // или alert
-}
+        if (!hasSpecialty && !hasDisciplines && !hasPredItems) {
+            console.warn(`Стиль охоты ${predName} не имеет дополнительных механик`);
+        }
     }, 250);
 }
 
@@ -2251,34 +2296,20 @@ function confirmPredatorSelection(predName) {
 
     // Преимущества
     document.querySelectorAll('.pred-adv:checked').forEach(cb => {
-        const name = cb.value;
+        const rawItem = predData.advantages?.[parseInt(cb.dataset.index, 10)] || cb.value;
+        const item = buildPredatorTrait(rawItem, true, predName);
         // Проверяем, нет ли уже (включая от охоты)
-        if (!selectedMerits.some(m => m.name === name)) {
-            selectedMerits.push({
-                category: "Стиль Охоты",
-                name: name,
-                points: 0,
-                desc: `Бесплатно от стиля охоты «${predName}»`,
-                mechanic: "",
-                fromPredator: true,
-                predatorType: predName
-            });
+        if (!selectedMerits.some(m => m.name === item.name && m.category === item.category)) {
+            selectedMerits.push(item);
         }
     });
 
     // Недостатки
     document.querySelectorAll('.pred-flaw:checked').forEach(cb => {
-        const name = cb.value;
-        if (!selectedFlaws.some(f => f.name === name)) {
-            selectedFlaws.push({
-                category: "Стиль Охоты",
-                name: name,
-                points: 0,
-                desc: `Бесплатно от стиля охоты «${predName}»`,
-                mechanic: "",
-                fromPredator: true,
-                predatorType: predName
-            });
+        const rawItem = predData.disadvantages?.[parseInt(cb.dataset.index, 10)] || cb.value;
+        const item = buildPredatorTrait(rawItem, false, predName);
+        if (!selectedFlaws.some(f => f.name === item.name && f.category === item.category)) {
+            selectedFlaws.push(item);
         }
     });
 
@@ -2294,14 +2325,14 @@ function renderSelectedMeritsFlaws() {
     const meritsContainer = document.getElementById('selected-merits-list');
     meritsContainer.innerHTML = '';
     selectedMerits.forEach((item, index) => {
-        if (!item.fromPredator) totalMerits += item.points || 0;
+        if (!item.fromPredator) totalMerits += getTraitPoints(item);
         meritsContainer.appendChild(createSelectedItem(item, index, true));
     });
 
     const flawsContainer = document.getElementById('selected-flaws-list');
     flawsContainer.innerHTML = '';
     selectedFlaws.forEach((item, index) => {
-        if (!item.fromPredator) totalFlaws += item.points || 0;
+        if (!item.fromPredator) totalFlaws += getTraitPoints(item);
         flawsContainer.appendChild(createSelectedItem(item, index, false));
     });
 
@@ -2334,7 +2365,7 @@ function renderDots(containerId, points, isMerit) {
 }
 
 function createSelectedItem(item, index, isMerit) {
-    const points = item.points || item.точки || 0;
+    const points = getTraitPoints(item);
     const isFromPredator = item.fromPredator === true;
     const categoryName = item.category || '';
     let displayName = item.name || item.название_пункта || '';
@@ -2346,21 +2377,20 @@ function createSelectedItem(item, index, isMerit) {
     const maxDots = 5;
     let dotsHTML = '';
 
-        if (isFromPredator) {
-        dotsHTML = `
+    for (let i = 1; i <= maxDots; i++) {
+        dotsHTML += `
+            <div style="width:18px; height:18px; border-radius:50%; 
+                        background: ${i <= points ? '#ff3131' : '#333'}; 
+                        border: 2px solid ${i <= points ? '#ff6666' : '#555'}; 
+                        margin-left: 3px;"></div>`;
+    }
+
+    if (isFromPredator) {
+        dotsHTML += `
             <span style="color:#ffae00; font-weight:bold; background:#1a1a1a; 
-                         padding:4px 10px; border-radius:6px; border:1px solid #444;">
-                0 точек • Тип охоты: ${item.predatorType || ''}
+                         padding:4px 8px; border-radius:6px; border:1px solid #444; margin-left:6px; white-space:nowrap;">
+                Тип охоты: ${item.predatorType || ''} • не считается
             </span>`;
-    } else {
-        // обычные точки (до 5)
-        for (let i = 1; i <= 5; i++) {
-            dotsHTML += `
-                <div style="width:18px; height:18px; border-radius:50%; 
-                            background: ${i <= points ? '#ff3131' : '#333'}; 
-                            border: 2px solid ${i <= points ? '#ff6666' : '#555'}; 
-                            margin-left: 3px;"></div>`;
-        }
     }
 
     const div = document.createElement('div');
@@ -2428,10 +2458,10 @@ function showPredatorMeritsFlawsSelection(predName, predData) {
     // Преимущества
     if (predData.advantages && predData.advantages.length > 0) {
         html += `<div><strong style="color:#ffcc00; display:block; margin-bottom:12px;">Преимущества:</strong>`;
-        predData.advantages.forEach(adv => {
-            const name = typeof adv === 'string' ? adv : (adv.name || adv);
+        predData.advantages.forEach((adv, index) => {
+            const name = formatPredatorTraitLine(adv, true);
             html += `<label style="display:block; margin:8px 0; color:#ddd; cursor:pointer;">
-                        <input type="checkbox" class="pred-adv" value="${name}" checked> ${name}
+                        <input type="checkbox" class="pred-adv" value="${name}" data-index="${index}" checked> ${name}
                      </label>`;
         });
         html += `</div>`;
@@ -2440,10 +2470,10 @@ function showPredatorMeritsFlawsSelection(predName, predData) {
     // Недостатки
     if (predData.disadvantages && predData.disadvantages.length > 0) {
         html += `<div><strong style="color:#ff6666; display:block; margin-bottom:12px;">Недостатки:</strong>`;
-        predData.disadvantages.forEach(dis => {
-            const name = typeof dis === 'string' ? dis : (dis.name || dis);
+        predData.disadvantages.forEach((dis, index) => {
+            const name = formatPredatorTraitLine(dis, false);
             html += `<label style="display:block; margin:8px 0; color:#ddd; cursor:pointer;">
-                        <input type="checkbox" class="pred-flaw" value="${name}" checked> ${name}
+                        <input type="checkbox" class="pred-flaw" value="${name}" data-index="${index}" checked> ${name}
                      </label>`;
         });
         html += `</div>`;
@@ -2479,34 +2509,20 @@ function confirmPredatorSelection(predName) {
 
     // Преимущества
     document.querySelectorAll('.pred-adv:checked').forEach(cb => {
-        const name = cb.value;
+        const rawItem = predData.advantages?.[parseInt(cb.dataset.index, 10)] || cb.value;
+        const item = buildPredatorTrait(rawItem, true, predName);
         // Проверяем, нет ли уже (включая от охоты)
-        if (!selectedMerits.some(m => m.name === name)) {
-            selectedMerits.push({
-                category: "Стиль Охоты",
-                name: name,
-                points: 0,
-                desc: `Бесплатно от стиля охоты «${predName}»`,
-                mechanic: "",
-                fromPredator: true,
-                predatorType: predName
-            });
+        if (!selectedMerits.some(m => m.name === item.name && m.category === item.category)) {
+            selectedMerits.push(item);
         }
     });
 
     // Недостатки
     document.querySelectorAll('.pred-flaw:checked').forEach(cb => {
-        const name = cb.value;
-        if (!selectedFlaws.some(f => f.name === name)) {
-            selectedFlaws.push({
-                category: "Стиль Охоты",
-                name: name,
-                points: 0,
-                desc: `Бесплатно от стиля охоты «${predName}»`,
-                mechanic: "",
-                fromPredator: true,
-                predatorType: predName
-            });
+        const rawItem = predData.disadvantages?.[parseInt(cb.dataset.index, 10)] || cb.value;
+        const item = buildPredatorTrait(rawItem, false, predName);
+        if (!selectedFlaws.some(f => f.name === item.name && f.category === item.category)) {
+            selectedFlaws.push(item);
         }
     });
 
@@ -2528,18 +2544,8 @@ function confirmPredatorDiscipline(predatorName) {
 
     closePredDiscModal();
 
-    // === НОВОЕ: После выбора дисциплины показываем окно преимуществ/недостатков ===
-    const predData = RULES.predator_types?.[predatorName];
-    if (predData && ((predData.advantages && predData.advantages.length) || 
-                     (predData.disadvantages && predData.disadvantages.length))) {
-        
-        setTimeout(() => {
-            showPredatorMeritsFlawsSelection(predatorName, predData);
-        }, 400);   // небольшая задержка, чтобы модал дисциплины успел закрыться
-    } else {
-        updateTrackers();
-        renderSelectedMeritsFlaws();
-    }
+    updateTrackers();
+    renderSelectedMeritsFlaws();
 }
 
 function closePredatorSelectionModal() {
@@ -2553,7 +2559,7 @@ function closePredatorSelectionModal() {
 function canAddMerit(newPoints) {
     const currentTotal = selectedMerits.reduce((sum, item) => {
         if (item.fromPredator) return sum;        // бесплатно от охоты — не считаем
-        return sum + (item.points || 0);
+        return sum + getTraitPoints(item);
     }, 0);
 
     return currentTotal + newPoints <= 7;
@@ -2563,7 +2569,7 @@ function canAddMerit(newPoints) {
 function canAddFlaw(newPoints) {
     const currentTotal = selectedFlaws.reduce((sum, item) => {
         if (item.fromPredator) return sum;        // бесплатно от охоты — не считаем
-        return sum + (item.points || 0);
+        return sum + getTraitPoints(item);
     }, 0);
 
     return currentTotal + newPoints <= 2;
