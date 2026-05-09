@@ -61,6 +61,7 @@ async function initializeApp() {
        
         renderDisciplines();
         setupEventListeners();
+        setupSaveButton();
 
         // Дополнительные настройки
         setupGenerationHint();
@@ -1604,7 +1605,7 @@ document.addEventListener('click', function(e) {
     updateSBadgeState(skillName);
 });
 
-function addSpecLine(skillName) {
+function addSpecLine(skillName, value = '') {
     const container = document.getElementById('specs-' + skillName);
     if (!container) return;
 
@@ -1624,6 +1625,9 @@ function addSpecLine(skillName) {
         <button title="Удалить" style="background:#222;color:#ff6666;">×</button>
     `;
 
+    const input = line.querySelector('input[type="text"]');
+    if (input) input.value = value;
+
     // Кнопка "+"
     line.querySelectorAll('button')[0].addEventListener('click', () => addSpecLine(skillName));
 
@@ -1637,6 +1641,32 @@ function addSpecLine(skillName) {
 
     container.appendChild(line);
     updateSBadgeState(skillName);
+}
+
+function restoreSpecializations(skillName, specs = []) {
+    const container = document.getElementById('specs-' + skillName);
+    const checkbox = document.getElementById('s-' + skillName);
+    if (!container || !checkbox) return;
+
+    container.innerHTML = '';
+
+    const cleanSpecs = specs
+        .map(spec => String(spec || '').trim())
+        .filter(Boolean);
+
+    if (cleanSpecs.length === 0) {
+        container.style.display = 'none';
+        checkbox.checked = false;
+        updateSBadgeState(skillName);
+        return;
+    }
+
+    container.style.display = 'flex';
+    checkbox.checked = true;
+
+    cleanSpecs.forEach(text => addSpecLine(skillName, text));
+    updateSBadgeState(skillName);
+    updateSpecUI(skillName);
 }
 
 function updateSpecUI(skillName = null) {
@@ -2598,7 +2628,7 @@ window.closePredatorSelectionModal = closePredatorSelectionModal;
 
 // ====================== ЭКСПОРТ / ИМПОРТ JSON ======================
 
-function exportToJSON() {
+function getFullCharacterData() {
     const character = {
         version: "1.0",
         timestamp: new Date().toISOString(),
@@ -2638,6 +2668,83 @@ function exportToJSON() {
         }
     });
 
+    return character;
+}
+
+window.getFullCharacterData = getFullCharacterData;
+
+function applyCharacterData(d, sourceName = 'JSON') {
+    console.log(`📥 Загрузка персонажа из ${sourceName}:`, d);
+
+    // Основная информация
+    if (d.name) document.getElementById('char-name').value = d.name;
+    if (d.clan) document.getElementById('clan-input').value = d.clan;
+    if (d.predator) document.getElementById('predator-input').value = d.predator;
+    if (d.skillPackage) document.getElementById('skill-package').value = d.skillPackage;
+
+    // Атрибуты
+    Object.keys(d.attributes || {}).forEach(name => {
+        const radio = document.querySelector(`input[name="${name}"][value="${d.attributes[name]}"]`);
+        if (radio) radio.checked = true;
+    });
+
+    // Навыки + специализации
+    document.querySelectorAll('.skill-specs').forEach(container => {
+        container.innerHTML = '';
+        container.style.display = 'none';
+    });
+    document.querySelectorAll('.spec-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+
+    Object.keys(d.skills || {}).forEach(skill => {
+        const s = d.skills[skill];
+        const dots = typeof s === 'object' ? s.dots : s;
+        const specs = typeof s === 'object' && Array.isArray(s.specs) ? s.specs : [];
+        const radio = document.querySelector(`input[name="${skill}"][value="${dots}"]`);
+        if (radio) radio.checked = true;
+
+        restoreSpecializations(skill, specs);
+    });
+
+    // === ДИСЦИПЛИНЫ ===
+    if (d.disciplines) {
+        disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
+    }
+    if (d.selectedPowers) {
+        selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
+    }
+
+    // Полная перерисовка дисциплин
+    const list = document.getElementById('disciplines-list');
+    if (list) list.innerHTML = '';
+
+    Object.keys(disciplineSources).forEach(name => {
+        const total = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
+        const sourcesText = Object.keys(disciplineSources[name]).join(" + ");
+        addDisciplineRow(name, total, sourcesText);
+    });
+
+    renderDisciplines();   // кнопки "+" и панели способностей
+
+    // Преимущества и недостатки
+    if (d.merits) selectedMerits = [...d.merits];
+    if (d.flaws) selectedFlaws = [...d.flaws];
+
+    renderSelectedMeritsFlaws();
+    updateTrackers();
+    updateVitals();
+    document.querySelectorAll('.skill-name').forEach(el => {
+        const skillName = el.getAttribute('data-skill') || el.textContent.trim();
+        if (skillName) updateSBadgeState(skillName);
+    });
+}
+
+window.applyCharacterData = applyCharacterData;
+
+function exportToJSON() {
+    const character = getFullCharacterData();
+
     const dataStr = JSON.stringify(character, null, 2);
     const blob = new Blob([dataStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -2665,69 +2772,7 @@ function importFromJSON() {
         reader.onload = function(ev) {
             try {
                 const d = JSON.parse(ev.target.result);
-                console.log("📥 Импорт JSON:", d);
-
-                // Основная информация
-                if (d.name) document.getElementById('char-name').value = d.name;
-                if (d.clan) document.getElementById('clan-input').value = d.clan;
-                if (d.predator) document.getElementById('predator-input').value = d.predator;
-                if (d.skillPackage) document.getElementById('skill-package').value = d.skillPackage;
-
-                // Атрибуты
-                Object.keys(d.attributes || {}).forEach(name => {
-                    const radio = document.querySelector(`input[name="${name}"][value="${d.attributes[name]}"]`);
-                    if (radio) radio.checked = true;
-                });
-
-                // Навыки + специализации
-                Object.keys(d.skills || {}).forEach(skill => {
-                    const s = d.skills[skill];
-                    const radio = document.querySelector(`input[name="${skill}"][value="${s.dots}"]`);
-                    if (radio) radio.checked = true;
-
-                    const container = document.getElementById('specs-' + skill);
-                    if (container && s.specs?.length) {
-                        container.innerHTML = '';
-                        container.style.display = 'flex';
-                        document.getElementById('s-' + skill).checked = true;
-
-                        s.specs.forEach(text => {
-                            const line = document.createElement('div');
-                            line.className = 'skill-spec-line';
-                            line.innerHTML = `<input type="text" value="${text}" style="flex:1;">
-                                              <button>+</button><button>×</button>`;
-                            container.appendChild(line);
-                        });
-                    }
-                });
-
-                // === ДИСЦИПЛИНЫ (точно как в loadFullCharacter) ===
-                if (d.disciplines) {
-                    disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
-                }
-                if (d.selectedPowers) {
-                    selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
-                }
-
-                // Полная перерисовка дисциплин
-                const list = document.getElementById('disciplines-list');
-                if (list) list.innerHTML = '';
-
-                Object.keys(disciplineSources).forEach(name => {
-                    const total = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
-                    const sourcesText = Object.keys(disciplineSources[name]).join(" + ");
-                    addDisciplineRow(name, total, sourcesText);
-                });
-
-                renderDisciplines();   // кнопки "+" и панели способностей
-
-                // Преимущества и недостатки
-                if (d.merits) selectedMerits = [...d.merits];
-                if (d.flaws) selectedFlaws = [...d.flaws];
-
-                renderSelectedMeritsFlaws();
-                updateTrackers();
-                updateVitals();
+                applyCharacterData(d, 'JSON');
 
                 alert(`✅ Персонаж «${d.name || 'Без имени'}» полностью загружен из JSON!`);
 
@@ -2839,6 +2884,10 @@ async function generateSheetImage() {
     if (btn) { btn.textContent = 'Генерируем...'; btn.disabled = true; }
 
     try {
+        if (typeof window.html2canvas !== 'function') {
+            throw new Error('html2canvas не загружен');
+        }
+
         const specContainers = area.querySelectorAll('.skill-specs');
         specContainers.forEach(c => {
             if (c.children.length > 0) c.style.display = 'flex';
@@ -2846,10 +2895,10 @@ async function generateSheetImage() {
 
         await new Promise(r => setTimeout(r, 100));
 
-        const canvas = await html2canvas(area, {
+        const canvas = await window.html2canvas(area, {
             scale: 3,
             useCORS: true,
-            allowTaint: true,
+            allowTaint: false,
             backgroundColor: '#0a0a0a',
             logging: false,
         });
@@ -2869,7 +2918,10 @@ async function generateSheetImage() {
 
 function setupSaveButton() {
     const btn = document.getElementById('btn-save');
-    if (btn) btn.addEventListener('click', generateSheetImage);
+    if (btn) {
+        btn.removeEventListener('click', generateSheetImage);
+        btn.addEventListener('click', generateSheetImage);
+    }
 }
 
 // ==================== ТРАТА ОПЫТА — АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ УРОВНЯ ====================
@@ -3009,7 +3061,7 @@ let expLogModal = [];
 
 function logModal(text, cost) {
     const freeExp = document.getElementById('free-exp');
-    if (freeExp) freeExp.value = Math.max(0, parseInt(freeExp.value) || 0 - cost);
+    if (freeExp) freeExp.value = Math.max(0, (parseInt(freeExp.value) || 0) - cost);
 
     expLogModal.unshift(`-${cost} XP → ${text}`);
     if (expLogModal.length > 8) expLogModal.pop();
@@ -3034,8 +3086,11 @@ function spendModalAttribute() {
     if (!startingSheetFixed) {
         alert("Сначала зафиксируй стартовый лист!");
         return;
+    }
+
     const name = prompt("Какую характеристику повышаем?");
     if (!name) return;
+
     const current = getCurrentLevel(name);
     const target = parseInt(prompt(`Текущий: ${current}\nНовый уровень?`));
     if (!target || target <= current) return;
@@ -3117,5 +3172,4 @@ function fixStartingSheet() {
     document.getElementById('fix-start-btn').style.background = "#666";
 
     alert("✅ Стартовый лист зафиксирован!\nТеперь трать опыт для повышения.");
-}
 }

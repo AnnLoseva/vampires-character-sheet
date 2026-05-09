@@ -146,7 +146,7 @@ async function saveCharacter() {
         return;
     }
 
-    const characterData = window.getFullCharacterData ? window.getFullCharacterData() : getFullCharacterData?.() || {};
+    const characterData = window.getFullCharacterData ? window.getFullCharacterData() : {};
 
     if (!characterData.name) characterData.name = "Без имени";
 
@@ -216,6 +216,34 @@ async function showMyCharacters() {
     showModal(html);
 }
 
+async function loadCharacter(id) {
+    if (!currentUser) {
+        alert("❌ Войдите в аккаунт!");
+        showAuthModal();
+        return;
+    }
+
+    const { data, error } = await supabaseClient
+        .from('characters')
+        .select('data')
+        .eq('id', id)
+        .eq('user_id', currentUser.id)
+        .single();
+
+    if (error || !data?.data) {
+        console.error(error);
+        return alert("Ошибка загрузки персонажа");
+    }
+
+    if (!window.applyCharacterData) {
+        return alert("Лист ещё не готов к загрузке персонажа. Обновите страницу и попробуйте снова.");
+    }
+
+    window.applyCharacterData(data.data, 'личного кабинета');
+    alert(`✅ Персонаж «${data.data.name || 'Без имени'}» загружен!`);
+}
+
 // Глобальные функции
 window.saveCharacter = saveCharacter;
 window.showMyCharacters = showMyCharacters;
+window.loadCharacter = loadCharacter;
