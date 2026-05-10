@@ -17,6 +17,35 @@ let predatorProvidedDisciplines = {};  // дисциплины от текуще
 let selectedMerits = [];   // {category, name, points, fullDesc, mechanic}
 let selectedFlaws = [];
 
+let startingSheetFixed = false;
+let baseLevels = {};
+let sheetLockSnapshot = null;
+let isApplyingCharacterData = false;
+let isExperiencePurchaseInProgress = false;
+
+
+function getTypeBonuses(type) {
+    const byType = {
+        childe: { meritsBonus: 0, flawsBonus: 0, humanityMod: 0 },
+        neonate: { meritsBonus: 0, flawsBonus: 0, humanityMod: 0 },
+        ancilla: { meritsBonus: 2, flawsBonus: 2, humanityMod: -1 },
+        elder: { meritsBonus: 0, flawsBonus: 0, humanityMod: -2 },
+        methuselah: { meritsBonus: 0, flawsBonus: 0, humanityMod: -3 },
+        antediluvian: { meritsBonus: 0, flawsBonus: 0, humanityMod: -4 }
+    };
+
+    return byType[type] || { meritsBonus: 0, flawsBonus: 0, humanityMod: 0 };
+}
+
+function getMeritsLimit() {
+    const type = document.getElementById('type-input')?.value;
+    return 7 + getTypeBonuses(type).meritsBonus;
+}
+
+function getFlawsLimit() {
+    const type = document.getElementById('type-input')?.value;
+    return 2 + getTypeBonuses(type).flawsBonus;
+}
 
 function getTypeBonuses(type) {
     const byType = {
@@ -85,12 +114,14 @@ async function initializeApp() {
         renderDisciplines();
         setupEventListeners();
         setupSaveButton();
+        setupSheetLockGuards();
 
         // Дополнительные настройки
         setupGenerationHint();
         setupExperienceListener();
         updateBloodPotencyAndBonuses();
         updateExperienceBonus();
+        applySheetLockState();
 
         console.log("✅ Приложение полностью инициализировано");
     } catch (err) {
@@ -2669,6 +2700,11 @@ function getFullCharacterData() {
         clan: document.getElementById('clan-input').value,
         predator: document.getElementById('predator-input').value,
         skillPackage: document.getElementById('skill-package').value,
+        sheetLock: {
+            fixed: startingSheetFixed,
+            baseLevels: baseLevels,
+            snapshot: sheetLockSnapshot
+        },
         
         attributes: {},
         skills: {},
@@ -2708,69 +2744,82 @@ window.getFullCharacterData = getFullCharacterData;
 
 function applyCharacterData(d, sourceName = 'JSON') {
     console.log(`📥 Загрузка персонажа из ${sourceName}:`, d);
+    isApplyingCharacterData = true;
 
-    // Основная информация
-    if (d.name) document.getElementById('char-name').value = d.name;
-    if (d.clan) document.getElementById('clan-input').value = d.clan;
-    if (d.predator) document.getElementById('predator-input').value = d.predator;
-    if (d.skillPackage) document.getElementById('skill-package').value = d.skillPackage;
+    try {
+        // Основная информация
+        if (d.name) document.getElementById('char-name').value = d.name;
+        if (d.clan) document.getElementById('clan-input').value = d.clan;
+        if (d.predator) document.getElementById('predator-input').value = d.predator;
+        if (d.skillPackage) {
+            document.getElementById('skill-package').value = d.skillPackage;
+            currentPackage = d.skillPackage;
+        }
 
-    // Атрибуты
-    Object.keys(d.attributes || {}).forEach(name => {
-        const radio = document.querySelector(`input[name="${name}"][value="${d.attributes[name]}"]`);
-        if (radio) radio.checked = true;
-    });
+        // Атрибуты
+        Object.keys(d.attributes || {}).forEach(name => {
+            const radio = document.querySelector(`input[name="${name}"][value="${d.attributes[name]}"]`);
+            if (radio) radio.checked = true;
+        });
 
-    // Навыки + специализации
-    document.querySelectorAll('.skill-specs').forEach(container => {
-        container.innerHTML = '';
-        container.style.display = 'none';
-    });
-    document.querySelectorAll('.spec-checkbox').forEach(checkbox => {
-        checkbox.checked = false;
-    });
+        // Навыки + специализации
+        document.querySelectorAll('.skill-specs').forEach(container => {
+            container.innerHTML = '';
+            container.style.display = 'none';
+        });
+        document.querySelectorAll('.spec-checkbox').forEach(checkbox => {
+            checkbox.checked = false;
+        });
 
-    Object.keys(d.skills || {}).forEach(skill => {
-        const s = d.skills[skill];
-        const dots = typeof s === 'object' ? s.dots : s;
-        const specs = typeof s === 'object' && Array.isArray(s.specs) ? s.specs : [];
-        const radio = document.querySelector(`input[name="${skill}"][value="${dots}"]`);
-        if (radio) radio.checked = true;
+        Object.keys(d.skills || {}).forEach(skill => {
+            const s = d.skills[skill];
+            const dots = typeof s === 'object' ? s.dots : s;
+            const specs = typeof s === 'object' && Array.isArray(s.specs) ? s.specs : [];
+            const radio = document.querySelector(`input[name="${skill}"][value="${dots}"]`);
+            if (radio) radio.checked = true;
 
-        restoreSpecializations(skill, specs);
-    });
+            restoreSpecializations(skill, specs);
+        });
 
-    // === ДИСЦИПЛИНЫ ===
-    if (d.disciplines) {
-        disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
+        // === ДИСЦИПЛИНЫ ===
+        if (d.disciplines) {
+            disciplineSources = JSON.parse(JSON.stringify(d.disciplines));
+        }
+        if (d.selectedPowers) {
+            selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
+        }
+
+        // Полная перерисовка дисциплин
+        const list = document.getElementById('disciplines-list');
+        if (list) list.innerHTML = '';
+
+        Object.keys(disciplineSources).forEach(name => {
+            const total = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
+            const sourcesText = Object.keys(disciplineSources[name]).join(" + ");
+            addDisciplineRow(name, total, sourcesText);
+        });
+
+        renderDisciplines();   // кнопки "+" и панели способностей
+
+        // Преимущества и недостатки
+        if (d.merits) selectedMerits = [...d.merits];
+        if (d.flaws) selectedFlaws = [...d.flaws];
+
+        startingSheetFixed = Boolean(d.sheetLock?.fixed);
+        baseLevels = d.sheetLock?.baseLevels ? JSON.parse(JSON.stringify(d.sheetLock.baseLevels)) : captureCurrentLevels();
+        sheetLockSnapshot = d.sheetLock?.snapshot ? JSON.parse(JSON.stringify(d.sheetLock.snapshot)) : captureSheetSnapshot();
+
+        renderSelectedMeritsFlaws();
+        updateTrackers();
+        updateVitals();
+        document.querySelectorAll('.skill-name').forEach(el => {
+            const skillName = el.getAttribute('data-skill') || el.textContent.trim();
+            if (skillName) updateSBadgeState(skillName);
+        });
+    } finally {
+        isApplyingCharacterData = false;
+        applySheetLockState();
     }
-    if (d.selectedPowers) {
-        selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
-    }
-
-    // Полная перерисовка дисциплин
-    const list = document.getElementById('disciplines-list');
-    if (list) list.innerHTML = '';
-
-    Object.keys(disciplineSources).forEach(name => {
-        const total = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
-        const sourcesText = Object.keys(disciplineSources[name]).join(" + ");
-        addDisciplineRow(name, total, sourcesText);
-    });
-
-    renderDisciplines();   // кнопки "+" и панели способностей
-
-    // Преимущества и недостатки
-    if (d.merits) selectedMerits = [...d.merits];
-    if (d.flaws) selectedFlaws = [...d.flaws];
-
-    renderSelectedMeritsFlaws();
-    updateTrackers();
-    updateVitals();
-    document.querySelectorAll('.skill-name').forEach(el => {
-        const skillName = el.getAttribute('data-skill') || el.textContent.trim();
-        if (skillName) updateSBadgeState(skillName);
-    });
 }
 
 window.applyCharacterData = applyCharacterData;
@@ -3138,8 +3187,135 @@ function spendModalAttribute() {
     const cost = target * 5;
     if (!assertEnoughXP(cost)) return;
     if (confirm(`Повысить ${name} → ${target} за ${cost} XP?`)) {
-        setLevel(name, target, true);   // true = за опыт
-        logModal(`${name} ${current}→${target}`, cost);
+        runExperiencePurchase(() => {
+            setLevel(name, target, true);   // true = за опыт
+            logModal(`${name} ${current}→${target}`, cost);
+        });
+    }
+}
+
+
+function getCurrentXP() {
+    return parseInt(document.getElementById('free-exp')?.value || '0') || 0;
+}
+
+function hasEnoughXP(cost) {
+    return getCurrentXP() >= cost;
+}
+
+function assertEnoughXP(cost) {
+    if (!hasEnoughXP(cost)) {
+        alert(`Недостаточно опыта: нужно ${cost} XP, доступно ${getCurrentXP()} XP.`);
+        return false;
+    }
+    return true;
+}
+
+function spendModalSkill() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const name = prompt("Какой навык повышаем?");
+    if (!name) return;
+    const current = getCurrentLevel(name);
+    const target = parseInt(prompt(`Текущий: ${current}
+Новый уровень?`));
+    if (!target || target <= current || target > 5) return;
+    const cost = target * 3;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Повысить навык ${name} до ${target} за ${cost} XP?`)) {
+        runExperiencePurchase(() => {
+            setLevel(name, target, true);
+            logModal(`Навык ${name} ${current}→${target}`, cost);
+        });
+    }
+}
+
+function spendModalSpecialty() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const skill = prompt("Для какого навыка добавляем специализацию?");
+    if (!skill) return;
+    const spec = prompt("Название специализации?");
+    if (!spec) return;
+    const cost = 3;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Добавить специализацию "${spec}" для ${skill} за ${cost} XP?`)) {
+        runExperiencePurchase(() => {
+            const container = document.getElementById(`specs-${skill}`);
+            if (container) {
+                container.style.display = 'flex';
+                addSpecLine(skill, `${spec} (за опыт)`);
+            }
+            logModal(`Специализация "${spec}" (${skill})`, cost);
+        });
+    }
+}
+
+function spendModalMerit() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const name = prompt("Какое преимущество повышаем/покупаем?");
+    if (!name) return;
+    const dots = parseInt(prompt("Сколько пунктов добавить?") || '1');
+    if (!dots || dots < 1) return;
+    const cost = dots * 3;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Добавить ${dots} п. к "${name}" за ${cost} XP?`)) {
+        runExperiencePurchase(() => {
+            logModal(`Преимущество "${name}" +${dots}`, cost);
+        });
+    }
+}
+
+function spendModalDiscipline() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const name = prompt("Название дисциплины?");
+    if (!name) return;
+    let current = 0;
+    if (disciplineSources[name]) current = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
+    const target = parseInt(prompt(`Текущий: ${current}
+Новый уровень?`));
+    if (!target || target <= current || target > 5) return;
+    const mode = prompt('Тип дисциплины: clan / out / caitiff', 'clan');
+    if (!mode) return;
+    const normalized = mode.toLowerCase();
+    const mult = normalized === 'out' ? 7 : normalized === 'caitiff' ? 6 : 5;
+    const cost = target * mult;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Повысить дисциплину ${name} до ${target} за ${cost} XP?`)) {
+        runExperiencePurchase(() => {
+            mergeDiscipline(name, target - current, 'Опыт');
+            logModal(`Дисциплина ${name} ${current}→${target}`, cost);
+        });
+    }
+}
+
+function spendModalRitual() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const ritualType = prompt('Что изучаем: ritual / alchemy', 'ritual');
+    if (!ritualType) return;
+    const level = parseInt(prompt('Уровень ритуала/рецептуры?'));
+    if (!level || level < 1 || level > 5) return;
+    const cost = level * 3;
+    if (!assertEnoughXP(cost)) return;
+    const label = ritualType.toLowerCase() === 'alchemy' ? 'Рецептура алхимии' : 'Ритуал Кровавого чародейства';
+    if (confirm(`${label} ур. ${level} за ${cost} XP?`)) {
+        runExperiencePurchase(() => {
+            logModal(`${label} ур. ${level}`, cost);
+        });
+    }
+}
+
+function spendModalBloodPotency() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const current = parseInt(prompt('Текущая Сила Крови?', '0'));
+    if (Number.isNaN(current) || current < 0) return;
+    const target = parseInt(prompt(`Текущая: ${current}
+Новая Сила Крови?`));
+    if (!target || target <= current) return;
+    const cost = target * 10;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Повысить Силу Крови до ${target} за ${cost} XP?`)) {
+        runExperiencePurchase(() => {
+            logModal(`Сила Крови ${current}→${target}`, cost);
+        });
     }
 }
 
@@ -3284,49 +3460,119 @@ function setLevel(name, targetLevel, isFromExp = true) {
             }
         }
     });
+
+    updateTrackers();
+    updateVitals();
 }
 
 
 
 // ==================== ФИКСАЦИЯ СТАРТОВОГО ЛИСТА ====================
 
-let startingSheetFixed = false;
-let baseLevels = {}; // запоминаем базовые уровни
+function captureCurrentLevels() {
+    const levels = {};
+    document.querySelectorAll('.dots input.dot-input:checked').forEach(radio => {
+        if (radio.name) levels[radio.name] = parseInt(radio.value) || 0;
+    });
+    return levels;
+}
+
+function captureSheetSnapshot() {
+    return {
+        name: document.getElementById('char-name')?.value || '',
+        clan: document.getElementById('clan-input')?.value || '',
+        predator: document.getElementById('predator-input')?.value || '',
+        generation: document.getElementById('generation-input')?.value || '',
+        type: document.getElementById('type-input')?.value || '',
+        baseHumanity: document.getElementById('base-humanity')?.value || '7',
+        skillPackage: document.getElementById('skill-package')?.value || '',
+        levels: captureCurrentLevels(),
+        skills: JSON.parse(JSON.stringify(getFullCharacterData().skills || {})),
+        disciplines: JSON.parse(JSON.stringify(disciplineSources || {})),
+        selectedPowers: JSON.parse(JSON.stringify(selectedPowers || {})),
+        merits: JSON.parse(JSON.stringify(selectedMerits || [])),
+        flaws: JSON.parse(JSON.stringify(selectedFlaws || []))
+    };
+}
+
+function applySheetLockState() {
+    document.body.classList.toggle('sheet-fixed', startingSheetFixed);
+
+    const btn = document.getElementById('fix-start-btn');
+    if (btn) {
+        btn.textContent = startingSheetFixed ? "Расфиксировать лист" : "Зафиксировать стартовый лист";
+        btn.style.background = startingSheetFixed ? "#555" : "#ff3131";
+        btn.title = startingSheetFixed
+            ? "Снять фиксацию и снова редактировать лист вручную"
+            : "Зафиксировать текущие значения как стартовый лист";
+    }
+
+    const lockedControls = document.querySelectorAll(
+        '#capture-area input, #capture-area select, #capture-area textarea, #capture-area button, #skill-package'
+    );
+    lockedControls.forEach(control => {
+        control.disabled = startingSheetFixed;
+        control.setAttribute('aria-disabled', startingSheetFixed ? 'true' : 'false');
+    });
+
+    if (startingSheetFixed) {
+        closeMeritsFlawsModal();
+        document.getElementById('clan-modal')?.style.setProperty('display', 'none');
+        document.getElementById('predator-modal')?.style.setProperty('display', 'none');
+    }
+}
+
+function isSheetLockedTarget(target) {
+    if (!startingSheetFixed || isApplyingCharacterData || isExperiencePurchaseInProgress) return false;
+    if (!target || target.closest('#exp-modal')) return false;
+    return Boolean(target.closest('#capture-area') || target.closest('#skill-package'));
+}
+
+function setupSheetLockGuards() {
+    if (window.__sheetLockGuardsReady) return;
+    window.__sheetLockGuardsReady = true;
+
+    ['click', 'input', 'change', 'keydown'].forEach(eventName => {
+        document.addEventListener(eventName, (e) => {
+            if (!isSheetLockedTarget(e.target)) return;
+            e.preventDefault();
+            e.stopImmediatePropagation();
+            if (eventName === 'click') {
+                alert("Лист зафиксирован. Изменяй параметры через магазин опыта или нажми «Расфиксировать лист».");
+            }
+        }, true);
+    });
+}
+
+function runExperiencePurchase(callback) {
+    isExperiencePurchaseInProgress = true;
+    try {
+        callback();
+        sheetLockSnapshot = captureSheetSnapshot();
+    } finally {
+        isExperiencePurchaseInProgress = false;
+        applySheetLockState();
+    }
+}
 
 function fixStartingSheet() {
     if (startingSheetFixed) {
-        if (confirm("Сбросить фиксацию стартового листа?")) {
+        if (confirm("Расфиксировать лист?\nПосле этого поля снова можно будет менять вручную.")) {
             startingSheetFixed = false;
-            document.getElementById('fix-start-btn').textContent = "🔒 Зафиксировать стартовый лист";
-            document.getElementById('fix-start-btn').style.background = "#ff3131";
+            applySheetLockState();
+            alert("Лист расфиксирован. Ручное редактирование снова доступно.");
         }
         return;
     }
 
-    if (!confirm("Зафиксировать текущие значения как стартовый лист?\nПосле этого повышать можно будет только за опыт.")) {
+    if (!confirm("Зафиксировать текущие значения как стартовый лист?\nПосле этого лист нельзя будет менять вручную: только через магазин опыта или после расфиксации.")) {
         return;
     }
 
-    // Сохраняем текущие уровни как базовые
-    baseLevels = {};
-
-    // Характеристики
-    document.querySelectorAll('input[name^="Сила"], input[name^="Ловкость"], input[name^="Выносливость"], input[name^="Интеллект"], input[name^="Восприятие"], input[name^="Обаяние"]').forEach(radio => {
-        if (radio.checked) {
-            baseLevels[radio.name] = parseInt(radio.value);
-        }
-    });
-
-    // Навыки (добавь все свои навыки)
-    document.querySelectorAll('.dots input').forEach(radio => {
-        if (radio.checked && radio.name) {
-            baseLevels[radio.name] = parseInt(radio.value);
-        }
-    });
-
+    baseLevels = captureCurrentLevels();
+    sheetLockSnapshot = captureSheetSnapshot();
     startingSheetFixed = true;
-    document.getElementById('fix-start-btn').textContent = "✅ Стартовый лист зафиксирован";
-    document.getElementById('fix-start-btn').style.background = "#666";
+    applySheetLockState();
 
-    alert("✅ Стартовый лист зафиксирован!\nТеперь трать опыт для повышения.");
+    alert("Стартовый лист зафиксирован. Теперь повышения проходят через магазин опыта.");
 }

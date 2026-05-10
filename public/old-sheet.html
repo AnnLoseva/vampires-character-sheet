@@ -613,6 +613,36 @@
             color: #ffcc66 !important;
         }
 
+        /* ==================== ЗАФИКСИРОВАННЫЙ ЛИСТ ==================== */
+        body.sheet-fixed #capture-area input,
+        body.sheet-fixed #capture-area select,
+        body.sheet-fixed #capture-area button,
+        body.sheet-fixed #skill-package {
+            opacity: 0.55;
+            cursor: not-allowed !important;
+        }
+
+        body.sheet-fixed #capture-area .dot-label,
+        body.sheet-fixed #capture-area .s-badge {
+            cursor: not-allowed !important;
+        }
+
+        .sheet-lock-note {
+            margin-top: 10px;
+            padding: 10px 12px;
+            border: 1px solid #664400;
+            border-radius: 6px;
+            background: #160f04;
+            color: #ffcc66;
+            font-size: 12px;
+            line-height: 1.4;
+            display: none;
+        }
+
+        body.sheet-fixed .sheet-lock-note {
+            display: block;
+        }
+
 
         /* ==================== МОДАЛЬНОЕ ОКНО ==================== */
         .modal-btn {
@@ -694,6 +724,9 @@
         style="width:100%; padding:14px; margin:15px 0; background:#ff3131; color:white; border:none; border-radius:8px; font-size:16px; font-weight:bold;">
     Зафиксировать стартовый лист
 </button>
+    <div class="sheet-lock-note">
+        Лист зафиксирован. Изменения доступны только через магазин опыта или после расфиксации.
+    </div>
         </div>
 
 
