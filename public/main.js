@@ -25,6 +25,7 @@ let isExperiencePurchaseInProgress = false;
 let expShopMode = false;
 let expShopSnapshot = null;
 let expShopStartLevels = {};
+let expShopDisciplineMode = 'клановая';
 let startingSheetBase = null;
 
 
@@ -368,6 +369,7 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
 
     const item = document.createElement('div');
     item.className = 'discipline-item';
+    item.dataset.disciplineName = name;
 
     let dotsHTML = '';
     const baseDots = getBaseDisciplineLevel(name);
@@ -381,7 +383,7 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
 
     item.innerHTML = `
         <div style="flex: 1; font-size:16.5px;">${name}</div>
-        <div class="dots-discipline" style="display:flex; gap:9px; pointer-events:none;">${dotsHTML}</div>
+        <div class="dots-discipline" style="display:flex; gap:9px;">${dotsHTML}</div>
         <small style="color:#777; min-width:200px; line-height:1.4; text-align:right; white-space:pre-line;">
             ${sources.join('<br>')}
         </small>
@@ -424,7 +426,37 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
     }
 }
 
+function renderShopAvailableDisciplines() {
+    if (!expShopMode) return;
+
+    const list = document.getElementById('disciplines-list');
+    if (!list) return;
+
+    Object.keys(RULES.disciplines || {}).sort().forEach(name => {
+        if (disciplineSources[name]) return;
+
+        const item = document.createElement('div');
+        item.className = 'discipline-item xp-shop-discipline-option';
+        item.dataset.disciplineName = name;
+
+        let dotsHTML = '';
+        for (let i = 1; i <= 5; i++) {
+            dotsHTML += `<div class="disc-dot" data-level="${i}"></div>`;
+        }
+
+        item.innerHTML = `
+            <div style="flex: 1; font-size:16.5px; color:#777;">${name}</div>
+            <div class="dots-discipline" style="display:flex; gap:9px;">${dotsHTML}</div>
+            <small style="color:#664400; min-width:200px; line-height:1.4; text-align:right;">доступно в магазине</small>
+        `;
+
+        list.appendChild(item);
+    });
+}
+
 function renderDisciplines() {
+    document.querySelectorAll('.xp-shop-discipline-option').forEach(item => item.remove());
+
     document.querySelectorAll('.discipline-item').forEach(item => {
         const nameEl = item.querySelector('div:first-child');
         if (!nameEl) return;
@@ -473,6 +505,7 @@ function renderDisciplines() {
         }
     });
 
+    renderShopAvailableDisciplines();
 }
 
 // ==================== ПОДТВЕРЖДЕНИЕ ====================
@@ -2806,7 +2839,7 @@ function createSelectedItem(item, index, isMerit) {
                 <div style="display:flex; gap:3px; align-items:center;">${dotsHTML}</div>
             </div>
             ${!isFromPredator ? `
-            <button onclick="event.stopImmediatePropagation(); ${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
+            <button class="selected-item-remove" onclick="event.stopImmediatePropagation(); ${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
                     style="background:none; border:none; color:#ff3131; font-size:22px; cursor:pointer; padding:0 8px;">×</button>` : ''}
         </div>
         
@@ -3011,11 +3044,17 @@ function createMeritItem(item, index, isMerit) {
 }
 
 window.removeMerit = function(i) { 
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Продавай преимущества через магазин опыта.");
+    if (expShopMode && getBaseMeritKeys().has(getItemKey(selectedMerits[i]))) {
+        return alert("Стартовое преимущество нельзя продать через магазин опыта.");
+    }
     selectedMerits.splice(i,1); 
     renderSelectedMeritsFlaws(); 
+    if (expShopMode) renderExpShopPanel();
 };
 
 window.removeFlaw = function(i) { 
+    if (startingSheetFixed) return alert("Недостатки стартового листа нельзя менять после фиксации.");
     selectedFlaws.splice(i,1); 
     renderSelectedMeritsFlaws(); 
 };
@@ -3705,12 +3744,15 @@ function renderExpShopPanel() {
             <tr><td>Преимущество</td><td>3 XP за пункт</td></tr>
             <tr><td>Сила Крови</td><td>Новое значение × 10</td></tr>
         </table>
+        <label style="display:block;color:#aaa;font-size:12px;margin:10px 0 6px;">Цена новых дисциплин</label>
+        <select id="xp-discipline-mode" onchange="expShopDisciplineMode=this.value; renderDisciplines(); renderExpShopPanel();" style="width:100%;margin-bottom:10px;">
+            <option value="клановая" ${expShopDisciplineMode === 'клановая' ? 'selected' : ''}>Клановая ×5</option>
+            <option value="сторонняя" ${expShopDisciplineMode === 'сторонняя' ? 'selected' : ''}>Сторонняя ×7</option>
+            <option value="каитиф" ${expShopDisciplineMode === 'каитиф' ? 'selected' : ''}>Каитиф ×6</option>
+        </select>
         <div class="xp-shop-tools">
-            <button onclick="shopBuyDiscipline()">+ Купить / повысить дисциплину</button>
-            <button onclick="shopSellDiscipline()">− Продать точку дисциплины</button>
-            <button onclick="shopAddPower()">± Добавить / убрать силу дисциплины</button>
-            <button onclick="shopAddMerit()">+ Добавить преимущество</button>
-            <button onclick="shopSellMerit()">− Продать преимущество</button>
+            <button onclick="document.getElementById('disciplines-list')?.scrollIntoView({behavior:'smooth', block:'start'})">Точки дисциплин: кликай по строкам на листе</button>
+            <button onclick="document.querySelector('.merit-add-btn')?.scrollIntoView({behavior:'smooth', block:'center'})">Преимущества: кнопка на листе ниже</button>
         </div>
         <div style="color:#aaa; font-size:12px; margin-bottom:8px;">Черновик покупок</div>
         ${cartHTML}
@@ -3847,6 +3889,7 @@ function startExpShopMode() {
     expShopStartLevels = captureCurrentLevels();
     applySheetLockState();
     updateExpPurchasedStyles();
+    renderDisciplines();
     renderExpShopPanel();
 }
 
@@ -3854,8 +3897,9 @@ function stopExpShopMode() {
     expShopMode = false;
     expShopSnapshot = null;
     expShopStartLevels = {};
-    applySheetLockState();
     updateExpPurchasedStyles();
+    renderDisciplines();
+    applySheetLockState();
     renderExpShopPanel();
 }
 
@@ -3929,6 +3973,31 @@ function setupExpShopDotEditing() {
         if (target < base) target = base;
 
         setTraitLevel(name, target);
+    }, true);
+
+    document.addEventListener('click', function(e) {
+        if (!expShopMode) return;
+
+        const dot = e.target.closest('.discipline-item .disc-dot');
+        if (!dot) return;
+
+        const item = dot.closest('.discipline-item');
+        const name = item?.dataset.disciplineName || item?.querySelector('div:first-child')?.textContent?.trim();
+        if (!name) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const clickedValue = parseInt(dot.dataset.level || '0', 10) || 0;
+        const current = getDisciplineTotal(name);
+        const base = getBaseDisciplineLevel(name);
+        const mode = current > 0 ? getExistingDisciplineModeLabel(name) : expShopDisciplineMode;
+
+        let target = clickedValue;
+        if (clickedValue === current && current > base) target = current - 1;
+        if (target < base) target = base;
+
+        setDisciplineTotal(name, target, mode);
     }, true);
 }
 
@@ -4170,13 +4239,18 @@ function applySheetLockState() {
         '#capture-area input, #capture-area select, #capture-area textarea, #capture-area button, #skill-package'
     );
     lockedControls.forEach(control => {
-        const allowDotPurchase = expShopMode && control.classList.contains('dot-input');
-        const shouldDisable = startingSheetFixed && !allowDotPurchase;
+        const allowShopControl = expShopMode && (
+            control.classList.contains('dot-input') ||
+            control.classList.contains('add-power-btn') ||
+            control.classList.contains('merit-add-btn') ||
+            control.classList.contains('selected-item-remove')
+        );
+        const shouldDisable = startingSheetFixed && !allowShopControl;
         control.disabled = shouldDisable;
         control.setAttribute('aria-disabled', shouldDisable ? 'true' : 'false');
     });
 
-    if (startingSheetFixed) {
+    if (startingSheetFixed && !expShopMode) {
         closeMeritsFlawsModal();
         document.getElementById('clan-modal')?.style.setProperty('display', 'none');
         document.getElementById('predator-modal')?.style.setProperty('display', 'none');
@@ -4187,6 +4261,8 @@ function isSheetLockedTarget(target) {
     if (!startingSheetFixed || isApplyingCharacterData || isExperiencePurchaseInProgress) return false;
     if (!target || target.closest('#exp-modal')) return false;
     if (expShopMode && target.closest('label.dot-label')) return false;
+    if (expShopMode && target.closest('.discipline-item .disc-dot')) return false;
+    if (expShopMode && target.closest('.add-power-btn, .merit-add-btn, .selected-item-remove')) return false;
     return Boolean(target.closest('#capture-area') || target.closest('#skill-package'));
 }
 

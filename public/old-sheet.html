@@ -729,6 +729,18 @@
             cursor: pointer !important;
         }
 
+        body.xp-shop-active #capture-area .disc-dot,
+        body.xp-shop-active #capture-area .add-power-btn,
+        body.xp-shop-active #capture-area .merit-add-btn,
+        body.xp-shop-active #capture-area .selected-item-remove {
+            cursor: pointer !important;
+        }
+
+        body.xp-shop-active #capture-area .xp-shop-discipline-option {
+            border-color: #553500;
+            background: #0c0905;
+        }
+
         body.sheet-fixed #startup-trackers {
             display: none;
         }
@@ -1200,6 +1212,7 @@
     </div>
 
     <button onclick="openMeritsFlawsModal()" 
+            class="merit-add-btn"
             style="margin-top:20px; width:100%; padding:12px; background:#222; color:#fff; border:1px solid #ff3131; border-radius:6px; font-size:16px; cursor:pointer;">
         + Добавить преимущество / недостаток
     </button>
