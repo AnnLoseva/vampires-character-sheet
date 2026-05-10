@@ -18,6 +18,29 @@ let selectedMerits = [];   // {category, name, points, fullDesc, mechanic}
 let selectedFlaws = [];
 
 
+function getTypeBonuses(type) {
+    const byType = {
+        childe: { meritsBonus: 0, flawsBonus: 0, humanityMod: 0 },
+        neonate: { meritsBonus: 0, flawsBonus: 0, humanityMod: 0 },
+        ancilla: { meritsBonus: 2, flawsBonus: 2, humanityMod: -1 },
+        elder: { meritsBonus: 0, flawsBonus: 0, humanityMod: -2 },
+        methuselah: { meritsBonus: 0, flawsBonus: 0, humanityMod: -3 },
+        antediluvian: { meritsBonus: 0, flawsBonus: 0, humanityMod: -4 }
+    };
+
+    return byType[type] || { meritsBonus: 0, flawsBonus: 0, humanityMod: 0 };
+}
+
+function getMeritsLimit() {
+    const type = document.getElementById('type-input')?.value;
+    return 7 + getTypeBonuses(type).meritsBonus;
+}
+
+function getFlawsLimit() {
+    const type = document.getElementById('type-input')?.value;
+    return 2 + getTypeBonuses(type).flawsBonus;
+}
+
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
 async function loadRules() {
     try {
@@ -225,22 +248,24 @@ function updateVitals() {
 
 function updateHumanity() {
     const predatorName = document.getElementById('predator-input').value;
-    let modifier = 0;
-    let modifierText = "";
+    const type = document.getElementById('type-input')?.value;
+    const baseHumanity = parseInt(document.getElementById('base-humanity')?.value || '7') || 7;
+
+    const typeMod = getTypeBonuses(type).humanityMod || 0;
+    let predatorMod = 0;
 
     if (predatorName && RULES.predator_types?.[predatorName]) {
-        modifier = RULES.predator_types[predatorName].humanity || 0;
-        modifierText = modifier >= 0 ? `+${modifier}` : modifier;
+        predatorMod = RULES.predator_types[predatorName].humanity || 0;
     }
 
-    const humanity = 7 + modifier;
+    const humanity = Math.max(0, baseHumanity + typeMod + predatorMod);
     const el = document.getElementById('val-humanity');
-    
+
     if (el) {
         el.textContent = humanity;
         el.style.color = 'white';
-        el.setAttribute('data-tooltip', 
-            `Человечность = 7 + модификатор от стиля охоты(${modifierText}) = ${humanity}`);
+        el.setAttribute('data-tooltip',
+            `Человечность = старт(${baseHumanity}) + тип(${typeMod >= 0 ? '+' : ''}${typeMod}) + стиль охоты(${predatorMod >= 0 ? '+' : ''}${predatorMod}) = ${humanity}`);
     }
 }
 
@@ -1461,13 +1486,13 @@ function updateBloodPotencyAndBonuses() {
     let hintHTML = '';
 
     if (type === 'childe') {
-        hintHTML = `<strong>Птенец (Childe)</strong><br>• Становление ≤ 15 лет назад<br>• <strong>Сила Крови: 0</strong><br>• +15 опыта`;
+        hintHTML = `<strong>Птенец (Childe)</strong><br>• Становление ≤ 15 лет назад<br>• <strong>Сила Крови: 0</strong><br>• +0 опыта`;
     } else if (type === 'neonate') {
         const potency = (generation <= 13) ? 1 : 0;
         hintHTML = `<strong>Неонат (Neonate)</strong><br>• Становление после 1940 г.<br>• <strong>Сила Крови: ${potency}</strong><br>• +15 опыта`;
     } else if (type === 'ancilla') {
         const potency = (generation <= 11) ? 2 : 1;
-        hintHTML = `<strong>Анцилла (Ancilla)</strong><br>• Становление 1780–1940 гг.<br>• <strong>Сила Крови: ${potency}</strong><br>• +2 Преим. • +2 Недост.<br>• −1 Человечность<br>• +35 опыта`;
+        hintHTML = `<strong>Анцилла (Ancilla)</strong><br>• Становление 1780–1940 гг.<br>• <strong>Сила Крови: ${potency}</strong><br>• +2 Преимущества к лимиту • +2 Недостатка к лимиту<br>• −1 Человечность<br>• +35 опыта`;
     } else if (type === 'elder' || type === 'methuselah' || type === 'antediluvian') {
         hintHTML = `<strong>Старейшина / Матузалем</strong><br>• Очень старый вампир<br>• <strong>Сила Крови: 3+</strong>`;
     }
@@ -2348,7 +2373,7 @@ function renderDots(containerId, points, isMerit) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
     
-    const max = isMerit ? 7 : 2;   // ← главное изменение
+    const max = isMerit ? getMeritsLimit() : getFlawsLimit();   // ← главное изменение
     
     for (let i = 1; i <= max; i++) {
         const dot = document.createElement('div');
@@ -2562,7 +2587,7 @@ function canAddMerit(newPoints) {
         return sum + getTraitPoints(item);
     }, 0);
 
-    return currentTotal + newPoints <= 7;
+    return currentTotal + newPoints <= getMeritsLimit();
 }
 
 // Проверка лимита недостатков (игнорируем пункты от охоты)
@@ -2572,14 +2597,16 @@ function canAddFlaw(newPoints) {
         return sum + getTraitPoints(item);
     }, 0);
 
-    return currentTotal + newPoints <= 2;
+    return currentTotal + newPoints <= getFlawsLimit();
 }
 
 // Показываем предупреждение при превышении
 function showLimitWarning(isMerit) {
-    const msg = isMerit 
-        ? "❌ Максимум 7 точек преимуществ!" 
-        : "❌ Максимум 2 точки недостатков!";
+    const meritLimit = getMeritsLimit();
+    const flawLimit = getFlawsLimit();
+    const msg = isMerit
+        ? `❌ Максимум ${meritLimit} точек преимуществ для выбранного типа!`
+        : `❌ Максимум ${flawLimit} точек недостатков для выбранного типа!`;
     
     const warning = document.createElement('div');
     warning.style.cssText = `
@@ -2799,9 +2826,15 @@ function importFromJSON() {
 function setupGenerationHint() {
     const typeSelect = document.getElementById('type-input');
     const genSelect = document.getElementById('generation-input');
+    const baseHumanitySelect = document.getElementById('base-humanity');
 
-    if (typeSelect) typeSelect.addEventListener('change', updateBloodPotencyAndBonuses);
+    if (typeSelect) typeSelect.addEventListener('change', () => {
+        updateBloodPotencyAndBonuses();
+        updateHumanity();
+        renderSelectedMeritsFlaws();
+    });
     if (genSelect) genSelect.addEventListener('change', updateBloodPotencyAndBonuses);
+    if (baseHumanitySelect) baseHumanitySelect.addEventListener('change', updateHumanity);
 }
 
 
