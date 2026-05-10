@@ -31,28 +31,6 @@ let expHistory = [];
 let lastAutoExperienceBonus = null;
 
 
-function getTypeBonuses(type) {
-    const byType = {
-        childe: { meritsBonus: 0, flawsBonus: 0, humanityMod: 0 },
-        neonate: { meritsBonus: 0, flawsBonus: 0, humanityMod: 0 },
-        ancilla: { meritsBonus: 2, flawsBonus: 2, humanityMod: -1 },
-        elder: { meritsBonus: 0, flawsBonus: 0, humanityMod: -2 },
-        methuselah: { meritsBonus: 0, flawsBonus: 0, humanityMod: -3 },
-        antediluvian: { meritsBonus: 0, flawsBonus: 0, humanityMod: -4 }
-    };
-
-    return byType[type] || { meritsBonus: 0, flawsBonus: 0, humanityMod: 0 };
-}
-
-function getMeritsLimit() {
-    const type = document.getElementById('type-input')?.value;
-    return 7 + getTypeBonuses(type).meritsBonus;
-}
-
-function getFlawsLimit() {
-    const type = document.getElementById('type-input')?.value;
-    return 2 + getTypeBonuses(type).flawsBonus;
-}
 
 function getTypeBonuses(type) {
     const byType = {
@@ -901,7 +879,7 @@ function openPowerSelectionModal(discName, maxLevel) {
 
                 card.innerHTML = `
                     <div style="color:#ffae00;font-weight:bold;">${powerName}</div>
-                    <div style="color:#666;font-size:13px;">Уровень ${lvl}${expShopMode ? ` • ${xpPrice} XP` : ''}</div>
+                    <div style="color:#666;font-size:13px;">Уровень ${lvl}$}</div>
                     <div style="color:#ccc;margin-top:8px;line-height:1.5;">${power.description ? power.description.substring(0, 140) + '...' : 'Нет описания'}</div>
                 `;
 
@@ -918,7 +896,6 @@ function openPowerSelectionModal(discName, maxLevel) {
                 card.addEventListener('mouseenter', () => {
                     let html = `
                         <h3 style="color:#ff3131; margin:0 0 12px;">${powerName} <span style="color:#666;font-size:14px;">(Уровень ${lvl})</span></h3>
-                        ${expShopMode ? `<p style="margin:0 0 12px;color:#ff9500;font-weight:bold;">Цена: ${xpPrice} XP</p>` : ''}
                         <div style="line-height:1.65;">${power.description || 'Описание отсутствует'}</div>
                     `;
                     if (power.pool) html += `<p style="margin-top:12px;"><strong>Бросок:</strong> ${power.pool}</p>`;
@@ -3911,6 +3888,10 @@ function getCartCostLabel(cost) {
     return '0 XP';
 }
 
+function shouldShowCartCost(item) {
+    return item.type !== 'power';
+}
+
 function renderExpShopPanel() {
     const rightPanel = document.querySelector('.right-panel');
     if (!rightPanel) return;
@@ -3946,10 +3927,10 @@ function renderExpShopPanel() {
         ? cart.map(item => `
             <div class="xp-cart-line">
                 <span>${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to}</span>
-                <strong>${getCartCostLabel(item.cost)}</strong>
+                ${shouldShowCartCost(item) ? `<strong>${getCartCostLabel(item.cost)}</strong>` : ''}
             </div>
         `).join('')
-        : `<div style="color:#777; font-size:13px; line-height:1.45;">Выбери покупку кнопками ниже или кликай по листу. Дисциплины и преимущества появятся здесь отдельной строкой с ценой.</div>`;
+        : `<div style="color:#777; font-size:13px; line-height:1.45;">Кликай по листу. Покупки и продажи появятся здесь отдельными строками.</div>`;
 
     panel.innerHTML = `
         <h3 style="margin:0 0 8px; color:#ff9500; text-align:center;">Касса опыта</h3>
@@ -3973,13 +3954,6 @@ function renderExpShopPanel() {
             <option value="сторонняя" ${expShopDisciplineMode === 'сторонняя' ? 'selected' : ''}>Сторонняя ×7</option>
             <option value="каитиф" ${expShopDisciplineMode === 'каитиф' ? 'selected' : ''}>Каитиф ×6</option>
         </select>
-        <div class="xp-shop-tools">
-            <button onclick="shopBuyDiscipline()">Купить / повысить дисциплину</button>
-            <button onclick="shopAddMerit()">Купить преимущество / добавить недостаток</button>
-            <button onclick="document.getElementById('disciplines-list')?.scrollIntoView({behavior:'smooth', block:'start'})">Точки дисциплин: кликай по строкам на листе</button>
-            <button onclick="document.getElementById('skills-grid')?.scrollIntoView({behavior:'smooth', block:'start'})">Специализации: кликай S у навыков</button>
-            <button onclick="document.querySelector('.merit-add-btn')?.scrollIntoView({behavior:'smooth', block:'center'})">Преимущества/недостатки: кнопка на листе ниже</button>
-        </div>
         <div style="color:#aaa; font-size:12px; margin-bottom:8px;">Чек покупок и продаж</div>
         ${cartHTML}
         <div class="xp-cart-total">
@@ -4159,7 +4133,10 @@ function acceptExpShopPurchases() {
     const freeExp = document.getElementById('free-exp');
     if (freeExp) freeExp.value = Math.max(0, getCurrentXP() - total);
 
-    const lines = cart.map(item => `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to} (${getCartCostLabel(item.cost)})`);
+    const lines = cart.map(item => {
+        const costText = shouldShowCartCost(item) ? ` (${getCartCostLabel(item.cost)})` : '';
+        return `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to}${costText}`;
+    });
     recordExpHistory(total >= 0 ? 'Покупки приняты' : 'Продажа принята', -total, lines);
 
     sheetLockSnapshot = captureSheetSnapshot();
