@@ -2213,6 +2213,43 @@ function renderTouchstones() {
     applySheetLockState();
 }
 
+function autoResizeTextarea(textarea) {
+    if (!textarea) return;
+    textarea.style.height = 'auto';
+    textarea.style.height = `${textarea.scrollHeight}px`;
+}
+
+function setupAutoResizeTextareas() {
+    ['backstory-input'].forEach(id => {
+        const textarea = document.getElementById(id);
+        if (!textarea || textarea.dataset.autoResizeReady === 'true') return;
+        textarea.dataset.autoResizeReady = 'true';
+        textarea.style.overflow = 'hidden';
+        textarea.addEventListener('input', () => autoResizeTextarea(textarea));
+        autoResizeTextarea(textarea);
+    });
+}
+
+function expandTextareasForCapture(area) {
+    const states = [];
+    area.querySelectorAll('textarea').forEach(textarea => {
+        states.push({
+            textarea,
+            height: textarea.style.height,
+            overflow: textarea.style.overflow
+        });
+        textarea.style.overflow = 'hidden';
+        autoResizeTextarea(textarea);
+    });
+    return () => {
+        states.forEach(({ textarea, height, overflow }) => {
+            textarea.style.height = height;
+            textarea.style.overflow = overflow;
+        });
+        autoResizeTextarea(document.getElementById('backstory-input'));
+    };
+}
+
 function addTouchstone() {
     if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
     touchstones.push({ text: '', image: '' });
@@ -2223,6 +2260,7 @@ function setupCharacterDetails() {
     updateClanBaneField();
     renderCharacterImage();
     renderTouchstones();
+    setupAutoResizeTextareas();
 }
 
 window.uploadCharacterImage = uploadCharacterImage;
@@ -3398,6 +3436,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
             : [];
         setInputValue('appearance-input', d.appearance);
         setInputValue('backstory-input', d.backstory);
+        autoResizeTextarea(document.getElementById('backstory-input'));
         renderCharacterImage();
         renderTouchstones();
         document.getElementById('predator-input').value = d.predator || '';
@@ -3689,11 +3728,13 @@ async function generateSheetImage() {
     const originalText = btn?.textContent || 'Сохранить в JPG';
 
     if (btn) { btn.textContent = 'Генерируем...'; btn.disabled = true; }
+    let restoreTextareaHeights = null;
 
     try {
         if (typeof window.html2canvas !== 'function') {
             throw new Error('html2canvas не загружен');
         }
+        restoreTextareaHeights = expandTextareasForCapture(area);
 
         const specContainers = area.querySelectorAll('.skill-specs');
         specContainers.forEach(c => {
@@ -3719,6 +3760,7 @@ async function generateSheetImage() {
         console.error(err);
         alert("Ошибка генерации JPG. Проверь, что html2canvas подключён.");
     } finally {
+        if (restoreTextareaHeights) restoreTextareaHeights();
         if (btn) { btn.textContent = originalText; btn.disabled = false; }
     }
 }
@@ -4700,6 +4742,7 @@ function isSheetLockedTarget(target) {
     if (!startingSheetFixed || isApplyingCharacterData || isExperiencePurchaseInProgress) return false;
     if (expShopMode) return false;
     if (!target || target.closest('#exp-modal')) return false;
+    if (target.closest('.selected-item') && !target.closest('button')) return false;
     return Boolean(target.closest('#capture-area') || target.closest('#skill-package'));
 }
 
