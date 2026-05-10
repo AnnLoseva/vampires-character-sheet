@@ -29,6 +29,8 @@ let expShopDisciplineMode = 'клановая';
 let startingSheetBase = null;
 let expHistory = [];
 let lastAutoExperienceBonus = null;
+let characterImageData = '';
+let touchstones = [];
 
 
 
@@ -101,6 +103,7 @@ async function initializeApp() {
         setupSaveButton();
         setupSheetLockGuards();
         setupExpShopDotEditing();
+        setupCharacterDetails();
 
         // Дополнительные настройки
         setupGenerationHint();
@@ -1452,6 +1455,7 @@ function loadClanHint() {
     const clanName = document.getElementById('clan-input').value.trim();
     const box = document.getElementById('clan-hint-box');
     const content = document.getElementById('clan-hint-content');
+    updateClanBaneField();
     
     if (!clanName || !box || !content) {
         if (box) box.style.display = 'none';
@@ -2059,6 +2063,171 @@ function escapeHTML(value) {
         "'": '&#39;'
     }[char]));
 }
+
+function getInputValue(id) {
+    return document.getElementById(id)?.value?.trim() || '';
+}
+
+function setInputValue(id, value) {
+    const el = document.getElementById(id);
+    if (el) el.value = value || '';
+}
+
+function updateClanBaneField() {
+    const clanName = document.getElementById('clan-input')?.value?.trim() || '';
+    const bane = clanName ? (RULES.clans?.[clanName]?.bane || '') : '';
+    setInputValue('clan-bane-input', bane);
+}
+
+function renderCharacterImage() {
+    const image = document.getElementById('character-image-preview');
+    const placeholder = document.getElementById('character-image-placeholder');
+    if (!image || !placeholder) return;
+
+    if (characterImageData) {
+        image.src = characterImageData;
+        image.style.display = 'block';
+        placeholder.style.display = 'none';
+    } else {
+        image.removeAttribute('src');
+        image.style.display = 'none';
+        placeholder.style.display = 'flex';
+    }
+}
+
+function readImageAsCompressedDataURL(file, maxSize = 900, quality = 0.82) {
+    return new Promise((resolve, reject) => {
+        if (!file || !file.type.startsWith('image/')) {
+            reject(new Error('Выберите файл изображения.'));
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('Не удалось прочитать изображение.'));
+        reader.onload = () => {
+            const img = new Image();
+            img.onload = () => {
+                const scale = Math.min(1, maxSize / Math.max(img.width, img.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.max(1, Math.round(img.width * scale));
+                canvas.height = Math.max(1, Math.round(img.height * scale));
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                resolve(canvas.toDataURL('image/jpeg', quality));
+            };
+            img.onerror = () => reject(new Error('Не удалось обработать изображение.'));
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
+async function uploadCharacterImage(event) {
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    try {
+        characterImageData = await readImageAsCompressedDataURL(file);
+        renderCharacterImage();
+    } catch (err) {
+        alert(err.message || 'Ошибка загрузки изображения.');
+    } finally {
+        event.target.value = '';
+    }
+}
+
+function deleteCharacterImage() {
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
+    characterImageData = '';
+    renderCharacterImage();
+}
+
+function renderTouchstones() {
+    const list = document.getElementById('touchstones-list');
+    if (!list) return;
+
+    list.innerHTML = '';
+    touchstones.forEach((item, index) => {
+        const row = document.createElement('div');
+        row.className = 'touchstone-item';
+        row.innerHTML = `
+            <div>
+                ${item.image ? `<img class="touchstone-image" src="${item.image}" alt="Изображение опоры">` : `<div class="touchstone-placeholder">Изображение опоры</div>`}
+                <input type="file" accept="image/*" style="display:none;" data-touchstone-file="${index}">
+            </div>
+            <textarea data-touchstone-text="${index}" placeholder="Опора или принцип">${escapeHTML(item.text || '')}</textarea>
+            <div class="touchstone-actions">
+                <button type="button" data-touchstone-upload="${index}">Загрузить</button>
+                <button type="button" data-touchstone-remove-image="${index}">Удалить фото</button>
+                <button type="button" data-touchstone-delete="${index}">Удалить</button>
+            </div>
+        `;
+        list.appendChild(row);
+    });
+
+    list.querySelectorAll('[data-touchstone-text]').forEach(textarea => {
+        textarea.addEventListener('input', (e) => {
+            const index = parseInt(e.target.dataset.touchstoneText, 10);
+            if (touchstones[index]) touchstones[index].text = e.target.value;
+        });
+    });
+
+    list.querySelectorAll('[data-touchstone-upload]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const index = parseInt(e.target.dataset.touchstoneUpload, 10);
+            list.querySelector(`[data-touchstone-file="${index}"]`)?.click();
+        });
+    });
+
+    list.querySelectorAll('[data-touchstone-file]').forEach(input => {
+        input.addEventListener('change', async (e) => {
+            const index = parseInt(e.target.dataset.touchstoneFile, 10);
+            const file = e.target.files?.[0];
+            if (!file || !touchstones[index]) return;
+            try {
+                touchstones[index].image = await readImageAsCompressedDataURL(file, 700, 0.8);
+                renderTouchstones();
+            } catch (err) {
+                alert(err.message || 'Ошибка загрузки изображения.');
+            }
+        });
+    });
+
+    list.querySelectorAll('[data-touchstone-remove-image]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const index = parseInt(e.target.dataset.touchstoneRemoveImage, 10);
+            if (touchstones[index]) touchstones[index].image = '';
+            renderTouchstones();
+        });
+    });
+
+    list.querySelectorAll('[data-touchstone-delete]').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const index = parseInt(e.target.dataset.touchstoneDelete, 10);
+            touchstones.splice(index, 1);
+            renderTouchstones();
+        });
+    });
+
+    applySheetLockState();
+}
+
+function addTouchstone() {
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
+    touchstones.push({ text: '', image: '' });
+    renderTouchstones();
+}
+
+function setupCharacterDetails() {
+    updateClanBaneField();
+    renderCharacterImage();
+    renderTouchstones();
+}
+
+window.uploadCharacterImage = uploadCharacterImage;
+window.deleteCharacterImage = deleteCharacterImage;
+window.addTouchstone = addTouchstone;
 
 function showPredatorChoiceModal(predName, entries) {
     return new Promise(resolve => {
@@ -3111,6 +3280,19 @@ function getFullCharacterData() {
         timestamp: new Date().toISOString(),
         name: document.getElementById('char-name').value.trim() || "Безымянный",
         clan: document.getElementById('clan-input').value,
+        sire: getInputValue('sire-input'),
+        concept: getInputValue('concept-input'),
+        nature: getInputValue('nature-input'),
+        mask: getInputValue('mask-input'),
+        trueAge: getInputValue('true-age-input'),
+        apparentAge: getInputValue('apparent-age-input'),
+        birthDate: getInputValue('birth-date-input'),
+        deathDate: getInputValue('death-date-input'),
+        clanBane: getInputValue('clan-bane-input'),
+        characterImage: characterImageData || '',
+        touchstones: JSON.parse(JSON.stringify(touchstones || [])),
+        appearance: getInputValue('appearance-input'),
+        backstory: getInputValue('backstory-input'),
         predator: document.getElementById('predator-input').value,
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
@@ -3180,12 +3362,16 @@ function resetCharacterSheetForLoad() {
     clanProvidedDisciplines = {};
     predatorProvidedDisciplines = {};
     currentPredatorSpecialty = null;
+    characterImageData = '';
+    touchstones = [];
     expShopMode = false;
     expShopSnapshot = null;
     expShopStartLevels = {};
 
     const list = document.getElementById('disciplines-list');
     if (list) list.innerHTML = '';
+    renderCharacterImage();
+    renderTouchstones();
 }
 
 function applyCharacterData(d, sourceName = 'JSON') {
@@ -3198,6 +3384,22 @@ function applyCharacterData(d, sourceName = 'JSON') {
         // Основная информация
         document.getElementById('char-name').value = d.name || 'Безымянный';
         document.getElementById('clan-input').value = d.clan || '';
+        setInputValue('sire-input', d.sire);
+        setInputValue('concept-input', d.concept);
+        setInputValue('nature-input', d.nature);
+        setInputValue('mask-input', d.mask);
+        setInputValue('true-age-input', d.trueAge);
+        setInputValue('apparent-age-input', d.apparentAge);
+        setInputValue('birth-date-input', d.birthDate);
+        setInputValue('death-date-input', d.deathDate);
+        characterImageData = d.characterImage || d.image || d.portrait || '';
+        touchstones = Array.isArray(d.touchstones)
+            ? JSON.parse(JSON.stringify(d.touchstones))
+            : [];
+        setInputValue('appearance-input', d.appearance);
+        setInputValue('backstory-input', d.backstory);
+        renderCharacterImage();
+        renderTouchstones();
         document.getElementById('predator-input').value = d.predator || '';
         if (document.getElementById('generation-input')) document.getElementById('generation-input').value = d.generation || '';
         if (document.getElementById('type-input')) document.getElementById('type-input').value = d.type || '';
@@ -3260,6 +3462,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
 
         renderSelectedMeritsFlaws();
         loadClanHint();
+        if (d.clanBane && !getInputValue('clan-bane-input')) setInputValue('clan-bane-input', d.clanBane);
         loadPredatorHint();
         updateClanIcon();
         updateBloodPotencyAndBonuses();
@@ -4431,6 +4634,19 @@ function captureSheetSnapshot() {
     return {
         name: document.getElementById('char-name')?.value || '',
         clan: document.getElementById('clan-input')?.value || '',
+        sire: getInputValue('sire-input'),
+        concept: getInputValue('concept-input'),
+        nature: getInputValue('nature-input'),
+        mask: getInputValue('mask-input'),
+        trueAge: getInputValue('true-age-input'),
+        apparentAge: getInputValue('apparent-age-input'),
+        birthDate: getInputValue('birth-date-input'),
+        deathDate: getInputValue('death-date-input'),
+        clanBane: getInputValue('clan-bane-input'),
+        characterImage: characterImageData || '',
+        touchstones: JSON.parse(JSON.stringify(touchstones || [])),
+        appearance: getInputValue('appearance-input'),
+        backstory: getInputValue('backstory-input'),
         predator: document.getElementById('predator-input')?.value || '',
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',

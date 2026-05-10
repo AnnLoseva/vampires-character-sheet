@@ -206,24 +206,23 @@ async function showMyCharacters() {
         <h2 style="color:#ff3131; text-align:center; margin:0 0 18px;">📋 Мои персонажи (${data.length})</h2>
         <table style="width:100%; border-collapse:collapse; background:#111;">
             <thead><tr style="background:#222;">
+                <th style="padding:12px; text-align:left;">Картинка</th>
                 <th style="padding:12px; text-align:left;">Имя</th>
                 <th style="padding:12px; text-align:center;">Клан</th>
-                <th style="padding:12px; text-align:center;">Поколение</th>
-                <th style="padding:12px; text-align:center;">Опыт</th>
-                <th style="padding:12px; text-align:center;">Дата</th>
+                <th style="padding:12px; text-align:center;">Создан</th>
                 <th style="padding:12px; text-align:center;">Действия</th>
             </tr></thead><tbody>`;
 
     data.forEach(char => {
-        const date = new Date(char.created_at).toLocaleDateString('ru-RU');
-        const generation = char.data?.generation || '—';
-        const freeExp = char.data?.freeExp ?? '—';
+        const date = new Date(char.created_at).toLocaleString('ru-RU');
+        const image = char.data?.characterImage || '';
         html += `
             <tr style="border-bottom:1px solid #333;">
+                <td style="padding:12px;">
+                    ${image ? `<img src="${image}" alt="" style="width:58px;height:76px;object-fit:cover;border-radius:6px;border:1px solid #333;">` : `<div style="width:58px;height:76px;border:1px dashed #444;border-radius:6px;color:#666;display:flex;align-items:center;justify-content:center;font-size:11px;">нет</div>`}
+                </td>
                 <td style="padding:12px;">${char.name}</td>
                 <td style="padding:12px; text-align:center; color:#aaa;">${char.clan || '—'}</td>
-                <td style="padding:12px; text-align:center; color:#aaa;">${generation}</td>
-                <td style="padding:12px; text-align:center; color:#ffae00;">${freeExp}</td>
                 <td style="padding:12px; text-align:center; color:#aaa;">${date}</td>
                 <td style="padding:12px; text-align:center; white-space:nowrap;">
                     <button onclick="loadCharacter('${char.id}')" style="background:#ff3131; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; margin-right:8px;">Загрузить</button>
