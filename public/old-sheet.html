@@ -776,6 +776,218 @@
         .sheet * { 
             max-width: 100%; 
         }
+
+        /* ==================== АДАПТИВ ДЛЯ ПЛАНШЕТОВ И ТЕЛЕФОНОВ ==================== */
+        @media (max-width: 1180px) {
+            html,
+            body {
+                width: 100%;
+                overflow-x: hidden;
+            }
+
+            body {
+                display: block;
+                padding: 0;
+            }
+
+            .main-container {
+                display: flex;
+                flex-direction: column;
+                width: 100%;
+                max-width: none;
+                gap: 12px;
+                padding: 0;
+                margin: 0;
+            }
+
+            .guide,
+            .right-panel,
+            .sheet {
+                width: 100%;
+                min-width: 0;
+                max-width: none;
+                position: static;
+                border-radius: 0;
+            }
+
+            .guide,
+            .right-panel {
+                padding: 16px;
+            }
+
+            .sheet {
+                padding: 22px 16px;
+                border-left: none;
+                border-right: none;
+            }
+
+            .grid {
+                grid-template-columns: repeat(3, minmax(0, 1fr));
+            }
+
+            .col {
+                padding: 14px 12px;
+                min-width: 0;
+            }
+
+            .header-row > div {
+                flex-wrap: wrap;
+            }
+
+            .discipline-item {
+                flex-wrap: wrap;
+                gap: 12px;
+            }
+
+            .discipline-item > div:first-child {
+                white-space: normal;
+                min-width: 180px;
+            }
+
+            .discipline-item small {
+                min-width: 0;
+                text-align: left;
+            }
+
+            #clan-gallery,
+            #predator-gallery {
+                grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)) !important;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .main-container {
+                gap: 0;
+            }
+
+            .guide,
+            .right-panel {
+                padding: 14px 12px;
+                border-left: none;
+                border-right: none;
+            }
+
+            .sheet {
+                padding: 18px 10px;
+            }
+
+            h2 {
+                letter-spacing: 2px;
+                font-size: 20px;
+                margin: 28px 0 16px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+            }
+
+            .col {
+                border-right: none;
+                border-bottom: 1px solid #222;
+                padding: 14px 12px;
+            }
+
+            .col:last-child {
+                border-bottom: none;
+            }
+
+            .row {
+                gap: 10px;
+            }
+
+            .attr-name,
+            .skill-name {
+                font-size: 14px;
+            }
+
+            .dots {
+                gap: 6px;
+            }
+
+            .dots label,
+            .discipline-item .disc-dot {
+                width: 18px;
+                height: 18px;
+            }
+
+            .header-row {
+                gap: 16px !important;
+            }
+
+            .header-row > div {
+                flex-direction: column !important;
+                align-items: stretch !important;
+                gap: 14px !important;
+            }
+
+            .header-row > div > div {
+                width: 100%;
+                flex: none !important;
+            }
+
+            .vitals {
+                flex-direction: column;
+                gap: 16px;
+                padding: 18px 14px;
+            }
+
+            .vital-item {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                text-align: left;
+                border-bottom: 1px solid #222;
+                padding-bottom: 12px;
+            }
+
+            .vital-item:last-child {
+                border-bottom: none;
+                padding-bottom: 0;
+            }
+
+            .discipline-item {
+                padding: 14px 12px;
+                align-items: flex-start;
+            }
+
+            .discipline-item > div:first-child {
+                min-width: 0;
+                width: 100%;
+            }
+
+            .dots-discipline {
+                width: auto;
+            }
+
+            .powers-panel {
+                width: 100%;
+                min-width: 0 !important;
+                margin-left: 0 !important;
+            }
+
+            #merits-flaws-modal {
+                padding: 8px !important;
+            }
+
+            #merits-flaws-modal > div,
+            #clan-modal > div,
+            #predator-modal > div {
+                margin: 8px auto !important;
+                padding: 18px 12px !important;
+                width: 100% !important;
+            }
+
+            #clan-gallery,
+            #predator-gallery {
+                grid-template-columns: 1fr !important;
+                gap: 14px !important;
+            }
+
+            #exp-modal > div {
+                width: 96% !important;
+                padding: 16px 12px !important;
+            }
+        }
   </style>
 </head>
 
