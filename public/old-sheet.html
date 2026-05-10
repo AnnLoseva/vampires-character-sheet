@@ -697,6 +697,18 @@
             cursor: not-allowed !important;
         }
 
+        body.xp-shop-active #capture-area .dot-label {
+            cursor: pointer !important;
+        }
+
+        body.xp-shop-active #capture-area .dot-input {
+            cursor: pointer !important;
+        }
+
+        body.sheet-fixed #startup-trackers {
+            display: none;
+        }
+
         .sheet-lock-note {
             margin-top: 10px;
             padding: 10px 12px;
@@ -751,6 +763,7 @@
             <button onclick="importFromJSON()" style="width:100%; margin:8px 0 12px 0; padding:10px; background:#222; color:#ffae00; border:1px solid #a14600; border-radius:4px; cursor:pointer; font-size:14px;">
                 Импорт персонажа (JSON)
             </button>
+            <div id="startup-trackers">
             <div id="attr-tracker"></div>
             <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
             <p style="font-size:12px;">Набор навыков:</p>
@@ -766,6 +779,7 @@
             <p id="global-warning" style="color:#ffae00; display:none;">Внимание! Проверьте лимиты.</p>
 
  <hr style="border:0; border-top:1px solid #333; margin: 18px 0;">
+            </div>
 
     <!-- Окно опыта -->
     <div class="exp-container">
