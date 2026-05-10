@@ -3075,9 +3075,8 @@ function createMeritItem(item, index, isMerit) {
 
 window.removeMerit = function(i) { 
     if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Продавай преимущества через магазин опыта.");
-    if (expShopMode && getBaseMeritKeys().has(getItemKey(selectedMerits[i]))) {
-        return alert("Стартовое преимущество нельзя продать через магазин опыта.");
-    }
+   
+    
     selectedMerits.splice(i,1); 
     renderSelectedMeritsFlaws(); 
     if (expShopMode) renderExpShopPanel();
@@ -3085,9 +3084,7 @@ window.removeMerit = function(i) {
 
 window.removeFlaw = function(i) { 
     if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Меняй недостатки через магазин опыта.");
-    if (expShopMode && getBaseFlawKeys().has(getItemKey(selectedFlaws[i]))) {
-        return alert("Стартовый недостаток нельзя убрать через магазин опыта.");
-    }
+    
     selectedFlaws.splice(i,1); 
     renderSelectedMeritsFlaws(); 
     if (expShopMode) renderExpShopPanel();
@@ -4370,9 +4367,7 @@ function setupSheetLockGuards() {
             if (!isSheetLockedTarget(e.target)) return;
             e.preventDefault();
             e.stopImmediatePropagation();
-            if (eventName === 'click') {
-                alert("Лист зафиксирован. Изменяй параметры через магазин опыта или нажми «Расфиксировать лист».");
-            }
+        
         }, true);
     });
 }
