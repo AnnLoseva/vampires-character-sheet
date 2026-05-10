@@ -2064,46 +2064,92 @@ function createTooltip() {
         font-size: 14px;
         line-height: 1.55;
         max-width: 420px;
+        max-height: min(70vh, 520px);
+        overflow-y: auto;
         z-index: 30000;
         pointer-events: none;
         box-shadow: 0 0 30px rgba(255,49,49,0.7);
         display: none;
         white-space: pre-line;
         word-wrap: break-word;
+        overflow-wrap: anywhere;
     `;
     document.body.appendChild(tooltip);
     return tooltip;
 }
 
-// Более надёжный обработчик
-document.addEventListener('mouseover', function(e) {
-    let target = e.target;
-    
-    // Ищем ближайший элемент с data-tooltip
-    while (target && !target.hasAttribute('data-tooltip')) {
+function getTooltipTarget(start) {
+    let target = start;
+    while (target && target !== document && !target.hasAttribute('data-tooltip')) {
         target = target.parentElement;
     }
+    return target && target.hasAttribute('data-tooltip') ? target : null;
+}
 
-    if (target && target.hasAttribute('data-tooltip')) {
-        const text = target.getAttribute('data-tooltip').trim();
-        if (!text) return;
+function positionTooltip(target, tt) {
+    const gap = 12;
+    const edgePadding = 12;
+    const rect = target.getBoundingClientRect();
+    const ttRect = tt.getBoundingClientRect();
+    const spaceAbove = rect.top - edgePadding;
+    const spaceBelow = window.innerHeight - rect.bottom - edgePadding;
 
-        const tt = createTooltip();
-        tt.textContent = text;
-        tt.style.display = 'block';
+    const preferTop = spaceAbove >= ttRect.height + gap;
+    const canFitBelow = spaceBelow >= ttRect.height + gap;
+    const placeAbove = preferTop || (!canFitBelow && spaceAbove >= spaceBelow);
 
-        const rect = target.getBoundingClientRect();
-        let left = rect.left + window.scrollX + 20;
-        let top = rect.top + window.scrollY - tt.offsetHeight - 15;
+    const centeredLeft = rect.left + (rect.width / 2) - (ttRect.width / 2);
+    const maxLeft = window.innerWidth - ttRect.width - edgePadding;
+    const left = Math.min(Math.max(edgePadding, centeredLeft), Math.max(edgePadding, maxLeft));
 
-        if (top < 20) top = rect.bottom + window.scrollY + 15;
+    let top = placeAbove
+        ? rect.top - ttRect.height - gap
+        : rect.bottom + gap;
 
-        tt.style.left = left + 'px';
-        tt.style.top = top + 'px';
-    }
+    const maxTop = window.innerHeight - ttRect.height - edgePadding;
+    top = Math.min(Math.max(edgePadding, top), Math.max(edgePadding, maxTop));
+
+    tt.style.left = `${left}px`;
+    tt.style.top = `${top}px`;
+}
+
+function showTooltipFor(target) {
+    const text = target.getAttribute('data-tooltip')?.trim();
+    if (!text) return;
+
+    const tt = createTooltip();
+    tt.textContent = text;
+    tt.style.left = '-9999px';
+    tt.style.top = '-9999px';
+    tt.style.display = 'block';
+    positionTooltip(target, tt);
+}
+
+document.addEventListener('mouseover', function(e) {
+    const target = getTooltipTarget(e.target);
+    if (target) showTooltipFor(target);
 });
 
-document.addEventListener('mouseout', function() {
+document.addEventListener('focusin', function(e) {
+    const target = getTooltipTarget(e.target);
+    if (target) showTooltipFor(target);
+});
+
+document.addEventListener('mouseout', function(e) {
+    const target = getTooltipTarget(e.target);
+    if (!target || target.contains(e.relatedTarget)) return;
+    if (tooltip) tooltip.style.display = 'none';
+});
+
+document.addEventListener('focusout', function() {
+    if (tooltip) tooltip.style.display = 'none';
+});
+
+window.addEventListener('scroll', function() {
+    if (tooltip) tooltip.style.display = 'none';
+}, true);
+
+window.addEventListener('resize', function() {
     if (tooltip) tooltip.style.display = 'none';
 });
 
