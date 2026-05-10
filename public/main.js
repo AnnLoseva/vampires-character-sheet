@@ -398,6 +398,7 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
         item.remove();
         updateDisciplineTotal();
         renderDisciplines();
+        if (expShopMode) renderExpShopPanel();
     });
 
         // Принудительно обновляем способности при перерисовке строки
@@ -2864,7 +2865,7 @@ function createSelectedItem(item, index, isMerit) {
                 <strong style="flex:1;">${displayName}</strong>
                 <div style="display:flex; gap:3px; align-items:center;">${dotsHTML}</div>
             </div>
-            ${!isFromPredator ? `
+            ${(!isFromPredator || expShopMode) ? `
             <button class="selected-item-remove" onclick="event.stopImmediatePropagation(); ${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
                     style="background:none; border:none; color:#ff3131; font-size:22px; cursor:pointer; padding:0 8px;">×</button>` : ''}
         </div>
@@ -3630,17 +3631,22 @@ function getDisciplineModeMultiplier(modeLabel) {
     return 5;
 }
 
-function getDisciplineMultiplier(name) {
-    const sourceText = Object.keys(disciplineSources[name] || {}).join(' ').toLowerCase();
+function getDisciplineMultiplier(name, sources = disciplineSources) {
+    const sourceText = Object.keys(sources?.[name] || {}).join(' ').toLowerCase();
     if (!sourceText && expShopMode) return getDisciplineModeMultiplier(expShopDisciplineMode);
     if (sourceText.includes('каитиф')) return 6;
     if (sourceText.includes('сторон')) return 7;
     return 5;
 }
 
+function getDisciplineCartMultiplier(name, from, to) {
+    if (to > from) return getDisciplineMultiplier(name, disciplineSources);
+    return getDisciplineMultiplier(name, expShopSnapshot?.disciplines || disciplineSources);
+}
+
 function getDisciplinePreviewCost(name, target) {
     const from = getDisciplineTotal(name, expShopSnapshot?.disciplines || {});
-    return getLevelPurchaseCost(from, target, getDisciplineMultiplier(name));
+    return getLevelPurchaseCost(from, target, getDisciplineCartMultiplier(name, from, target));
 }
 
 function getExistingDisciplineModeLabel(name) {
@@ -3703,7 +3709,7 @@ function getExpShopCart() {
         const from = getDisciplineTotal(name, snapshotDisciplines);
         const to = getDisciplineTotal(name, disciplineSources);
         if (from === to) return;
-        const multiplier = getDisciplineMultiplier(name);
+        const multiplier = getDisciplineCartMultiplier(name, from, to);
         cart.push({
             name,
             type: 'discipline',
@@ -3817,10 +3823,10 @@ function renderExpShopPanel() {
                 <strong>${item.cost >= 0 ? '+' : ''}${item.cost} XP</strong>
             </div>
         `).join('')
-        : `<div style="color:#777; font-size:13px; line-height:1.45;">Нажимай на точки, S-бейджи, дисциплины, силы и преимущества прямо на листе. Новые покупки попадут сюда.</div>`;
+        : `<div style="color:#777; font-size:13px; line-height:1.45;">Нажимай на точки, S-бейджи, дисциплины, силы, преимущества и недостатки прямо на листе. Любая покупка или продажа попадёт в чек.</div>`;
 
     panel.innerHTML = `
-        <h3 style="margin:0 0 8px; color:#ff9500; text-align:center;">Магазин опыта</h3>
+        <h3 style="margin:0 0 8px; color:#ff9500; text-align:center;">Касса опыта</h3>
         <table>
             <tr><th>Покупка</th><th>Цена</th></tr>
             <tr><td>Характеристика</td><td>Новое значение × 5</td></tr>
@@ -3844,7 +3850,7 @@ function renderExpShopPanel() {
             <button onclick="document.getElementById('skills-grid')?.scrollIntoView({behavior:'smooth', block:'start'})">Специализации: кликай S у навыков</button>
             <button onclick="document.querySelector('.merit-add-btn')?.scrollIntoView({behavior:'smooth', block:'center'})">Преимущества/недостатки: кнопка на листе ниже</button>
         </div>
-        <div style="color:#aaa; font-size:12px; margin-bottom:8px;">Черновик покупок</div>
+        <div style="color:#aaa; font-size:12px; margin-bottom:8px;">Чек покупок и продаж</div>
         ${cartHTML}
         <div class="xp-cart-total">
             <span>Итого</span>
@@ -3869,24 +3875,36 @@ function askDisciplineName(message = 'Название дисциплины?') {
     return name ? name.trim() : '';
 }
 
-function setDisciplineTotal(name, target, modeLabel = 'клановая') {
-    const baseSources = JSON.parse(JSON.stringify(startingSheetBase?.disciplines?.[name] || {}));
-    const baseTotal = Object.values(baseSources).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+function buildDisciplineSourcesAtTotal(name, target, modeLabel = 'клановая') {
+    const snapshotSources = expShopMode
+        ? JSON.parse(JSON.stringify(expShopSnapshot?.disciplines?.[name] || {}))
+        : JSON.parse(JSON.stringify(disciplineSources?.[name] || startingSheetBase?.disciplines?.[name] || {}));
+    const result = {};
+    let left = target;
 
-    if (target < baseTotal) {
-        alert(`Нельзя опустить ${name} ниже стартового уровня (${baseTotal}).`);
-        return false;
+    Object.entries(snapshotSources).forEach(([source, value]) => {
+        if (left <= 0) return;
+        const dots = Math.max(0, parseInt(value, 10) || 0);
+        const kept = Math.min(dots, left);
+        if (kept > 0) {
+            result[source] = kept;
+            left -= kept;
+        }
+    });
+
+    if (left > 0) {
+        result[`Опыт: ${modeLabel}`] = (result[`Опыт: ${modeLabel}`] || 0) + left;
     }
 
+    return result;
+}
+
+function setDisciplineTotal(name, target, modeLabel = 'клановая') {
     if (target === 0) {
         delete disciplineSources[name];
         delete selectedPowers[name];
     } else {
-        disciplineSources[name] = baseSources;
-        const extra = target - baseTotal;
-        if (extra > 0) {
-            disciplineSources[name][`Опыт: ${modeLabel}`] = extra;
-        }
+        disciplineSources[name] = buildDisciplineSourcesAtTotal(name, target, modeLabel);
     }
 
     if (selectedPowers[name] && selectedPowers[name].length > target) {
@@ -3895,8 +3913,7 @@ function setDisciplineTotal(name, target, modeLabel = 'клановая') {
 
     updateAllDisciplineRows();
     updateDisciplineTotal();
-            renderDisciplines();
-            if (expShopMode) renderExpShopPanel();
+    renderDisciplines();
     renderExpShopPanel();
     return true;
 }
@@ -3918,16 +3935,15 @@ function shopBuyDiscipline() {
 }
 
 function shopSellDiscipline() {
-    const currentNames = Object.keys(disciplineSources).filter(name => getDisciplineTotal(name) > getBaseDisciplineLevel(name));
-    if (currentNames.length === 0) return alert('Нет купленных за опыт точек дисциплин для продажи.');
+    const currentNames = Object.keys(disciplineSources).filter(name => getDisciplineTotal(name) > 0);
+    if (currentNames.length === 0) return alert('Нет дисциплин для продажи.');
 
     const name = prompt(`Какую дисциплину продать?\n\nМожно: ${currentNames.join(', ')}`);
     if (!name || !disciplineSources[name]) return;
 
     const current = getDisciplineTotal(name);
-    const base = getBaseDisciplineLevel(name);
-    const target = parseInt(prompt(`Текущий уровень: ${current}\nСтартовый минимум: ${base}\nДо какого уровня снизить?`, String(Math.max(base, current - 1))), 10);
-    if (Number.isNaN(target) || target < base || target >= current) return alert('Неверный уровень.');
+    const target = parseInt(prompt(`Текущий уровень: ${current}\nДо какого уровня снизить?`, String(Math.max(0, current - 1))), 10);
+    if (Number.isNaN(target) || target < 0 || target >= current) return alert('Неверный уровень.');
 
     setDisciplineTotal(name, target, getExistingDisciplineModeLabel(name));
 }
@@ -3947,12 +3963,11 @@ function shopAddMerit() {
 }
 
 function shopSellMerit() {
-    const baseKeys = getBaseMeritKeys();
     const removable = selectedMerits
         .map((item, index) => ({ item, index }))
-        .filter(({ item }) => !item.fromPredator && !baseKeys.has(getItemKey(item)));
+        .filter(({ item }) => !item.fromPredator);
 
-    if (removable.length === 0) return alert('Нет купленных за опыт преимуществ для продажи.');
+    if (removable.length === 0) return alert('Нет преимуществ для продажи.');
 
     const list = removable.map(({ item }, i) => `${i + 1}. ${item.category} — ${item.name} (${getTraitPoints(item)} XP-точ.)`).join('\n');
     const choice = parseInt(prompt(`Какое преимущество продать?\n\n${list}`), 10);
@@ -4054,13 +4069,10 @@ function setupExpShopDotEditing() {
 
         const name = input.name;
         const clickedValue = parseInt(input.value) || 0;
-        const start = expShopStartLevels[name] ?? 0;
-        const base = baseLevels[name] ?? 0;
         const current = getCurrentLevel(name);
 
         let target = clickedValue;
-        if (clickedValue === current && current > base) target = current - 1;
-        if (target < base) target = base;
+        if (clickedValue === current && current > 0) target = current - 1;
 
         setTraitLevel(name, target);
     }, true);
@@ -4080,15 +4092,27 @@ function setupExpShopDotEditing() {
 
         const clickedValue = parseInt(dot.dataset.level || '0', 10) || 0;
         const current = getDisciplineTotal(name);
-        const base = getBaseDisciplineLevel(name);
         const mode = current > 0 ? getExistingDisciplineModeLabel(name) : expShopDisciplineMode;
 
         let target = clickedValue;
-        if (clickedValue === current && current > base) target = current - 1;
-        if (target < base) target = base;
+        if (clickedValue === current && current > 0) target = current - 1;
 
         setDisciplineTotal(name, target, mode);
     }, true);
+
+    ['input', 'change'].forEach(eventName => {
+        document.addEventListener(eventName, function() {
+            if (!expShopMode) return;
+            setTimeout(() => {
+                updateTrackers();
+                updateVitals();
+                updateExpPurchasedStyles();
+                renderSelectedMeritsFlaws();
+                renderDisciplines();
+                renderExpShopPanel();
+            }, 0);
+        });
+    });
 }
 
 // ====================== ФУНКЦИИ ======================
@@ -4329,15 +4353,7 @@ function applySheetLockState() {
         '#capture-area input, #capture-area select, #capture-area textarea, #capture-area button, #skill-package'
     );
     lockedControls.forEach(control => {
-        const allowShopControl = expShopMode && (
-            control.classList.contains('dot-input') ||
-            control.classList.contains('spec-checkbox') ||
-            control.classList.contains('add-power-btn') ||
-            control.classList.contains('merit-add-btn') ||
-            control.classList.contains('selected-item-remove') ||
-            control.closest('.skill-spec-line')
-        );
-        const shouldDisable = startingSheetFixed && !allowShopControl;
+        const shouldDisable = startingSheetFixed && !expShopMode;
         control.disabled = shouldDisable;
         control.setAttribute('aria-disabled', shouldDisable ? 'true' : 'false');
     });
@@ -4351,10 +4367,8 @@ function applySheetLockState() {
 
 function isSheetLockedTarget(target) {
     if (!startingSheetFixed || isApplyingCharacterData || isExperiencePurchaseInProgress) return false;
+    if (expShopMode) return false;
     if (!target || target.closest('#exp-modal')) return false;
-    if (expShopMode && target.closest('label.dot-label')) return false;
-    if (expShopMode && target.closest('.discipline-item .disc-dot')) return false;
-    if (expShopMode && target.closest('.add-power-btn, .merit-add-btn, .selected-item-remove, .s-badge, .skill-spec-line')) return false;
     return Boolean(target.closest('#capture-area') || target.closest('#skill-package'));
 }
 
