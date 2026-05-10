@@ -879,7 +879,7 @@ function openPowerSelectionModal(discName, maxLevel) {
 
                 card.innerHTML = `
                     <div style="color:#ffae00;font-weight:bold;">${powerName}</div>
-                    <div style="color:#666;font-size:13px;">Уровень ${lvl}$}</div>
+                    <div style="color:#666;font-size:13px;">Уровень ${lvl}</div>
                     <div style="color:#ccc;margin-top:8px;line-height:1.5;">${power.description ? power.description.substring(0, 140) + '...' : 'Нет описания'}</div>
                 `;
 
