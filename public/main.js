@@ -27,6 +27,8 @@ let expShopSnapshot = null;
 let expShopStartLevels = {};
 let expShopDisciplineMode = 'клановая';
 let startingSheetBase = null;
+let expHistory = [];
+let lastAutoExperienceBonus = null;
 
 
 function getTypeBonuses(type) {
@@ -3114,6 +3116,11 @@ function getFullCharacterData() {
         name: document.getElementById('char-name').value.trim() || "Безымянный",
         clan: document.getElementById('clan-input').value,
         predator: document.getElementById('predator-input').value,
+        generation: document.getElementById('generation-input')?.value || '',
+        type: document.getElementById('type-input')?.value || '',
+        baseHumanity: document.getElementById('base-humanity')?.value || '7',
+        freeExp: getCurrentXP(),
+        expHistory: JSON.parse(JSON.stringify(expHistory || [])),
         skillPackage: document.getElementById('skill-package').value,
         sheetLock: {
             fixed: startingSheetFixed,
@@ -3158,15 +3165,51 @@ function getFullCharacterData() {
 
 window.getFullCharacterData = getFullCharacterData;
 
+function resetCharacterSheetForLoad() {
+    document.querySelectorAll('.dot-input').forEach(input => {
+        input.checked = parseInt(input.value, 10) === 0;
+    });
+    document.querySelectorAll('.skill-specs').forEach(container => {
+        container.innerHTML = '';
+        container.style.display = 'none';
+    });
+    document.querySelectorAll('.spec-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+
+    disciplineSources = {};
+    selectedPowers = {};
+    selectedMerits = [];
+    selectedFlaws = [];
+    clanProvidedDisciplines = {};
+    predatorProvidedDisciplines = {};
+    currentPredatorSpecialty = null;
+    expShopMode = false;
+    expShopSnapshot = null;
+    expShopStartLevels = {};
+
+    const list = document.getElementById('disciplines-list');
+    if (list) list.innerHTML = '';
+}
+
 function applyCharacterData(d, sourceName = 'JSON') {
     console.log(`📥 Загрузка персонажа из ${sourceName}:`, d);
     isApplyingCharacterData = true;
 
     try {
+        resetCharacterSheetForLoad();
+
         // Основная информация
-        if (d.name) document.getElementById('char-name').value = d.name;
-        if (d.clan) document.getElementById('clan-input').value = d.clan;
-        if (d.predator) document.getElementById('predator-input').value = d.predator;
+        document.getElementById('char-name').value = d.name || 'Безымянный';
+        document.getElementById('clan-input').value = d.clan || '';
+        document.getElementById('predator-input').value = d.predator || '';
+        if (document.getElementById('generation-input')) document.getElementById('generation-input').value = d.generation || '';
+        if (document.getElementById('type-input')) document.getElementById('type-input').value = d.type || '';
+        if (document.getElementById('base-humanity')) document.getElementById('base-humanity').value = d.baseHumanity || '7';
+        if (document.getElementById('free-exp')) document.getElementById('free-exp').value = parseInt(d.freeExp ?? d.experience ?? 0, 10) || 0;
+        expHistory = Array.isArray(d.expHistory) ? JSON.parse(JSON.stringify(d.expHistory)) : [];
+        renderExpHistory();
+
         if (d.skillPackage) {
             document.getElementById('skill-package').value = d.skillPackage;
             currentPackage = d.skillPackage;
@@ -3176,15 +3219,6 @@ function applyCharacterData(d, sourceName = 'JSON') {
         Object.keys(d.attributes || {}).forEach(name => {
             const radio = document.querySelector(`input[name="${name}"][value="${d.attributes[name]}"]`);
             if (radio) radio.checked = true;
-        });
-
-        // Навыки + специализации
-        document.querySelectorAll('.skill-specs').forEach(container => {
-            container.innerHTML = '';
-            container.style.display = 'none';
-        });
-        document.querySelectorAll('.spec-checkbox').forEach(checkbox => {
-            checkbox.checked = false;
         });
 
         Object.keys(d.skills || {}).forEach(skill => {
@@ -3229,6 +3263,11 @@ function applyCharacterData(d, sourceName = 'JSON') {
             : JSON.parse(JSON.stringify(sheetLockSnapshot));
 
         renderSelectedMeritsFlaws();
+        loadClanHint();
+        loadPredatorHint();
+        updateClanIcon();
+        updateBloodPotencyAndBonuses();
+        updateHumanity();
         updateTrackers();
         updateVitals();
         document.querySelectorAll('.skill-name').forEach(el => {
@@ -3239,6 +3278,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         isApplyingCharacterData = false;
         applySheetLockState();
         updateExpPurchasedStyles();
+        renderExpHistory();
     }
 }
 
@@ -3310,6 +3350,49 @@ function setupGenerationHint() {
 
 
 // ==================== ОБНОВЛЕНИЕ ОПЫТА ====================
+function formatExpHistoryEntry(entry) {
+    if (typeof entry === 'string') return entry;
+    const amount = parseInt(entry.amount || 0, 10) || 0;
+    const sign = amount >= 0 ? '+' : '';
+    const date = entry.timestamp ? new Date(entry.timestamp).toLocaleString('ru-RU') : '';
+    const details = Array.isArray(entry.details) && entry.details.length
+        ? `<div style="margin-left:10px;color:#777;">${entry.details.map(escapeHTML).join('<br>')}</div>`
+        : '';
+    return `${sign}${amount} XP → ${escapeHTML(entry.text || 'Операция')}${date ? ` <small style="color:#666;">${date}</small>` : ''}${details}`;
+}
+
+function renderExpHistory() {
+    const logEl = document.getElementById('exp-log');
+    if (!logEl) return;
+    logEl.innerHTML = (expHistory || []).length
+        ? expHistory.map(formatExpHistoryEntry).join('<br>')
+        : '<span style="color:#666;">История опыта пуста.</span>';
+}
+
+function recordExpHistory(text, amount, details = []) {
+    expHistory.unshift({
+        text,
+        amount,
+        details,
+        timestamp: new Date().toISOString()
+    });
+    if (expHistory.length > 80) expHistory = expHistory.slice(0, 80);
+    renderExpHistory();
+}
+
+function addFreeExperience() {
+    const raw = prompt('Сколько опыта добавить?');
+    const amount = parseInt(raw, 10);
+    if (!amount || amount < 1) return alert('Введите положительное количество опыта.');
+
+    const freeExp = document.getElementById('free-exp');
+    if (freeExp) freeExp.value = getCurrentXP() + amount;
+    recordExpHistory('Добавлен свободный опыт', amount);
+    renderExpShopPanel();
+}
+
+window.addFreeExperience = addFreeExperience;
+
 function updateExperienceBonus() {
     const type = document.getElementById('type-input').value;
     const expInput = document.getElementById('free-exp');
@@ -3346,11 +3429,17 @@ function updateExperienceBonus() {
             text = '—';
     }
 
-    // Автоматически ставим бонус, только если поле ещё не трогали или стоит 0/15
     const currentValue = parseInt(expInput.value) || 0;
-    
+    const canApplyAutoBonus = !startingSheetFixed && expHistory.length === 0 && (
+        lastAutoExperienceBonus === null ||
+        currentValue === lastAutoExperienceBonus ||
+        currentValue === 0
+    );
+
+    if (canApplyAutoBonus) {
         expInput.value = bonus;
-   
+        lastAutoExperienceBonus = bonus;
+    }
 
     if (infoEl) {
         infoEl.innerHTML = `<strong style="color:#ffcc00;">${text}</strong>`;
@@ -3360,13 +3449,24 @@ function updateExperienceBonus() {
 // Привязываем события
 function setupExperienceListener() {
     const typeSelect = document.getElementById('type-input');
+    const expInput = document.getElementById('free-exp');
+
+    if (expInput) {
+        expInput.readOnly = true;
+        expInput.addEventListener('keydown', e => e.preventDefault());
+        expInput.addEventListener('paste', e => e.preventDefault());
+    }
+
     if (typeSelect) {
         typeSelect.addEventListener('change', updateExperienceBonus);
     }
     
     // Также обновляем при загрузке
     window.addEventListener('load', () => {
-        setTimeout(updateExperienceBonus, 100);
+        setTimeout(() => {
+            updateExperienceBonus();
+            renderExpHistory();
+        }, 100);
     });
 }
 
@@ -3443,11 +3543,7 @@ function logExp(text, cost) {
         freeExpEl.value = Math.max(0, current - cost);
     }
 
-    expLog.unshift(`-${cost} XP → ${text}`);
-    if (expLog.length > 12) expLog.pop();
-
-    const logEl = document.getElementById('exp-log');
-    if (logEl) logEl.innerHTML = expLog.join('<br>');
+    recordExpHistory(text, -cost);
 }
 
 // Вспомогательная функция кумулятивного расчёта
@@ -3577,6 +3673,7 @@ function logModal(text, cost) {
 
     const logEl = document.getElementById('modal-log');
     if (logEl) logEl.innerHTML = expLogModal.join('<br>');
+    recordExpHistory(text, -cost);
 }
 
 function openExpModal() {
@@ -4029,12 +4126,8 @@ function acceptExpShopPurchases() {
     const freeExp = document.getElementById('free-exp');
     if (freeExp) freeExp.value = Math.max(0, getCurrentXP() - total);
 
-    const logEl = document.getElementById('exp-log');
-    if (logEl) {
-        const header = total >= 0 ? `-${total} XP → покупки приняты` : `+${Math.abs(total)} XP → продажа принята`;
-        const lines = cart.map(item => `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to} (${item.cost >= 0 ? '+' : ''}${item.cost} XP)`);
-        logEl.innerHTML = [header, ...lines].join('<br>') + (logEl.innerHTML ? `<br>${logEl.innerHTML}` : '');
-    }
+    const lines = cart.map(item => `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to} (${item.cost >= 0 ? '+' : ''}${item.cost} XP)`);
+    recordExpHistory(total >= 0 ? 'Покупки приняты' : 'Продажа принята', -total, lines);
 
     sheetLockSnapshot = captureSheetSnapshot();
     stopExpShopMode();

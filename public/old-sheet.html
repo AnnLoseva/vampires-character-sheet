@@ -1061,7 +1061,7 @@
     <!-- Окно опыта -->
     <div class="exp-container">
         <div class="exp-title">Свободный опыт</div>
-        <input type="number" id="free-exp" value="0" min="0">
+        <input type="number" id="free-exp" value="0" min="0" readonly title="Опыт меняется через покупки, продажи и кнопку добавления опыта">
         <div id="exp-bonus-info" style="text-align:center; margin-top:8px; font-size:13px; color:#777;">
             Бонус от типа персонажа
         </div>
@@ -1074,6 +1074,10 @@
    <button onclick="openExpModal()" 
         style="margin-top:15px; padding:14px 24px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:8px; cursor:pointer; width:100%;">
     Магазин опыта
+</button>
+   <button onclick="addFreeExperience()" 
+        style="margin-top:10px; padding:12px 20px; font-size:15px; background:#222; color:#ffae00; border:1px solid #a14600; border-radius:8px; cursor:pointer; width:100%;">
+    Добавить опыт
 </button>
     <div id="exp-log" style="margin-top:12px; font-size:13px; color:#aaa; max-height:160px; overflow-y:auto; line-height:1.4;"></div>
 </div>

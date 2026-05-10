@@ -27,6 +27,7 @@ function updateAuthButton() {
     if (currentUser) {
         btn.innerHTML = `👤 ${currentUser.username}<br><small onclick="logout()" style="cursor:pointer">Выйти</small>`;
         btn.style.background = '#28a745';
+        btn.onclick = null;
     } else {
         btn.textContent = '🔑 Войти в аккаунт';
         btn.style.background = '#ff3131';
@@ -114,7 +115,7 @@ function showModal(html) {
     if (!modal) {
         modal = document.createElement('div');
         modal.id = 'auth-modal';
-        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:30000;display:flex;align-items:center;justify-content:center;';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.92);z-index:30000;display:flex;align-items:center;justify-content:center;padding:20px;';
         document.body.appendChild(modal);
     }
     modal.innerHTML = html;
@@ -150,6 +151,17 @@ async function saveCharacter() {
 
     if (!characterData.name) characterData.name = "Без имени";
 
+    const { error: deleteError } = await supabaseClient
+        .from('characters')
+        .delete()
+        .eq('user_id', currentUser.id)
+        .eq('name', characterData.name);
+
+    if (deleteError) {
+        console.error(deleteError);
+        return alert("❌ Ошибка перезаписи старого персонажа:\n" + deleteError.message);
+    }
+
     const { error } = await supabaseClient
         .from('characters')
         .insert({
@@ -163,7 +175,7 @@ async function saveCharacter() {
         console.error(error);
         alert("❌ Ошибка сохранения:\n" + error.message);
     } else {
-        alert(`✅ Персонаж "${characterData.name}" успешно сохранён!`);
+        alert(`✅ Персонаж "${characterData.name}" сохранён. Если такое имя уже было, старая запись перезаписана.`);
     }
 }
 
@@ -176,7 +188,7 @@ async function showMyCharacters() {
 
     const { data, error } = await supabaseClient
         .from('characters')
-        .select('id, name, clan, created_at')
+        .select('id, name, clan, created_at, data')
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false });
 
@@ -189,25 +201,33 @@ async function showMyCharacters() {
         return alert("У вас пока нет сохранённых персонажей.");
     }
 
-    let html = `<div style="padding:20px;">
-        <h2 style="color:#ff3131; text-align:center;">📋 Мои персонажи (${data.length})</h2>
+    let html = `<div style="position:relative;padding:24px; width:min(980px,96vw); max-height:86vh; overflow:auto; background:#111; border:2px solid #ff3131; border-radius:10px; color:#eee;">
+        <button onclick="closeModal()" title="Закрыть" style="position:absolute; top:12px; right:16px; background:none; border:none; color:#ff3131; font-size:32px; cursor:pointer; line-height:1;">×</button>
+        <h2 style="color:#ff3131; text-align:center; margin:0 0 18px;">📋 Мои персонажи (${data.length})</h2>
         <table style="width:100%; border-collapse:collapse; background:#111;">
             <thead><tr style="background:#222;">
                 <th style="padding:12px; text-align:left;">Имя</th>
                 <th style="padding:12px; text-align:center;">Клан</th>
+                <th style="padding:12px; text-align:center;">Поколение</th>
+                <th style="padding:12px; text-align:center;">Опыт</th>
                 <th style="padding:12px; text-align:center;">Дата</th>
                 <th style="padding:12px; text-align:center;">Действия</th>
             </tr></thead><tbody>`;
 
     data.forEach(char => {
         const date = new Date(char.created_at).toLocaleDateString('ru-RU');
+        const generation = char.data?.generation || '—';
+        const freeExp = char.data?.freeExp ?? '—';
         html += `
             <tr style="border-bottom:1px solid #333;">
                 <td style="padding:12px;">${char.name}</td>
                 <td style="padding:12px; text-align:center; color:#aaa;">${char.clan || '—'}</td>
+                <td style="padding:12px; text-align:center; color:#aaa;">${generation}</td>
+                <td style="padding:12px; text-align:center; color:#ffae00;">${freeExp}</td>
                 <td style="padding:12px; text-align:center; color:#aaa;">${date}</td>
-                <td style="padding:12px; text-align:center;">
-                    <button onclick="loadCharacter('${char.id}');closeModal()" style="background:#ff3131; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer;">Загрузить</button>
+                <td style="padding:12px; text-align:center; white-space:nowrap;">
+                    <button onclick="loadCharacter('${char.id}')" style="background:#ff3131; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; margin-right:8px;">Загрузить</button>
+                    <button onclick="deleteCharacter('${char.id}', '${String(char.name).replace(/'/g, "\\'")}')" style="background:#330000; color:#ff6666; border:1px solid #7a2222; padding:8px 14px; border-radius:6px; cursor:pointer;">Удалить</button>
                 </td>
             </tr>`;
     });
@@ -240,10 +260,35 @@ async function loadCharacter(id) {
     }
 
     window.applyCharacterData(data.data, 'личного кабинета');
+    closeModal();
     alert(`✅ Персонаж «${data.data.name || 'Без имени'}» загружен!`);
+}
+
+async function deleteCharacter(id, name = 'персонажа') {
+    if (!currentUser) {
+        alert("❌ Войдите в аккаунт!");
+        showAuthModal();
+        return;
+    }
+
+    if (!confirm(`Удалить «${name}»?`)) return;
+
+    const { error } = await supabaseClient
+        .from('characters')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', currentUser.id);
+
+    if (error) {
+        console.error(error);
+        return alert("Ошибка удаления персонажа:\n" + error.message);
+    }
+
+    await showMyCharacters();
 }
 
 // Глобальные функции
 window.saveCharacter = saveCharacter;
 window.showMyCharacters = showMyCharacters;
 window.loadCharacter = loadCharacter;
+window.deleteCharacter = deleteCharacter;
