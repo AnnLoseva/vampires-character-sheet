@@ -375,9 +375,12 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
 
     let dotsHTML = '';
     const baseDots = getBaseDisciplineLevel(name);
+    const shopStartDots = expShopMode
+        ? getDisciplineTotal(name, expShopSnapshot?.disciplines || {})
+        : dots;
     for (let i = 1; i <= 5; i++) {
         const filled = i <= dots ? 'filled' : '';
-        const expClass = filled && i > baseDots ? 'exp-purchased' : '';
+        const expClass = filled && i > shopStartDots ? 'exp-pending' : filled && i > baseDots ? 'exp-purchased' : '';
         const priceTitle = expShopMode ? ` title="До ${i}: ${getDisciplinePreviewCost(name, i)} XP"` : '';
         dotsHTML += `<div class="disc-dot ${filled} ${expClass}" data-level="${i}"${priceTitle}></div>`;
     }
@@ -1697,6 +1700,12 @@ function renderTracker(type, limits, trackerId) {
 function checkLimits() {
     const guide = document.querySelector('.guide');
     const warning = document.getElementById('global-warning');
+
+    if (startingSheetFixed) {
+        guide?.classList.remove('error');
+        if (warning) warning.style.display = 'none';
+        return;
+    }
     
     let hasOver = false;
 
@@ -2702,7 +2711,7 @@ function renderVariantsInCategory(category, tab) {
 
         div.innerHTML = `
             <strong>${name} — ${points} точек</strong>
-            ${expShopMode ? `<span style="color:#ff9500; font-weight:bold; margin-left:8px;">${points * 3} XP</span>` : ''}<br>
+            ${expShopMode ? `<span style="color:#ffcc00; font-weight:bold; margin-left:8px;">${tab === 0 ? points * 3 : 0} XP</span>` : ''}<br>
             <small style="color:#aaa;">${variant.полное_описание || ''}</small><br>
             <small style="color:#ffae00;">${variant.механика || ''}</small>
         `;
@@ -2818,6 +2827,9 @@ function createSelectedItem(item, index, isMerit) {
     const points = getTraitPoints(item);
     const isFromPredator = item.fromPredator === true;
     const baseKeys = isMerit ? getBaseMeritKeys() : getBaseFlawKeys();
+    const snapshotItems = isMerit ? (expShopSnapshot?.merits || []) : (expShopSnapshot?.flaws || []);
+    const snapshotKeys = new Set(snapshotItems.map(getItemKey));
+    const isPendingPurchase = expShopMode && !snapshotKeys.has(getItemKey(item));
     const isFromExperience = startingSheetFixed && !isFromPredator && !baseKeys.has(getItemKey(item));
     const categoryName = item.category || '';
     let displayName = item.name || item.название_пункта || '';
@@ -2831,10 +2843,11 @@ function createSelectedItem(item, index, isMerit) {
 
     for (let i = 1; i <= maxDots; i++) {
         const filled = i <= points;
-        const dotColor = isFromExperience && filled ? '#ff9500' : '#ff3131';
-        const borderColor = isFromExperience && filled ? '#ffb733' : '#ff6666';
+        const dotColor = isPendingPurchase && filled ? '#ffcc00' : isFromExperience && filled ? '#ff9500' : '#ff3131';
+        const borderColor = isPendingPurchase && filled ? '#ffe066' : isFromExperience && filled ? '#ffb733' : '#ff6666';
+        const dotClass = isPendingPurchase && filled ? 'exp-pending' : isFromExperience && filled ? 'exp-purchased' : '';
         dotsHTML += `
-            <div class="merit-dot ${isFromExperience && filled ? 'exp-purchased' : ''}" style="width:18px; height:18px; border-radius:50%; 
+            <div class="merit-dot ${dotClass}" style="width:18px; height:18px; border-radius:50%; 
                         background: ${filled ? dotColor : '#333'}; 
                         border: 2px solid ${filled ? borderColor : '#555'}; 
                         margin-left: 3px;"></div>`;
@@ -2846,11 +2859,17 @@ function createSelectedItem(item, index, isMerit) {
                          padding:4px 8px; border-radius:6px; border:1px solid #444; margin-left:6px; white-space:nowrap;">
                 Тип охоты: ${item.predatorType || ''} • не считается
             </span>`;
+    } else if (expShopMode && isPendingPurchase) {
+        dotsHTML += `
+            <span style="color:#ffcc00; font-weight:bold; background:#1a1a1a; 
+                         padding:4px 8px; border-radius:6px; border:1px solid #665500; margin-left:6px; white-space:nowrap;">
+                ${isMerit ? `${points * 3} XP` : '0 XP'}
+            </span>`;
     } else if (expShopMode && isFromExperience) {
         dotsHTML += `
             <span style="color:#ff9500; font-weight:bold; background:#1a1a1a; 
                          padding:4px 8px; border-radius:6px; border:1px solid #664400; margin-left:6px; white-space:nowrap;">
-                ${points * 3} XP
+                ${isMerit ? `${points * 3} XP` : '0 XP'}
             </span>`;
     }
 
@@ -2858,7 +2877,7 @@ function createSelectedItem(item, index, isMerit) {
     div.className = 'selected-item';
     div.style.cssText = `
         background:#1a1a1a; padding:12px 14px; margin-bottom:6px; border-radius:6px;
-        border-left:4px solid ${isFromExperience ? '#ff9500' : isMerit ? '#ffcc00' : '#ff6666'}; 
+        border-left:4px solid ${isPendingPurchase ? '#ffcc00' : isFromExperience ? '#ff9500' : isMerit ? '#ffcc00' : '#ff6666'}; 
         cursor: pointer; overflow: hidden; transition: all 0.3s;
     `;
     div.innerHTML = `
@@ -3774,12 +3793,15 @@ function getPowerLevel(discName, powerName) {
 }
 
 function getPowerPurchaseCost(discName, powerName) {
-    const level = getPowerLevel(discName, powerName);
-    return level > 0 ? level * 3 : 0;
+    return 0;
 }
 
 function getTraitPurchaseCost(item) {
     return getTraitPoints(item) * 3;
+}
+
+function getMeritPurchaseCost(item) {
+    return item?.fromPredator ? 0 : getTraitPoints(item) * 3;
 }
 
 function getExpShopCart() {
@@ -3823,13 +3845,14 @@ function getExpShopCart() {
         const key = getItemKey(item);
         if (snapshotMeritKeys.has(key)) return;
         const points = getTraitPoints(item);
-        cart.push({ name: item.name, type: 'merit', from: 0, to: points, cost: points * 3 });
+        cart.push({ name: item.name, type: 'merit', from: 0, to: points, cost: getMeritPurchaseCost(item) });
     });
     snapshotMerits.forEach(item => {
         const key = getItemKey(item);
         if (currentMeritKeys.has(key)) return;
         const points = getTraitPoints(item);
-        cart.push({ name: item.name, type: 'merit', from: points, to: 0, cost: -(points * 3) });
+        const cost = getMeritPurchaseCost(item);
+        cart.push({ name: item.name, type: 'merit', from: points, to: 0, cost: cost ? -cost : 0 });
     });
 
     const snapshotFlaws = expShopSnapshot?.flaws || [];
@@ -3839,13 +3862,13 @@ function getExpShopCart() {
         const key = getItemKey(item);
         if (snapshotFlawKeys.has(key)) return;
         const points = getTraitPoints(item);
-        cart.push({ name: item.name, type: 'flaw', from: 0, to: points, cost: getTraitPurchaseCost(item) });
+        cart.push({ name: item.name, type: 'flaw', from: 0, to: points, cost: 0 });
     });
     snapshotFlaws.forEach(item => {
         const key = getItemKey(item);
         if (currentFlawKeys.has(key)) return;
         const points = getTraitPoints(item);
-        cart.push({ name: item.name, type: 'flaw', from: points, to: 0, cost: -getTraitPurchaseCost(item) });
+        cart.push({ name: item.name, type: 'flaw', from: points, to: 0, cost: 0 });
     });
 
     const snapshotSkills = expShopSnapshot?.skills || {};
@@ -3932,8 +3955,10 @@ function renderExpShopPanel() {
             <tr><td>Клановая дисциплина</td><td>Новое значение × 5</td></tr>
             <tr><td>Сторонняя дисциплина</td><td>Новое значение × 7</td></tr>
             <tr><td>Дисциплина каитифа</td><td>Новое значение × 6</td></tr>
+            <tr><td>Сила дисциплины</td><td>Бесплатно, максимум = уровень дисциплины</td></tr>
             <tr><td>Ритуал / рецептура</td><td>Уровень × 3</td></tr>
-            <tr><td>Преимущество / Недостаток</td><td>3 XP за пункт</td></tr>
+            <tr><td>Преимущество</td><td>3 XP за пункт</td></tr>
+            <tr><td>Недостаток</td><td>Бесплатно</td></tr>
             <tr><td>Сила Крови</td><td>Новое значение × 10</td></tr>
         </table>
         <label style="display:block;color:#aaa;font-size:12px;margin:10px 0 6px;">Цена новых дисциплин</label>
@@ -4391,8 +4416,9 @@ function captureCurrentLevels() {
 }
 
 function updateExpPurchasedStyles() {
-    document.querySelectorAll('.dot-label.exp-purchased').forEach(label => {
+    document.querySelectorAll('.dot-label.exp-purchased, .dot-label.exp-pending').forEach(label => {
         label.classList.remove('exp-purchased');
+        label.classList.remove('exp-pending');
     });
 
     if (!startingSheetFixed && !Object.keys(baseLevels || {}).length) return;
@@ -4403,9 +4429,14 @@ function updateExpPurchasedStyles() {
 
         const current = getCurrentLevel(input.name);
         const base = baseLevels[input.name] ?? 0;
+        const shopStart = expShopMode ? (expShopStartLevels[input.name] ?? 0) : current;
         const label = document.querySelector(`label[for="${input.id}"]`);
 
-        if (label && value > base && value <= current) {
+        if (!label) return;
+
+        if (expShopMode && value > shopStart && value <= current) {
+            label.classList.add('exp-pending');
+        } else if (value > base && value <= current) {
             label.classList.add('exp-purchased');
         }
     });
@@ -4432,6 +4463,12 @@ function captureSheetSnapshot() {
 function applySheetLockState() {
     document.body.classList.toggle('sheet-fixed', startingSheetFixed);
     document.body.classList.toggle('xp-shop-active', expShopMode);
+
+    if (startingSheetFixed) {
+        document.querySelector('.guide')?.classList.remove('error');
+        const warning = document.getElementById('global-warning');
+        if (warning) warning.style.display = 'none';
+    }
 
     const btn = document.getElementById('fix-start-btn');
     if (btn) {

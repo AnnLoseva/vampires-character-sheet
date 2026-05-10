@@ -396,6 +396,13 @@
             box-shadow: 0 0 12px #ffaa00 !important;
         }
 
+        .discipline-item .disc-dot.exp-pending,
+        .merit-dot.exp-pending {
+            background: #ffcc00 !important;
+            border-color: #ffe066 !important;
+            box-shadow: 0 0 12px #ffcc00 !important;
+        }
+
         /* Название дисциплины */
         .discipline-item > div:first-child {
             flex: 1;
@@ -625,6 +632,17 @@
             background-color: #ff9500 !important;
             border-color: #ffb733 !important;
             box-shadow: 0 0 12px #ffaa00 !important;
+        }
+
+        .exp-pending {
+            color: #ffcc00 !important;
+            font-weight: bold;
+        }
+
+        .dot-label.exp-pending {
+            background-color: #ffcc00 !important;
+            border-color: #ffe066 !important;
+            box-shadow: 0 0 12px #ffcc00 !important;
         }
 
         .xp-shop-panel {
@@ -1374,7 +1392,9 @@
             <tr><td>Любая дисциплина для каитифа</td><td>Новое значение × 6</td></tr>
             <tr><td>Ритуал Кровавого чародейства</td><td>Уровень ритуала × 3</td></tr>
             <tr><td>Рецептура Алхимии слабокровных</td><td>Уровень рецептуры × 3</td></tr>
+            <tr><td>Сила дисциплины</td><td>Бесплатно, максимум = уровень дисциплины</td></tr>
             <tr><td>Преимущество</td><td>3 XP за каждый пункт</td></tr>
+            <tr><td>Недостаток</td><td>Бесплатно</td></tr>
             <tr><td>Сила Крови</td><td>Новое значение × 10</td></tr>
         </table>
 
