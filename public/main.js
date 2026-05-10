@@ -2231,20 +2231,38 @@ function setupAutoResizeTextareas() {
 }
 
 function expandTextareasForCapture(area) {
-    const states = [];
+    const replacements = [];
     area.querySelectorAll('textarea').forEach(textarea => {
-        states.push({
-            textarea,
-            height: textarea.style.height,
-            overflow: textarea.style.overflow
-        });
-        textarea.style.overflow = 'hidden';
         autoResizeTextarea(textarea);
+
+        const replacement = document.createElement('div');
+        const computed = window.getComputedStyle(textarea);
+        replacement.className = 'capture-textarea-replacement';
+        replacement.textContent = textarea.value || textarea.placeholder || '';
+        replacement.style.cssText = `
+            width: ${textarea.offsetWidth}px;
+            min-height: ${Math.max(textarea.scrollHeight, textarea.offsetHeight)}px;
+            box-sizing: border-box;
+            padding: ${computed.padding};
+            border: ${computed.border};
+            border-radius: ${computed.borderRadius};
+            background: ${computed.backgroundColor};
+            color: ${computed.color};
+            font: ${computed.font};
+            line-height: ${computed.lineHeight};
+            text-align: ${computed.textAlign};
+            white-space: pre-wrap;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        `;
+        textarea.style.display = 'none';
+        textarea.parentNode.insertBefore(replacement, textarea.nextSibling);
+        replacements.push({ textarea, replacement });
     });
     return () => {
-        states.forEach(({ textarea, height, overflow }) => {
-            textarea.style.height = height;
-            textarea.style.overflow = overflow;
+        replacements.forEach(({ textarea, replacement }) => {
+            textarea.style.display = '';
+            replacement.remove();
         });
         autoResizeTextarea(document.getElementById('backstory-input'));
     };
