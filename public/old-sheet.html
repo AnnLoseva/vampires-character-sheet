@@ -389,6 +389,13 @@
             box-shadow: 0 0 10px var(--v-red); 
         }
 
+        .discipline-item .disc-dot.exp-purchased,
+        .merit-dot.exp-purchased {
+            background: #ff9500 !important;
+            border-color: #ffb733 !important;
+            box-shadow: 0 0 12px #ffaa00 !important;
+        }
+
         /* Название дисциплины */
         .discipline-item > div:first-child {
             flex: 1;
@@ -673,6 +680,23 @@
             grid-template-columns: 1fr 1fr;
             gap: 8px;
             margin-top: 14px;
+        }
+
+        .xp-shop-tools {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 7px;
+            margin: 12px 0 14px;
+        }
+
+        .xp-shop-tools button {
+            padding: 9px 10px;
+            border-radius: 6px;
+            border: 1px solid #553500;
+            background: #17110a;
+            color: #ffcc66;
+            cursor: pointer;
+            text-align: left;
         }
 
         .xp-shop-actions button {

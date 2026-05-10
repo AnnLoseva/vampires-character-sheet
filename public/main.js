@@ -25,6 +25,7 @@ let isExperiencePurchaseInProgress = false;
 let expShopMode = false;
 let expShopSnapshot = null;
 let expShopStartLevels = {};
+let startingSheetBase = null;
 
 
 function getTypeBonuses(type) {
@@ -369,9 +370,11 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
     item.className = 'discipline-item';
 
     let dotsHTML = '';
+    const baseDots = getBaseDisciplineLevel(name);
     for (let i = 1; i <= 5; i++) {
         const filled = i <= dots ? 'filled' : '';
-        dotsHTML += `<div class="disc-dot ${filled}" data-level="${i}"></div>`;
+        const expClass = filled && i > baseDots ? 'exp-purchased' : '';
+        dotsHTML += `<div class="disc-dot ${filled} ${expClass}" data-level="${i}"></div>`;
     }
 
     const sources = sourceText.split('+').map(s => s.trim()).filter(s => s);
@@ -2391,6 +2394,7 @@ function renderVariantsInCategory(category, tab) {
                 else selectedFlaws.push(item);
 
                 renderSelectedMeritsFlaws();
+                if (expShopMode) renderExpShopPanel();
                 closeMeritsFlawsModal();
             });
         }
@@ -2477,6 +2481,7 @@ function renderDots(containerId, points, isMerit) {
 function createSelectedItem(item, index, isMerit) {
     const points = getTraitPoints(item);
     const isFromPredator = item.fromPredator === true;
+    const isFromExperience = isMerit && startingSheetFixed && !isFromPredator && !getBaseMeritKeys().has(getItemKey(item));
     const categoryName = item.category || '';
     let displayName = item.name || item.название_пункта || '';
     
@@ -2488,10 +2493,13 @@ function createSelectedItem(item, index, isMerit) {
     let dotsHTML = '';
 
     for (let i = 1; i <= maxDots; i++) {
+        const filled = i <= points;
+        const dotColor = isFromExperience && filled ? '#ff9500' : '#ff3131';
+        const borderColor = isFromExperience && filled ? '#ffb733' : '#ff6666';
         dotsHTML += `
-            <div style="width:18px; height:18px; border-radius:50%; 
-                        background: ${i <= points ? '#ff3131' : '#333'}; 
-                        border: 2px solid ${i <= points ? '#ff6666' : '#555'}; 
+            <div class="merit-dot ${isFromExperience && filled ? 'exp-purchased' : ''}" style="width:18px; height:18px; border-radius:50%; 
+                        background: ${filled ? dotColor : '#333'}; 
+                        border: 2px solid ${filled ? borderColor : '#555'}; 
                         margin-left: 3px;"></div>`;
     }
 
@@ -2507,7 +2515,7 @@ function createSelectedItem(item, index, isMerit) {
     div.className = 'selected-item';
     div.style.cssText = `
         background:#1a1a1a; padding:12px 14px; margin-bottom:6px; border-radius:6px;
-        border-left:4px solid ${isMerit ? '#ffcc00' : '#ff6666'}; 
+        border-left:4px solid ${isFromExperience ? '#ff9500' : isMerit ? '#ffcc00' : '#ff6666'}; 
         cursor: pointer; overflow: hidden; transition: all 0.3s;
     `;
     div.innerHTML = `
@@ -2757,7 +2765,8 @@ function getFullCharacterData() {
         sheetLock: {
             fixed: startingSheetFixed,
             baseLevels: baseLevels,
-            snapshot: sheetLockSnapshot
+            snapshot: sheetLockSnapshot,
+            baseState: startingSheetBase
         },
         
         attributes: {},
@@ -2862,6 +2871,9 @@ function applyCharacterData(d, sourceName = 'JSON') {
         startingSheetFixed = Boolean(d.sheetLock?.fixed);
         baseLevels = d.sheetLock?.baseLevels ? JSON.parse(JSON.stringify(d.sheetLock.baseLevels)) : captureCurrentLevels();
         sheetLockSnapshot = d.sheetLock?.snapshot ? JSON.parse(JSON.stringify(d.sheetLock.snapshot)) : captureSheetSnapshot();
+        startingSheetBase = d.sheetLock?.baseState
+            ? JSON.parse(JSON.stringify(d.sheetLock.baseState))
+            : JSON.parse(JSON.stringify(sheetLockSnapshot));
 
         renderSelectedMeritsFlaws();
         updateTrackers();
@@ -3223,7 +3235,12 @@ function closeExpModal() {
 }
 
 function getTraitKindLabel(type) {
-    return type === 'attr' ? 'Характеристика' : 'Навык';
+    if (type === 'attr') return 'Характеристика';
+    if (type === 'skill') return 'Навык';
+    if (type === 'discipline') return 'Дисциплина';
+    if (type === 'merit') return 'Преимущество';
+    if (type === 'power') return 'Сила дисциплины';
+    return 'Покупка';
 }
 
 function getTraitMultiplier(type) {
@@ -3232,10 +3249,54 @@ function getTraitMultiplier(type) {
 
 function getLevelPurchaseCost(fromLevel, toLevel, multiplier) {
     let total = 0;
-    for (let level = fromLevel + 1; level <= toLevel; level++) {
-        total += level * multiplier;
+    if (toLevel > fromLevel) {
+        for (let level = fromLevel + 1; level <= toLevel; level++) {
+            total += level * multiplier;
+        }
+    } else if (toLevel < fromLevel) {
+        for (let level = toLevel + 1; level <= fromLevel; level++) {
+            total -= level * multiplier;
+        }
     }
     return total;
+}
+
+function getDisciplineTotal(name, sources = disciplineSources) {
+    return Object.values(sources?.[name] || {}).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+}
+
+function getBaseDisciplineLevel(name) {
+    return getDisciplineTotal(name, startingSheetBase?.disciplines || {});
+}
+
+function getDisciplineMultiplier(name) {
+    const sourceText = Object.keys(disciplineSources[name] || {}).join(' ').toLowerCase();
+    if (sourceText.includes('каитиф')) return 6;
+    if (sourceText.includes('сторон')) return 7;
+    return 5;
+}
+
+function getExistingDisciplineModeLabel(name) {
+    const sourceText = Object.keys(disciplineSources[name] || {}).join(' ').toLowerCase();
+    if (sourceText.includes('каитиф')) return 'каитиф';
+    if (sourceText.includes('сторон')) return 'сторонняя';
+    return 'клановая';
+}
+
+function getItemKey(item) {
+    return `${item?.category || ''}::${item?.name || item?.название_пункта || ''}`;
+}
+
+function getBaseMeritKeys() {
+    return new Set((startingSheetBase?.merits || []).map(getItemKey));
+}
+
+function getPowerLevel(discName, powerName) {
+    const powers = RULES.disciplines?.[discName]?.powers || {};
+    for (let level = 1; level <= 5; level++) {
+        if (powers[level]?.[powerName]) return level;
+    }
+    return 0;
 }
 
 function getExpShopCart() {
@@ -3244,7 +3305,7 @@ function getExpShopCart() {
         const name = input.name;
         const current = parseInt(input.value) || 0;
         const start = expShopStartLevels[name] ?? 0;
-        if (!name || current <= start) return;
+        if (!name || current === start) return;
 
         const multiplier = getTraitMultiplier(input.dataset.type);
         cart.push({
@@ -3255,6 +3316,52 @@ function getExpShopCart() {
             cost: getLevelPurchaseCost(start, current, multiplier)
         });
     });
+
+    const snapshotDisciplines = expShopSnapshot?.disciplines || {};
+    const allDisciplines = new Set([...Object.keys(snapshotDisciplines), ...Object.keys(disciplineSources)]);
+    allDisciplines.forEach(name => {
+        const from = getDisciplineTotal(name, snapshotDisciplines);
+        const to = getDisciplineTotal(name, disciplineSources);
+        if (from === to) return;
+        const multiplier = getDisciplineMultiplier(name);
+        cart.push({
+            name,
+            type: 'discipline',
+            from,
+            to,
+            cost: getLevelPurchaseCost(from, to, multiplier)
+        });
+    });
+
+    const snapshotMerits = expShopSnapshot?.merits || [];
+    const currentMeritKeys = new Set(selectedMerits.map(getItemKey));
+    const snapshotMeritKeys = new Set(snapshotMerits.map(getItemKey));
+    selectedMerits.forEach(item => {
+        const key = getItemKey(item);
+        if (snapshotMeritKeys.has(key)) return;
+        const points = getTraitPoints(item);
+        cart.push({ name: item.name, type: 'merit', from: 0, to: points, cost: points * 3 });
+    });
+    snapshotMerits.forEach(item => {
+        const key = getItemKey(item);
+        if (currentMeritKeys.has(key)) return;
+        const points = getTraitPoints(item);
+        cart.push({ name: item.name, type: 'merit', from: points, to: 0, cost: -(points * 3) });
+    });
+
+    const snapshotPowers = expShopSnapshot?.selectedPowers || {};
+    const allPowerDisciplines = new Set([...Object.keys(snapshotPowers), ...Object.keys(selectedPowers)]);
+    allPowerDisciplines.forEach(discName => {
+        const before = new Set(snapshotPowers[discName] || []);
+        const after = new Set(selectedPowers[discName] || []);
+        after.forEach(power => {
+            if (!before.has(power)) cart.push({ name: `${discName}: ${power}`, type: 'power', from: 0, to: getPowerLevel(discName, power), cost: 0 });
+        });
+        before.forEach(power => {
+            if (!after.has(power)) cart.push({ name: `${discName}: ${power}`, type: 'power', from: getPowerLevel(discName, power), to: 0, cost: 0 });
+        });
+    });
+
     return cart;
 }
 
@@ -3297,7 +3404,7 @@ function renderExpShopPanel() {
         ? cart.map(item => `
             <div class="xp-cart-line">
                 <span>${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to}</span>
-                <strong>${item.cost} XP</strong>
+                <strong>${item.cost >= 0 ? '+' : ''}${item.cost} XP</strong>
             </div>
         `).join('')
         : `<div style="color:#777; font-size:13px; line-height:1.45;">Нажимай на точки характеристик или навыков на листе. Новые точки станут кроваво-оранжевыми и попадут сюда.</div>`;
@@ -3316,11 +3423,18 @@ function renderExpShopPanel() {
             <tr><td>Преимущество</td><td>3 XP за пункт</td></tr>
             <tr><td>Сила Крови</td><td>Новое значение × 10</td></tr>
         </table>
+        <div class="xp-shop-tools">
+            <button onclick="shopBuyDiscipline()">+ Купить / повысить дисциплину</button>
+            <button onclick="shopSellDiscipline()">− Продать точку дисциплины</button>
+            <button onclick="shopAddPower()">± Добавить / убрать силу дисциплины</button>
+            <button onclick="shopAddMerit()">+ Добавить преимущество</button>
+            <button onclick="shopSellMerit()">− Продать преимущество</button>
+        </div>
         <div style="color:#aaa; font-size:12px; margin-bottom:8px;">Черновик покупок</div>
         ${cartHTML}
         <div class="xp-cart-total">
             <span>Итого</span>
-            <span style="color:${overBudget ? '#ff6666' : '#ffcc66'}">${total} / ${freeXP} XP</span>
+            <span style="color:${overBudget ? '#ff6666' : '#ffcc66'}">${total >= 0 ? total : '+' + Math.abs(total)} / ${freeXP} XP</span>
         </div>
         ${overBudget ? `<div style="color:#ff6666; font-size:12px; margin-top:8px;">Не хватает ${total - freeXP} XP.</div>` : ''}
         <div class="xp-shop-actions">
@@ -3328,6 +3442,111 @@ function renderExpShopPanel() {
             <button onclick="cancelExpShopPurchases()" style="background:#333; color:#eee;">Отмена</button>
         </div>
     `;
+}
+
+function getDisciplineNamesForPrompt() {
+    return Object.keys(RULES.disciplines || {}).sort();
+}
+
+function askDisciplineName(message = 'Название дисциплины?') {
+    const known = getDisciplineNamesForPrompt();
+    const hint = known.length ? `\n\nДоступные: ${known.join(', ')}` : '';
+    const name = prompt(`${message}${hint}`);
+    return name ? name.trim() : '';
+}
+
+function setDisciplineTotal(name, target, modeLabel = 'клановая') {
+    const baseSources = JSON.parse(JSON.stringify(startingSheetBase?.disciplines?.[name] || {}));
+    const baseTotal = Object.values(baseSources).reduce((sum, val) => sum + (parseInt(val) || 0), 0);
+
+    if (target < baseTotal) {
+        alert(`Нельзя опустить ${name} ниже стартового уровня (${baseTotal}).`);
+        return false;
+    }
+
+    if (target === 0) {
+        delete disciplineSources[name];
+        delete selectedPowers[name];
+    } else {
+        disciplineSources[name] = baseSources;
+        const extra = target - baseTotal;
+        if (extra > 0) {
+            disciplineSources[name][`Опыт: ${modeLabel}`] = extra;
+        }
+    }
+
+    if (selectedPowers[name] && selectedPowers[name].length > target) {
+        selectedPowers[name] = selectedPowers[name].slice(0, target);
+    }
+
+    updateAllDisciplineRows();
+    updateDisciplineTotal();
+            renderDisciplines();
+            if (expShopMode) renderExpShopPanel();
+    renderExpShopPanel();
+    return true;
+}
+
+function shopBuyDiscipline() {
+    const name = askDisciplineName('Какую дисциплину купить или повысить?');
+    if (!name) return;
+
+    const current = getDisciplineTotal(name);
+    const target = parseInt(prompt(`Текущий уровень: ${current}\nДо какого уровня повысить?`, String(Math.min(5, current + 1))), 10);
+    if (!target || target <= current || target > 5) return alert('Неверный уровень.');
+
+    const mode = prompt('Тип покупки: clan / out / caitiff', 'clan');
+    if (!mode) return;
+    const normalized = mode.toLowerCase();
+    const label = normalized === 'out' ? 'сторонняя' : normalized === 'caitiff' ? 'каитиф' : 'клановая';
+
+    setDisciplineTotal(name, target, label);
+}
+
+function shopSellDiscipline() {
+    const currentNames = Object.keys(disciplineSources).filter(name => getDisciplineTotal(name) > getBaseDisciplineLevel(name));
+    if (currentNames.length === 0) return alert('Нет купленных за опыт точек дисциплин для продажи.');
+
+    const name = prompt(`Какую дисциплину продать?\n\nМожно: ${currentNames.join(', ')}`);
+    if (!name || !disciplineSources[name]) return;
+
+    const current = getDisciplineTotal(name);
+    const base = getBaseDisciplineLevel(name);
+    const target = parseInt(prompt(`Текущий уровень: ${current}\nСтартовый минимум: ${base}\nДо какого уровня снизить?`, String(Math.max(base, current - 1))), 10);
+    if (Number.isNaN(target) || target < base || target >= current) return alert('Неверный уровень.');
+
+    setDisciplineTotal(name, target, getExistingDisciplineModeLabel(name));
+}
+
+function shopAddPower() {
+    const names = Object.keys(disciplineSources).filter(name => getDisciplineTotal(name) > 0);
+    if (names.length === 0) return alert('Сначала купи или получи дисциплину.');
+
+    const name = prompt(`Для какой дисциплины добавить силу?\n\nДоступные: ${names.join(', ')}`);
+    if (!name || !disciplineSources[name]) return;
+
+    openPowerSelectionModal(name, getDisciplineTotal(name));
+}
+
+function shopAddMerit() {
+    openMeritsFlawsModal();
+}
+
+function shopSellMerit() {
+    const baseKeys = getBaseMeritKeys();
+    const removable = selectedMerits
+        .map((item, index) => ({ item, index }))
+        .filter(({ item }) => !item.fromPredator && !baseKeys.has(getItemKey(item)));
+
+    if (removable.length === 0) return alert('Нет купленных за опыт преимуществ для продажи.');
+
+    const list = removable.map(({ item }, i) => `${i + 1}. ${item.category} — ${item.name} (${getTraitPoints(item)} XP-точ.)`).join('\n');
+    const choice = parseInt(prompt(`Какое преимущество продать?\n\n${list}`), 10);
+    if (!choice || !removable[choice - 1]) return;
+
+    selectedMerits.splice(removable[choice - 1].index, 1);
+    renderSelectedMeritsFlaws();
+    renderExpShopPanel();
 }
 
 function startExpShopMode() {
@@ -3369,20 +3588,21 @@ function acceptExpShopPurchases() {
     const cart = getExpShopCart();
     const total = cart.reduce((sum, item) => sum + item.cost, 0);
 
-    if (total <= 0) {
+    if (cart.length === 0) {
         alert("В корзине пока нет покупок.");
         return;
     }
 
-    if (!assertEnoughXP(total)) return;
+    if (total > 0 && !assertEnoughXP(total)) return;
 
     const freeExp = document.getElementById('free-exp');
-    if (freeExp) freeExp.value = getCurrentXP() - total;
+    if (freeExp) freeExp.value = Math.max(0, getCurrentXP() - total);
 
     const logEl = document.getElementById('exp-log');
     if (logEl) {
-        const lines = cart.map(item => `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to} (${item.cost} XP)`);
-        logEl.innerHTML = [`-${total} XP → покупки приняты`, ...lines].join('<br>') + (logEl.innerHTML ? `<br>${logEl.innerHTML}` : '');
+        const header = total >= 0 ? `-${total} XP → покупки приняты` : `+${Math.abs(total)} XP → продажа принята`;
+        const lines = cart.map(item => `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to} (${item.cost >= 0 ? '+' : ''}${item.cost} XP)`);
+        logEl.innerHTML = [header, ...lines].join('<br>') + (logEl.innerHTML ? `<br>${logEl.innerHTML}` : '');
     }
 
     sheetLockSnapshot = captureSheetSnapshot();
@@ -3419,11 +3639,12 @@ function setupExpShopDotEditing() {
         const name = input.name;
         const clickedValue = parseInt(input.value) || 0;
         const start = expShopStartLevels[name] ?? 0;
+        const base = baseLevels[name] ?? 0;
         const current = getCurrentLevel(name);
 
         let target = clickedValue;
-        if (clickedValue === current && current > start) target = current - 1;
-        if (target < start) target = start;
+        if (clickedValue === current && current > base) target = current - 1;
+        if (target < base) target = base;
 
         setTraitLevel(name, target);
     }, true);
@@ -3730,6 +3951,7 @@ function fixStartingSheet() {
 
     baseLevels = captureCurrentLevels();
     sheetLockSnapshot = captureSheetSnapshot();
+    startingSheetBase = JSON.parse(JSON.stringify(sheetLockSnapshot));
     startingSheetFixed = true;
     applySheetLockState();
     updateExpPurchasedStyles();
