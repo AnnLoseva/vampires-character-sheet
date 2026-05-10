@@ -22,6 +22,9 @@ let baseLevels = {};
 let sheetLockSnapshot = null;
 let isApplyingCharacterData = false;
 let isExperiencePurchaseInProgress = false;
+let expShopMode = false;
+let expShopSnapshot = null;
+let expShopStartLevels = {};
 
 
 function getTypeBonuses(type) {
@@ -115,6 +118,7 @@ async function initializeApp() {
         setupEventListeners();
         setupSaveButton();
         setupSheetLockGuards();
+        setupExpShopDotEditing();
 
         // Дополнительные настройки
         setupGenerationHint();
@@ -122,6 +126,7 @@ async function initializeApp() {
         updateBloodPotencyAndBonuses();
         updateExperienceBonus();
         applySheetLockState();
+        updateExpPurchasedStyles();
 
         console.log("✅ Приложение полностью инициализировано");
     } catch (err) {
@@ -225,6 +230,9 @@ function renderSkills() {
                     <input type="radio" id="sk-${name}-${i}" name="${name}" value="${i}" class="dot-input" data-type="skill" style="display:none;">
                     <label for="sk-${name}-${i}" class="dot-label" data-level="${i}" data-name="${name}"></label>`;
             }
+
+            dotsHTML += `
+                <input type="radio" id="sk-${name}-0" name="${name}" value="0" class="dot-input" data-type="skill" style="display:none;" checked>`;
 
             col.innerHTML += `
                 <div class="row">
@@ -2865,6 +2873,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
     } finally {
         isApplyingCharacterData = false;
         applySheetLockState();
+        updateExpPurchasedStyles();
     }
 }
 
@@ -3206,13 +3215,218 @@ function logModal(text, cost) {
 }
 
 function openExpModal() {
-    document.getElementById('exp-modal').style.display = 'flex';
-    expLogModal = []; // очищаем лог при открытии
-    document.getElementById('modal-log').innerHTML = '';
+    startExpShopMode();
 }
 
 function closeExpModal() {
     document.getElementById('exp-modal').style.display = 'none';
+}
+
+function getTraitKindLabel(type) {
+    return type === 'attr' ? 'Характеристика' : 'Навык';
+}
+
+function getTraitMultiplier(type) {
+    return type === 'attr' ? 5 : 3;
+}
+
+function getLevelPurchaseCost(fromLevel, toLevel, multiplier) {
+    let total = 0;
+    for (let level = fromLevel + 1; level <= toLevel; level++) {
+        total += level * multiplier;
+    }
+    return total;
+}
+
+function getExpShopCart() {
+    const cart = [];
+    document.querySelectorAll('.dots input.dot-input:checked').forEach(input => {
+        const name = input.name;
+        const current = parseInt(input.value) || 0;
+        const start = expShopStartLevels[name] ?? 0;
+        if (!name || current <= start) return;
+
+        const multiplier = getTraitMultiplier(input.dataset.type);
+        cart.push({
+            name,
+            type: input.dataset.type,
+            from: start,
+            to: current,
+            cost: getLevelPurchaseCost(start, current, multiplier)
+        });
+    });
+    return cart;
+}
+
+function getExpShopTotal() {
+    return getExpShopCart().reduce((sum, item) => sum + item.cost, 0);
+}
+
+function renderExpShopPanel() {
+    const rightPanel = document.querySelector('.right-panel');
+    if (!rightPanel) return;
+
+    document.querySelectorAll('#clan-hint-box, #predator-hint-box, #generation-hint-box').forEach(box => {
+        box.style.display = expShopMode ? 'none' : '';
+    });
+
+    let panel = document.getElementById('xp-shop-side-panel');
+    if (!expShopMode) {
+        panel?.remove();
+        return;
+    }
+
+    if (!panel) {
+        panel = document.createElement('div');
+        panel.id = 'xp-shop-side-panel';
+        panel.className = 'xp-shop-panel';
+        const authBtn = document.getElementById('auth-btn');
+        if (authBtn?.nextSibling) {
+            rightPanel.insertBefore(panel, authBtn.nextSibling);
+        } else {
+            rightPanel.prepend(panel);
+        }
+    }
+
+    const cart = getExpShopCart();
+    const total = cart.reduce((sum, item) => sum + item.cost, 0);
+    const freeXP = getCurrentXP();
+    const overBudget = total > freeXP;
+
+    const cartHTML = cart.length
+        ? cart.map(item => `
+            <div class="xp-cart-line">
+                <span>${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to}</span>
+                <strong>${item.cost} XP</strong>
+            </div>
+        `).join('')
+        : `<div style="color:#777; font-size:13px; line-height:1.45;">Нажимай на точки характеристик или навыков на листе. Новые точки станут кроваво-оранжевыми и попадут сюда.</div>`;
+
+    panel.innerHTML = `
+        <h3 style="margin:0 0 8px; color:#ff9500; text-align:center;">Магазин опыта</h3>
+        <table>
+            <tr><th>Покупка</th><th>Цена</th></tr>
+            <tr><td>Характеристика</td><td>Новое значение × 5</td></tr>
+            <tr><td>Навык</td><td>Новое значение × 3</td></tr>
+            <tr><td>Новая специализация</td><td>3 XP</td></tr>
+            <tr><td>Клановая дисциплина</td><td>Новое значение × 5</td></tr>
+            <tr><td>Сторонняя дисциплина</td><td>Новое значение × 7</td></tr>
+            <tr><td>Дисциплина каитифа</td><td>Новое значение × 6</td></tr>
+            <tr><td>Ритуал / рецептура</td><td>Уровень × 3</td></tr>
+            <tr><td>Преимущество</td><td>3 XP за пункт</td></tr>
+            <tr><td>Сила Крови</td><td>Новое значение × 10</td></tr>
+        </table>
+        <div style="color:#aaa; font-size:12px; margin-bottom:8px;">Черновик покупок</div>
+        ${cartHTML}
+        <div class="xp-cart-total">
+            <span>Итого</span>
+            <span style="color:${overBudget ? '#ff6666' : '#ffcc66'}">${total} / ${freeXP} XP</span>
+        </div>
+        ${overBudget ? `<div style="color:#ff6666; font-size:12px; margin-top:8px;">Не хватает ${total - freeXP} XP.</div>` : ''}
+        <div class="xp-shop-actions">
+            <button onclick="acceptExpShopPurchases()" style="background:#ff9500; color:#111;">Принять</button>
+            <button onclick="cancelExpShopPurchases()" style="background:#333; color:#eee;">Отмена</button>
+        </div>
+    `;
+}
+
+function startExpShopMode() {
+    if (!startingSheetFixed) {
+        alert("Сначала зафиксируй стартовый лист.");
+        return;
+    }
+
+    if (expShopMode) {
+        renderExpShopPanel();
+        return;
+    }
+
+    expShopMode = true;
+    expShopSnapshot = getFullCharacterData();
+    expShopStartLevels = captureCurrentLevels();
+    applySheetLockState();
+    updateExpPurchasedStyles();
+    renderExpShopPanel();
+}
+
+function stopExpShopMode() {
+    expShopMode = false;
+    expShopSnapshot = null;
+    expShopStartLevels = {};
+    applySheetLockState();
+    updateExpPurchasedStyles();
+    renderExpShopPanel();
+}
+
+function cancelExpShopPurchases() {
+    if (expShopSnapshot) {
+        applyCharacterData(expShopSnapshot, 'отмены покупок');
+    }
+    stopExpShopMode();
+}
+
+function acceptExpShopPurchases() {
+    const cart = getExpShopCart();
+    const total = cart.reduce((sum, item) => sum + item.cost, 0);
+
+    if (total <= 0) {
+        alert("В корзине пока нет покупок.");
+        return;
+    }
+
+    if (!assertEnoughXP(total)) return;
+
+    const freeExp = document.getElementById('free-exp');
+    if (freeExp) freeExp.value = getCurrentXP() - total;
+
+    const logEl = document.getElementById('exp-log');
+    if (logEl) {
+        const lines = cart.map(item => `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to} (${item.cost} XP)`);
+        logEl.innerHTML = [`-${total} XP → покупки приняты`, ...lines].join('<br>') + (logEl.innerHTML ? `<br>${logEl.innerHTML}` : '');
+    }
+
+    sheetLockSnapshot = captureSheetSnapshot();
+    stopExpShopMode();
+}
+
+function setTraitLevel(name, level) {
+    const radio = document.querySelector(`input[name="${name}"][value="${level}"]`);
+    if (!radio) return false;
+    radio.checked = true;
+    updateTrackers();
+    updateVitals();
+    updateExpPurchasedStyles();
+    renderExpShopPanel();
+    return true;
+}
+
+function setupExpShopDotEditing() {
+    if (window.__expShopDotEditingReady) return;
+    window.__expShopDotEditingReady = true;
+
+    document.addEventListener('click', function(e) {
+        if (!expShopMode) return;
+
+        const label = e.target.closest('label.dot-label');
+        if (!label) return;
+
+        const input = document.getElementById(label.getAttribute('for'));
+        if (!input) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        const name = input.name;
+        const clickedValue = parseInt(input.value) || 0;
+        const start = expShopStartLevels[name] ?? 0;
+        const current = getCurrentLevel(name);
+
+        let target = clickedValue;
+        if (clickedValue === current && current > start) target = current - 1;
+        if (target < start) target = start;
+
+        setTraitLevel(name, target);
+    }, true);
 }
 
 // ====================== ФУНКЦИИ ======================
@@ -3365,123 +3579,6 @@ function spendModalBloodPotency() {
     }
 }
 
-
-function getCurrentXP() {
-    return parseInt(document.getElementById('free-exp')?.value || '0') || 0;
-}
-
-function hasEnoughXP(cost) {
-    return getCurrentXP() >= cost;
-}
-
-function assertEnoughXP(cost) {
-    if (!hasEnoughXP(cost)) {
-        alert(`Недостаточно опыта: нужно ${cost} XP, доступно ${getCurrentXP()} XP.`);
-        return false;
-    }
-    return true;
-}
-
-function spendModalSkill() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const name = prompt("Какой навык повышаем?");
-    if (!name) return;
-    const current = getCurrentLevel(name);
-    const target = parseInt(prompt(`Текущий: ${current}
-Новый уровень?`));
-    if (!target || target <= current || target > 5) return;
-    const cost = target * 3;
-    if (!assertEnoughXP(cost)) return;
-    if (confirm(`Повысить навык ${name} до ${target} за ${cost} XP?`)) {
-        setLevel(name, target, true);
-        logModal(`Навык ${name} ${current}→${target}`, cost);
-    }
-}
-
-function spendModalSpecialty() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const skill = prompt("Для какого навыка добавляем специализацию?");
-    if (!skill) return;
-    const spec = prompt("Название специализации?");
-    if (!spec) return;
-    const cost = 3;
-    if (!assertEnoughXP(cost)) return;
-    if (confirm(`Добавить специализацию "${spec}" для ${skill} за ${cost} XP?`)) {
-        const container = document.getElementById(`specs-${skill}`);
-        if (container) {
-            const div = document.createElement('div');
-            div.className = 'skill-spec-line';
-            div.innerHTML = `• ${spec} <small>(3 XP)</small>`;
-            container.appendChild(div);
-            container.style.display = 'block';
-        }
-        logModal(`Специализация "${spec}" (${skill})`, cost);
-    }
-}
-
-function spendModalMerit() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const name = prompt("Какое преимущество повышаем/покупаем?");
-    if (!name) return;
-    const dots = parseInt(prompt("Сколько пунктов добавить?") || '1');
-    if (!dots || dots < 1) return;
-    const cost = dots * 3;
-    if (!assertEnoughXP(cost)) return;
-    if (confirm(`Добавить ${dots} п. к "${name}" за ${cost} XP?`)) {
-        logModal(`Преимущество "${name}" +${dots}`, cost);
-    }
-}
-
-function spendModalDiscipline() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const name = prompt("Название дисциплины?");
-    if (!name) return;
-    let current = 0;
-    if (disciplineSources[name]) current = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
-    const target = parseInt(prompt(`Текущий: ${current}
-Новый уровень?`));
-    if (!target || target <= current || target > 5) return;
-    const mode = prompt('Тип дисциплины: clan / out / caitiff', 'clan');
-    if (!mode) return;
-    const normalized = mode.toLowerCase();
-    const mult = normalized === 'out' ? 7 : normalized === 'caitiff' ? 6 : 5;
-    const cost = target * mult;
-    if (!assertEnoughXP(cost)) return;
-    if (confirm(`Повысить дисциплину ${name} до ${target} за ${cost} XP?`)) {
-        mergeDiscipline(name, target - current, 'Опыт');
-        logModal(`Дисциплина ${name} ${current}→${target}`, cost);
-    }
-}
-
-function spendModalRitual() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const ritualType = prompt('Что изучаем: ritual / alchemy', 'ritual');
-    if (!ritualType) return;
-    const level = parseInt(prompt('Уровень ритуала/рецептуры?'));
-    if (!level || level < 1 || level > 5) return;
-    const cost = level * 3;
-    if (!assertEnoughXP(cost)) return;
-    const label = ritualType.toLowerCase() === 'alchemy' ? 'Рецептура алхимии' : 'Ритуал Кровавого чародейства';
-    if (confirm(`${label} ур. ${level} за ${cost} XP?`)) {
-        logModal(`${label} ур. ${level}`, cost);
-    }
-}
-
-function spendModalBloodPotency() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const current = parseInt(prompt('Текущая Сила Крови?', '0'));
-    if (Number.isNaN(current) || current < 0) return;
-    const target = parseInt(prompt(`Текущая: ${current}
-Новая Сила Крови?`));
-    if (!target || target <= current) return;
-    const cost = target * 10;
-    if (!assertEnoughXP(cost)) return;
-    if (confirm(`Повысить Силу Крови до ${target} за ${cost} XP?`)) {
-        logModal(`Сила Крови ${current}→${target}`, cost);
-    }
-}
-
-
 // Вспомогательные функции
 function getCurrentLevel(name) {
     const checked = document.querySelector(`input[name="${name}"]:checked`);
@@ -3495,20 +3592,11 @@ function setLevel(name, targetLevel, isFromExp = true) {
     radios.forEach(radio => {
         const value = parseInt(radio.value);
         radio.checked = (value === targetLevel);
-
-        let dot = radio.parentElement.querySelector('.dot') || radio.nextElementSibling;
-
-        if (dot) {
-            if (isFromExp && value > (baseLevels[name] || 0)) {
-                dot.classList.add('exp-purchased');
-            } else {
-                dot.classList.remove('exp-purchased');
-            }
-        }
     });
 
     updateTrackers();
     updateVitals();
+    if (isFromExp) updateExpPurchasedStyles();
 }
 
 
@@ -3521,6 +3609,27 @@ function captureCurrentLevels() {
         if (radio.name) levels[radio.name] = parseInt(radio.value) || 0;
     });
     return levels;
+}
+
+function updateExpPurchasedStyles() {
+    document.querySelectorAll('.dot-label.exp-purchased').forEach(label => {
+        label.classList.remove('exp-purchased');
+    });
+
+    if (!startingSheetFixed && !Object.keys(baseLevels || {}).length) return;
+
+    document.querySelectorAll('.dots input.dot-input').forEach(input => {
+        const value = parseInt(input.value) || 0;
+        if (value <= 0) return;
+
+        const current = getCurrentLevel(input.name);
+        const base = baseLevels[input.name] ?? 0;
+        const label = document.querySelector(`label[for="${input.id}"]`);
+
+        if (label && value > base && value <= current) {
+            label.classList.add('exp-purchased');
+        }
+    });
 }
 
 function captureSheetSnapshot() {
@@ -3543,6 +3652,7 @@ function captureSheetSnapshot() {
 
 function applySheetLockState() {
     document.body.classList.toggle('sheet-fixed', startingSheetFixed);
+    document.body.classList.toggle('xp-shop-active', expShopMode);
 
     const btn = document.getElementById('fix-start-btn');
     if (btn) {
@@ -3557,8 +3667,10 @@ function applySheetLockState() {
         '#capture-area input, #capture-area select, #capture-area textarea, #capture-area button, #skill-package'
     );
     lockedControls.forEach(control => {
-        control.disabled = startingSheetFixed;
-        control.setAttribute('aria-disabled', startingSheetFixed ? 'true' : 'false');
+        const allowDotPurchase = expShopMode && control.classList.contains('dot-input');
+        const shouldDisable = startingSheetFixed && !allowDotPurchase;
+        control.disabled = shouldDisable;
+        control.setAttribute('aria-disabled', shouldDisable ? 'true' : 'false');
     });
 
     if (startingSheetFixed) {
@@ -3571,6 +3683,7 @@ function applySheetLockState() {
 function isSheetLockedTarget(target) {
     if (!startingSheetFixed || isApplyingCharacterData || isExperiencePurchaseInProgress) return false;
     if (!target || target.closest('#exp-modal')) return false;
+    if (expShopMode && target.closest('label.dot-label')) return false;
     return Boolean(target.closest('#capture-area') || target.closest('#skill-package'));
 }
 
@@ -3619,6 +3732,7 @@ function fixStartingSheet() {
     sheetLockSnapshot = captureSheetSnapshot();
     startingSheetFixed = true;
     applySheetLockState();
+    updateExpPurchasedStyles();
 
     alert("Стартовый лист зафиксирован. Теперь повышения проходят через магазин опыта.");
 }
