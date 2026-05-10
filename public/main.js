@@ -2014,43 +2014,149 @@ function getPredatorAllocationGroups(predData) {
     return groups;
 }
 
-function applyPredatorChoiceItems(predName) {
+function escapeHTML(value) {
+    return String(value ?? '').replace(/[&<>"']/g, char => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#39;'
+    }[char]));
+}
+
+function showPredatorChoiceModal(predName, entries) {
+    return new Promise(resolve => {
+        const modal = document.createElement('div');
+        modal.id = 'predator-choice-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:27000;display:flex;align-items:center;justify-content:center;padding:18px;';
+
+        modal.innerHTML = `
+            <div style="width:min(620px,100%);background:#111;border:2px solid #ff3131;border-radius:10px;padding:24px;color:#eee;box-shadow:0 0 36px rgba(255,49,49,0.35);">
+                <h2 style="margin:0 0 8px;text-align:center;color:#ff3131;">${escapeHTML(predName)}</h2>
+                <p style="margin:0 0 18px;text-align:center;color:#aaa;line-height:1.45;">Выберите один вариант от стиля охоты</p>
+                <div id="pred-choice-list" style="display:grid;gap:10px;"></div>
+                <button id="pred-choice-cancel" style="margin-top:16px;width:100%;padding:11px;background:#333;color:#eee;border:none;border-radius:6px;cursor:pointer;">Отмена</button>
+            </div>
+        `;
+
+        document.getElementById('predator-choice-modal')?.remove();
+        document.body.appendChild(modal);
+
+        const list = modal.querySelector('#pred-choice-list');
+        entries.forEach((entry, index) => {
+            const btn = document.createElement('button');
+            btn.style.cssText = 'padding:14px 16px;background:#1a1a1a;color:#eee;border:1px solid #444;border-left:4px solid #ff9500;border-radius:6px;cursor:pointer;text-align:left;line-height:1.45;';
+            btn.innerHTML = `
+                <strong style="color:${entry.isMerit ? '#ffcc00' : '#ff6666'};">${entry.isMerit ? 'Преимущество' : 'Недостаток'}</strong><br>
+                ${escapeHTML(formatPredatorTraitLine(entry.item, entry.isMerit))}
+            `;
+            btn.onclick = () => {
+                modal.remove();
+                resolve(entry);
+            };
+            list.appendChild(btn);
+        });
+
+        modal.querySelector('#pred-choice-cancel').onclick = () => {
+            modal.remove();
+            resolve(entries[0]);
+        };
+    });
+}
+
+function showPredatorAllocationModal(predName, group) {
+    return new Promise(resolve => {
+        const modal = document.createElement('div');
+        modal.id = 'predator-allocation-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:27000;display:flex;align-items:center;justify-content:center;padding:18px;';
+
+        const rows = group.entries.map((entry, index) => `
+            <label style="display:grid;grid-template-columns:1fr 76px;gap:12px;align-items:center;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:12px;">
+                <span>
+                    <strong style="color:${entry.isMerit ? '#ffcc00' : '#ff6666'};">${entry.isMerit ? 'Преимущество' : 'Недостаток'}</strong><br>
+                    ${escapeHTML(entry.item.category || entry.item.name)}
+                </span>
+                <input class="pred-allocation-input" data-index="${index}" type="number" min="0" max="${group.total}" value="0" style="width:100%;background:#000;color:#ffcc66;border:1px solid #555;border-radius:4px;padding:8px;text-align:center;font-size:18px;">
+            </label>
+        `).join('');
+
+        modal.innerHTML = `
+            <div style="width:min(660px,100%);background:#111;border:2px solid #ff3131;border-radius:10px;padding:24px;color:#eee;box-shadow:0 0 36px rgba(255,49,49,0.35);">
+                <h2 style="margin:0 0 8px;text-align:center;color:#ff3131;">${escapeHTML(predName)}</h2>
+                <p style="margin:0 0 10px;text-align:center;color:#aaa;line-height:1.45;">Распределите <strong style="color:#ffcc66;">${group.total}</strong> пункт(а/ов)</p>
+                <div id="pred-allocation-left" style="text-align:center;color:#ffcc66;margin-bottom:14px;">Осталось: ${group.total}</div>
+                <div style="display:grid;gap:10px;">${rows}</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;">
+                    <button id="pred-allocation-confirm" style="padding:12px;background:#ff9500;color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">Применить</button>
+                    <button id="pred-allocation-cancel" style="padding:12px;background:#333;color:#eee;border:none;border-radius:6px;cursor:pointer;">Отмена</button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('predator-allocation-modal')?.remove();
+        document.body.appendChild(modal);
+
+        const inputs = [...modal.querySelectorAll('.pred-allocation-input')];
+        const leftEl = modal.querySelector('#pred-allocation-left');
+
+        function getValues() {
+            return inputs.map(input => Math.max(0, parseInt(input.value || '0', 10) || 0));
+        }
+
+        function updateLeft() {
+            const used = getValues().reduce((sum, value) => sum + value, 0);
+            const left = group.total - used;
+            leftEl.textContent = `Осталось: ${left}`;
+            leftEl.style.color = left < 0 ? '#ff6666' : '#ffcc66';
+            return left;
+        }
+
+        inputs.forEach(input => input.addEventListener('input', updateLeft));
+        updateLeft();
+
+        modal.querySelector('#pred-allocation-confirm').onclick = () => {
+            const left = updateLeft();
+            if (left !== 0) {
+                alert(left > 0 ? `Осталось распределить ${left} пункт(а/ов).` : `Распределено на ${Math.abs(left)} пункт(а/ов) больше.`);
+                return;
+            }
+            const values = getValues();
+            modal.remove();
+            resolve(values);
+        };
+
+        modal.querySelector('#pred-allocation-cancel').onclick = () => {
+            const values = group.entries.map((_, index) => index === group.entries.length - 1 ? group.total : 0);
+            modal.remove();
+            resolve(values);
+        };
+    });
+}
+
+async function applyPredatorChoiceItems(predName) {
     const predData = RULES.predator_types?.[predName];
     if (!predData) return;
 
     const choiceGroups = getPredatorChoiceGroups(predData);
-    Object.keys(choiceGroups).forEach(groupName => {
+    for (const groupName of Object.keys(choiceGroups)) {
         const entries = choiceGroups[groupName];
-        if (!entries.length) return;
-
-        const optionsText = entries
-            .map((entry, index) => `${index + 1}. ${entry.isMerit ? 'Преимущество' : 'Недостаток'}: ${formatPredatorTraitLine(entry.item, entry.isMerit)}`)
-            .join('\n');
-        const choice = parseInt(prompt(`Стиль охоты «${predName}»: выбери один вариант.\n\n${optionsText}`, '1'), 10);
-        const selected = entries[choice - 1] || entries[0];
+        if (!entries.length) continue;
+        const selected = await showPredatorChoiceModal(predName, entries);
         addPredatorItemToSheet(selected.item, selected.isMerit, predName);
-    });
+    }
 
     const allocationGroups = getPredatorAllocationGroups(predData);
-    Object.keys(allocationGroups).forEach(groupName => {
+    for (const groupName of Object.keys(allocationGroups)) {
         const group = allocationGroups[groupName];
-        let remaining = group.total;
+        const values = await showPredatorAllocationModal(predName, group);
 
         group.entries.forEach((entry, index) => {
-            if (remaining <= 0) return;
-            const isLast = index === group.entries.length - 1;
-            const label = `${entry.isMerit ? 'Преимущество' : 'Недостаток'}: ${entry.item.category}`;
-            const rawValue = isLast
-                ? String(remaining)
-                : prompt(`Стиль охоты «${predName}»: распредели ${group.total} пункт(а/ов).\nОсталось: ${remaining}\nСколько пунктов вложить в «${label}»?`, '0');
-            const points = Math.max(0, Math.min(remaining, parseInt(rawValue || '0', 10) || 0));
-            remaining -= points;
-
+            const points = values[index] || 0;
             if (points > 0) {
                 addPredatorItemToSheet({ ...entry.item, dots: points }, entry.isMerit, predName);
             }
         });
-    });
+    }
 
     renderSelectedMeritsFlaws();
 }
