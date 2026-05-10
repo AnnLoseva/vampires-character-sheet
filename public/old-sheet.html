@@ -732,8 +732,37 @@
         body.xp-shop-active #capture-area .disc-dot,
         body.xp-shop-active #capture-area .add-power-btn,
         body.xp-shop-active #capture-area .merit-add-btn,
-        body.xp-shop-active #capture-area .selected-item-remove {
+        body.xp-shop-active #capture-area .selected-item-remove,
+        body.xp-shop-active #capture-area .s-badge,
+        body.xp-shop-active #capture-area .skill-spec-line button,
+        body.xp-shop-active #capture-area .skill-spec-line input {
             cursor: pointer !important;
+            opacity: 1 !important;
+        }
+
+        body.xp-shop-active #capture-area .dot-label,
+        body.xp-shop-active #capture-area .disc-dot,
+        body.xp-shop-active #capture-area .s-badge,
+        body.xp-shop-active #capture-area .merit-add-btn,
+        body.xp-shop-active #capture-area .add-power-btn {
+            outline: 1px solid rgba(255, 149, 0, 0.35);
+            outline-offset: 3px;
+        }
+
+        body.xp-shop-active #capture-area .dot-label:hover,
+        body.xp-shop-active #capture-area .disc-dot:hover,
+        body.xp-shop-active #capture-area .s-badge:hover,
+        body.xp-shop-active #capture-area .merit-add-btn:hover,
+        body.xp-shop-active #capture-area .add-power-btn:hover {
+            border-color: #ffb733 !important;
+            box-shadow: 0 0 14px rgba(255, 149, 0, 0.75) !important;
+            transform: translateY(-1px);
+        }
+
+        body.xp-shop-active #capture-area .merit-add-btn {
+            background: #2a1805 !important;
+            border-color: #ff9500 !important;
+            color: #ffcc66 !important;
         }
 
         body.xp-shop-active #capture-area .xp-shop-discipline-option {

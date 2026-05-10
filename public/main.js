@@ -2587,6 +2587,10 @@ document.addEventListener('change', function(e) {
 // ==================== ПРЕИМУЩЕСТВА И НЕДОСТАТКИ ====================
 
 function openMeritsFlawsModal() {
+    if (startingSheetFixed && !expShopMode) {
+        alert("Лист зафиксирован. Покупай преимущества и недостатки через магазин опыта.");
+        return;
+    }
     document.getElementById('merits-flaws-modal').style.display = 'block';
     switchMeritsTab(0); // по умолчанию открываем Преимущества
 }
@@ -3054,9 +3058,13 @@ window.removeMerit = function(i) {
 };
 
 window.removeFlaw = function(i) { 
-    if (startingSheetFixed) return alert("Недостатки стартового листа нельзя менять после фиксации.");
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Меняй недостатки через магазин опыта.");
+    if (expShopMode && getBaseFlawKeys().has(getItemKey(selectedFlaws[i]))) {
+        return alert("Стартовый недостаток нельзя убрать через магазин опыта.");
+    }
     selectedFlaws.splice(i,1); 
     renderSelectedMeritsFlaws(); 
+    if (expShopMode) renderExpShopPanel();
 };
 
 // Поиск
@@ -3560,6 +3568,8 @@ function getTraitKindLabel(type) {
     if (type === 'skill') return 'Навык';
     if (type === 'discipline') return 'Дисциплина';
     if (type === 'merit') return 'Преимущество';
+    if (type === 'flaw') return 'Недостаток';
+    if (type === 'specialty') return 'Специализация';
     if (type === 'power') return 'Сила дисциплины';
     return 'Покупка';
 }
@@ -3610,6 +3620,10 @@ function getItemKey(item) {
 
 function getBaseMeritKeys() {
     return new Set((startingSheetBase?.merits || []).map(getItemKey));
+}
+
+function getBaseFlawKeys() {
+    return new Set((startingSheetBase?.flaws || []).map(getItemKey));
 }
 
 function getPowerLevel(discName, powerName) {
@@ -3670,6 +3684,34 @@ function getExpShopCart() {
         cart.push({ name: item.name, type: 'merit', from: points, to: 0, cost: -(points * 3) });
     });
 
+    const snapshotFlaws = expShopSnapshot?.flaws || [];
+    const currentFlawKeys = new Set(selectedFlaws.map(getItemKey));
+    const snapshotFlawKeys = new Set(snapshotFlaws.map(getItemKey));
+    selectedFlaws.forEach(item => {
+        const key = getItemKey(item);
+        if (snapshotFlawKeys.has(key)) return;
+        cart.push({ name: item.name, type: 'flaw', from: 0, to: getTraitPoints(item), cost: 0 });
+    });
+    snapshotFlaws.forEach(item => {
+        const key = getItemKey(item);
+        if (currentFlawKeys.has(key)) return;
+        cart.push({ name: item.name, type: 'flaw', from: getTraitPoints(item), to: 0, cost: 0 });
+    });
+
+    const snapshotSkills = expShopSnapshot?.skills || {};
+    const currentSkills = getFullCharacterData().skills || {};
+    const allSkillNames = new Set([...Object.keys(snapshotSkills), ...Object.keys(currentSkills)]);
+    allSkillNames.forEach(skillName => {
+        const before = new Set(snapshotSkills[skillName]?.specs || []);
+        const after = new Set(currentSkills[skillName]?.specs || []);
+        after.forEach(spec => {
+            if (!before.has(spec)) cart.push({ name: `${skillName}: ${spec}`, type: 'specialty', from: 0, to: 1, cost: 3 });
+        });
+        before.forEach(spec => {
+            if (!after.has(spec)) cart.push({ name: `${skillName}: ${spec}`, type: 'specialty', from: 1, to: 0, cost: -3 });
+        });
+    });
+
     const snapshotPowers = expShopSnapshot?.selectedPowers || {};
     const allPowerDisciplines = new Set([...Object.keys(snapshotPowers), ...Object.keys(selectedPowers)]);
     allPowerDisciplines.forEach(discName => {
@@ -3728,7 +3770,7 @@ function renderExpShopPanel() {
                 <strong>${item.cost >= 0 ? '+' : ''}${item.cost} XP</strong>
             </div>
         `).join('')
-        : `<div style="color:#777; font-size:13px; line-height:1.45;">Нажимай на точки характеристик или навыков на листе. Новые точки станут кроваво-оранжевыми и попадут сюда.</div>`;
+        : `<div style="color:#777; font-size:13px; line-height:1.45;">Нажимай на точки, S-бейджи, дисциплины, силы и преимущества прямо на листе. Новые покупки попадут сюда.</div>`;
 
     panel.innerHTML = `
         <h3 style="margin:0 0 8px; color:#ff9500; text-align:center;">Магазин опыта</h3>
@@ -3752,7 +3794,8 @@ function renderExpShopPanel() {
         </select>
         <div class="xp-shop-tools">
             <button onclick="document.getElementById('disciplines-list')?.scrollIntoView({behavior:'smooth', block:'start'})">Точки дисциплин: кликай по строкам на листе</button>
-            <button onclick="document.querySelector('.merit-add-btn')?.scrollIntoView({behavior:'smooth', block:'center'})">Преимущества: кнопка на листе ниже</button>
+            <button onclick="document.getElementById('skills-grid')?.scrollIntoView({behavior:'smooth', block:'start'})">Специализации: кликай S у навыков</button>
+            <button onclick="document.querySelector('.merit-add-btn')?.scrollIntoView({behavior:'smooth', block:'center'})">Преимущества/недостатки: кнопка на листе ниже</button>
         </div>
         <div style="color:#aaa; font-size:12px; margin-bottom:8px;">Черновик покупок</div>
         ${cartHTML}
@@ -4241,9 +4284,11 @@ function applySheetLockState() {
     lockedControls.forEach(control => {
         const allowShopControl = expShopMode && (
             control.classList.contains('dot-input') ||
+            control.classList.contains('spec-checkbox') ||
             control.classList.contains('add-power-btn') ||
             control.classList.contains('merit-add-btn') ||
-            control.classList.contains('selected-item-remove')
+            control.classList.contains('selected-item-remove') ||
+            control.closest('.skill-spec-line')
         );
         const shouldDisable = startingSheetFixed && !allowShopControl;
         control.disabled = shouldDisable;
@@ -4262,7 +4307,7 @@ function isSheetLockedTarget(target) {
     if (!target || target.closest('#exp-modal')) return false;
     if (expShopMode && target.closest('label.dot-label')) return false;
     if (expShopMode && target.closest('.discipline-item .disc-dot')) return false;
-    if (expShopMode && target.closest('.add-power-btn, .merit-add-btn, .selected-item-remove')) return false;
+    if (expShopMode && target.closest('.add-power-btn, .merit-add-btn, .selected-item-remove, .s-badge, .skill-spec-line')) return false;
     return Boolean(target.closest('#capture-area') || target.closest('#skill-package'));
 }
 
