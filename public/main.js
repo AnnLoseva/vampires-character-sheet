@@ -2268,6 +2268,46 @@ function expandTextareasForCapture(area) {
     };
 }
 
+function stabilizeImagesForCapture(area) {
+    const states = [];
+    area.querySelectorAll('.touchstone-image, .character-portrait-preview').forEach(img => {
+        const rect = img.getBoundingClientRect();
+        states.push({
+            img,
+            width: img.style.width,
+            height: img.style.height,
+            minWidth: img.style.minWidth,
+            minHeight: img.style.minHeight,
+            maxWidth: img.style.maxWidth,
+            maxHeight: img.style.maxHeight,
+            objectFit: img.style.objectFit,
+            aspectRatio: img.style.aspectRatio
+        });
+
+        img.style.width = `${Math.round(rect.width)}px`;
+        img.style.height = `${Math.round(rect.height)}px`;
+        img.style.minWidth = `${Math.round(rect.width)}px`;
+        img.style.minHeight = `${Math.round(rect.height)}px`;
+        img.style.maxWidth = `${Math.round(rect.width)}px`;
+        img.style.maxHeight = `${Math.round(rect.height)}px`;
+        img.style.objectFit = 'cover';
+        img.style.aspectRatio = 'auto';
+    });
+
+    return () => {
+        states.forEach(({ img, width, height, minWidth, minHeight, maxWidth, maxHeight, objectFit, aspectRatio }) => {
+            img.style.width = width;
+            img.style.height = height;
+            img.style.minWidth = minWidth;
+            img.style.minHeight = minHeight;
+            img.style.maxWidth = maxWidth;
+            img.style.maxHeight = maxHeight;
+            img.style.objectFit = objectFit;
+            img.style.aspectRatio = aspectRatio;
+        });
+    };
+}
+
 function addTouchstone() {
     if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
     touchstones.push({ text: '', image: '' });
@@ -3747,12 +3787,14 @@ async function generateSheetImage() {
 
     if (btn) { btn.textContent = 'Генерируем...'; btn.disabled = true; }
     let restoreTextareaHeights = null;
+    let restoreImageStyles = null;
 
     try {
         if (typeof window.html2canvas !== 'function') {
             throw new Error('html2canvas не загружен');
         }
         restoreTextareaHeights = expandTextareasForCapture(area);
+        restoreImageStyles = stabilizeImagesForCapture(area);
 
         const specContainers = area.querySelectorAll('.skill-specs');
         specContainers.forEach(c => {
@@ -3778,6 +3820,7 @@ async function generateSheetImage() {
         console.error(err);
         alert("Ошибка генерации JPG. Проверь, что html2canvas подключён.");
     } finally {
+        if (restoreImageStyles) restoreImageStyles();
         if (restoreTextareaHeights) restoreTextareaHeights();
         if (btn) { btn.textContent = originalText; btn.disabled = false; }
     }
