@@ -3002,7 +3002,8 @@ function spendOnAttribute() {
     const target = parseInt(prompt(`Текущий уровень: ${current}\nНовый уровень?`));
     if (!target || target <= current || target > 5) return alert("Неверный уровень");
 
-    const cost = calculateCumulativeCost(current, target, 5);
+    const cost = target * 5;
+    if (!assertEnoughXP(cost)) return;
 
     if (confirm(`Повысить ${name} с ${current} → ${target} за ${cost} XP?`)) {
         const newRadio = document.querySelector(`input[name="${name}"][value="${target}"]`);
@@ -3134,10 +3135,127 @@ function spendModalAttribute() {
     const target = parseInt(prompt(`Текущий: ${current}\nНовый уровень?`));
     if (!target || target <= current) return;
 
-    const cost = calculateCumulativeCost(current, target, 5);
+    const cost = target * 5;
+    if (!assertEnoughXP(cost)) return;
     if (confirm(`Повысить ${name} → ${target} за ${cost} XP?`)) {
         setLevel(name, target, true);   // true = за опыт
         logModal(`${name} ${current}→${target}`, cost);
+    }
+}
+
+
+function getCurrentXP() {
+    return parseInt(document.getElementById('free-exp')?.value || '0') || 0;
+}
+
+function hasEnoughXP(cost) {
+    return getCurrentXP() >= cost;
+}
+
+function assertEnoughXP(cost) {
+    if (!hasEnoughXP(cost)) {
+        alert(`Недостаточно опыта: нужно ${cost} XP, доступно ${getCurrentXP()} XP.`);
+        return false;
+    }
+    return true;
+}
+
+function spendModalSkill() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const name = prompt("Какой навык повышаем?");
+    if (!name) return;
+    const current = getCurrentLevel(name);
+    const target = parseInt(prompt(`Текущий: ${current}
+Новый уровень?`));
+    if (!target || target <= current || target > 5) return;
+    const cost = target * 3;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Повысить навык ${name} до ${target} за ${cost} XP?`)) {
+        setLevel(name, target, true);
+        logModal(`Навык ${name} ${current}→${target}`, cost);
+    }
+}
+
+function spendModalSpecialty() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const skill = prompt("Для какого навыка добавляем специализацию?");
+    if (!skill) return;
+    const spec = prompt("Название специализации?");
+    if (!spec) return;
+    const cost = 3;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Добавить специализацию "${spec}" для ${skill} за ${cost} XP?`)) {
+        const container = document.getElementById(`specs-${skill}`);
+        if (container) {
+            const div = document.createElement('div');
+            div.className = 'skill-spec-line';
+            div.innerHTML = `• ${spec} <small>(3 XP)</small>`;
+            container.appendChild(div);
+            container.style.display = 'block';
+        }
+        logModal(`Специализация "${spec}" (${skill})`, cost);
+    }
+}
+
+function spendModalMerit() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const name = prompt("Какое преимущество повышаем/покупаем?");
+    if (!name) return;
+    const dots = parseInt(prompt("Сколько пунктов добавить?") || '1');
+    if (!dots || dots < 1) return;
+    const cost = dots * 3;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Добавить ${dots} п. к "${name}" за ${cost} XP?`)) {
+        logModal(`Преимущество "${name}" +${dots}`, cost);
+    }
+}
+
+function spendModalDiscipline() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const name = prompt("Название дисциплины?");
+    if (!name) return;
+    let current = 0;
+    if (disciplineSources[name]) current = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
+    const target = parseInt(prompt(`Текущий: ${current}
+Новый уровень?`));
+    if (!target || target <= current || target > 5) return;
+    const mode = prompt('Тип дисциплины: clan / out / caitiff', 'clan');
+    if (!mode) return;
+    const normalized = mode.toLowerCase();
+    const mult = normalized === 'out' ? 7 : normalized === 'caitiff' ? 6 : 5;
+    const cost = target * mult;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Повысить дисциплину ${name} до ${target} за ${cost} XP?`)) {
+        mergeDiscipline(name, target - current, 'Опыт');
+        logModal(`Дисциплина ${name} ${current}→${target}`, cost);
+    }
+}
+
+function spendModalRitual() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const ritualType = prompt('Что изучаем: ritual / alchemy', 'ritual');
+    if (!ritualType) return;
+    const level = parseInt(prompt('Уровень ритуала/рецептуры?'));
+    if (!level || level < 1 || level > 5) return;
+    const cost = level * 3;
+    if (!assertEnoughXP(cost)) return;
+    const label = ritualType.toLowerCase() === 'alchemy' ? 'Рецептура алхимии' : 'Ритуал Кровавого чародейства';
+    if (confirm(`${label} ур. ${level} за ${cost} XP?`)) {
+        logModal(`${label} ур. ${level}`, cost);
+    }
+}
+
+function spendModalBloodPotency() {
+    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
+    const current = parseInt(prompt('Текущая Сила Крови?', '0'));
+    if (Number.isNaN(current) || current < 0) return;
+    const target = parseInt(prompt(`Текущая: ${current}
+Новая Сила Крови?`));
+    if (!target || target <= current) return;
+    const cost = target * 10;
+    if (!assertEnoughXP(cost)) return;
+    if (confirm(`Повысить Силу Крови до ${target} за ${cost} XP?`)) {
+        logModal(`Сила Крови ${current}→${target}`, cost);
     }
 }
 

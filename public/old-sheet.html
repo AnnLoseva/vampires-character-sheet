@@ -965,14 +965,18 @@
     <div style="background:#1a1a1a; width:90%; max-width:820px; border-radius:12px; padding:25px; border:2px solid #ff3131; color:#eee; max-height:92vh; overflow-y:auto;">
         <h2 style="text-align:center; color:#ff3131; margin-top:0;">💰 Трата Опыта</h2>
         
-        <table style="width:100%; border-collapse:collapse; margin:20px 0;">
-            <tr style="background:#222;"><th style="padding:10px; text-align:left;">Что повышаем</th><th style="padding:10px;">Множитель</th><th style="padding:10px;">Формула</th></tr>
-            <tr><td>Характеристика</td><td>×5</td><td>1+2+3+...+N</td></tr>
-            <tr><td>Навык</td><td>×3</td><td>1+2+3+...+N</td></tr>
-            <tr><td>Специализация</td><td>—</td><td>3 XP</td></tr>
-            <tr><td>Преимущество</td><td>×3</td><td>за каждый пункт</td></tr>
-            <tr><td>Клановая Дисциплина</td><td>×5</td><td>1+2+3+...+N</td></tr>
-            <tr><td>Сторонняя Дисциплина</td><td>×7</td><td>1+2+3+...+N</td></tr>
+        <table style="width:100%; border-collapse:collapse; margin:20px 0; font-size:14px;">
+            <tr style="background:#222;"><th style="padding:10px; text-align:left;">Параметр</th><th style="padding:10px;">Стоимость</th></tr>
+            <tr><td>Характеристика</td><td>Новое значение × 5</td></tr>
+            <tr><td>Навык</td><td>Новое значение × 3</td></tr>
+            <tr><td>Новая специализация</td><td>3 XP</td></tr>
+            <tr><td>Клановая дисциплина</td><td>Новое значение × 5</td></tr>
+            <tr><td>Сторонняя дисциплина</td><td>Новое значение × 7</td></tr>
+            <tr><td>Любая дисциплина для каитифа</td><td>Новое значение × 6</td></tr>
+            <tr><td>Ритуал Кровавого чародейства</td><td>Уровень ритуала × 3</td></tr>
+            <tr><td>Рецептура Алхимии слабокровных</td><td>Уровень рецептуры × 3</td></tr>
+            <tr><td>Преимущество</td><td>3 XP за каждый пункт</td></tr>
+            <tr><td>Сила Крови</td><td>Новое значение × 10</td></tr>
         </table>
 
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:20px;">
@@ -980,7 +984,9 @@
             <button onclick="spendModalSkill()" class="modal-btn">Навык</button>
             <button onclick="spendModalSpecialty()" class="modal-btn">Специализация (3 XP)</button>
             <button onclick="spendModalMerit()" class="modal-btn">Преимущество</button>
-            <button onclick="spendModalDiscipline()" class="modal-btn" style="grid-column: span 2;">Дисциплина</button>
+            <button onclick="spendModalDiscipline()" class="modal-btn">Дисциплина</button>
+            <button onclick="spendModalRitual()" class="modal-btn">Ритуал / Рецептура</button>
+            <button onclick="spendModalBloodPotency()" class="modal-btn" style="grid-column: span 2;">Сила Крови</button>
         </div>
 
         <div id="modal-log" style="margin-top:20px; background:#111; padding:12px; border-radius:6px; min-height:80px; font-size:14px;"></div>
