@@ -3150,10 +3150,10 @@ function getFullCharacterData() {
         
         attributes: {},
         skills: {},
-        disciplines: disciplineSources,
-        selectedPowers: selectedPowers,
-        merits: selectedMerits,
-        flaws: selectedFlaws
+        disciplines: JSON.parse(JSON.stringify(disciplineSources || {})),
+        selectedPowers: JSON.parse(JSON.stringify(selectedPowers || {})),
+        merits: JSON.parse(JSON.stringify(selectedMerits || [])),
+        flaws: JSON.parse(JSON.stringify(selectedFlaws || []))
     };
 
     // Атрибуты
@@ -3905,6 +3905,12 @@ function getExpShopTotal() {
     return getExpShopCart().reduce((sum, item) => sum + item.cost, 0);
 }
 
+function getCartCostLabel(cost) {
+    if (cost > 0) return `-${cost} XP`;
+    if (cost < 0) return `+${Math.abs(cost)} XP`;
+    return '0 XP';
+}
+
 function renderExpShopPanel() {
     const rightPanel = document.querySelector('.right-panel');
     if (!rightPanel) return;
@@ -3940,10 +3946,10 @@ function renderExpShopPanel() {
         ? cart.map(item => `
             <div class="xp-cart-line">
                 <span>${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to}</span>
-                <strong>${item.cost >= 0 ? '+' : ''}${item.cost} XP</strong>
+                <strong>${getCartCostLabel(item.cost)}</strong>
             </div>
         `).join('')
-        : `<div style="color:#777; font-size:13px; line-height:1.45;">Нажимай на точки, S-бейджи, дисциплины, силы, преимущества и недостатки прямо на листе. Любая покупка или продажа попадёт в чек.</div>`;
+        : `<div style="color:#777; font-size:13px; line-height:1.45;">Выбери покупку кнопками ниже или кликай по листу. Дисциплины и преимущества появятся здесь отдельной строкой с ценой.</div>`;
 
     panel.innerHTML = `
         <h3 style="margin:0 0 8px; color:#ff9500; text-align:center;">Касса опыта</h3>
@@ -3968,6 +3974,8 @@ function renderExpShopPanel() {
             <option value="каитиф" ${expShopDisciplineMode === 'каитиф' ? 'selected' : ''}>Каитиф ×6</option>
         </select>
         <div class="xp-shop-tools">
+            <button onclick="shopBuyDiscipline()">Купить / повысить дисциплину</button>
+            <button onclick="shopAddMerit()">Купить преимущество / добавить недостаток</button>
             <button onclick="document.getElementById('disciplines-list')?.scrollIntoView({behavior:'smooth', block:'start'})">Точки дисциплин: кликай по строкам на листе</button>
             <button onclick="document.getElementById('skills-grid')?.scrollIntoView({behavior:'smooth', block:'start'})">Специализации: кликай S у навыков</button>
             <button onclick="document.querySelector('.merit-add-btn')?.scrollIntoView({behavior:'smooth', block:'center'})">Преимущества/недостатки: кнопка на листе ниже</button>
@@ -3976,7 +3984,7 @@ function renderExpShopPanel() {
         ${cartHTML}
         <div class="xp-cart-total">
             <span>Итого</span>
-            <span style="color:${overBudget ? '#ff6666' : '#ffcc66'}">${total >= 0 ? total : '+' + Math.abs(total)} / ${freeXP} XP</span>
+            <span style="color:${overBudget ? '#ff6666' : '#ffcc66'}">${getCartCostLabel(total)} / ${freeXP} XP</span>
         </div>
         ${overBudget ? `<div style="color:#ff6666; font-size:12px; margin-top:8px;">Не хватает ${total - freeXP} XP.</div>` : ''}
         <div class="xp-shop-actions">
@@ -4151,7 +4159,7 @@ function acceptExpShopPurchases() {
     const freeExp = document.getElementById('free-exp');
     if (freeExp) freeExp.value = Math.max(0, getCurrentXP() - total);
 
-    const lines = cart.map(item => `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to} (${item.cost >= 0 ? '+' : ''}${item.cost} XP)`);
+    const lines = cart.map(item => `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to} (${getCartCostLabel(item.cost)})`);
     recordExpHistory(total >= 0 ? 'Покупки приняты' : 'Продажа принята', -total, lines);
 
     sheetLockSnapshot = captureSheetSnapshot();
