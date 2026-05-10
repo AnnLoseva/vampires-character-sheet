@@ -637,7 +637,7 @@
       "category": "Слава",
       "name": "Страшная тайна",
       "details": "диаблерист",
-      "dots": 1,
+      "dots": 2,
       "choice_group": "main"
     },
     {
@@ -650,7 +650,7 @@
       "category": "Пищевые привычки",
       "name": "Разборчивость",
       "details": "смертные",
-      "dots": 1
+      "dots": 2
     }
   ]
 },
@@ -720,9 +720,43 @@
   "blood_potency": 0,
   "humanity": 0,
 
-  "advantages": [],
+  "advantages": [
+    {
+      "category": "Слава",
+      "name": "Слава",
+      "details": "распределение от стиля охоты",
+      "dots": 0,
+      "allocation_group": "idol_background",
+      "allocation_total": 3
+    },
+    {
+      "category": "Стадо",
+      "name": "Стадо",
+      "details": "распределение от стиля охоты",
+      "dots": 0,
+      "allocation_group": "idol_background",
+      "allocation_total": 3
+    }
+  ],
 
-  "disadvantages": [],
+  "disadvantages": [
+    {
+      "category": "Фольклорные недостатки",
+      "name": "Фольклорный недостаток",
+      "details": "распределение от стиля охоты",
+      "dots": 0,
+      "allocation_group": "idol_flaws",
+      "allocation_total": 2
+    },
+    {
+      "category": "Враги",
+      "name": "Враг",
+      "details": "распределение от стиля охоты",
+      "dots": 0,
+      "allocation_group": "idol_flaws",
+      "allocation_total": 2
+    }
+  ],
 
   "notes": [
     "Распредели три пункта между фактами биографии «Слава» и «Стадо».",
@@ -916,7 +950,7 @@
     {
       "category": "Пищевые привычки",
       "name": "Крепкий желудок",
-      "dots": 1
+      "dots": 3
     }
   ],
 
