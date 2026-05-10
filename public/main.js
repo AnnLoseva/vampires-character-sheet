@@ -376,7 +376,8 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
     for (let i = 1; i <= 5; i++) {
         const filled = i <= dots ? 'filled' : '';
         const expClass = filled && i > baseDots ? 'exp-purchased' : '';
-        dotsHTML += `<div class="disc-dot ${filled} ${expClass}" data-level="${i}"></div>`;
+        const priceTitle = expShopMode ? ` title="До ${i}: ${getDisciplinePreviewCost(name, i)} XP"` : '';
+        dotsHTML += `<div class="disc-dot ${filled} ${expClass}" data-level="${i}"${priceTitle}></div>`;
     }
 
     const sources = sourceText.split('+').map(s => s.trim()).filter(s => s);
@@ -441,13 +442,14 @@ function renderShopAvailableDisciplines() {
 
         let dotsHTML = '';
         for (let i = 1; i <= 5; i++) {
-            dotsHTML += `<div class="disc-dot" data-level="${i}"></div>`;
+            const priceTitle = expShopMode ? ` title="До ${i}: ${getDisciplinePreviewCost(name, i)} XP"` : '';
+            dotsHTML += `<div class="disc-dot" data-level="${i}"${priceTitle}></div>`;
         }
 
         item.innerHTML = `
             <div style="flex: 1; font-size:16.5px; color:#777;">${name}</div>
             <div class="dots-discipline" style="display:flex; gap:9px;">${dotsHTML}</div>
-            <small style="color:#664400; min-width:200px; line-height:1.4; text-align:right;">доступно в магазине</small>
+            <small style="color:#664400; min-width:200px; line-height:1.4; text-align:right;">доступно в магазине<br>${expShopDisciplineMode} • ×${getDisciplineMultiplier(name)}</small>
         `;
 
         list.appendChild(item);
@@ -879,6 +881,7 @@ function openPowerSelectionModal(discName, maxLevel) {
             Object.keys(disc.powers[lvl]).forEach(powerName => {
                 const power = disc.powers[lvl][powerName];
                 const isSelected = selected.includes(powerName);
+                const xpPrice = lvl * 3;
 
                 const card = document.createElement('div');
                 card.style.cssText = `
@@ -892,7 +895,7 @@ function openPowerSelectionModal(discName, maxLevel) {
 
                 card.innerHTML = `
                     <div style="color:#ffae00;font-weight:bold;">${powerName}</div>
-                    <div style="color:#666;font-size:13px;">Уровень ${lvl}</div>
+                    <div style="color:#666;font-size:13px;">Уровень ${lvl}${expShopMode ? ` • ${xpPrice} XP` : ''}</div>
                     <div style="color:#ccc;margin-top:8px;line-height:1.5;">${power.description ? power.description.substring(0, 140) + '...' : 'Нет описания'}</div>
                 `;
 
@@ -909,6 +912,7 @@ function openPowerSelectionModal(discName, maxLevel) {
                 card.addEventListener('mouseenter', () => {
                     let html = `
                         <h3 style="color:#ff3131; margin:0 0 12px;">${powerName} <span style="color:#666;font-size:14px;">(Уровень ${lvl})</span></h3>
+                        ${expShopMode ? `<p style="margin:0 0 12px;color:#ff9500;font-weight:bold;">Цена: ${xpPrice} XP</p>` : ''}
                         <div style="line-height:1.65;">${power.description || 'Описание отсутствует'}</div>
                     `;
                     if (power.pool) html += `<p style="margin-top:12px;"><strong>Бросок:</strong> ${power.pool}</p>`;
@@ -934,6 +938,7 @@ function openPowerSelectionModal(discName, maxLevel) {
             selectedPowers[discName] = selected;
             closePowerModal();
             renderDisciplines();
+            if (expShopMode) renderExpShopPanel();
         };
     }
 
@@ -1740,6 +1745,7 @@ document.addEventListener('click', function(e) {
     }
 
     updateSBadgeState(skillName);
+    if (expShopMode) renderExpShopPanel();
 });
 
 function addSpecLine(skillName, value = '') {
@@ -1758,12 +1764,18 @@ function addSpecLine(skillName, value = '') {
     line.className = 'skill-spec-line';
     line.innerHTML = `
         <input type="text" placeholder="Название специальности" style="flex:1;">
+        ${expShopMode ? '<span style="color:#ff9500;font-weight:bold;align-self:center;white-space:nowrap;">3 XP</span>' : ''}
         <button title="Добавить ещё" style="background:#222;color:#ffae00;">+</button>
         <button title="Удалить" style="background:#222;color:#ff6666;">×</button>
     `;
 
     const input = line.querySelector('input[type="text"]');
-    if (input) input.value = value;
+    if (input) {
+        input.value = value;
+        input.addEventListener('input', () => {
+            if (expShopMode) renderExpShopPanel();
+        });
+    }
 
     // Кнопка "+"
     line.querySelectorAll('button')[0].addEventListener('click', () => addSpecLine(skillName));
@@ -1773,11 +1785,13 @@ function addSpecLine(skillName, value = '') {
         line.remove();
         setTimeout(() => {
             updateSBadgeState(skillName);
+            if (expShopMode) renderExpShopPanel();
         }, 10);
     });
 
     container.appendChild(line);
     updateSBadgeState(skillName);
+    if (expShopMode) renderExpShopPanel();
 }
 
 function restoreSpecializations(skillName, specs = []) {
@@ -2684,7 +2698,8 @@ function renderVariantsInCategory(category, tab) {
         `;
 
         div.innerHTML = `
-            <strong>${name} — ${points} точек</strong><br>
+            <strong>${name} — ${points} точек</strong>
+            ${expShopMode ? `<span style="color:#ff9500; font-weight:bold; margin-left:8px;">${points * 3} XP</span>` : ''}<br>
             <small style="color:#aaa;">${variant.полное_описание || ''}</small><br>
             <small style="color:#ffae00;">${variant.механика || ''}</small>
         `;
@@ -2799,7 +2814,8 @@ function renderDots(containerId, points, isMerit) {
 function createSelectedItem(item, index, isMerit) {
     const points = getTraitPoints(item);
     const isFromPredator = item.fromPredator === true;
-    const isFromExperience = isMerit && startingSheetFixed && !isFromPredator && !getBaseMeritKeys().has(getItemKey(item));
+    const baseKeys = isMerit ? getBaseMeritKeys() : getBaseFlawKeys();
+    const isFromExperience = startingSheetFixed && !isFromPredator && !baseKeys.has(getItemKey(item));
     const categoryName = item.category || '';
     let displayName = item.name || item.название_пункта || '';
     
@@ -2826,6 +2842,12 @@ function createSelectedItem(item, index, isMerit) {
             <span style="color:#ffae00; font-weight:bold; background:#1a1a1a; 
                          padding:4px 8px; border-radius:6px; border:1px solid #444; margin-left:6px; white-space:nowrap;">
                 Тип охоты: ${item.predatorType || ''} • не считается
+            </span>`;
+    } else if (expShopMode && isFromExperience) {
+        dotsHTML += `
+            <span style="color:#ff9500; font-weight:bold; background:#1a1a1a; 
+                         padding:4px 8px; border-radius:6px; border:1px solid #664400; margin-left:6px; white-space:nowrap;">
+                ${points * 3} XP
             </span>`;
     }
 
@@ -2994,6 +3016,8 @@ function closePredatorSelectionModal() {
 
 // Проверка лимита преимуществ (игнорируем пункты от охоты)
 function canAddMerit(newPoints) {
+    if (expShopMode) return true;
+
     const currentTotal = selectedMerits.reduce((sum, item) => {
         if (item.fromPredator) return sum;        // бесплатно от охоты — не считаем
         return sum + getTraitPoints(item);
@@ -3004,6 +3028,8 @@ function canAddMerit(newPoints) {
 
 // Проверка лимита недостатков (игнорируем пункты от охоты)
 function canAddFlaw(newPoints) {
+    if (expShopMode) return true;
+
     const currentTotal = selectedFlaws.reduce((sum, item) => {
         if (item.fromPredator) return sum;        // бесплатно от охоты — не считаем
         return sum + getTraitPoints(item);
@@ -3600,11 +3626,24 @@ function getBaseDisciplineLevel(name) {
     return getDisciplineTotal(name, startingSheetBase?.disciplines || {});
 }
 
+function getDisciplineModeMultiplier(modeLabel) {
+    const normalized = String(modeLabel || '').toLowerCase();
+    if (normalized.includes('каитиф')) return 6;
+    if (normalized.includes('сторон')) return 7;
+    return 5;
+}
+
 function getDisciplineMultiplier(name) {
     const sourceText = Object.keys(disciplineSources[name] || {}).join(' ').toLowerCase();
+    if (!sourceText && expShopMode) return getDisciplineModeMultiplier(expShopDisciplineMode);
     if (sourceText.includes('каитиф')) return 6;
     if (sourceText.includes('сторон')) return 7;
     return 5;
+}
+
+function getDisciplinePreviewCost(name, target) {
+    const from = getDisciplineTotal(name, expShopSnapshot?.disciplines || {});
+    return getLevelPurchaseCost(from, target, getDisciplineMultiplier(name));
 }
 
 function getExistingDisciplineModeLabel(name) {
@@ -3632,6 +3671,15 @@ function getPowerLevel(discName, powerName) {
         if (powers[level]?.[powerName]) return level;
     }
     return 0;
+}
+
+function getPowerPurchaseCost(discName, powerName) {
+    const level = getPowerLevel(discName, powerName);
+    return level > 0 ? level * 3 : 0;
+}
+
+function getTraitPurchaseCost(item) {
+    return getTraitPoints(item) * 3;
 }
 
 function getExpShopCart() {
@@ -3690,12 +3738,14 @@ function getExpShopCart() {
     selectedFlaws.forEach(item => {
         const key = getItemKey(item);
         if (snapshotFlawKeys.has(key)) return;
-        cart.push({ name: item.name, type: 'flaw', from: 0, to: getTraitPoints(item), cost: 0 });
+        const points = getTraitPoints(item);
+        cart.push({ name: item.name, type: 'flaw', from: 0, to: points, cost: getTraitPurchaseCost(item) });
     });
     snapshotFlaws.forEach(item => {
         const key = getItemKey(item);
         if (currentFlawKeys.has(key)) return;
-        cart.push({ name: item.name, type: 'flaw', from: getTraitPoints(item), to: 0, cost: 0 });
+        const points = getTraitPoints(item);
+        cart.push({ name: item.name, type: 'flaw', from: points, to: 0, cost: -getTraitPurchaseCost(item) });
     });
 
     const snapshotSkills = expShopSnapshot?.skills || {};
@@ -3718,10 +3768,10 @@ function getExpShopCart() {
         const before = new Set(snapshotPowers[discName] || []);
         const after = new Set(selectedPowers[discName] || []);
         after.forEach(power => {
-            if (!before.has(power)) cart.push({ name: `${discName}: ${power}`, type: 'power', from: 0, to: getPowerLevel(discName, power), cost: 0 });
+            if (!before.has(power)) cart.push({ name: `${discName}: ${power}`, type: 'power', from: 0, to: getPowerLevel(discName, power), cost: getPowerPurchaseCost(discName, power) });
         });
         before.forEach(power => {
-            if (!after.has(power)) cart.push({ name: `${discName}: ${power}`, type: 'power', from: getPowerLevel(discName, power), to: 0, cost: 0 });
+            if (!after.has(power)) cart.push({ name: `${discName}: ${power}`, type: 'power', from: getPowerLevel(discName, power), to: 0, cost: -getPowerPurchaseCost(discName, power) });
         });
     });
 
@@ -3783,7 +3833,7 @@ function renderExpShopPanel() {
             <tr><td>Сторонняя дисциплина</td><td>Новое значение × 7</td></tr>
             <tr><td>Дисциплина каитифа</td><td>Новое значение × 6</td></tr>
             <tr><td>Ритуал / рецептура</td><td>Уровень × 3</td></tr>
-            <tr><td>Преимущество</td><td>3 XP за пункт</td></tr>
+            <tr><td>Преимущество / Недостаток</td><td>3 XP за пункт</td></tr>
             <tr><td>Сила Крови</td><td>Новое значение × 10</td></tr>
         </table>
         <label style="display:block;color:#aaa;font-size:12px;margin:10px 0 6px;">Цена новых дисциплин</label>
@@ -4352,9 +4402,14 @@ function fixStartingSheet() {
         return;
     }
 
-    baseLevels = captureCurrentLevels();
-    sheetLockSnapshot = captureSheetSnapshot();
-    startingSheetBase = JSON.parse(JSON.stringify(sheetLockSnapshot));
+    const hasExistingStartBase = startingSheetBase && Object.keys(startingSheetBase.levels || {}).length > 0;
+    if (!hasExistingStartBase) {
+        baseLevels = captureCurrentLevels();
+        sheetLockSnapshot = captureSheetSnapshot();
+        startingSheetBase = JSON.parse(JSON.stringify(sheetLockSnapshot));
+    } else {
+        sheetLockSnapshot = captureSheetSnapshot();
+    }
     startingSheetFixed = true;
     applySheetLockState();
     updateExpPurchasedStyles();
