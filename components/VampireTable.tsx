@@ -141,6 +141,14 @@ type LayerDropTarget = {
   placement: LayerDropPlacement
 } | null
 
+type AudioSignal =
+  | { kind: 'host-start'; room: string; from: string }
+  | { kind: 'host-stop'; room: string; from: string }
+  | { kind: 'listener-join'; room: string; from: string }
+  | { kind: 'offer'; room: string; from: string; to: string; description: RTCSessionDescriptionInit }
+  | { kind: 'answer'; room: string; from: string; to: string; description: RTCSessionDescriptionInit }
+  | { kind: 'ice'; room: string; from: string; to: string; candidate: RTCIceCandidateInit }
+
 const TABLE_ROLLS = 'table_rolls'
 const TABLE_IMAGES = 'table_images'
 const TABLE_MUSIC = 'table_music'
@@ -390,11 +398,19 @@ export default function VampireTable() {
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
+  const [audioBroadcasting, setAudioBroadcasting] = useState(false)
+  const [audioStreamStatus, setAudioStreamStatus] = useState('Трансляция не запущена')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const musicFrameRef = useRef<HTMLIFrameElement>(null)
+  const remoteAudioRef = useRef<HTMLAudioElement>(null)
   const spotifyMountRef = useRef<HTMLDivElement>(null)
   const spotifyControllerRef = useRef<SpotifyController | null>(null)
   const spotifyLastPublishRef = useRef(0)
+  const clientIdRef = useRef(`client-${Date.now()}-${Math.random().toString(16).slice(2)}`)
+  const tableRoleRef = useRef<TableRole | null>(null)
+  const roomRef = useRef(room)
+  const localAudioStreamRef = useRef<MediaStream | null>(null)
+  const audioPeersRef = useRef<Map<string, RTCPeerConnection>>(new Map())
   const musicStateRef = useRef<MusicState>({
     room: 'campaign-666',
     url: '',
@@ -417,6 +433,14 @@ export default function VampireTable() {
   useEffect(() => {
     panRef.current = pan
   }, [pan])
+
+  useEffect(() => {
+    tableRoleRef.current = tableRole
+  }, [tableRole])
+
+  useEffect(() => {
+    roomRef.current = room
+  }, [room])
 
   useEffect(() => {
     const savedRole = window.localStorage.getItem('vtm-table-role')
@@ -447,12 +471,179 @@ export default function VampireTable() {
 
   const chooseTableRole = (role: TableRole) => {
     window.localStorage.setItem('vtm-table-role', role)
+    tableRoleRef.current = role
     setTableRole(role)
+    if (role === 'player') {
+      setAudioStreamStatus('Ожидание трансляции мастера')
+      broadcast('audio-signal', { kind: 'listener-join', room: roomRef.current, from: clientIdRef.current } satisfies AudioSignal)
+    }
   }
 
   const resetTableRole = () => {
     window.localStorage.removeItem('vtm-table-role')
+    stopAudioBroadcast()
+    closeAudioPeers()
+    tableRoleRef.current = null
     setTableRole(null)
+  }
+
+  const closeAudioPeers = () => {
+    audioPeersRef.current.forEach(peer => peer.close())
+    audioPeersRef.current.clear()
+    if (remoteAudioRef.current) remoteAudioRef.current.srcObject = null
+  }
+
+  const getAudioPeer = (remoteId: string) => {
+    const existing = audioPeersRef.current.get(remoteId)
+    if (existing) return existing
+
+    const peer = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    })
+
+    peer.onicecandidate = event => {
+      if (!event.candidate) return
+      broadcast('audio-signal', {
+        kind: 'ice',
+        room: roomRef.current,
+        from: clientIdRef.current,
+        to: remoteId,
+        candidate: event.candidate.toJSON(),
+      } satisfies AudioSignal)
+    }
+
+    peer.onconnectionstatechange = () => {
+      if (peer.connectionState === 'failed' || peer.connectionState === 'closed') {
+        audioPeersRef.current.delete(remoteId)
+      }
+      if (tableRoleRef.current === 'player' && peer.connectionState === 'connected') {
+        setAudioStreamStatus('Слушаешь трансляцию мастера')
+      }
+    }
+
+    peer.ontrack = event => {
+      if (tableRoleRef.current !== 'player' || !remoteAudioRef.current) return
+      const stream = event.streams[0] || new MediaStream([event.track])
+      remoteAudioRef.current.srcObject = stream
+      remoteAudioRef.current.play().then(
+        () => setAudioStreamStatus('Слушаешь трансляцию мастера'),
+        () => setAudioStreamStatus('Нажми в любом месте страницы, чтобы включить звук')
+      )
+    }
+
+    audioPeersRef.current.set(remoteId, peer)
+    return peer
+  }
+
+  const handleAudioSignal = async (signal: AudioSignal) => {
+    if (!signal || signal.room !== roomRef.current || signal.from === clientIdRef.current) return
+
+    const role = tableRoleRef.current
+    if (signal.kind === 'host-start') {
+      if (role !== 'player') return
+      closeAudioPeers()
+      setAudioStreamStatus('Подключаюсь к трансляции мастера')
+      broadcast('audio-signal', { kind: 'listener-join', room: roomRef.current, from: clientIdRef.current } satisfies AudioSignal)
+      return
+    }
+
+    if (signal.kind === 'host-stop') {
+      if (role !== 'player') return
+      closeAudioPeers()
+      setAudioStreamStatus('Мастер остановил трансляцию')
+      return
+    }
+
+    if (signal.kind === 'listener-join') {
+      if (role !== 'master' || !localAudioStreamRef.current) return
+      const peer = getAudioPeer(signal.from)
+      localAudioStreamRef.current.getAudioTracks().forEach(track => {
+        if (!peer.getSenders().some(sender => sender.track === track)) peer.addTrack(track, localAudioStreamRef.current as MediaStream)
+      })
+      const offer = await peer.createOffer()
+      await peer.setLocalDescription(offer)
+      broadcast('audio-signal', {
+        kind: 'offer',
+        room: roomRef.current,
+        from: clientIdRef.current,
+        to: signal.from,
+        description: offer,
+      } satisfies AudioSignal)
+      return
+    }
+
+    if ('to' in signal && signal.to !== clientIdRef.current) return
+
+    if (signal.kind === 'offer') {
+      if (role !== 'player') return
+      const peer = getAudioPeer(signal.from)
+      await peer.setRemoteDescription(signal.description)
+      const answer = await peer.createAnswer()
+      await peer.setLocalDescription(answer)
+      broadcast('audio-signal', {
+        kind: 'answer',
+        room: roomRef.current,
+        from: clientIdRef.current,
+        to: signal.from,
+        description: answer,
+      } satisfies AudioSignal)
+      return
+    }
+
+    if (signal.kind === 'answer') {
+      if (role !== 'master') return
+      await audioPeersRef.current.get(signal.from)?.setRemoteDescription(signal.description)
+      return
+    }
+
+    if (signal.kind === 'ice') {
+      await audioPeersRef.current.get(signal.from)?.addIceCandidate(signal.candidate)
+    }
+  }
+
+  const startAudioBroadcast = async () => {
+    if (!isMaster) return
+
+    try {
+      if (!navigator.mediaDevices?.getDisplayMedia) {
+        setAudioStreamStatus('Браузер не поддерживает трансляцию звука')
+        return
+      }
+
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: true,
+        audio: true,
+      })
+      stream.getVideoTracks().forEach(track => track.stop())
+      if (stream.getAudioTracks().length === 0) {
+        stream.getTracks().forEach(track => track.stop())
+        window.alert('В выбранном источнике нет звука. Выбери вкладку/экран и включи Share audio.')
+        return
+      }
+
+      stopAudioBroadcast(false)
+      localAudioStreamRef.current = stream
+      setAudioBroadcasting(true)
+      setAudioStreamStatus('Транслируешь звук игрокам')
+      stream.getAudioTracks().forEach(track => {
+        track.onended = () => stopAudioBroadcast()
+      })
+      broadcast('audio-signal', { kind: 'host-start', room: roomRef.current, from: clientIdRef.current } satisfies AudioSignal)
+    } catch (error) {
+      console.error('Не удалось запустить трансляцию звука:', error)
+      setAudioStreamStatus('Трансляция не запущена')
+    }
+  }
+
+  const stopAudioBroadcast = (announce = true) => {
+    localAudioStreamRef.current?.getTracks().forEach(track => track.stop())
+    localAudioStreamRef.current = null
+    closeAudioPeers()
+    setAudioBroadcasting(false)
+    setAudioStreamStatus(tableRoleRef.current === 'master' ? 'Трансляция не запущена' : 'Ожидание трансляции мастера')
+    if (announce) {
+      broadcast('audio-signal', { kind: 'host-stop', room: roomRef.current, from: clientIdRef.current } satisfies AudioSignal)
+    }
   }
 
   useEffect(() => {
@@ -460,6 +651,7 @@ export default function VampireTable() {
     const supabase = createClient()
     let cancelled = false
 
+    roomRef.current = currentRoom
     setRoom(currentRoom)
 
     supabase
@@ -560,6 +752,12 @@ export default function VampireTable() {
         if (!music || music.room !== currentRoom) return
         applyMusicState(music)
       })
+      .on('broadcast', { event: 'audio-signal' }, payload => {
+        handleAudioSignal(payload.payload as AudioSignal).catch(error => {
+          console.error('Ошибка аудиотрансляции:', error)
+          setAudioStreamStatus('Не удалось подключить звук')
+        })
+      })
       .on(
         'postgres_changes',
         {
@@ -650,6 +848,7 @@ export default function VampireTable() {
 
     return () => {
       cancelled = true
+      stopAudioBroadcast(false)
       channelRef.current = null
       supabase.removeChannel(channel)
     }
@@ -725,6 +924,20 @@ export default function VampireTable() {
   const broadcast = (event: string, payload: unknown) => {
     channelRef.current?.send({ type: 'broadcast', event, payload })
   }
+
+  useEffect(() => {
+    if (!audioBroadcasting || !isMaster) return
+    const interval = window.setInterval(() => {
+      broadcast('audio-signal', { kind: 'host-start', room: roomRef.current, from: clientIdRef.current } satisfies AudioSignal)
+    }, 5000)
+    return () => window.clearInterval(interval)
+  }, [audioBroadcasting, isMaster])
+
+  useEffect(() => {
+    if (tableRole !== 'player' || !channelRef.current) return
+    setAudioStreamStatus('Ожидание трансляции мастера')
+    broadcast('audio-signal', { kind: 'listener-join', room: roomRef.current, from: clientIdRef.current } satisfies AudioSignal)
+  }, [tableRole, room])
 
   const patchLayer = async (id: string, patch: LayerPatch, options: { persist?: boolean } = { persist: true }) => {
     const existingLayer = layersRef.current.find(layer => layer.id === id)
@@ -1544,15 +1757,20 @@ export default function VampireTable() {
                   }}
                   placeholder="YouTube или Spotify ссылка"
                 />
+                <div className="audio-broadcast-controls">
+                  <button type="button" onClick={audioBroadcasting ? () => stopAudioBroadcast() : startAudioBroadcast}>
+                    {audioBroadcasting ? 'Остановить трансляцию' : 'Транслировать звук'}
+                  </button>
+                  <span>{audioStreamStatus}</span>
+                </div>
               </div>
             ) : (
-              <p className="music-readonly">Трек и пауза синхронизируются с мастером.</p>
+              <p className="music-readonly">{audioStreamStatus}</p>
             )}
-            {musicProvider === 'spotify' && musicUrl ? (
-              <div className={`spotify-embed ${isMaster ? '' : 'readonly'}`} ref={spotifyMountRef} />
-            ) : musicEmbedUrl ? (
+            {isMaster && musicProvider === 'spotify' && musicUrl ? (
+              <div className="spotify-embed" ref={spotifyMountRef} />
+            ) : isMaster && musicEmbedUrl ? (
               <iframe
-                className={isMaster ? '' : 'readonly'}
                 ref={musicFrameRef}
                 title="Музыка комнаты"
                 src={musicEmbedUrl}
@@ -1560,6 +1778,7 @@ export default function VampireTable() {
                 loading="lazy"
               />
             ) : null}
+            <audio ref={remoteAudioRef} autoPlay />
           </section>
 
           <section className="layer-panel" aria-label="Слои стола">
@@ -2053,6 +2272,35 @@ export default function VampireTable() {
           padding: 8px;
           font: inherit;
           font-size: 12px;
+        }
+
+        .audio-broadcast-controls {
+          display: grid;
+          grid-template-columns: minmax(0, auto) 1fr;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .audio-broadcast-controls button {
+          border: 1px solid #36d675;
+          background: #151515;
+          color: #f4f4f4;
+          border-radius: 5px;
+          padding: 8px;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .audio-broadcast-controls span {
+          min-width: 0;
+          color: #aaa;
+          font-size: 12px;
+          line-height: 1.25;
+        }
+
+        .music-panel audio {
+          display: none;
         }
 
         .music-panel iframe {
