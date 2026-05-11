@@ -36,6 +36,7 @@ type TableLayer = {
   id: string
   room: string
   layerType: 'image' | 'folder'
+  ownerRole: TableRole
   parentId: string | null
   name: string
   imageData: string
@@ -53,6 +54,7 @@ type TableLayerRow = {
   id: string
   room: string
   layer_type: 'image' | 'folder' | null
+  owner_role: TableRole | null
   parent_id: string | null
   name: string
   image_data: string
@@ -102,7 +104,9 @@ type SpotifyIframeApi = {
   ) => void
 }
 
-type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'parentId' | 'name' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked'>>
+type TableRole = 'master' | 'player'
+
+type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'ownerRole' | 'parentId' | 'name' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked'>>
 
 type DragState = {
   id: string
@@ -189,6 +193,7 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
     id: row.id,
     room: row.room,
     layerType: row.layer_type ?? 'image',
+    ownerRole: row.owner_role ?? 'player',
     parentId: row.parent_id ?? null,
     name: row.name,
     imageData: row.image_data,
@@ -206,6 +211,7 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
 function toDbPatch(patch: LayerPatch) {
   const dbPatch: Record<string, unknown> = {}
   if (patch.layerType !== undefined) dbPatch.layer_type = patch.layerType
+  if (patch.ownerRole !== undefined) dbPatch.owner_role = patch.ownerRole
   if (patch.parentId !== undefined) dbPatch.parent_id = patch.parentId
   if (patch.name !== undefined) dbPatch.name = patch.name
   if (patch.x !== undefined) dbPatch.x = patch.x
@@ -363,6 +369,7 @@ function loadSpotifyIframeApi() {
 
 export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
+  const [tableRole, setTableRole] = useState<TableRole | null>(null)
   const [rolls, setRolls] = useState<RollMessage[]>([])
   const [layers, setLayers] = useState<TableLayer[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
@@ -401,6 +408,7 @@ export default function VampireTable() {
   const dragRef = useRef<DragState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
   const panRef = useRef(pan)
+  const isMaster = tableRole === 'master'
 
   useEffect(() => {
     layersRef.current = layers
@@ -409,6 +417,11 @@ export default function VampireTable() {
   useEffect(() => {
     panRef.current = pan
   }, [pan])
+
+  useEffect(() => {
+    const savedRole = window.localStorage.getItem('vtm-table-role')
+    if (savedRole === 'master' || savedRole === 'player') setTableRole(savedRole)
+  }, [])
 
   useEffect(() => {
     if (!layerContextMenu) return
@@ -430,6 +443,16 @@ export default function VampireTable() {
     setMusicPositionSeconds(music.positionSeconds)
     setMusicUpdatedAt(music.updatedAt)
     setMusicStatus(music.url ? (music.isPlaying ? 'Играет синхронно' : 'Пауза') : 'Музыка выключена')
+  }
+
+  const chooseTableRole = (role: TableRole) => {
+    window.localStorage.setItem('vtm-table-role', role)
+    setTableRole(role)
+  }
+
+  const resetTableRole = () => {
+    window.localStorage.removeItem('vtm-table-role')
+    setTableRole(null)
   }
 
   useEffect(() => {
@@ -459,7 +482,7 @@ export default function VampireTable() {
 
     supabase
       .from(TABLE_IMAGES)
-      .select('id, room, layer_type, parent_id, name, image_data, x, y, width, height, z_index, visible, locked, created_at')
+      .select('id, room, layer_type, owner_role, parent_id, name, image_data, x, y, width, height, z_index, visible, locked, created_at')
       .eq('room', currentRoom)
       .order('z_index', { ascending: true })
       .limit(80)
@@ -664,9 +687,14 @@ export default function VampireTable() {
   }
 
   const visibleLayers = useMemo(() => sortLayers(layers).filter(isLayerEffectivelyVisible), [layers])
+  const managerLayers = useMemo(
+    () => (isMaster ? layers : layers.filter(layer => layer.ownerRole !== 'master')),
+    [isMaster, layers]
+  )
+  const selectedManagerLayer = managerLayers.find(layer => layer.id === selectedLayerId) || null
   const layerTree = useMemo<LayerTreeNode[]>(() => {
     const nodeMap = new Map<string, LayerTreeNode>()
-    sortLayers(layers).forEach(layer => nodeMap.set(layer.id, { ...layer, children: [] }))
+    sortLayers(managerLayers).forEach(layer => nodeMap.set(layer.id, { ...layer, children: [] }))
 
     const roots: LayerTreeNode[] = []
     nodeMap.forEach(node => {
@@ -682,7 +710,7 @@ export default function VampireTable() {
     }
 
     return sortNodes(roots)
-  }, [layers])
+  }, [managerLayers])
   const musicState = useMemo<MusicState>(() => ({
     room,
     url: musicUrl,
@@ -699,6 +727,9 @@ export default function VampireTable() {
   }
 
   const patchLayer = async (id: string, patch: LayerPatch, options: { persist?: boolean } = { persist: true }) => {
+    const existingLayer = layersRef.current.find(layer => layer.id === id)
+    if (!isMaster && existingLayer?.ownerRole === 'master') return
+
     const nextLayers = sortLayers(layersRef.current.map(layer => (layer.id === id ? { ...layer, ...patch } : layer)))
     layersRef.current = nextLayers
     setLayers(nextLayers)
@@ -750,11 +781,13 @@ export default function VampireTable() {
         const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
         const fitWidth = Math.min(760, Math.max(220, natural.width))
         const fitHeight = Math.max(160, Math.round((fitWidth / natural.width) * natural.height))
-        const activeFolder = selectedLayer?.layerType === 'folder' ? selectedLayer : null
+        const ownerRole = tableRole ?? 'player'
+        const activeFolder = selectedLayer?.layerType === 'folder' && (isMaster || selectedLayer.ownerRole !== 'master') ? selectedLayer : null
         const layer: TableLayer = {
           id,
           room,
           layerType: 'image',
+          ownerRole,
           parentId: activeFolder?.id || null,
           name: file.name,
           imageData,
@@ -772,6 +805,7 @@ export default function VampireTable() {
           id: layer.id,
           room: layer.room,
           layer_type: layer.layerType,
+          owner_role: layer.ownerRole,
           parent_id: layer.parentId,
           name: layer.name,
           image_data: layer.imageData,
@@ -813,7 +847,11 @@ export default function VampireTable() {
   const deleteLayer = async (layerId: string) => {
     const layer = layersRef.current.find(item => item.id === layerId) || layers.find(item => item.id === layerId)
     const childIds = getDescendantIds(layerId)
-    const deleteIds = new Set([layerId, ...childIds])
+    const requestedDeleteIds = new Set([layerId, ...childIds])
+    const deleteIds = isMaster
+      ? requestedDeleteIds
+      : new Set([...requestedDeleteIds].filter(id => layersRef.current.find(item => item.id === id)?.ownerRole !== 'master'))
+    if (deleteIds.size === 0) return
     const prompt = layer?.layerType === 'folder' && childIds.size > 0
       ? `Удалить папку «${layer.name}» и ${childIds.size} вложенных слоёв?`
       : 'Удалить слой со стола?'
@@ -870,6 +908,11 @@ export default function VampireTable() {
     nextUrl: string,
     options: { isPlaying?: boolean; positionSeconds?: number; activeUri?: string } = {}
   ) => {
+    if (!isMaster) {
+      setMusicStatus('Музыкой управляет мастер')
+      return
+    }
+
     const normalizedUrl = nextUrl.trim()
     const now = new Date().toISOString()
     const music: MusicState = {
@@ -966,6 +1009,7 @@ export default function VampireTable() {
               else controller.pause()
             })
             controller.addListener('playback_update', event => {
+              if (!isMaster) return
               const now = Date.now()
               const nextPosition = Math.max(0, Math.floor((event.data.position || 0) / 1000))
               const currentMusic = musicStateRef.current
@@ -998,7 +1042,7 @@ export default function VampireTable() {
       spotifyControllerRef.current?.destroy()
       spotifyControllerRef.current = null
     }
-  }, [musicProvider, musicUrl, musicActiveUri])
+  }, [musicProvider, musicUrl, musicActiveUri, isMaster])
 
   useEffect(() => {
     if (musicProvider !== 'spotify') return
@@ -1019,6 +1063,7 @@ export default function VampireTable() {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       room,
       layerType: 'folder',
+      ownerRole: tableRole ?? 'player',
       parentId,
       name: `Папка ${siblingCount + 1}`,
       imageData: '',
@@ -1036,6 +1081,7 @@ export default function VampireTable() {
       id: folder.id,
       room: folder.room,
       layer_type: folder.layerType,
+      owner_role: folder.ownerRole,
       parent_id: folder.parentId,
       name: folder.name,
       image_data: folder.imageData,
@@ -1128,7 +1174,8 @@ export default function VampireTable() {
 
     const placement = layerDropTarget?.layerId === target.id ? layerDropTarget.placement : 'after'
     const nextParentId = placement === 'inside' ? target.id : target.parentId
-    const siblings = sortLayers(layersRef.current.filter(layer => layer.parentId === nextParentId && layer.id !== dragged.id)).reverse()
+    const draggableLayers = isMaster ? layersRef.current : layersRef.current.filter(layer => layer.ownerRole !== 'master')
+    const siblings = sortLayers(draggableLayers.filter(layer => layer.parentId === nextParentId && layer.id !== dragged.id)).reverse()
     const targetIndex = siblings.findIndex(layer => layer.id === target.id)
     const insertIndex = placement === 'inside' ? 0 : placement === 'before' ? Math.max(0, targetIndex) : Math.max(0, targetIndex + 1)
     siblings.splice(insertIndex, 0, { ...dragged, parentId: nextParentId })
@@ -1155,6 +1202,7 @@ export default function VampireTable() {
 
   const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize', corner: DragState['corner'] = 'se') => {
     if (event.button !== 0) return
+    if (!isMaster && layer.ownerRole === 'master') return
     if (layer.locked) return
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -1312,6 +1360,17 @@ export default function VampireTable() {
           }}
           onDoubleClick={() => renameLayer(layer)}
         >
+          <button
+            type="button"
+            className={`layer-visibility ${layer.visible ? 'visible' : ''}`}
+            onClick={event => {
+              event.stopPropagation()
+              patchLayer(layer.id, { visible: !layer.visible })
+            }}
+            title={layer.visible ? 'Скрыть' : 'Показать'}
+          >
+            {layer.visible ? '◉' : '□'}
+          </button>
           <div className="layer-name" style={{ paddingLeft: 8 + depth * 16 }}>
             {isFolder ? (
               <button type="button" className="folder-toggle" onClick={() => toggleFolder(layer.id)} title={isExpanded ? 'Свернуть' : 'Открыть'}>
@@ -1322,13 +1381,19 @@ export default function VampireTable() {
             )}
             <button type="button" className="layer-main" onClick={() => setSelectedLayerId(layer.id)}>
               {isFolder ? <span className="folder-thumb">▣</span> : <img src={layer.imageData} alt="" />}
+              <span className="link-mark">⌁</span>
               <span>{layer.name}</span>
             </button>
             <div className="layer-quick-actions">
-              <button type="button" onClick={() => patchLayer(layer.id, { visible: !layer.visible })} title={layer.visible ? 'Скрыть' : 'Показать'}>
-                {layer.visible ? '●' : '○'}
-              </button>
-              <button type="button" onClick={() => patchLayer(layer.id, { locked: !layer.locked })} title={layer.locked ? 'Разблокировать' : 'Заблокировать'}>
+              {isMaster ? <span className={`owner-badge ${layer.ownerRole}`}>{layer.ownerRole === 'master' ? 'M' : 'P'}</span> : null}
+              <button
+                type="button"
+                onClick={event => {
+                  event.stopPropagation()
+                  patchLayer(layer.id, { locked: !layer.locked })
+                }}
+                title={layer.locked ? 'Разблокировать' : 'Заблокировать'}
+              >
                 {layer.locked ? 'L' : 'U'}
               </button>
             </div>
@@ -1349,6 +1414,9 @@ export default function VampireTable() {
           <h1>Стол: {room}</h1>
         </div>
         <div className="table-actions">
+          <button type="button" className="role-pill" onClick={resetTableRole}>
+            {isMaster ? 'Мастер' : tableRole === 'player' ? 'Игрок' : 'Выбрать роль'}
+          </button>
           <a href="/old" title="Открыть лист персонажа">Лист</a>
           <button type="button" onClick={() => createFolder()}>Папка</button>
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
@@ -1408,7 +1476,7 @@ export default function VampireTable() {
 
               {visibleLayers.map(layer => (
                 <div
-                  className={`scene-layer ${layer.layerType === 'folder' ? 'folder-layer' : ''} ${selectedLayerId === layer.id ? 'selected' : ''} ${layer.locked ? 'locked' : ''}`}
+                  className={`scene-layer ${layer.layerType === 'folder' ? 'folder-layer' : ''} ${selectedLayerId === layer.id ? 'selected' : ''} ${layer.locked || (!isMaster && layer.ownerRole === 'master') ? 'locked' : ''}`}
                   key={layer.id}
                   style={{
                     left: layer.x,
@@ -1437,7 +1505,7 @@ export default function VampireTable() {
                       <span className="broken-image-label">{layer.name}</span>
                     </>
                   )}
-                  {selectedLayerId === layer.id && !layer.locked ? (
+                  {selectedLayerId === layer.id && !layer.locked && (isMaster || layer.ownerRole !== 'master') ? (
                     <>
                       {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (
                         <button
@@ -1463,23 +1531,28 @@ export default function VampireTable() {
           <section className="music-panel" aria-label="Музыка комнаты">
             <header>
               <strong>Музыка</strong>
-              <span>{musicStatus}</span>
+              <span>{isMaster ? musicStatus : 'Музыкой управляет мастер'}</span>
             </header>
-            <div className="music-controls">
-              <input
-                value={musicDraft}
-                onChange={event => setMusicDraft(event.target.value)}
-                onKeyDown={event => {
-                  if (event.key !== 'Enter') return
-                  publishMusic(musicDraft, { isPlaying: Boolean(musicDraft.trim()), positionSeconds: 0 })
-                }}
-                placeholder="YouTube или Spotify ссылка"
-              />
-            </div>
+            {isMaster ? (
+              <div className="music-controls">
+                <input
+                  value={musicDraft}
+                  onChange={event => setMusicDraft(event.target.value)}
+                  onKeyDown={event => {
+                    if (event.key !== 'Enter') return
+                    publishMusic(musicDraft, { isPlaying: Boolean(musicDraft.trim()), positionSeconds: 0 })
+                  }}
+                  placeholder="YouTube или Spotify ссылка"
+                />
+              </div>
+            ) : (
+              <p className="music-readonly">Трек и пауза синхронизируются с мастером.</p>
+            )}
             {musicProvider === 'spotify' && musicUrl ? (
-              <div className="spotify-embed" ref={spotifyMountRef} />
+              <div className={`spotify-embed ${isMaster ? '' : 'readonly'}`} ref={spotifyMountRef} />
             ) : musicEmbedUrl ? (
               <iframe
+                className={isMaster ? '' : 'readonly'}
                 ref={musicFrameRef}
                 title="Музыка комнаты"
                 src={musicEmbedUrl}
@@ -1492,7 +1565,7 @@ export default function VampireTable() {
           <section className="layer-panel" aria-label="Слои стола">
             <header>
               <strong>Слои</strong>
-              <span>{selectedLayer?.name || 'ничего не выбрано'}</span>
+              <span>{selectedManagerLayer?.name || 'ничего не выбрано'}</span>
             </header>
 
             <div className="layer-list">
@@ -1594,6 +1667,23 @@ export default function VampireTable() {
         )
       })() : null}
 
+      {!tableRole ? (
+        <div className="role-gate" role="dialog" aria-modal="true" aria-label="Выбор роли">
+          <section>
+            <span>Вход на стол</span>
+            <h2>Кто ты в этой сцене?</h2>
+            <div>
+              <button type="button" onClick={() => chooseTableRole('master')}>
+                Мастер
+              </button>
+              <button type="button" onClick={() => chooseTableRole('player')}>
+                Игрок
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
+
       <style jsx global>{`
         html,
         body {
@@ -1668,9 +1758,14 @@ export default function VampireTable() {
           cursor: not-allowed;
         }
 
+        .role-pill {
+          border-color: #36d675 !important;
+          color: #dfffe9 !important;
+        }
+
         .table-layout {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 360px;
+          grid-template-columns: minmax(0, 1fr) 420px;
           gap: 12px;
           height: calc(100vh - 106px);
           min-height: 560px;
@@ -1931,7 +2026,9 @@ export default function VampireTable() {
         .layer-panel header {
           display: grid;
           gap: 4px;
-          padding: 12px;
+          padding: 10px 12px;
+          background: #3f3f3f;
+          border-bottom-color: #2d2d2d;
         }
 
         .music-panel header {
@@ -1973,14 +2070,29 @@ export default function VampireTable() {
           background: #050505;
         }
 
+        .music-readonly {
+          margin: 0;
+          padding: 10px;
+          color: #9d9d9d;
+          font-size: 12px;
+          line-height: 1.35;
+          border-bottom: 1px solid #252525;
+        }
+
+        .music-panel iframe.readonly,
+        .spotify-embed.readonly {
+          pointer-events: none;
+          filter: grayscale(0.35);
+        }
+
         .layer-list,
         .roll-list {
           min-height: 0;
           overflow-y: auto;
-          padding: 8px;
+          padding: 0;
           display: flex;
           flex-direction: column;
-          gap: 3px;
+          gap: 0;
         }
 
         .panel-empty {
@@ -1992,15 +2104,20 @@ export default function VampireTable() {
 
         .layer-row {
           position: relative;
-          border: 1px solid transparent;
-          border-radius: 4px;
-          background: #151515;
+          display: grid;
+          grid-template-columns: 56px minmax(0, 1fr);
+          min-height: 50px;
+          border: 0;
+          border-bottom: 1px solid #464646;
+          border-radius: 0;
+          background: #505050;
           overflow: visible;
+          color: #eeeeee;
         }
 
         .layer-row.active {
-          border-color: #36d675;
-          background: #1b231e;
+          border-color: #464646;
+          background: #696969;
         }
 
         .layer-row.dragging {
@@ -2011,8 +2128,8 @@ export default function VampireTable() {
         .layer-row.drop-after::after {
           content: "";
           position: absolute;
-          left: 4px;
-          right: 4px;
+          left: 56px;
+          right: 0;
           height: 2px;
           background: #36d675;
           box-shadow: 0 0 10px rgba(54, 214, 117, 0.5);
@@ -2033,23 +2150,43 @@ export default function VampireTable() {
           background: rgba(54, 214, 117, 0.12);
         }
 
+        .layer-visibility {
+          width: 100%;
+          min-height: 50px;
+          border: 0;
+          border-right: 1px solid #3f3f3f;
+          background: #4a4a4a;
+          color: #dcdcdc;
+          cursor: pointer;
+          font: inherit;
+          font-size: 18px;
+          display: grid;
+          place-items: center;
+        }
+
+        .layer-visibility:not(.visible) {
+          color: #666;
+          background: #454545;
+        }
+
         .layer-name {
           width: 100%;
-          color: #f4f4f4;
+          min-height: 50px;
+          color: #f1f1f1;
           display: grid;
-          grid-template-columns: 20px minmax(0, 1fr) auto;
-          gap: 5px;
+          grid-template-columns: 22px minmax(0, 1fr) auto;
+          gap: 4px;
           align-items: center;
-          padding: 5px 6px 5px 8px;
+          padding: 6px 8px;
           box-sizing: border-box;
         }
 
         .folder-toggle {
-          width: 18px;
-          height: 24px;
+          width: 22px;
+          height: 28px;
           border: 0;
           background: transparent;
-          color: #bcbcbc;
+          color: #eeeeee;
           display: grid;
           place-items: center;
           padding: 0;
@@ -2068,7 +2205,7 @@ export default function VampireTable() {
           background: transparent;
           color: inherit;
           display: grid;
-          grid-template-columns: 34px minmax(0, 1fr);
+          grid-template-columns: 58px 20px minmax(0, 1fr);
           gap: 8px;
           align-items: center;
           padding: 0;
@@ -2078,24 +2215,42 @@ export default function VampireTable() {
         }
 
         .layer-main img {
-          width: 34px;
-          height: 24px;
+          width: 58px;
+          height: 42px;
           object-fit: cover;
-          background: #050505;
-          border-radius: 3px;
-          border: 1px solid #333;
+          background-color: #f9f9f9;
+          background-image:
+            linear-gradient(45deg, #d8d8d8 25%, transparent 25%),
+            linear-gradient(-45deg, #d8d8d8 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, #d8d8d8 75%),
+            linear-gradient(-45deg, transparent 75%, #d8d8d8 75%);
+          background-size: 12px 12px;
+          background-position: 0 0, 0 6px, 6px -6px, -6px 0;
+          border-radius: 0;
+          border: 2px solid #363636;
         }
 
         .folder-thumb {
-          width: 34px;
-          height: 24px;
-          display: grid;
-          place-items: center;
-          background: rgba(54, 214, 117, 0.08);
-          color: #36d675;
-          border-radius: 3px;
-          border: 1px solid rgba(54, 214, 117, 0.28);
-          font-size: 15px;
+          position: relative;
+          width: 30px;
+          height: 20px;
+          display: block;
+          margin-left: 2px;
+          background: #eeeeee;
+          border-radius: 2px;
+          border: 0;
+          font-size: 0;
+        }
+
+        .folder-thumb::before {
+          content: "";
+          position: absolute;
+          left: 2px;
+          top: -5px;
+          width: 13px;
+          height: 7px;
+          border-radius: 2px 2px 0 0;
+          background: #eeeeee;
         }
 
         .layer-main span {
@@ -2103,21 +2258,52 @@ export default function VampireTable() {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          font-size: 12px;
+          font-size: 15px;
+          font-weight: 700;
+        }
+
+        .link-mark {
+          color: #dddddd;
+          font-size: 21px !important;
+          font-weight: 400 !important;
+          text-align: center;
         }
 
         .layer-quick-actions {
           display: flex;
           gap: 3px;
+          align-items: center;
+        }
+
+        .owner-badge {
+          width: 22px;
+          height: 22px;
+          border: 1px solid #383838;
+          border-radius: 2px;
+          display: grid;
+          place-items: center;
+          font-size: 10px;
+          color: #ddd;
+          background: #454545;
+        }
+
+        .owner-badge.master {
+          color: #ffd6d6;
+          border-color: #733;
+        }
+
+        .owner-badge.player {
+          color: #dfffe9;
+          border-color: #2d6544;
         }
 
         .layer-quick-actions button {
-          width: 24px;
-          height: 24px;
-          border: 1px solid #333;
-          border-radius: 3px;
-          background: #111;
-          color: #ddd;
+          width: 22px;
+          height: 22px;
+          border: 1px solid #383838;
+          border-radius: 2px;
+          background: #454545;
+          color: #e7e7e7;
           font: inherit;
           font-size: 11px;
           padding: 0;
@@ -2126,8 +2312,8 @@ export default function VampireTable() {
 
         .layer-children {
           display: grid;
-          gap: 3px;
-          margin-top: 3px;
+          gap: 0;
+          margin-top: 0;
         }
 
         .layer-context-menu {
@@ -2161,6 +2347,62 @@ export default function VampireTable() {
 
         .layer-context-menu button.danger {
           color: #ff8b8b;
+        }
+
+        .role-gate {
+          position: fixed;
+          inset: 0;
+          z-index: 2000;
+          display: grid;
+          place-items: center;
+          padding: 18px;
+          background: rgba(0,0,0,0.82);
+        }
+
+        .role-gate section {
+          width: min(460px, 100%);
+          border: 1px solid #3a3a3a;
+          border-radius: 8px;
+          background: #111;
+          padding: 24px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+        }
+
+        .role-gate span {
+          color: #ff3131;
+          font-size: 12px;
+          letter-spacing: 0.14em;
+          text-transform: uppercase;
+        }
+
+        .role-gate h2 {
+          margin: 8px 0 18px;
+          color: #fff;
+          font-size: 26px;
+          letter-spacing: 0;
+          border: 0;
+          padding: 0;
+        }
+
+        .role-gate div {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 10px;
+        }
+
+        .role-gate button {
+          border: 1px solid #773030;
+          background: #171717;
+          color: #f4f4f4;
+          border-radius: 6px;
+          padding: 14px;
+          cursor: pointer;
+          font: inherit;
+          font-size: 16px;
+        }
+
+        .role-gate button:first-child {
+          border-color: #36d675;
         }
 
         .roll-sidebar header {
