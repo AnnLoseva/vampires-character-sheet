@@ -69,12 +69,16 @@ type TableLayerRow = {
 type MusicState = {
   room: string
   url: string
+  isPlaying: boolean
+  positionSeconds: number
   updatedAt: string
 }
 
 type MusicRow = {
   room: string
   url: string
+  is_playing: boolean | null
+  position_seconds: number | null
   updated_at: string
 }
 
@@ -208,26 +212,61 @@ function mapMusicRow(row: MusicRow): MusicState {
   return {
     room: row.room,
     url: row.url || '',
+    isPlaying: row.is_playing ?? false,
+    positionSeconds: row.position_seconds ?? 0,
     updatedAt: row.updated_at,
   }
 }
 
-function getMusicEmbedUrl(url: string) {
+function getMusicProvider(url: string) {
   const raw = url.trim()
+  if (!raw) return 'none'
+
+  try {
+    const parsed = new URL(raw)
+    const host = parsed.hostname.replace(/^www\./, '')
+    if (host === 'youtu.be' || host.endsWith('youtube.com')) return 'youtube'
+    if (host === 'open.spotify.com') return 'spotify'
+  } catch {
+    return 'none'
+  }
+
+  return 'none'
+}
+
+function getYouTubeId(url: string) {
+  try {
+    const parsed = new URL(url)
+    const host = parsed.hostname.replace(/^www\./, '')
+
+    if (host === 'youtu.be') {
+      return parsed.pathname.split('/').filter(Boolean)[0] || ''
+    }
+
+    if (host.endsWith('youtube.com')) {
+      return parsed.searchParams.get('v') || parsed.pathname.split('/').filter(Boolean).pop() || ''
+    }
+  } catch {
+    return ''
+  }
+
+  return ''
+}
+
+function getMusicEmbedUrl(music: MusicState) {
+  const raw = music.url.trim()
   if (!raw) return ''
 
   try {
     const parsed = new URL(raw)
     const host = parsed.hostname.replace(/^www\./, '')
+    const elapsed = music.isPlaying ? Math.max(0, (Date.now() - new Date(music.updatedAt).getTime()) / 1000) : 0
+    const start = Math.max(0, Math.floor(music.positionSeconds + elapsed))
+    const origin = typeof window === 'undefined' ? '' : window.location.origin
 
-    if (host === 'youtu.be') {
-      const id = parsed.pathname.split('/').filter(Boolean)[0]
-      return id ? `https://www.youtube.com/embed/${id}?autoplay=1` : ''
-    }
-
-    if (host.endsWith('youtube.com')) {
-      const id = parsed.searchParams.get('v') || parsed.pathname.split('/').filter(Boolean).pop()
-      return id ? `https://www.youtube.com/embed/${id}?autoplay=1` : ''
+    if (getMusicProvider(raw) === 'youtube') {
+      const id = getYouTubeId(raw)
+      return id ? `https://www.youtube.com/embed/${id}?enablejsapi=1&origin=${encodeURIComponent(origin)}&start=${start}&autoplay=${music.isPlaying ? 1 : 0}` : ''
     }
 
     if (host === 'open.spotify.com') {
@@ -254,8 +293,12 @@ export default function VampireTable() {
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [musicUrl, setMusicUrl] = useState('')
   const [musicDraft, setMusicDraft] = useState('')
+  const [musicPlaying, setMusicPlaying] = useState(false)
+  const [musicPositionSeconds, setMusicPositionSeconds] = useState(0)
+  const [musicUpdatedAt, setMusicUpdatedAt] = useState(new Date(0).toISOString())
   const [musicStatus, setMusicStatus] = useState('Музыка не выбрана')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const musicFrameRef = useRef<HTMLIFrameElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
   const dragRef = useRef<DragState | null>(null)
@@ -269,6 +312,15 @@ export default function VampireTable() {
   useEffect(() => {
     panRef.current = pan
   }, [pan])
+
+  const applyMusicState = (music: MusicState) => {
+    setMusicUrl(music.url || '')
+    setMusicDraft(music.url || '')
+    setMusicPlaying(music.isPlaying)
+    setMusicPositionSeconds(music.positionSeconds)
+    setMusicUpdatedAt(music.updatedAt)
+    setMusicStatus(music.url ? (music.isPlaying ? 'Играет синхронно' : 'Пауза') : 'Музыка выключена')
+  }
 
   useEffect(() => {
     const currentRoom = getRoomFromLocation()
@@ -329,9 +381,8 @@ export default function VampireTable() {
         }
 
         const music = data ? mapMusicRow(data as MusicRow) : null
-        setMusicUrl(music?.url || '')
-        setMusicDraft(music?.url || '')
-        setMusicStatus(music?.url ? 'Общая музыка' : 'Музыка не выбрана')
+        if (music) applyMusicState(music)
+        else setMusicStatus('Музыка не выбрана')
       })
 
     const channel = supabase
@@ -374,9 +425,7 @@ export default function VampireTable() {
       .on('broadcast', { event: 'music' }, payload => {
         const music = payload.payload as MusicState
         if (!music || music.room !== currentRoom) return
-        setMusicUrl(music.url || '')
-        setMusicDraft(music.url || '')
-        setMusicStatus(music.url ? 'Общая музыка' : 'Музыка выключена')
+        applyMusicState(music)
       })
       .on(
         'postgres_changes',
@@ -402,9 +451,7 @@ export default function VampireTable() {
         payload => {
           const next = (payload.new || payload.old) as MusicRow
           const music = mapMusicRow(next)
-          setMusicUrl(music.url || '')
-          setMusicDraft(music.url || '')
-          setMusicStatus(music.url ? 'Общая музыка' : 'Музыка выключена')
+          applyMusicState(music)
         }
       )
       .on(
@@ -488,7 +535,15 @@ export default function VampireTable() {
   const visibleLayers = useMemo(() => sortLayers(layers).filter(isLayerEffectivelyVisible), [layers])
   const layerPanelItems = useMemo(() => sortLayers(layers).reverse(), [layers])
   const folders = useMemo(() => sortLayers(layers).filter(layer => layer.layerType === 'folder'), [layers])
-  const musicEmbedUrl = useMemo(() => getMusicEmbedUrl(musicUrl), [musicUrl])
+  const musicState = useMemo<MusicState>(() => ({
+    room,
+    url: musicUrl,
+    isPlaying: musicPlaying,
+    positionSeconds: musicPositionSeconds,
+    updatedAt: musicUpdatedAt,
+  }), [room, musicUrl, musicPlaying, musicPositionSeconds, musicUpdatedAt])
+  const musicEmbedUrl = useMemo(() => getMusicEmbedUrl(musicState), [musicState])
+  const musicProvider = useMemo(() => getMusicProvider(musicUrl), [musicUrl])
 
   const broadcast = (event: string, payload: unknown) => {
     channelRef.current?.send({ type: 'broadcast', event, payload })
@@ -627,22 +682,44 @@ export default function VampireTable() {
     }
   }
 
-  const publishMusic = async (nextUrl: string) => {
+  const getEffectiveMusicPosition = () => {
+    if (!musicPlaying) return musicPositionSeconds
+    return musicPositionSeconds + Math.max(0, (Date.now() - new Date(musicUpdatedAt).getTime()) / 1000)
+  }
+
+  const postYouTubeCommand = (command: string, args: unknown[] = []) => {
+    musicFrameRef.current?.contentWindow?.postMessage(
+      JSON.stringify({
+        event: 'command',
+        func: command,
+        args,
+      }),
+      '*'
+    )
+  }
+
+  const publishMusic = async (
+    nextUrl: string,
+    options: { isPlaying?: boolean; positionSeconds?: number } = {}
+  ) => {
     const normalizedUrl = nextUrl.trim()
+    const now = new Date().toISOString()
     const music: MusicState = {
       room,
       url: normalizedUrl,
-      updatedAt: new Date().toISOString(),
+      isPlaying: options.isPlaying ?? Boolean(normalizedUrl),
+      positionSeconds: Math.max(0, Math.floor(options.positionSeconds ?? 0)),
+      updatedAt: now,
     }
 
-    setMusicUrl(normalizedUrl)
-    setMusicDraft(normalizedUrl)
-    setMusicStatus(normalizedUrl ? 'Общая музыка' : 'Музыка выключена')
+    applyMusicState(music)
     broadcast('music', music)
 
     const { error } = await createClient().from(TABLE_MUSIC).upsert({
       room: music.room,
       url: music.url,
+      is_playing: music.isPlaying,
+      position_seconds: music.positionSeconds,
       updated_at: music.updatedAt,
     })
 
@@ -651,6 +728,33 @@ export default function VampireTable() {
       setMusicStatus('Музыка отправлена онлайн, но не сохранена')
     }
   }
+
+  const setMusicPlayback = (isPlaying: boolean) => {
+    const positionSeconds = getEffectiveMusicPosition()
+    publishMusic(musicUrl, { isPlaying, positionSeconds })
+    if (musicProvider === 'youtube') postYouTubeCommand(isPlaying ? 'playVideo' : 'pauseVideo')
+  }
+
+  const seekMusic = (deltaSeconds: number) => {
+    const positionSeconds = Math.max(0, getEffectiveMusicPosition() + deltaSeconds)
+    publishMusic(musicUrl, { isPlaying: musicPlaying, positionSeconds })
+    if (musicProvider === 'youtube') {
+      postYouTubeCommand('seekTo', [positionSeconds, true])
+      if (musicPlaying) postYouTubeCommand('playVideo')
+    }
+  }
+
+  useEffect(() => {
+    if (musicProvider !== 'youtube' || !musicUrl) return
+
+    const timeout = window.setTimeout(() => {
+      const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
+      postYouTubeCommand('seekTo', [positionSeconds, true])
+      postYouTubeCommand(musicPlaying ? 'playVideo' : 'pauseVideo')
+    }, 800)
+
+    return () => window.clearTimeout(timeout)
+  }, [musicEmbedUrl, musicPlaying, musicPositionSeconds, musicUpdatedAt, musicProvider, musicUrl])
 
   const createFolder = async () => {
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
@@ -973,16 +1077,28 @@ export default function VampireTable() {
                 placeholder="YouTube или Spotify ссылка"
               />
               <div>
-                <button type="button" onClick={() => publishMusic(musicDraft)}>
+                <button type="button" onClick={() => publishMusic(musicDraft, { isPlaying: true, positionSeconds: 0 })}>
                   Включить всем
                 </button>
-                <button type="button" onClick={() => publishMusic('')}>
+                <button type="button" onClick={() => publishMusic('', { isPlaying: false, positionSeconds: 0 })}>
                   Стоп
+                </button>
+              </div>
+              <div>
+                <button type="button" onClick={() => seekMusic(-15)} disabled={!musicUrl}>
+                  −15
+                </button>
+                <button type="button" onClick={() => setMusicPlayback(!musicPlaying)} disabled={!musicUrl}>
+                  {musicPlaying ? 'Пауза всем' : 'Play всем'}
+                </button>
+                <button type="button" onClick={() => seekMusic(15)} disabled={!musicUrl}>
+                  +15
                 </button>
               </div>
             </div>
             {musicEmbedUrl ? (
               <iframe
+                ref={musicFrameRef}
                 title="Музыка комнаты"
                 src={musicEmbedUrl}
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
@@ -1459,7 +1575,7 @@ export default function VampireTable() {
 
         .music-controls div {
           display: grid;
-          grid-template-columns: 1fr auto;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 8px;
         }
 
@@ -1472,6 +1588,11 @@ export default function VampireTable() {
           cursor: pointer;
           font: inherit;
           font-size: 12px;
+        }
+
+        .music-controls button:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
         }
 
         .music-panel iframe {

@@ -122,8 +122,14 @@ end $$;
 create table if not exists public.table_music (
   room text primary key,
   url text not null default '',
+  is_playing boolean not null default false,
+  position_seconds double precision not null default 0,
   updated_at timestamptz not null default now()
 );
+
+alter table public.table_music
+  add column if not exists is_playing boolean not null default false,
+  add column if not exists position_seconds double precision not null default 0;
 
 alter table public.table_music enable row level security;
 
