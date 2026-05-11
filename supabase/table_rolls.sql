@@ -45,8 +45,24 @@ create table if not exists public.table_images (
   room text not null,
   name text not null,
   image_data text not null,
+  x integer not null default 80,
+  y integer not null default 80,
+  width integer not null default 420,
+  height integer not null default 280,
+  z_index integer not null default 1,
+  visible boolean not null default true,
+  locked boolean not null default false,
   created_at timestamptz not null default now()
 );
+
+alter table public.table_images
+  add column if not exists x integer not null default 80,
+  add column if not exists y integer not null default 80,
+  add column if not exists width integer not null default 420,
+  add column if not exists height integer not null default 280,
+  add column if not exists z_index integer not null default 1,
+  add column if not exists visible boolean not null default true,
+  add column if not exists locked boolean not null default false;
 
 create index if not exists table_images_room_created_at_idx
   on public.table_images (room, created_at desc);
@@ -65,11 +81,20 @@ create policy "Anyone can create table images"
   for insert
   with check (true);
 
+drop policy if exists "Anyone can update table images" on public.table_images;
+create policy "Anyone can update table images"
+  on public.table_images
+  for update
+  using (true)
+  with check (true);
+
 drop policy if exists "Anyone can delete table images" on public.table_images;
 create policy "Anyone can delete table images"
   on public.table_images
   for delete
   using (true);
+
+alter table public.table_images replica identity full;
 
 do $$
 begin
