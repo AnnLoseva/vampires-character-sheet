@@ -69,6 +69,7 @@ type TableLayerRow = {
 type MusicState = {
   room: string
   url: string
+  activeUri: string
   isPlaying: boolean
   positionSeconds: number
   updatedAt: string
@@ -77,9 +78,28 @@ type MusicState = {
 type MusicRow = {
   room: string
   url: string
+  active_uri: string | null
   is_playing: boolean | null
   position_seconds: number | null
   updated_at: string
+}
+
+type SpotifyController = {
+  loadUri: (spotifyUri: string, preferVideo?: boolean, startAt?: number) => void
+  play: () => void
+  pause: () => void
+  resume: () => void
+  seek: (seconds: number) => void
+  destroy: () => void
+  addListener: (event: string, callback: (event: { data: { playingURI?: string; isPaused?: boolean; position?: number } }) => void) => void
+}
+
+type SpotifyIframeApi = {
+  createController: (
+    element: HTMLElement,
+    options: { uri: string; width?: string | number; height?: string | number; theme?: string },
+    callback: (controller: SpotifyController) => void
+  ) => void
 }
 
 type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'parentId' | 'name' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked'>>
@@ -212,9 +232,22 @@ function mapMusicRow(row: MusicRow): MusicState {
   return {
     room: row.room,
     url: row.url || '',
+    activeUri: row.active_uri || '',
     isPlaying: row.is_playing ?? false,
     positionSeconds: row.position_seconds ?? 0,
     updatedAt: row.updated_at,
+  }
+}
+
+function getSpotifyUri(url: string) {
+  try {
+    const parsed = new URL(url.trim())
+    if (parsed.hostname.replace(/^www\./, '') !== 'open.spotify.com') return ''
+
+    const [type, id] = parsed.pathname.split('/').filter(Boolean)
+    return type && id ? `spotify:${type}:${id}` : ''
+  } catch {
+    return ''
   }
 }
 
@@ -280,6 +313,37 @@ function getMusicEmbedUrl(music: MusicState) {
   return ''
 }
 
+function loadSpotifyIframeApi() {
+  return new Promise<SpotifyIframeApi>((resolve, reject) => {
+    const win = window as typeof window & {
+      __spotifyIframeApi?: SpotifyIframeApi
+      __spotifyIframeApiResolvers?: Array<(api: SpotifyIframeApi) => void>
+      onSpotifyIframeApiReady?: (api: SpotifyIframeApi) => void
+    }
+
+    if (win.__spotifyIframeApi) {
+      resolve(win.__spotifyIframeApi)
+      return
+    }
+
+    win.__spotifyIframeApiResolvers = win.__spotifyIframeApiResolvers || []
+    win.__spotifyIframeApiResolvers.push(resolve)
+    win.onSpotifyIframeApiReady = api => {
+      win.__spotifyIframeApi = api
+      win.__spotifyIframeApiResolvers?.splice(0).forEach(callback => callback(api))
+    }
+
+    if (document.querySelector('script[data-spotify-iframe-api="true"]')) return
+
+    const script = document.createElement('script')
+    script.src = 'https://open.spotify.com/embed/iframe-api/v1'
+    script.async = true
+    script.dataset.spotifyIframeApi = 'true'
+    script.onerror = () => reject(new Error('Spotify iFrame API failed to load'))
+    document.body.appendChild(script)
+  })
+}
+
 export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [rolls, setRolls] = useState<RollMessage[]>([])
@@ -292,6 +356,7 @@ export default function VampireTable() {
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [musicUrl, setMusicUrl] = useState('')
+  const [musicActiveUri, setMusicActiveUri] = useState('')
   const [musicDraft, setMusicDraft] = useState('')
   const [musicPlaying, setMusicPlaying] = useState(false)
   const [musicPositionSeconds, setMusicPositionSeconds] = useState(0)
@@ -299,6 +364,9 @@ export default function VampireTable() {
   const [musicStatus, setMusicStatus] = useState('Музыка не выбрана')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const musicFrameRef = useRef<HTMLIFrameElement>(null)
+  const spotifyMountRef = useRef<HTMLDivElement>(null)
+  const spotifyControllerRef = useRef<SpotifyController | null>(null)
+  const spotifyLastPublishRef = useRef(0)
   const sceneRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
   const dragRef = useRef<DragState | null>(null)
@@ -315,6 +383,7 @@ export default function VampireTable() {
 
   const applyMusicState = (music: MusicState) => {
     setMusicUrl(music.url || '')
+    setMusicActiveUri(music.activeUri || '')
     setMusicDraft(music.url || '')
     setMusicPlaying(music.isPlaying)
     setMusicPositionSeconds(music.positionSeconds)
@@ -369,7 +438,7 @@ export default function VampireTable() {
 
     supabase
       .from(TABLE_MUSIC)
-      .select('room, url, updated_at')
+      .select('room, url, active_uri, is_playing, position_seconds, updated_at')
       .eq('room', currentRoom)
       .maybeSingle()
       .then(({ data, error }) => {
@@ -538,10 +607,11 @@ export default function VampireTable() {
   const musicState = useMemo<MusicState>(() => ({
     room,
     url: musicUrl,
+    activeUri: musicActiveUri,
     isPlaying: musicPlaying,
     positionSeconds: musicPositionSeconds,
     updatedAt: musicUpdatedAt,
-  }), [room, musicUrl, musicPlaying, musicPositionSeconds, musicUpdatedAt])
+  }), [room, musicUrl, musicActiveUri, musicPlaying, musicPositionSeconds, musicUpdatedAt])
   const musicEmbedUrl = useMemo(() => getMusicEmbedUrl(musicState), [musicState])
   const musicProvider = useMemo(() => getMusicProvider(musicUrl), [musicUrl])
 
@@ -698,15 +768,28 @@ export default function VampireTable() {
     )
   }
 
+  const controlSpotify = (action: 'play' | 'pause' | 'seek', positionSeconds?: number) => {
+    const controller = spotifyControllerRef.current
+    if (!controller) return
+
+    if (action === 'pause') controller.pause()
+    if (action === 'play') controller.resume()
+    if (action === 'seek' && positionSeconds !== undefined) {
+      controller.seek(Math.max(0, Math.floor(positionSeconds)))
+      if (musicPlaying) controller.resume()
+    }
+  }
+
   const publishMusic = async (
     nextUrl: string,
-    options: { isPlaying?: boolean; positionSeconds?: number } = {}
+    options: { isPlaying?: boolean; positionSeconds?: number; activeUri?: string } = {}
   ) => {
     const normalizedUrl = nextUrl.trim()
     const now = new Date().toISOString()
     const music: MusicState = {
       room,
       url: normalizedUrl,
+      activeUri: options.activeUri ?? (normalizedUrl === musicUrl ? musicActiveUri : ''),
       isPlaying: options.isPlaying ?? Boolean(normalizedUrl),
       positionSeconds: Math.max(0, Math.floor(options.positionSeconds ?? 0)),
       updatedAt: now,
@@ -718,6 +801,7 @@ export default function VampireTable() {
     const { error } = await createClient().from(TABLE_MUSIC).upsert({
       room: music.room,
       url: music.url,
+      active_uri: music.activeUri,
       is_playing: music.isPlaying,
       position_seconds: music.positionSeconds,
       updated_at: music.updatedAt,
@@ -733,6 +817,7 @@ export default function VampireTable() {
     const positionSeconds = getEffectiveMusicPosition()
     publishMusic(musicUrl, { isPlaying, positionSeconds })
     if (musicProvider === 'youtube') postYouTubeCommand(isPlaying ? 'playVideo' : 'pauseVideo')
+    if (musicProvider === 'spotify') controlSpotify(isPlaying ? 'play' : 'pause')
   }
 
   const seekMusic = (deltaSeconds: number) => {
@@ -742,6 +827,7 @@ export default function VampireTable() {
       postYouTubeCommand('seekTo', [positionSeconds, true])
       if (musicPlaying) postYouTubeCommand('playVideo')
     }
+    if (musicProvider === 'spotify') controlSpotify('seek', positionSeconds)
   }
 
   useEffect(() => {
@@ -755,6 +841,88 @@ export default function VampireTable() {
 
     return () => window.clearTimeout(timeout)
   }, [musicEmbedUrl, musicPlaying, musicPositionSeconds, musicUpdatedAt, musicProvider, musicUrl])
+
+  useEffect(() => {
+    if (musicProvider !== 'spotify' || !musicUrl || !spotifyMountRef.current) return
+
+    let cancelled = false
+    const container = spotifyMountRef.current
+    const uri = musicActiveUri || getSpotifyUri(musicUrl)
+    if (!uri) return
+
+    container.innerHTML = ''
+    spotifyControllerRef.current?.destroy()
+    spotifyControllerRef.current = null
+
+    loadSpotifyIframeApi()
+      .then(api => {
+        if (cancelled) return
+
+        api.createController(
+          container,
+          {
+            uri,
+            width: '100%',
+            height: 86,
+            theme: 'dark',
+          },
+          controller => {
+            if (cancelled) {
+              controller.destroy()
+              return
+            }
+
+            spotifyControllerRef.current = controller
+            controller.addListener('ready', () => {
+              const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
+              controller.seek(positionSeconds)
+              if (musicPlaying) controller.resume()
+              else controller.pause()
+            })
+            controller.addListener('playback_update', event => {
+              const now = Date.now()
+              if (now - spotifyLastPublishRef.current < 1800) return
+              spotifyLastPublishRef.current = now
+
+              const nextPosition = Math.max(0, Math.floor((event.data.position || 0) / 1000))
+              const nextPlaying = !event.data.isPaused
+              const nextUri = event.data.playingURI || musicActiveUri
+              const positionChanged = Math.abs(nextPosition - getEffectiveMusicPosition()) > 2
+              const stateChanged = nextPlaying !== musicPlaying || nextUri !== musicActiveUri
+
+              if (positionChanged || stateChanged) {
+                publishMusic(musicUrl, {
+                  isPlaying: nextPlaying,
+                  positionSeconds: nextPosition,
+                  activeUri: nextUri,
+                })
+              }
+            })
+          }
+        )
+      })
+      .catch(error => {
+        console.error('Spotify iFrame API не загрузился:', error)
+        setMusicStatus('Spotify API недоступен')
+      })
+
+    return () => {
+      cancelled = true
+      spotifyControllerRef.current?.destroy()
+      spotifyControllerRef.current = null
+    }
+  }, [musicProvider, musicUrl, musicActiveUri])
+
+  useEffect(() => {
+    if (musicProvider !== 'spotify') return
+    const controller = spotifyControllerRef.current
+    if (!controller) return
+
+    const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
+    controller.seek(positionSeconds)
+    if (musicPlaying) controller.resume()
+    else controller.pause()
+  }, [musicProvider, musicPlaying, musicPositionSeconds, musicUpdatedAt])
 
   const createFolder = async () => {
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
@@ -1096,7 +1264,9 @@ export default function VampireTable() {
                 </button>
               </div>
             </div>
-            {musicEmbedUrl ? (
+            {musicProvider === 'spotify' && musicUrl ? (
+              <div className="spotify-embed" ref={spotifyMountRef} />
+            ) : musicEmbedUrl ? (
               <iframe
                 ref={musicFrameRef}
                 title="Музыка комнаты"
@@ -1599,6 +1769,13 @@ export default function VampireTable() {
           width: 100%;
           height: 86px;
           border: 0;
+          border-top: 1px solid #252525;
+          background: #050505;
+        }
+
+        .spotify-embed {
+          width: 100%;
+          min-height: 86px;
           border-top: 1px solid #252525;
           background: #050505;
         }
