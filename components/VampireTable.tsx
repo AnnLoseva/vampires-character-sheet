@@ -77,6 +77,7 @@ type DragState = {
 
 const TABLE_ROLLS = 'table_rolls'
 const TABLE_IMAGES = 'table_images'
+const TABLE_IMAGE_BUCKET = 'table-images'
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
@@ -150,15 +151,6 @@ function toDbPatch(patch: LayerPatch) {
   return dbPatch
 }
 
-function readFileAsDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(String(reader.result || ''))
-    reader.onerror = () => reject(reader.error)
-    reader.readAsDataURL(file)
-  })
-}
-
 function getImageSize(src: string) {
   return new Promise<{ width: number; height: number }>(resolve => {
     const image = new Image()
@@ -166,6 +158,17 @@ function getImageSize(src: string) {
     image.onerror = () => resolve({ width: 420, height: 280 })
     image.src = src
   })
+}
+
+function safeStorageName(name: string) {
+  const cleanName = name
+    .normalize('NFKD')
+    .replace(/[^\w.-]+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .toLowerCase()
+
+  return cleanName || 'image'
 }
 
 export default function VampireTable() {
@@ -361,13 +364,34 @@ export default function VampireTable() {
     setIsUploading(true)
 
     try {
-      const imageData = await readFileAsDataUrl(file)
-      const natural = await getImageSize(imageData)
+      const supabase = createClient()
+      const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
+      const objectUrl = URL.createObjectURL(file)
+      const natural = await getImageSize(objectUrl)
+      URL.revokeObjectURL(objectUrl)
+
+      const storagePath = `${room}/${id}-${safeStorageName(file.name)}`
+      const { error: uploadError } = await supabase.storage
+        .from(TABLE_IMAGE_BUCKET)
+        .upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || 'application/octet-stream',
+        })
+
+      if (uploadError) {
+        console.error('Не удалось загрузить картинку в Storage:', uploadError)
+        window.alert('Картинка не загрузилась в Supabase Storage. Проверь, что создан bucket table-images и policies из SQL.')
+        return
+      }
+
+      const { data: publicUrlData } = supabase.storage.from(TABLE_IMAGE_BUCKET).getPublicUrl(storagePath)
+      const imageData = publicUrlData.publicUrl
       const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
       const fitWidth = Math.min(760, Math.max(220, natural.width))
       const fitHeight = Math.max(160, Math.round((fitWidth / natural.width) * natural.height))
       const layer: TableLayer = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        id,
         room,
         name: file.name,
         imageData,
@@ -381,7 +405,7 @@ export default function VampireTable() {
         createdAt: new Date().toISOString(),
       }
 
-      const { error } = await createClient().from(TABLE_IMAGES).insert({
+      const { error } = await supabase.from(TABLE_IMAGES).insert({
         id: layer.id,
         room: layer.room,
         name: layer.name,
@@ -551,7 +575,16 @@ export default function VampireTable() {
                 }}
                 onPointerDown={event => startLayerDrag(event, layer, 'move')}
               >
-                <img src={layer.imageData} alt={layer.name} draggable={false} />
+                <img
+                  src={layer.imageData}
+                  alt=""
+                  draggable={false}
+                  onError={event => {
+                    event.currentTarget.style.display = 'none'
+                    event.currentTarget.parentElement?.classList.add('image-load-error')
+                  }}
+                />
+                <span className="broken-image-label">{layer.name}</span>
                 {selectedLayerId === layer.id && !layer.locked ? (
                   <button
                     type="button"
@@ -850,6 +883,22 @@ export default function VampireTable() {
           object-fit: fill;
           display: block;
           pointer-events: none;
+        }
+
+        .broken-image-label {
+          display: none;
+          position: absolute;
+          inset: 0;
+          place-content: center;
+          padding: 18px;
+          color: #aaa;
+          text-align: center;
+          font-size: 13px;
+          background: #080808;
+        }
+
+        .scene-layer.image-load-error .broken-image-label {
+          display: grid;
         }
 
         .resize-handle {

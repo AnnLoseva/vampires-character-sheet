@@ -108,3 +108,41 @@ begin
     alter publication supabase_realtime add table public.table_images;
   end if;
 end $$;
+
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'table-images',
+  'table-images',
+  true,
+  null,
+  array['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml']
+)
+on conflict (id) do update
+set public = excluded.public,
+    file_size_limit = excluded.file_size_limit,
+    allowed_mime_types = excluded.allowed_mime_types;
+
+drop policy if exists "Anyone can read table image files" on storage.objects;
+create policy "Anyone can read table image files"
+  on storage.objects
+  for select
+  using (bucket_id = 'table-images');
+
+drop policy if exists "Anyone can upload table image files" on storage.objects;
+create policy "Anyone can upload table image files"
+  on storage.objects
+  for insert
+  with check (bucket_id = 'table-images');
+
+drop policy if exists "Anyone can update table image files" on storage.objects;
+create policy "Anyone can update table image files"
+  on storage.objects
+  for update
+  using (bucket_id = 'table-images')
+  with check (bucket_id = 'table-images');
+
+drop policy if exists "Anyone can delete table image files" on storage.objects;
+create policy "Anyone can delete table image files"
+  on storage.objects
+  for delete
+  using (bucket_id = 'table-images');
