@@ -876,6 +876,25 @@
             cursor: not-allowed !important;
         }
 
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-name,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-spec-line,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .dice-roll-specialty-input {
+            cursor: pointer !important;
+            opacity: 1 !important;
+        }
+
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-name {
+            color: #f5f5f5;
+            text-decoration: underline;
+            text-decoration-color: rgba(255,49,49,0.5);
+            text-underline-offset: 3px;
+        }
+
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .dice-roll-specialty-input {
+            color: #f5f5f5 !important;
+            caret-color: transparent;
+        }
+
         body.sheet-fixed:not(.xp-shop-active) #capture-area button {
             display: none !important;
         }
@@ -906,6 +925,126 @@
         body.xp-shop-active #capture-area .skill-spec-line input {
             cursor: pointer !important;
             opacity: 1 !important;
+        }
+
+        #dice-roll-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 32000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.9);
+        }
+
+        .dice-roll-dialog {
+            width: min(520px, 96vw);
+            background: #111;
+            border: 2px solid #ff3131;
+            border-radius: 10px;
+            padding: 28px;
+            position: relative;
+            box-shadow: 0 0 38px rgba(255,49,49,0.22);
+        }
+
+        .dice-roll-close {
+            position: absolute;
+            top: 12px;
+            right: 16px;
+            border: none;
+            background: transparent;
+            color: #ff3131;
+            font-size: 32px;
+            line-height: 1;
+            cursor: pointer;
+        }
+
+        .dice-roll-label {
+            color: #ff3131;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin-bottom: 8px;
+        }
+
+        #dice-roll-title {
+            margin: 0 34px 8px 0;
+            padding: 0;
+            border: 0;
+            text-align: left;
+            letter-spacing: 0;
+            color: #fff;
+            text-transform: none;
+        }
+
+        #dice-roll-subtitle {
+            margin: 0 0 20px;
+            color: #aaa;
+        }
+
+        .dice-roll-dice {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin: 14px 0;
+        }
+
+        .dice-roll-die {
+            width: 42px;
+            height: 42px;
+            border: 1px solid #555;
+            border-radius: 7px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background: #050505;
+            color: #fff;
+            font-weight: bold;
+            font-size: 18px;
+        }
+
+        .dice-roll-success,
+        .dice-roll-critical {
+            background: #36d675;
+            border-color: #6df0a0;
+            color: #071007;
+            box-shadow: 0 0 16px rgba(54,214,117,0.25);
+        }
+
+        .dice-roll-critical {
+            outline: 2px solid #f2ff7a;
+        }
+
+        .dice-roll-successes {
+            color: #36d675;
+            font-size: 22px;
+            font-weight: bold;
+            margin-top: 12px;
+        }
+
+        .dice-roll-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 22px;
+        }
+
+        .dice-roll-actions button {
+            padding: 12px 16px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            background: #1c1c1c;
+            color: #eee;
+            cursor: pointer;
+            font: inherit;
+        }
+
+        .dice-roll-actions .dice-roll-primary {
+            border-color: #ff3131;
+            background: #ff3131;
+            color: #fff;
+            font-weight: bold;
         }
 
         body.xp-shop-active #capture-area .dot-label,

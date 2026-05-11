@@ -1,32 +1,5 @@
-import Link from 'next/link'
+import VampireTable from '@/components/VampireTable'
 
 export default function Home() {
-  return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex items-center justify-center p-6">
-      <div className="text-center space-y-16 max-w-lg">
-        <div>
-          <h1 className="text-7xl font-bold text-red-600 tracking-widest mb-4">🩸 VTM V5</h1>
-          <p className="text-2xl text-gray-400">Вампиры: Маскарад — 5 редакция</p>
-        </div>
-
-        <div className="space-y-6">
-          <Link
-            href="/old"
-            className="block w-full py-6 bg-red-700 hover:bg-red-600 rounded-3xl text-2xl font-medium transition"
-          >
-            ✍️ Создать / Редактировать персонажа
-          </Link>
-
-          <Link
-            href="/table?room=campaign-666"
-            className="block w-full py-6 bg-zinc-900 hover:bg-zinc-800 border border-red-800 rounded-3xl text-2xl font-medium transition-all active:scale-95"
-          >
-            🦇 Открыть Игровой Стол
-          </Link>
-        </div>
-
-        <p className="text-gray-500 text-sm">Next.js + tldraw версия</p>
-      </div>
-    </div>
-  )
+  return <VampireTable />
 }

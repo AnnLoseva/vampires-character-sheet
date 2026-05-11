@@ -146,6 +146,7 @@ async function initializeApp() {
         renderDisciplines();
         setupEventListeners();
         setupSaveButton();
+        setupDiceRollsFromLockedSheet();
         setupSheetLockGuards();
         setupExpShopDotEditing();
         setupCharacterDetails();
@@ -1850,7 +1851,7 @@ function addSpecLine(skillName, value = '') {
     const line = document.createElement('div');
     line.className = 'skill-spec-line';
     line.innerHTML = `
-        <input type="text" placeholder="Название специальности" style="flex:1;">
+        <input type="text" class="dice-roll-specialty-input" data-skill="${skillName}" placeholder="Название специальности" style="flex:1;">
         ${expShopMode ? '<span style="color:#ff9500;font-weight:bold;align-self:center;white-space:nowrap;">3 XP</span>' : ''}
         <button title="Добавить ещё" style="background:#222;color:#ffae00;">+</button>
         <button title="Удалить" style="background:#222;color:#ff6666;">×</button>
@@ -1906,6 +1907,186 @@ function restoreSpecializations(skillName, specs = []) {
     updateSBadgeState(skillName);
     updateSpecUI(skillName);
 }
+
+// ==================== БРОСКИ КУБИКОВ СО СТАРТОВОГО ЛИСТА ====================
+
+const DICE_TABLE_ROOM = 'campaign-666';
+const DICE_TABLE_CHANNEL = 'vtm-table-rolls';
+const DICE_TABLE_STORAGE_PREFIX = 'vtm-table-rolls:';
+let pendingDicePool = null;
+let diceRollChannel = null;
+
+function setupDiceRollsFromLockedSheet() {
+    if (window.__diceRollsReady) return;
+    window.__diceRollsReady = true;
+
+    if ('BroadcastChannel' in window) {
+        diceRollChannel = new BroadcastChannel(DICE_TABLE_CHANNEL);
+    }
+
+    document.addEventListener('click', (e) => {
+        const target = e.target;
+        const skillNameEl = target.closest?.('.skill-name');
+        const specLine = target.closest?.('.skill-spec-line');
+
+        if (!skillNameEl && !specLine) return;
+        if (!startingSheetFixed || expShopMode) return;
+
+        e.preventDefault();
+        e.stopImmediatePropagation();
+
+        if (skillNameEl) {
+            const skillName = skillNameEl.getAttribute('data-skill') || skillNameEl.textContent.trim();
+            openDiceRollModal({
+                poolType: 'Навык',
+                skillName,
+                poolName: skillName,
+                diceCount: getSkillDots(skillName)
+            });
+            return;
+        }
+
+        const input = specLine.querySelector('input[type="text"]');
+        const skillName = input?.dataset.skill || findSkillNameForSpecLine(specLine);
+        const specName = input?.value.trim() || 'Специальность';
+
+        openDiceRollModal({
+            poolType: 'Специальность',
+            skillName,
+            poolName: `${skillName}: ${specName}`,
+            diceCount: getSkillDots(skillName)
+        });
+    }, true);
+}
+
+function findSkillNameForSpecLine(line) {
+    const container = line.closest?.('.skill-specs');
+    return container?.id?.replace('specs-', '') || '';
+}
+
+function getSkillDots(skillName) {
+    const checked = document.querySelector(`input[name="${CSS.escape(skillName)}"]:checked`);
+    return Math.max(0, parseInt(checked?.value || '0', 10) || 0);
+}
+
+function getDiceRoom() {
+    try {
+        return new URLSearchParams(window.location.search).get('room') || DICE_TABLE_ROOM;
+    } catch {
+        return DICE_TABLE_ROOM;
+    }
+}
+
+function openDiceRollModal(pool) {
+    if (!pool?.skillName) return;
+    if (pool.diceCount < 1) {
+        alert(`У "${pool.skillName}" нет точек для броска.`);
+        return;
+    }
+
+    pendingDicePool = pool;
+
+    const modal = getDiceRollModal();
+    modal.querySelector('#dice-roll-title').textContent = pool.poolName;
+    modal.querySelector('#dice-roll-subtitle').textContent = `${pool.poolType} • ${pool.diceCount}к10`;
+    modal.querySelector('#dice-roll-result').innerHTML = '';
+    modal.style.display = 'flex';
+}
+
+function getDiceRollModal() {
+    let modal = document.getElementById('dice-roll-modal');
+    if (modal) return modal;
+
+    modal = document.createElement('div');
+    modal.id = 'dice-roll-modal';
+    modal.innerHTML = `
+        <div class="dice-roll-dialog">
+            <button type="button" class="dice-roll-close" onclick="closeDiceRollModal()" title="Закрыть">×</button>
+            <div class="dice-roll-label">Бросок кубиков</div>
+            <h2 id="dice-roll-title"></h2>
+            <p id="dice-roll-subtitle"></p>
+            <div id="dice-roll-result"></div>
+            <div class="dice-roll-actions">
+                <button type="button" onclick="closeDiceRollModal()">Отмена</button>
+                <button type="button" class="dice-roll-primary" onclick="confirmDiceRoll()">Бросить</button>
+            </div>
+        </div>`;
+    document.body.appendChild(modal);
+    return modal;
+}
+
+function closeDiceRollModal() {
+    const modal = document.getElementById('dice-roll-modal');
+    if (modal) modal.style.display = 'none';
+    pendingDicePool = null;
+}
+
+function rollD10Pool(count) {
+    return Array.from({ length: count }, () => {
+        const value = Math.floor(Math.random() * 10) + 1;
+        let kind = 'fail';
+        if (value === 1) kind = 'botch';
+        if (value >= 6) kind = 'success';
+        if (value === 10) kind = 'critical';
+        return { value, kind };
+    });
+}
+
+function countV5Successes(dice) {
+    const criticals = dice.filter(die => die.value === 10).length;
+    const regularSuccesses = dice.filter(die => die.value >= 6 && die.value < 10).length;
+    return regularSuccesses + Math.floor(criticals / 2) * 4 + (criticals % 2);
+}
+
+function renderDicePreview(dice, successes) {
+    return `
+        <div class="dice-roll-dice">
+            ${dice.map(die => `<span class="dice-roll-die dice-roll-${die.kind}">${die.value}</span>`).join('')}
+        </div>
+        <div class="dice-roll-successes">Успехов: ${successes}</div>
+    `;
+}
+
+function confirmDiceRoll() {
+    if (!pendingDicePool) return;
+
+    const dice = rollD10Pool(pendingDicePool.diceCount);
+    const successes = countV5Successes(dice);
+    const roll = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        room: getDiceRoom(),
+        characterName: document.getElementById('char-name')?.value?.trim() || 'Безымянный',
+        poolName: pendingDicePool.poolName,
+        poolType: pendingDicePool.poolType,
+        diceCount: pendingDicePool.diceCount,
+        dice,
+        successes,
+        createdAt: new Date().toISOString()
+    };
+
+    publishDiceRoll(roll);
+    document.getElementById('dice-roll-result').innerHTML = renderDicePreview(dice, successes);
+}
+
+function publishDiceRoll(roll) {
+    const storageKey = `${DICE_TABLE_STORAGE_PREFIX}${roll.room}`;
+    let history = [];
+
+    try {
+        history = JSON.parse(localStorage.getItem(storageKey) || '[]');
+        if (!Array.isArray(history)) history = [];
+    } catch {
+        history = [];
+    }
+
+    history = [roll, ...history.filter(item => item.id !== roll.id)].slice(0, 80);
+    localStorage.setItem(storageKey, JSON.stringify(history));
+    localStorage.setItem('vtm-table-last-roll', JSON.stringify(roll));
+    diceRollChannel?.postMessage(roll);
+}
+
+window.closeDiceRollModal = closeDiceRollModal;
+window.confirmDiceRoll = confirmDiceRoll;
 
 function updateSpecUI(skillName = null) {
     if (skillName) {
@@ -5111,7 +5292,7 @@ function applySheetLockState() {
     }
 
     const lockedControls = document.querySelectorAll(
-        '#capture-area input, #capture-area select, #capture-area textarea, #capture-area button, #skill-package'
+        '#capture-area input:not(.dice-roll-specialty-input), #capture-area select, #capture-area textarea, #capture-area button, #skill-package'
     );
     lockedControls.forEach(control => {
         const shouldDisable = startingSheetFixed && !expShopMode;
