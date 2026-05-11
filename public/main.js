@@ -1913,10 +1913,15 @@ function restoreSpecializations(skillName, specs = []) {
 const DICE_TABLE_ROOM = 'campaign-666';
 const DICE_TABLE_CHANNEL = 'vtm-table-rolls';
 const DICE_TABLE_STORAGE_PREFIX = 'vtm-table-rolls:';
+const DICE_SUPABASE_URL = 'https://klhxbaagarqxaqnrvurr.supabase.co';
+const DICE_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaHhiYWFnYXJxeGFxbnJ2dXJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzkwNjAsImV4cCI6MjA5MzY1NTA2MH0.Cy2496DJgJhqZkERL9h19FkiiTfkcW2pauPaJU5r5oY';
 const DICE_ATTRIBUTES = ["Сила", "Ловкость", "Выносливость", "Обаяние", "Манипуляция", "Самообладание", "Интеллект", "Смекалка", "Упорство"];
 const DICE_SKILLS = ["Атлетика", "Вождение", "Воровство", "Выживание", "Драка", "Ремесло", "Скрытность", "Стрельба", "Фехтование", "Запугивание", "Исполнение", "Лидерство", "Обращение с животными", "Проницательность", "Убеждение", "Уличное чутьё", "Хитрость", "Этикет", "Гуманитарные науки", "Естественные науки", "Медицина", "Наблюдательность", "Оккультизм", "Политика", "Расследование", "Техника", "Финансы"];
 let pendingDicePool = null;
 let diceRollChannel = null;
+let diceSupabaseClient = null;
+let diceRealtimeChannel = null;
+let diceRollStorageWarningShown = false;
 
 function setupDiceRollsFromLockedSheet() {
     if (window.__diceRollsReady) return;
@@ -2231,7 +2236,33 @@ function confirmDiceRoll() {
     document.getElementById('dice-roll-result').innerHTML = renderDicePreview(dice, successes);
 }
 
-function publishDiceRoll(roll) {
+function getDiceSupabaseClient() {
+    if (diceSupabaseClient) return diceSupabaseClient;
+    if (!window.supabase?.createClient) return null;
+    diceSupabaseClient = window.supabase.createClient(DICE_SUPABASE_URL, DICE_SUPABASE_ANON_KEY);
+    return diceSupabaseClient;
+}
+
+function getDiceRealtimeChannel(room) {
+    const client = getDiceSupabaseClient();
+    if (!client) return null;
+    if (diceRealtimeChannel) return diceRealtimeChannel;
+
+    diceRealtimeChannel = client.channel(`table-rolls:${room}`);
+    diceRealtimeChannel.subscribe();
+    return diceRealtimeChannel;
+}
+
+function broadcastDiceRoll(roll) {
+    const channel = getDiceRealtimeChannel(roll.room);
+    channel?.send({
+        type: 'broadcast',
+        event: 'roll',
+        payload: roll
+    });
+}
+
+function cacheDiceRollLocally(roll) {
     const storageKey = `${DICE_TABLE_STORAGE_PREFIX}${roll.room}`;
     let history = [];
 
@@ -2246,6 +2277,44 @@ function publishDiceRoll(roll) {
     localStorage.setItem(storageKey, JSON.stringify(history));
     localStorage.setItem('vtm-table-last-roll', JSON.stringify(roll));
     diceRollChannel?.postMessage(roll);
+}
+
+async function publishDiceRoll(roll) {
+    const client = getDiceSupabaseClient();
+
+    if (!client) {
+        console.error('Supabase client is unavailable for table rolls.');
+        broadcastDiceRoll(roll);
+        cacheDiceRollLocally(roll);
+        return;
+    }
+
+    const { error } = await client
+        .from('table_rolls')
+        .insert({
+            id: roll.id,
+            room: roll.room,
+            character_name: roll.characterName,
+            pool_name: roll.poolName,
+            pool_type: roll.poolType,
+            dice_count: roll.diceCount,
+            dice: roll.dice,
+            successes: roll.successes,
+            created_at: roll.createdAt
+        });
+
+    if (error) {
+        console.error('Не удалось отправить бросок на общий стол:', error);
+        if (!diceRollStorageWarningShown) {
+            diceRollStorageWarningShown = true;
+            alert('Бросок отправлен онлайн, но не сохранился в общую историю. Нужно создать таблицу table_rolls в Supabase.');
+        }
+        broadcastDiceRoll(roll);
+        cacheDiceRollLocally(roll);
+        return;
+    }
+
+    broadcastDiceRoll(roll);
 }
 
 window.closeDiceRollModal = closeDiceRollModal;

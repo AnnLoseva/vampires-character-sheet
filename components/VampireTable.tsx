@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { createClient } from '@/lib/supabase'
 
 type Die = {
   value: number
@@ -19,16 +20,23 @@ type RollMessage = {
   createdAt: string
 }
 
-const STORAGE_PREFIX = 'vtm-table-rolls:'
-const CHANNEL_NAME = 'vtm-table-rolls'
+type RollRow = {
+  id: string
+  room: string
+  character_name: string
+  pool_name: string
+  pool_type: string
+  dice_count: number
+  dice: Die[]
+  successes: number
+  created_at: string
+}
+
+const TABLE_ROLLS = 'table_rolls'
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
   return new URLSearchParams(window.location.search).get('room') || 'campaign-666'
-}
-
-function getStorageKey(room: string) {
-  return `${STORAGE_PREFIX}${room}`
 }
 
 function formatTime(value: string) {
@@ -39,69 +47,85 @@ function formatTime(value: string) {
   }).format(new Date(value))
 }
 
-function loadHistory(room: string): RollMessage[] {
-  try {
-    const raw = window.localStorage.getItem(getStorageKey(room))
-    const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
-  } catch {
-    return []
-  }
-}
-
-function saveHistory(room: string, rolls: RollMessage[]) {
-  window.localStorage.setItem(getStorageKey(room), JSON.stringify(rolls.slice(0, 80)))
-}
-
 function mergeRoll(rolls: RollMessage[], roll: RollMessage) {
   if (rolls.some(item => item.id === roll.id)) return rolls
   return [roll, ...rolls].slice(0, 80)
 }
 
+function mapRollRow(row: RollRow): RollMessage {
+  return {
+    id: row.id,
+    room: row.room,
+    characterName: row.character_name,
+    poolName: row.pool_name,
+    poolType: row.pool_type,
+    diceCount: row.dice_count,
+    dice: row.dice || [],
+    successes: row.successes,
+    createdAt: row.created_at,
+  }
+}
+
 export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [rolls, setRolls] = useState<RollMessage[]>([])
+  const [connectionText, setConnectionText] = useState('Подключение...')
 
   useEffect(() => {
     const currentRoom = getRoomFromLocation()
+    const supabase = createClient()
+    let cancelled = false
+
     setRoom(currentRoom)
-    setRolls(loadHistory(currentRoom))
 
-    const channel = 'BroadcastChannel' in window ? new BroadcastChannel(CHANNEL_NAME) : null
-
-    const receiveRoll = (roll: RollMessage) => {
-      if (!roll || roll.room !== currentRoom) return
-      setRolls(prev => {
-        const next = mergeRoll(prev, roll)
-        saveHistory(currentRoom, next)
-        return next
-      })
-    }
-
-    if (channel) {
-      channel.onmessage = event => receiveRoll(event.data)
-    }
-
-    const onStorage = (event: StorageEvent) => {
-      if (event.key === getStorageKey(currentRoom)) {
-        setRolls(loadHistory(currentRoom))
-        return
-      }
-
-      if (event.key === 'vtm-table-last-roll' && event.newValue) {
-        try {
-          receiveRoll(JSON.parse(event.newValue))
-        } catch {
-          // Ignore malformed external events.
+    supabase
+      .from(TABLE_ROLLS)
+      .select('id, room, character_name, pool_name, pool_type, dice_count, dice, successes, created_at')
+      .eq('room', currentRoom)
+      .order('created_at', { ascending: false })
+      .limit(80)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.error('Не удалось загрузить историю бросков:', error)
+          setConnectionText('Нет общей истории')
+          return
         }
-      }
-    }
 
-    window.addEventListener('storage', onStorage)
+        setRolls((data || []).map(row => mapRollRow(row as RollRow)))
+        setConnectionText('Онлайн')
+      })
+
+    const channel = supabase
+      .channel(`table-rolls:${currentRoom}`)
+      .on('broadcast', { event: 'roll' }, payload => {
+        const roll = payload.payload as RollMessage
+        if (!roll || roll.room !== currentRoom) return
+        setRolls(prev => mergeRoll(prev, roll))
+        setConnectionText('Онлайн')
+      })
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: TABLE_ROLLS,
+          filter: `room=eq.${currentRoom}`,
+        },
+        payload => {
+          setRolls(prev => mergeRoll(prev, mapRollRow(payload.new as RollRow)))
+          setConnectionText('Онлайн')
+        }
+      )
+      .subscribe(status => {
+        if (status === 'SUBSCRIBED') setConnectionText('Онлайн')
+        if (status === 'CHANNEL_ERROR') setConnectionText('Realtime недоступен')
+        if (status === 'TIMED_OUT') setConnectionText('Повтор подключения')
+      })
 
     return () => {
-      channel?.close()
-      window.removeEventListener('storage', onStorage)
+      cancelled = true
+      supabase.removeChannel(channel)
     }
   }, [])
 
@@ -109,9 +133,7 @@ export default function VampireTable() {
   const totalDice = useMemo(() => rolls.reduce((sum, roll) => sum + roll.diceCount, 0), [rolls])
 
   const clearHistory = () => {
-    if (!window.confirm('Очистить историю бросков этого стола?')) return
-    setRolls([])
-    saveHistory(room, [])
+    window.alert('История теперь общая для комнаты. Очистку лучше делать отдельным правом мастера.')
   }
 
   return (
@@ -124,7 +146,7 @@ export default function VampireTable() {
         <div className="table-actions">
           <a href="/old" title="Открыть лист персонажа">Лист</a>
           <button type="button" onClick={clearHistory} disabled={rolls.length === 0}>
-            Очистить
+            История
           </button>
         </div>
       </section>
@@ -142,6 +164,10 @@ export default function VampireTable() {
           <div>
             <span>Последний результат</span>
             <strong>{latest ? latest.successes : 0}</strong>
+          </div>
+          <div>
+            <span>Связь</span>
+            <strong className="connection-state">{connectionText}</strong>
           </div>
         </aside>
 
@@ -284,6 +310,12 @@ export default function VampireTable() {
         .table-status strong {
           color: #36d675;
           font-size: 26px;
+        }
+
+        .table-status .connection-state {
+          color: #f5f5f5;
+          font-size: 15px;
+          text-align: right;
         }
 
         .table-chat {
