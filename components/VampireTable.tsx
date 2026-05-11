@@ -66,6 +66,18 @@ type TableLayerRow = {
   created_at: string
 }
 
+type MusicState = {
+  room: string
+  url: string
+  updatedAt: string
+}
+
+type MusicRow = {
+  room: string
+  url: string
+  updated_at: string
+}
+
 type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'parentId' | 'name' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked'>>
 
 type DragState = {
@@ -86,6 +98,7 @@ type DragState = {
 
 const TABLE_ROLLS = 'table_rolls'
 const TABLE_IMAGES = 'table_images'
+const TABLE_MUSIC = 'table_music'
 const TABLE_IMAGE_BUCKET = 'table-images'
 
 function getRoomFromLocation() {
@@ -184,6 +197,50 @@ function safeStorageName(name: string) {
   return cleanName || 'image'
 }
 
+function getStoragePathFromPublicUrl(publicUrl: string) {
+  const marker = `/storage/v1/object/public/${TABLE_IMAGE_BUCKET}/`
+  const index = publicUrl.indexOf(marker)
+  if (index === -1) return null
+  return decodeURIComponent(publicUrl.slice(index + marker.length).split('?')[0])
+}
+
+function mapMusicRow(row: MusicRow): MusicState {
+  return {
+    room: row.room,
+    url: row.url || '',
+    updatedAt: row.updated_at,
+  }
+}
+
+function getMusicEmbedUrl(url: string) {
+  const raw = url.trim()
+  if (!raw) return ''
+
+  try {
+    const parsed = new URL(raw)
+    const host = parsed.hostname.replace(/^www\./, '')
+
+    if (host === 'youtu.be') {
+      const id = parsed.pathname.split('/').filter(Boolean)[0]
+      return id ? `https://www.youtube.com/embed/${id}?autoplay=1` : ''
+    }
+
+    if (host.endsWith('youtube.com')) {
+      const id = parsed.searchParams.get('v') || parsed.pathname.split('/').filter(Boolean).pop()
+      return id ? `https://www.youtube.com/embed/${id}?autoplay=1` : ''
+    }
+
+    if (host === 'open.spotify.com') {
+      const parts = parsed.pathname.split('/').filter(Boolean)
+      if (parts.length >= 2) return `https://open.spotify.com/embed/${parts[0]}/${parts[1]}`
+    }
+  } catch {
+    return ''
+  }
+
+  return ''
+}
+
 export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [rolls, setRolls] = useState<RollMessage[]>([])
@@ -195,6 +252,9 @@ export default function VampireTable() {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [musicUrl, setMusicUrl] = useState('')
+  const [musicDraft, setMusicDraft] = useState('')
+  const [musicStatus, setMusicStatus] = useState('Музыка не выбрана')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
@@ -255,6 +315,25 @@ export default function VampireTable() {
         setTableStatus('Сцена онлайн')
       })
 
+    supabase
+      .from(TABLE_MUSIC)
+      .select('room, url, updated_at')
+      .eq('room', currentRoom)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.error('Не удалось загрузить музыку комнаты:', error)
+          setMusicStatus('Нет общей музыки')
+          return
+        }
+
+        const music = data ? mapMusicRow(data as MusicRow) : null
+        setMusicUrl(music?.url || '')
+        setMusicDraft(music?.url || '')
+        setMusicStatus(music?.url ? 'Общая музыка' : 'Музыка не выбрана')
+      })
+
     const channel = supabase
       .channel(`table-room:${currentRoom}`)
       .on('broadcast', { event: 'roll' }, payload => {
@@ -292,6 +371,13 @@ export default function VampireTable() {
         })
         setSelectedLayerId(prev => (prev === id ? null : prev))
       })
+      .on('broadcast', { event: 'music' }, payload => {
+        const music = payload.payload as MusicState
+        if (!music || music.room !== currentRoom) return
+        setMusicUrl(music.url || '')
+        setMusicDraft(music.url || '')
+        setMusicStatus(music.url ? 'Общая музыка' : 'Музыка выключена')
+      })
       .on(
         'postgres_changes',
         {
@@ -303,6 +389,22 @@ export default function VampireTable() {
         payload => {
           setRolls(prev => mergeRoll(prev, mapRollRow(payload.new as RollRow)))
           setConnectionText('Онлайн')
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: TABLE_MUSIC,
+          filter: `room=eq.${currentRoom}`,
+        },
+        payload => {
+          const next = (payload.new || payload.old) as MusicRow
+          const music = mapMusicRow(next)
+          setMusicUrl(music.url || '')
+          setMusicDraft(music.url || '')
+          setMusicStatus(music.url ? 'Общая музыка' : 'Музыка выключена')
         }
       )
       .on(
@@ -386,6 +488,7 @@ export default function VampireTable() {
   const visibleLayers = useMemo(() => sortLayers(layers).filter(isLayerEffectivelyVisible), [layers])
   const layerPanelItems = useMemo(() => sortLayers(layers).reverse(), [layers])
   const folders = useMemo(() => sortLayers(layers).filter(layer => layer.layerType === 'folder'), [layers])
+  const musicEmbedUrl = useMemo(() => getMusicEmbedUrl(musicUrl), [musicUrl])
 
   const broadcast = (event: string, payload: unknown) => {
     channelRef.current?.send({ type: 'broadcast', event, payload })
@@ -506,12 +609,47 @@ export default function VampireTable() {
   const deleteLayer = async (layerId: string) => {
     if (!window.confirm('Удалить слой со стола?')) return
 
+    const deletedLayer = layersRef.current.find(layer => layer.id === layerId) || layers.find(layer => layer.id === layerId)
     const nextLayers = layersRef.current.filter(layer => layer.id !== layerId)
     layersRef.current = nextLayers
     setLayers(nextLayers)
     setSelectedLayerId(prev => (prev === layerId ? null : prev))
     broadcast('layer-delete', { id: layerId, room })
-    await createClient().from(TABLE_IMAGES).delete().eq('id', layerId)
+    const supabase = createClient()
+    await supabase.from(TABLE_IMAGES).delete().eq('id', layerId)
+
+    if (deletedLayer?.layerType === 'image') {
+      const storagePath = getStoragePathFromPublicUrl(deletedLayer.imageData)
+      if (storagePath) {
+        const { error } = await supabase.storage.from(TABLE_IMAGE_BUCKET).remove([storagePath])
+        if (error) console.error('Не удалось удалить файл слоя из Storage:', error)
+      }
+    }
+  }
+
+  const publishMusic = async (nextUrl: string) => {
+    const normalizedUrl = nextUrl.trim()
+    const music: MusicState = {
+      room,
+      url: normalizedUrl,
+      updatedAt: new Date().toISOString(),
+    }
+
+    setMusicUrl(normalizedUrl)
+    setMusicDraft(normalizedUrl)
+    setMusicStatus(normalizedUrl ? 'Общая музыка' : 'Музыка выключена')
+    broadcast('music', music)
+
+    const { error } = await createClient().from(TABLE_MUSIC).upsert({
+      room: music.room,
+      url: music.url,
+      updated_at: music.updatedAt,
+    })
+
+    if (error) {
+      console.error('Не удалось сохранить музыку комнаты:', error)
+      setMusicStatus('Музыка отправлена онлайн, но не сохранена')
+    }
   }
 
   const createFolder = async () => {
@@ -823,6 +961,36 @@ export default function VampireTable() {
         </section>
 
         <aside className="right-rail">
+          <section className="music-panel" aria-label="Музыка комнаты">
+            <header>
+              <strong>Музыка</strong>
+              <span>{musicStatus}</span>
+            </header>
+            <div className="music-controls">
+              <input
+                value={musicDraft}
+                onChange={event => setMusicDraft(event.target.value)}
+                placeholder="YouTube или Spotify ссылка"
+              />
+              <div>
+                <button type="button" onClick={() => publishMusic(musicDraft)}>
+                  Включить всем
+                </button>
+                <button type="button" onClick={() => publishMusic('')}>
+                  Стоп
+                </button>
+              </div>
+            </div>
+            {musicEmbedUrl ? (
+              <iframe
+                title="Музыка комнаты"
+                src={musicEmbedUrl}
+                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+                loading="lazy"
+              />
+            ) : null}
+          </section>
+
           <section className="layer-panel" aria-label="Слои стола">
             <header>
               <strong>Слои</strong>
@@ -1008,6 +1176,7 @@ export default function VampireTable() {
         }
 
         .play-surface,
+        .music-panel,
         .layer-panel,
         .roll-sidebar {
           border: 1px solid #2b2b2b;
@@ -1023,6 +1192,7 @@ export default function VampireTable() {
         }
 
         .surface-head,
+        .music-panel header,
         .layer-panel header,
         .roll-sidebar header {
           border-bottom: 1px solid #2b2b2b;
@@ -1043,6 +1213,7 @@ export default function VampireTable() {
         }
 
         .surface-head span,
+        .music-panel header span,
         .layer-panel header span,
         .roll-sidebar header span {
           color: #9c9c9c;
@@ -1050,6 +1221,7 @@ export default function VampireTable() {
         }
 
         .surface-head strong,
+        .music-panel header strong,
         .layer-panel header strong,
         .roll-sidebar header strong {
           color: #f5f5f5;
@@ -1157,9 +1329,9 @@ export default function VampireTable() {
         }
 
         .folder-layer {
-          background: rgba(54, 214, 117, 0.05);
-          border-color: rgba(54, 214, 117, 0.38);
-          box-shadow: inset 0 0 0 1px rgba(54, 214, 117, 0.1), 0 10px 30px rgba(0,0,0,0.22);
+          background: transparent;
+          border-color: rgba(54, 214, 117, 0.45);
+          box-shadow: inset 0 0 0 1px rgba(54, 214, 117, 0.08);
         }
 
         .folder-surface {
@@ -1170,9 +1342,7 @@ export default function VampireTable() {
           padding: 9px 10px;
           box-sizing: border-box;
           color: #36d675;
-          background:
-            linear-gradient(135deg, rgba(54, 214, 117, 0.12), transparent 42%),
-            rgba(0, 0, 0, 0.12);
+          background: transparent;
           pointer-events: none;
         }
 
@@ -1182,7 +1352,7 @@ export default function VampireTable() {
           text-overflow: ellipsis;
           white-space: nowrap;
           font-size: 13px;
-          background: rgba(0,0,0,0.58);
+          background: rgba(0,0,0,0.38);
           border: 1px solid rgba(54, 214, 117, 0.28);
           border-radius: 4px;
           padding: 4px 6px;
@@ -1240,10 +1410,16 @@ export default function VampireTable() {
         .right-rail {
           min-width: 0;
           display: grid;
-          grid-template-rows: minmax(220px, 0.45fr) minmax(260px, 0.55fr);
+          grid-template-rows: auto minmax(220px, 0.45fr) minmax(260px, 0.55fr);
           gap: 12px;
         }
 
+        .music-panel {
+          display: grid;
+          grid-template-rows: auto auto auto;
+        }
+
+        .music-panel header,
         .layer-panel,
         .roll-sidebar {
           min-height: 0;
@@ -1255,6 +1431,55 @@ export default function VampireTable() {
           display: grid;
           gap: 4px;
           padding: 12px;
+        }
+
+        .music-panel header {
+          display: grid;
+          gap: 4px;
+          padding: 12px;
+        }
+
+        .music-controls {
+          display: grid;
+          gap: 8px;
+          padding: 10px;
+        }
+
+        .music-controls input {
+          width: 100%;
+          box-sizing: border-box;
+          background: #090909;
+          color: #eee;
+          border: 1px solid #333;
+          border-radius: 5px;
+          padding: 8px;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .music-controls div {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 8px;
+        }
+
+        .music-controls button {
+          border: 1px solid #3a3a3a;
+          background: #181818;
+          color: #f4f4f4;
+          border-radius: 5px;
+          padding: 8px;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .music-panel iframe {
+          width: 100%;
+          height: 86px;
+          border: 0;
+          border-top: 1px solid #252525;
+          background: #050505;
         }
 
         .layer-list,
