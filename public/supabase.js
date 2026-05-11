@@ -147,6 +147,8 @@ async function saveCharacter() {
         return;
     }
 
+    if (window.validateThinBloodBalance && !window.validateThinBloodBalance()) return;
+
     const characterData = window.getFullCharacterData ? window.getFullCharacterData() : {};
 
     if (!characterData.name) characterData.name = "Без имени";

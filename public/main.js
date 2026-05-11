@@ -16,6 +16,8 @@ let clanProvidedDisciplines = {};      // дисциплины от текуще
 let predatorProvidedDisciplines = {};  // дисциплины от текущего стиля охоты
 let selectedMerits = [];   // {category, name, points, fullDesc, mechanic}
 let selectedFlaws = [];
+let selectedThinBloodMerits = [];
+let selectedThinBloodFlaws = [];
 
 let startingSheetFixed = false;
 let baseLevels = {};
@@ -31,6 +33,9 @@ let expHistory = [];
 let lastAutoExperienceBonus = null;
 let characterImageData = '';
 let touchstones = [];
+const THIN_BLOOD_CLAN = 'Слабокровные';
+const CAITIFF_CLAN = 'Каитиф';
+const THIN_BLOOD_ALCHEMY = 'Алхимия слабокровных';
 
 
 
@@ -55,6 +60,46 @@ function getMeritsLimit() {
 function getFlawsLimit() {
     const type = document.getElementById('type-input')?.value;
     return 2 + getTypeBonuses(type).flawsBonus;
+}
+
+function getCurrentClan() {
+    return document.getElementById('clan-input')?.value?.trim() || '';
+}
+
+function isThinBloodClan(clanName = getCurrentClan()) {
+    return clanName === THIN_BLOOD_CLAN;
+}
+
+function isCaitiffClan(clanName = getCurrentClan()) {
+    return clanName === CAITIFF_CLAN;
+}
+
+function canUseDiscipline(name, clanName = getCurrentClan()) {
+    if (isThinBloodClan(clanName)) return name === THIN_BLOOD_ALCHEMY;
+    return name !== THIN_BLOOD_ALCHEMY;
+}
+
+function getStandardDisciplineNames(clanName = getCurrentClan()) {
+    return Object.keys(RULES.disciplines || {})
+        .filter(name => canUseDiscipline(name, clanName))
+        .sort();
+}
+
+function hasThinBloodAlchemyMerit() {
+    return selectedThinBloodMerits.some(item => item.name === 'Алхимик');
+}
+
+function rebuildDisciplineListFromSources() {
+    const list = document.getElementById('disciplines-list');
+    if (!list) return;
+
+    list.innerHTML = '';
+    Object.keys(disciplineSources || {}).forEach(name => {
+        const total = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
+        addDisciplineRow(name, total, Object.keys(disciplineSources[name]).join(' + '));
+    });
+    renderDisciplines();
+    updateDisciplineTotal();
 }
 
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
@@ -111,6 +156,7 @@ async function initializeApp() {
         updateBloodPotencyAndBonuses();
         updateExperienceBonus();
         applySheetLockState();
+        renderThinBloodMeritsFlaws();
         updateExpPurchasedStyles();
 
         console.log("✅ Приложение полностью инициализировано");
@@ -190,6 +236,32 @@ function renderAttributes() {
 
         container.appendChild(col);
     });
+}
+
+function enforceClanSpecificRules() {
+    const clanName = getCurrentClan();
+
+    if (isThinBloodClan(clanName)) {
+        Object.keys(disciplineSources || {}).forEach(name => {
+            if (name !== THIN_BLOOD_ALCHEMY) {
+                delete disciplineSources[name];
+                delete selectedPowers[name];
+            }
+        });
+        if (!hasThinBloodAlchemyMerit()) {
+            delete disciplineSources[THIN_BLOOD_ALCHEMY];
+            delete selectedPowers[THIN_BLOOD_ALCHEMY];
+        }
+    } else {
+        selectedThinBloodMerits = [];
+        selectedThinBloodFlaws = [];
+        delete disciplineSources[THIN_BLOOD_ALCHEMY];
+        delete selectedPowers[THIN_BLOOD_ALCHEMY];
+    }
+
+    rebuildDisciplineListFromSources();
+
+    renderThinBloodMeritsFlaws();
 }
 
 function renderSkills() {
@@ -419,8 +491,9 @@ function renderShopAvailableDisciplines() {
 
     const list = document.getElementById('disciplines-list');
     if (!list) return;
+    if (isThinBloodClan()) return;
 
-    Object.keys(RULES.disciplines || {}).sort().forEach(name => {
+    getStandardDisciplineNames().forEach(name => {
         if (disciplineSources[name]) return;
 
         const item = document.createElement('div');
@@ -502,6 +575,9 @@ function renderDisciplines() {
 function confirmClanDisciplines(clanName) {
     const disc2 = document.getElementById('clan-disc-2').value;
     const disc1 = document.getElementById('clan-disc-1').value;
+    if (disc1 && disc2 && disc1 === disc2) {
+        return alert("Выберите две разные дисциплины.");
+    }
     
     if (disc2) mergeDiscipline(disc2, 2, `Клан ${clanName}`);
     if (disc1) mergeDiscipline(disc1, 1, `Клан ${clanName}`);
@@ -512,6 +588,7 @@ function confirmClanDisciplines(clanName) {
 function confirmPredatorDiscipline(predatorName) {
     const disc = document.getElementById('pred-disc-select').value;
     if (!disc) return alert("Выберите дисциплину!");
+    if (!canUseDiscipline(disc) || isThinBloodClan()) return alert('Эта дисциплина недоступна текущему клану.');
 
     mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
 
@@ -521,7 +598,13 @@ function confirmPredatorDiscipline(predatorName) {
 
 function openClanDisciplineModal(clanName) {
     const clanData = RULES.clans?.[clanName];
-    if (!clanData || !clanData.disciplines || clanData.disciplines.length < 2) {
+    if (isThinBloodClan(clanName)) return;
+
+    const disciplineOptions = isCaitiffClan(clanName)
+        ? getStandardDisciplineNames(clanName)
+        : (clanData?.disciplines || []).filter(name => canUseDiscipline(name, clanName));
+
+    if (!clanData || disciplineOptions.length < 2) {
         alert("Для клана " + clanName + " нет данных по дисциплинам.");
         return;
     }
@@ -536,14 +619,14 @@ function openClanDisciplineModal(clanName) {
                 <div style="margin-bottom:25px;">
                     <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на <span style="color:#ff3131">2 точки</span>:</label>
                     <select id="clan-disc-2" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;" onchange="showDisciplineHint(this.value)">
-                        ${clanData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
+                        ${disciplineOptions.map(d => `<option value="${d}">${d}</option>`).join('')}
                     </select>
                 </div>
                 
                 <div style="margin-bottom:35px;">
                     <label style="display:block;color:#ffae00;margin-bottom:8px;font-weight:bold;">Дисциплина на <span style="color:#ff3131">1 точку</span>:</label>
                     <select id="clan-disc-1" style="width:100%;padding:12px;background:#000;color:white;border:1px solid #555;font-size:16px;" onchange="showDisciplineHint(this.value)">
-                        ${clanData.disciplines.map(d => `<option value="${d}">${d}</option>`).join('')}
+                        ${disciplineOptions.map(d => `<option value="${d}">${d}</option>`).join('')}
                     </select>
                 </div>
                 
@@ -573,6 +656,11 @@ function openPredatorDisciplineModal(predName) {
     const predData = RULES.predator_types?.[predName];
     if (!predData) return;
 
+    if (isThinBloodClan()) {
+        applyPredatorChoiceItems(predName);
+        return;
+    }
+
     const hasDisciplines = predData.disciplines?.increase?.options?.length > 0;
     if (!hasDisciplines) {
         console.log(`ℹ️ Для ${predName} нет дисциплин`);
@@ -581,7 +669,7 @@ function openPredatorDisciplineModal(predName) {
     }
 
     const clanName = document.getElementById('clan-input')?.value || '';
-    let options = [...predData.disciplines.increase.options];
+    let options = [...predData.disciplines.increase.options].filter(name => canUseDiscipline(name));
     if (clanName !== 'Тремер' && predData.disciplines.increase.restriction?.includes('тремер')) {
         options = options.filter(option => option !== 'Кровавое чародейство');
     }
@@ -1382,7 +1470,10 @@ function selectThisClan(name) {
     closeClanModal();
     loadClanHint();        // обновляем подсказку
     updateClanIcon();      // обновляем иконку
-    setTimeout(() => openClanDisciplineModal(name), 100);
+    enforceClanSpecificRules();
+    if (!isThinBloodClan(name)) {
+        setTimeout(() => openClanDisciplineModal(name), 100);
+    }
 }
 
 // Закрытие модального окна кланов
@@ -1403,6 +1494,9 @@ function closePredatorModal() {
 function confirmClanDisciplines(clanName) {
     const disc2 = document.getElementById('clan-disc-2').value;
     const disc1 = document.getElementById('clan-disc-1').value;
+    if (disc1 && disc2 && disc1 === disc2) {
+        return alert("Выберите две разные дисциплины.");
+    }
 
     if (disc2) {
         mergeDiscipline(disc2, 2, `Клан ${clanName}`);
@@ -2601,10 +2695,14 @@ function setupEventListeners() {
             if (newClan) {
                 loadClanHint();
                 updateClanIcon();
-                setTimeout(() => openClanDisciplineModal(newClan), 100);
+                enforceClanSpecificRules();
+                if (!isThinBloodClan(newClan)) {
+                    setTimeout(() => openClanDisciplineModal(newClan), 100);
+                }
             } else {
                 loadClanHint();
                 updateClanIcon();
+                enforceClanSpecificRules();
             }
 
             updateDisciplineTotal();
@@ -2890,6 +2988,7 @@ function renderCategories(tab) {
     }
 
     Object.keys(source).forEach(catKey => {
+        if (catKey === 'СЛАБОКРОВНЫЕ') return;
         const category = source[catKey];
         const catName = category.название || catKey;
         const description = category.описание || "Нет описания";
@@ -3020,6 +3119,9 @@ function confirmPredatorSelection(predName) {
 
 // Отображение выбранных
 function renderSelectedMeritsFlaws() {
+    selectedMerits = selectedMerits.filter(item => item.category !== 'Достоинства слабокровных' && item.category !== 'СЛАБОКРОВНЫЕ');
+    selectedFlaws = selectedFlaws.filter(item => item.category !== 'Недостатки слабокровных' && item.category !== 'СЛАБОКРОВНЫЕ');
+
     let totalMerits = 0;
     let totalFlaws = 0;
 
@@ -3162,6 +3264,213 @@ function createSelectedItem(item, index, isMerit) {
 
     return div;
 }
+
+function getThinBloodCategory(isMerit) {
+    return isMerit
+        ? RULES.advantages?.merits?.['СЛАБОКРОВНЫЕ']
+        : (RULES.advantages?.flaws?.['СЛАБОКРОВНЫЕ'] || RULES.flaws?.['СЛАБОКРОВНЫЕ']);
+}
+
+function buildThinBloodTrait(raw, isMerit) {
+    const category = getThinBloodCategory(isMerit) || {};
+    return {
+        category: category.название || (isMerit ? 'Достоинства слабокровных' : 'Недостатки слабокровных'),
+        categoryDesc: category.описание || '',
+        name: raw.название_пункта || raw.name || '',
+        points: parseInt(raw.точки || raw.points || 1, 10) || 1,
+        desc: raw.полное_описание || raw.desc || '',
+        mechanic: raw.механика || raw.mechanic || '',
+        thinBlood: true
+    };
+}
+
+function syncThinBloodAlchemy() {
+    if (!isThinBloodClan()) return;
+
+    if (hasThinBloodAlchemyMerit()) {
+        if (!disciplineSources[THIN_BLOOD_ALCHEMY]) disciplineSources[THIN_BLOOD_ALCHEMY] = {};
+        disciplineSources[THIN_BLOOD_ALCHEMY]['Достоинство слабокровного: Алхимик'] = 1;
+    } else {
+        if (disciplineSources[THIN_BLOOD_ALCHEMY]) {
+            delete disciplineSources[THIN_BLOOD_ALCHEMY]['Достоинство слабокровного: Алхимик'];
+            if (Object.keys(disciplineSources[THIN_BLOOD_ALCHEMY]).length === 0) {
+                delete disciplineSources[THIN_BLOOD_ALCHEMY];
+                delete selectedPowers[THIN_BLOOD_ALCHEMY];
+            }
+        }
+    }
+    rebuildDisciplineListFromSources();
+}
+
+function createThinBloodSelectedItem(item, index, isMerit) {
+    const div = createSelectedItem(item, index, isMerit);
+    const button = div.querySelector('.selected-item-remove');
+    if (button) {
+        button.setAttribute('onclick', `event.stopImmediatePropagation(); ${isMerit ? `removeThinBloodMerit(${index})` : `removeThinBloodFlaw(${index})`}`);
+    }
+    return div;
+}
+
+function renderThinBloodMeritsFlaws() {
+    const section = document.getElementById('thin-blood-traits-section');
+    if (!section) return;
+
+    const shouldShow = isThinBloodClan();
+    section.style.display = shouldShow ? 'block' : 'none';
+    if (!shouldShow) return;
+
+    selectedThinBloodMerits = selectedThinBloodMerits.filter(item => item.name !== 'Склонность к Дисциплине');
+
+    const meritsContainer = document.getElementById('selected-thin-blood-merits-list');
+    const flawsContainer = document.getElementById('selected-thin-blood-flaws-list');
+    const balance = document.getElementById('thin-blood-balance');
+
+    meritsContainer.innerHTML = '';
+    flawsContainer.innerHTML = '';
+
+    selectedThinBloodMerits.forEach((item, index) => {
+        meritsContainer.appendChild(createThinBloodSelectedItem(item, index, true));
+    });
+    selectedThinBloodFlaws.forEach((item, index) => {
+        flawsContainer.appendChild(createThinBloodSelectedItem(item, index, false));
+    });
+
+    const meritCount = selectedThinBloodMerits.length;
+    const flawCount = selectedThinBloodFlaws.length;
+    const isBalanced = meritCount === flawCount && meritCount <= 3;
+    balance.innerHTML = `Выбрано: достоинства ${meritCount}/3, недостатки ${flawCount}/3. Нужно равное количество, максимум 3.`;
+    balance.style.color = isBalanced ? '#78d878' : '#ffcc66';
+
+    syncThinBloodAlchemy();
+}
+
+function validateThinBloodBalance({ silent = false } = {}) {
+    if (!isThinBloodClan()) return true;
+    const meritCount = selectedThinBloodMerits.length;
+    const flawCount = selectedThinBloodFlaws.length;
+    const ok = meritCount === flawCount && meritCount <= 3 && flawCount <= 3;
+    if (!ok && !silent) {
+        alert('У слабокровных количество слабокровных преимуществ и недостатков должно быть равным, максимум 3 и 3.');
+    }
+    return ok;
+}
+
+function openThinBloodTraitsModal(tab = 0) {
+    if (!isThinBloodClan()) return alert('Этот раздел доступен только слабокровным.');
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
+
+    const html = `
+    <div id="thin-blood-traits-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.96); z-index:12000; overflow:auto; padding:20px;">
+        <div style="max-width:980px; margin:30px auto; background:#111; padding:25px; border-radius:8px; border:2px solid #a14600; position:relative;">
+            <button onclick="closeThinBloodTraitsModal()" style="position:absolute; top:18px; right:25px; font-size:36px; color:#ffae00; background:none; border:none; cursor:pointer; z-index:10; line-height:1;">×</button>
+            <h2 style="text-align:center; color:#ffae00; margin-bottom:20px;">Слабокровные особенности</h2>
+            <div style="display:flex; margin-bottom:20px; border-bottom:1px solid #333;">
+                <button onclick="renderThinBloodTraitChoices(0)" id="tab-thin-merits" style="flex:1; padding:12px; background:${tab === 0 ? '#222' : '#111'}; border:none; color:white; font-weight:bold;">Преимущества</button>
+                <button onclick="renderThinBloodTraitChoices(1)" id="tab-thin-flaws" style="flex:1; padding:12px; background:${tab === 1 ? '#222' : '#111'}; border:none; color:white; font-weight:bold;">Недостатки</button>
+            </div>
+            <div id="thin-blood-traits-list"></div>
+        </div>
+    </div>`;
+
+    document.getElementById('thin-blood-traits-modal')?.remove();
+    document.body.insertAdjacentHTML('beforeend', html);
+    renderThinBloodTraitChoices(tab);
+}
+
+function closeThinBloodTraitsModal() {
+    document.getElementById('thin-blood-traits-modal')?.remove();
+}
+
+function renderThinBloodTraitChoices(tab) {
+    const container = document.getElementById('thin-blood-traits-list');
+    if (!container) return;
+
+    document.getElementById('tab-thin-merits').style.background = tab === 0 ? '#222' : '#111';
+    document.getElementById('tab-thin-flaws').style.background = tab === 1 ? '#222' : '#111';
+
+    const isMerit = tab === 0;
+    const category = getThinBloodCategory(isMerit);
+    const selected = isMerit ? selectedThinBloodMerits : selectedThinBloodFlaws;
+    const other = isMerit ? selectedThinBloodFlaws : selectedThinBloodMerits;
+    const titleColor = isMerit ? '#ffcc00' : '#ff6666';
+
+    if (!category?.варианты?.length) {
+        container.innerHTML = `<p style="color:#777;text-align:center;padding:40px;">Данные не найдены.</p>`;
+        return;
+    }
+
+    container.innerHTML = `
+        <p style="color:#aaa;line-height:1.5;margin-top:0;">${category.описание || ''}</p>
+        <p style="color:#ffcc66;">Баланс: достоинства ${selectedThinBloodMerits.length}/3, недостатки ${selectedThinBloodFlaws.length}/3.</p>
+    `;
+
+    category.варианты.forEach((raw, index) => {
+        if (isMerit && raw.название_пункта === 'Склонность к Дисциплине') return;
+        const item = buildThinBloodTrait(raw, isMerit);
+        const alreadyTaken = selected.some(existing => existing.name === item.name);
+        const limitReached = selected.length >= 3;
+        const wouldOverrunBalance = selected.length >= other.length + 1;
+        const disabled = alreadyTaken || limitReached || wouldOverrunBalance;
+        const reason = alreadyTaken
+            ? 'Уже выбрано'
+            : limitReached
+                ? 'Максимум 3'
+                : wouldOverrunBalance
+                    ? 'Сначала уравновесь другой стороной'
+                    : 'Добавить';
+
+        const div = document.createElement('div');
+        div.style.cssText = `
+            background:#1a1a1a; padding:16px; margin-bottom:10px; border-radius:6px;
+            border:1px solid ${disabled ? '#333' : '#664400'}; opacity:${disabled ? 0.55 : 1};
+        `;
+        div.innerHTML = `
+            <div style="display:flex; justify-content:space-between; gap:12px; align-items:flex-start;">
+                <div>
+                    <strong style="color:${titleColor};">${escapeHTML(item.name)}</strong>
+                    <div style="color:#aaa; margin-top:8px; line-height:1.45;">${escapeHTML(item.desc)}</div>
+                    ${item.mechanic ? `<div style="color:#ddd; margin-top:8px; line-height:1.45;"><strong>Механика:</strong> ${escapeHTML(item.mechanic)}</div>` : ''}
+                </div>
+                <button ${disabled ? 'disabled' : ''} style="min-width:120px; padding:9px 12px; border-radius:5px; border:1px solid #a14600; background:${disabled ? '#222' : '#2a1805'}; color:#ffcc66; cursor:${disabled ? 'not-allowed' : 'pointer'};">${reason}</button>
+            </div>
+        `;
+        div.querySelector('button').onclick = () => addThinBloodTrait(index, isMerit);
+        container.appendChild(div);
+    });
+}
+
+function addThinBloodTrait(index, isMerit) {
+    const category = getThinBloodCategory(isMerit);
+    const raw = category?.варианты?.[index];
+    if (!raw) return;
+
+    const selected = isMerit ? selectedThinBloodMerits : selectedThinBloodFlaws;
+    const other = isMerit ? selectedThinBloodFlaws : selectedThinBloodMerits;
+    const item = buildThinBloodTrait(raw, isMerit);
+
+    if (selected.some(existing => existing.name === item.name)) return alert('Уже выбрано.');
+    if (selected.length >= 3) return alert('Можно взять максимум 3 слабокровных преимущества и 3 недостатка.');
+    if (selected.length >= other.length + 1) return alert('Сначала уравновесь другую сторону: количество должно быть равным.');
+
+    selected.push(item);
+    renderThinBloodMeritsFlaws();
+    renderThinBloodTraitChoices(isMerit ? 0 : 1);
+}
+
+window.removeThinBloodMerit = function(index) {
+    selectedThinBloodMerits.splice(index, 1);
+    renderThinBloodMeritsFlaws();
+};
+
+window.removeThinBloodFlaw = function(index) {
+    selectedThinBloodFlaws.splice(index, 1);
+    renderThinBloodMeritsFlaws();
+};
+
+window.openThinBloodTraitsModal = openThinBloodTraitsModal;
+window.closeThinBloodTraitsModal = closeThinBloodTraitsModal;
+window.renderThinBloodTraitChoices = renderThinBloodTraitChoices;
+window.validateThinBloodBalance = validateThinBloodBalance;
 
 
 // Окно выбора преимуществ и недостатков от стиля охоты
@@ -3408,7 +3717,9 @@ function getFullCharacterData() {
         disciplines: JSON.parse(JSON.stringify(disciplineSources || {})),
         selectedPowers: JSON.parse(JSON.stringify(selectedPowers || {})),
         merits: JSON.parse(JSON.stringify(selectedMerits || [])),
-        flaws: JSON.parse(JSON.stringify(selectedFlaws || []))
+        flaws: JSON.parse(JSON.stringify(selectedFlaws || [])),
+        thinBloodMerits: JSON.parse(JSON.stringify(selectedThinBloodMerits || [])),
+        thinBloodFlaws: JSON.parse(JSON.stringify(selectedThinBloodFlaws || []))
     };
 
     // Атрибуты
@@ -3455,6 +3766,8 @@ function resetCharacterSheetForLoad() {
     selectedPowers = {};
     selectedMerits = [];
     selectedFlaws = [];
+    selectedThinBloodMerits = [];
+    selectedThinBloodFlaws = [];
     clanProvidedDisciplines = {};
     predatorProvidedDisciplines = {};
     currentPredatorSpecialty = null;
@@ -3549,6 +3862,9 @@ function applyCharacterData(d, sourceName = 'JSON') {
         // Преимущества и недостатки
         if (d.merits) selectedMerits = [...d.merits];
         if (d.flaws) selectedFlaws = [...d.flaws];
+        selectedThinBloodMerits = Array.isArray(d.thinBloodMerits) ? [...d.thinBloodMerits] : [];
+        selectedThinBloodFlaws = Array.isArray(d.thinBloodFlaws) ? [...d.thinBloodFlaws] : [];
+        enforceClanSpecificRules();
 
         startingSheetFixed = Boolean(d.sheetLock?.fixed);
         baseLevels = d.sheetLock?.baseLevels ? JSON.parse(JSON.stringify(d.sheetLock.baseLevels)) : captureCurrentLevels();
@@ -3558,6 +3874,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
             : JSON.parse(JSON.stringify(sheetLockSnapshot));
 
         renderSelectedMeritsFlaws();
+        renderThinBloodMeritsFlaws();
         loadClanHint();
         if (d.clanBane && !getInputValue('clan-bane-input')) setInputValue('clan-bane-input', d.clanBane);
         loadPredatorHint();
@@ -3581,6 +3898,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
 window.applyCharacterData = applyCharacterData;
 
 function exportToJSON() {
+    if (!validateThinBloodBalance()) return;
     const character = getFullCharacterData();
 
     const dataStr = JSON.stringify(character, null, 2);
@@ -3941,6 +4259,7 @@ function spendOnMerit() {
 function spendOnDiscipline() {
     const name = prompt("Название дисциплины?");
     if (!name) return;
+    if (!canUseDiscipline(name) || isThinBloodClan()) return alert('Эта дисциплина недоступна текущему клану.');
 
     // Автоматически считаем текущий уровень дисциплины
     let current = 0;
@@ -4275,11 +4594,16 @@ function renderExpShopPanel() {
 }
 
 function getDisciplineNamesForPrompt() {
-    return Object.keys(RULES.disciplines || {}).sort();
+    if (isThinBloodClan()) return [];
+    return getStandardDisciplineNames();
 }
 
 function askDisciplineName(message = 'Название дисциплины?') {
     const known = getDisciplineNamesForPrompt();
+    if (known.length === 0) {
+        alert('Для текущего клана покупка дисциплин здесь недоступна.');
+        return '';
+    }
     const hint = known.length ? `\n\nДоступные: ${known.join(', ')}` : '';
     const name = prompt(`${message}${hint}`);
     return name ? name.trim() : '';
@@ -4623,6 +4947,7 @@ function spendModalDiscipline() {
     if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
     const name = prompt("Название дисциплины?");
     if (!name) return;
+    if (!canUseDiscipline(name) || isThinBloodClan()) return alert('Эта дисциплина недоступна текущему клану.');
     let current = 0;
     if (disciplineSources[name]) current = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
     const target = parseInt(prompt(`Текущий: ${current}
@@ -4760,7 +5085,9 @@ function captureSheetSnapshot() {
         disciplines: JSON.parse(JSON.stringify(disciplineSources || {})),
         selectedPowers: JSON.parse(JSON.stringify(selectedPowers || {})),
         merits: JSON.parse(JSON.stringify(selectedMerits || [])),
-        flaws: JSON.parse(JSON.stringify(selectedFlaws || []))
+        flaws: JSON.parse(JSON.stringify(selectedFlaws || [])),
+        thinBloodMerits: JSON.parse(JSON.stringify(selectedThinBloodMerits || [])),
+        thinBloodFlaws: JSON.parse(JSON.stringify(selectedThinBloodFlaws || []))
     };
 }
 
@@ -4841,6 +5168,8 @@ function fixStartingSheet() {
         }
         return;
     }
+
+    if (!validateThinBloodBalance()) return;
 
     if (!confirm("Зафиксировать текущие значения как стартовый лист?\nПосле этого лист нельзя будет менять вручную: только через магазин опыта или после расфиксации.")) {
         return;
