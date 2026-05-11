@@ -35,6 +35,8 @@ type RollRow = {
 type TableLayer = {
   id: string
   room: string
+  layerType: 'image' | 'folder'
+  parentId: string | null
   name: string
   imageData: string
   x: number
@@ -50,6 +52,8 @@ type TableLayer = {
 type TableLayerRow = {
   id: string
   room: string
+  layer_type: 'image' | 'folder' | null
+  parent_id: string | null
   name: string
   image_data: string
   x: number | null
@@ -62,17 +66,22 @@ type TableLayerRow = {
   created_at: string
 }
 
-type LayerPatch = Partial<Pick<TableLayer, 'name' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked'>>
+type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'parentId' | 'name' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked'>>
 
 type DragState = {
   id: string
-  mode: 'move' | 'resize'
+  mode: 'move' | 'resize' | 'pan'
+  corner?: 'nw' | 'ne' | 'sw' | 'se'
   startClientX: number
   startClientY: number
   startX: number
   startY: number
   startWidth: number
   startHeight: number
+  startPanX: number
+  startPanY: number
+  aspectRatio: number
+  childStartPositions: Array<{ id: string; x: number; y: number }>
 }
 
 const TABLE_ROLLS = 'table_rolls'
@@ -125,6 +134,8 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
   return {
     id: row.id,
     room: row.room,
+    layerType: row.layer_type ?? 'image',
+    parentId: row.parent_id ?? null,
     name: row.name,
     imageData: row.image_data,
     x: row.x ?? 80,
@@ -140,6 +151,8 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
 
 function toDbPatch(patch: LayerPatch) {
   const dbPatch: Record<string, unknown> = {}
+  if (patch.layerType !== undefined) dbPatch.layer_type = patch.layerType
+  if (patch.parentId !== undefined) dbPatch.parent_id = patch.parentId
   if (patch.name !== undefined) dbPatch.name = patch.name
   if (patch.x !== undefined) dbPatch.x = patch.x
   if (patch.y !== undefined) dbPatch.y = patch.y
@@ -179,15 +192,23 @@ export default function VampireTable() {
   const [connectionText, setConnectionText] = useState('Подключение...')
   const [tableStatus, setTableStatus] = useState('Загрузка стола...')
   const [isUploading, setIsUploading] = useState(false)
+  const [zoom, setZoom] = useState(1)
+  const [pan, setPan] = useState({ x: 0, y: 0 })
+  const [isDraggingOver, setIsDraggingOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
+  const panRef = useRef(pan)
 
   useEffect(() => {
     layersRef.current = layers
   }, [layers])
+
+  useEffect(() => {
+    panRef.current = pan
+  }, [pan])
 
   useEffect(() => {
     const currentRoom = getRoomFromLocation()
@@ -216,7 +237,7 @@ export default function VampireTable() {
 
     supabase
       .from(TABLE_IMAGES)
-      .select('id, room, name, image_data, x, y, width, height, z_index, visible, locked, created_at')
+      .select('id, room, layer_type, parent_id, name, image_data, x, y, width, height, z_index, visible, locked, created_at')
       .eq('room', currentRoom)
       .order('z_index', { ascending: true })
       .limit(80)
@@ -228,7 +249,9 @@ export default function VampireTable() {
           return
         }
 
-        setLayers(sortLayers((data || []).map(row => mapLayerRow(row as TableLayerRow))))
+        const next = sortLayers((data || []).map(row => mapLayerRow(row as TableLayerRow)))
+        layersRef.current = next
+        setLayers(next)
         setTableStatus('Сцена онлайн')
       })
 
@@ -243,18 +266,30 @@ export default function VampireTable() {
       .on('broadcast', { event: 'layer' }, payload => {
         const layer = payload.payload as TableLayer
         if (!layer || layer.room !== currentRoom) return
-        setLayers(prev => upsertLayer(prev, layer))
+        setLayers(prev => {
+          const next = upsertLayer(prev, layer)
+          layersRef.current = next
+          return next
+        })
         setTableStatus('Сцена онлайн')
       })
       .on('broadcast', { event: 'layer-update' }, payload => {
         const update = payload.payload as { id?: string; room?: string; patch?: LayerPatch }
         if (!update.id || update.room !== currentRoom || !update.patch) return
-        setLayers(prev => sortLayers(prev.map(layer => (layer.id === update.id ? { ...layer, ...update.patch } : layer))))
+        setLayers(prev => {
+          const next = sortLayers(prev.map(layer => (layer.id === update.id ? { ...layer, ...update.patch } : layer)))
+          layersRef.current = next
+          return next
+        })
       })
       .on('broadcast', { event: 'layer-delete' }, payload => {
         const id = String((payload.payload as { id?: string })?.id || '')
         if (!id) return
-        setLayers(prev => prev.filter(layer => layer.id !== id))
+        setLayers(prev => {
+          const next = prev.filter(layer => layer.id !== id)
+          layersRef.current = next
+          return next
+        })
         setSelectedLayerId(prev => (prev === id ? null : prev))
       })
       .on(
@@ -279,7 +314,11 @@ export default function VampireTable() {
           filter: `room=eq.${currentRoom}`,
         },
         payload => {
-          setLayers(prev => upsertLayer(prev, mapLayerRow(payload.new as TableLayerRow)))
+          setLayers(prev => {
+            const next = upsertLayer(prev, mapLayerRow(payload.new as TableLayerRow))
+            layersRef.current = next
+            return next
+          })
           setTableStatus('Сцена онлайн')
         }
       )
@@ -292,7 +331,11 @@ export default function VampireTable() {
           filter: `room=eq.${currentRoom}`,
         },
         payload => {
-          setLayers(prev => upsertLayer(prev, mapLayerRow(payload.new as TableLayerRow)))
+          setLayers(prev => {
+            const next = upsertLayer(prev, mapLayerRow(payload.new as TableLayerRow))
+            layersRef.current = next
+            return next
+          })
         }
       )
       .on(
@@ -306,7 +349,11 @@ export default function VampireTable() {
         payload => {
           const deleted = payload.old as { id?: string }
           if (deleted.id) {
-            setLayers(prev => prev.filter(layer => layer.id !== deleted.id))
+            setLayers(prev => {
+              const next = prev.filter(layer => layer.id !== deleted.id)
+              layersRef.current = next
+              return next
+            })
             setSelectedLayerId(prev => (prev === deleted.id ? null : prev))
           }
         }
@@ -329,8 +376,16 @@ export default function VampireTable() {
   const latest = rolls[0]
   const totalDice = useMemo(() => rolls.reduce((sum, roll) => sum + roll.diceCount, 0), [rolls])
   const selectedLayer = layers.find(layer => layer.id === selectedLayerId) || null
-  const visibleLayers = useMemo(() => sortLayers(layers).filter(layer => layer.visible), [layers])
+  const isLayerEffectivelyVisible = (layer: TableLayer) => {
+    if (!layer.visible) return false
+    if (!layer.parentId) return true
+    const parent = layers.find(item => item.id === layer.parentId)
+    return parent ? parent.visible : true
+  }
+
+  const visibleLayers = useMemo(() => sortLayers(layers).filter(isLayerEffectivelyVisible), [layers])
   const layerPanelItems = useMemo(() => sortLayers(layers).reverse(), [layers])
+  const folders = useMemo(() => sortLayers(layers).filter(layer => layer.layerType === 'folder'), [layers])
 
   const broadcast = (event: string, payload: unknown) => {
     channelRef.current?.send({ type: 'broadcast', event, payload })
@@ -351,13 +406,10 @@ export default function VampireTable() {
     }
   }
 
-  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (!file) return
-
-    if (!file.type.startsWith('image/')) {
-      window.alert('Можно загрузить только картинку.')
-      event.target.value = ''
+  const uploadFiles = async (files: FileList | File[]) => {
+    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
+    if (imageFiles.length === 0) {
+      window.alert('Можно загрузить только картинки.')
       return
     }
 
@@ -365,75 +417,88 @@ export default function VampireTable() {
 
     try {
       const supabase = createClient()
-      const id = `${Date.now()}-${Math.random().toString(16).slice(2)}`
-      const objectUrl = URL.createObjectURL(file)
-      const natural = await getImageSize(objectUrl)
-      URL.revokeObjectURL(objectUrl)
+      for (const [index, file] of imageFiles.entries()) {
+        const id = `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`
+        const objectUrl = URL.createObjectURL(file)
+        const natural = await getImageSize(objectUrl)
+        URL.revokeObjectURL(objectUrl)
 
-      const storagePath = `${room}/${id}-${safeStorageName(file.name)}`
-      const { error: uploadError } = await supabase.storage
-        .from(TABLE_IMAGE_BUCKET)
-        .upload(storagePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type || 'application/octet-stream',
+        const storagePath = `${room}/${id}-${safeStorageName(file.name)}`
+        const { error: uploadError } = await supabase.storage
+          .from(TABLE_IMAGE_BUCKET)
+          .upload(storagePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type || 'application/octet-stream',
+          })
+
+        if (uploadError) {
+          console.error('Не удалось загрузить картинку в Storage:', uploadError)
+          window.alert('Картинка не загрузилась в Supabase Storage. Проверь, что создан bucket table-images и policies из SQL.')
+          continue
+        }
+
+        const { data: publicUrlData } = supabase.storage.from(TABLE_IMAGE_BUCKET).getPublicUrl(storagePath)
+        const imageData = publicUrlData.publicUrl
+        const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
+        const fitWidth = Math.min(760, Math.max(220, natural.width))
+        const fitHeight = Math.max(160, Math.round((fitWidth / natural.width) * natural.height))
+        const activeFolder = selectedLayer?.layerType === 'folder' ? selectedLayer : null
+        const layer: TableLayer = {
+          id,
+          room,
+          layerType: 'image',
+          parentId: activeFolder?.id || null,
+          name: file.name,
+          imageData,
+          x: (activeFolder?.x ?? 80) + ((layersRef.current.length + index) % 6) * 28,
+          y: (activeFolder?.y ?? 70) + ((layersRef.current.length + index) % 6) * 24,
+          width: fitWidth,
+          height: fitHeight,
+          zIndex: maxZ + 1,
+          visible: true,
+          locked: false,
+          createdAt: new Date().toISOString(),
+        }
+
+        const { error } = await supabase.from(TABLE_IMAGES).insert({
+          id: layer.id,
+          room: layer.room,
+          layer_type: layer.layerType,
+          parent_id: layer.parentId,
+          name: layer.name,
+          image_data: layer.imageData,
+          x: layer.x,
+          y: layer.y,
+          width: layer.width,
+          height: layer.height,
+          z_index: layer.zIndex,
+          visible: layer.visible,
+          locked: layer.locked,
+          created_at: layer.createdAt,
         })
 
-      if (uploadError) {
-        console.error('Не удалось загрузить картинку в Storage:', uploadError)
-        window.alert('Картинка не загрузилась в Supabase Storage. Проверь, что создан bucket table-images и policies из SQL.')
-        return
-      }
+        layersRef.current = upsertLayer(layersRef.current, layer)
+        setLayers(layersRef.current)
+        setSelectedLayerId(layer.id)
+        broadcast('layer', layer)
 
-      const { data: publicUrlData } = supabase.storage.from(TABLE_IMAGE_BUCKET).getPublicUrl(storagePath)
-      const imageData = publicUrlData.publicUrl
-      const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
-      const fitWidth = Math.min(760, Math.max(220, natural.width))
-      const fitHeight = Math.max(160, Math.round((fitWidth / natural.width) * natural.height))
-      const layer: TableLayer = {
-        id,
-        room,
-        name: file.name,
-        imageData,
-        x: 80 + (layers.length % 6) * 28,
-        y: 70 + (layers.length % 6) * 24,
-        width: fitWidth,
-        height: fitHeight,
-        zIndex: maxZ + 1,
-        visible: true,
-        locked: false,
-        createdAt: new Date().toISOString(),
-      }
-
-      const { error } = await supabase.from(TABLE_IMAGES).insert({
-        id: layer.id,
-        room: layer.room,
-        name: layer.name,
-        image_data: layer.imageData,
-        x: layer.x,
-        y: layer.y,
-        width: layer.width,
-        height: layer.height,
-        z_index: layer.zIndex,
-        visible: layer.visible,
-        locked: layer.locked,
-        created_at: layer.createdAt,
-      })
-
-      setLayers(prev => upsertLayer(prev, layer))
-      setSelectedLayerId(layer.id)
-      broadcast('layer', layer)
-
-      if (error) {
-        console.error('Не удалось сохранить слой стола:', error)
-        setTableStatus('Слой показан онлайн, но не сохранён')
-        window.alert('Слой показан онлайн, но не сохранился. Нужно обновить table_images в Supabase.')
-        return
+        if (error) {
+          console.error('Не удалось сохранить слой стола:', error)
+          setTableStatus('Слой показан онлайн, но не сохранён')
+          window.alert('Слой показан онлайн, но не сохранился. Нужно обновить table_images в Supabase.')
+        }
       }
 
       setTableStatus('Сцена онлайн')
     } finally {
       setIsUploading(false)
+    }
+  }
+
+  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      await uploadFiles(event.target.files)
       event.target.value = ''
     }
   }
@@ -447,6 +512,53 @@ export default function VampireTable() {
     setSelectedLayerId(prev => (prev === layerId ? null : prev))
     broadcast('layer-delete', { id: layerId, room })
     await createClient().from(TABLE_IMAGES).delete().eq('id', layerId)
+  }
+
+  const createFolder = async () => {
+    const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
+    const folder: TableLayer = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      layerType: 'folder',
+      parentId: null,
+      name: `Папка ${folders.length + 1}`,
+      imageData: '',
+      x: 120 + (folders.length % 5) * 36,
+      y: 120 + (folders.length % 5) * 28,
+      width: 520,
+      height: 320,
+      zIndex: maxZ + 1,
+      visible: true,
+      locked: false,
+      createdAt: new Date().toISOString(),
+    }
+
+    const { error } = await createClient().from(TABLE_IMAGES).insert({
+      id: folder.id,
+      room: folder.room,
+      layer_type: folder.layerType,
+      parent_id: folder.parentId,
+      name: folder.name,
+      image_data: folder.imageData,
+      x: folder.x,
+      y: folder.y,
+      width: folder.width,
+      height: folder.height,
+      z_index: folder.zIndex,
+      visible: folder.visible,
+      locked: folder.locked,
+      created_at: folder.createdAt,
+    })
+
+    layersRef.current = upsertLayer(layersRef.current, folder)
+    setLayers(layersRef.current)
+    setSelectedLayerId(folder.id)
+    broadcast('layer', folder)
+
+    if (error) {
+      console.error('Не удалось сохранить папку:', error)
+      setTableStatus('Папка показана онлайн, но не сохранена')
+    }
   }
 
   const moveLayerOrder = async (layerId: string, direction: 'up' | 'down') => {
@@ -463,7 +575,7 @@ export default function VampireTable() {
     ])
   }
 
-  const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize') => {
+  const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize', corner: DragState['corner'] = 'se') => {
     if (layer.locked) return
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
@@ -471,12 +583,40 @@ export default function VampireTable() {
     dragRef.current = {
       id: layer.id,
       mode,
+      corner,
       startClientX: event.clientX,
       startClientY: event.clientY,
       startX: layer.x,
       startY: layer.y,
       startWidth: layer.width,
       startHeight: layer.height,
+      startPanX: panRef.current.x,
+      startPanY: panRef.current.y,
+      aspectRatio: Math.max(0.01, layer.width / layer.height),
+      childStartPositions: layersRef.current
+        .filter(item => item.parentId === layer.id)
+        .map(item => ({ id: item.id, x: item.x, y: item.y })),
+    }
+  }
+
+  const startPan = (event: React.PointerEvent<HTMLDivElement>) => {
+    const target = event.target as HTMLElement
+    if (!target.classList.contains('scene') && !target.classList.contains('scene-world')) return
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    dragRef.current = {
+      id: '',
+      mode: 'pan',
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      startX: 0,
+      startY: 0,
+      startWidth: 0,
+      startHeight: 0,
+      startPanX: panRef.current.x,
+      startPanY: panRef.current.y,
+      aspectRatio: 1,
+      childStartPositions: [],
     }
   }
 
@@ -487,19 +627,48 @@ export default function VampireTable() {
     const dx = event.clientX - drag.startClientX
     const dy = event.clientY - drag.startClientY
 
-    if (drag.mode === 'move') {
-      patchLayer(drag.id, { x: Math.round(drag.startX + dx), y: Math.round(drag.startY + dy) }, { persist: false })
+    if (drag.mode === 'pan') {
+      setPan({ x: drag.startPanX + dx, y: drag.startPanY + dy })
       return
     }
 
-    patchLayer(
-      drag.id,
-      {
-        width: Math.max(60, Math.round(drag.startWidth + dx)),
-        height: Math.max(60, Math.round(drag.startHeight + dy)),
-      },
-      { persist: false }
-    )
+    if (drag.mode === 'move') {
+      const sceneDx = dx / zoom
+      const sceneDy = dy / zoom
+      const layerPatch = { x: Math.round(drag.startX + sceneDx), y: Math.round(drag.startY + sceneDy) }
+      const nextLayers = sortLayers(
+        layersRef.current.map(layer => {
+          if (layer.id === drag.id) return { ...layer, ...layerPatch }
+          const child = drag.childStartPositions.find(item => item.id === layer.id)
+          if (child) return { ...layer, x: Math.round(child.x + sceneDx), y: Math.round(child.y + sceneDy) }
+          return layer
+        })
+      )
+      layersRef.current = nextLayers
+      setLayers(nextLayers)
+      broadcast('layer-update', { id: drag.id, room, patch: layerPatch })
+      drag.childStartPositions.forEach(child => {
+        broadcast('layer-update', {
+          id: child.id,
+          room,
+          patch: { x: Math.round(child.x + sceneDx), y: Math.round(child.y + sceneDy) },
+        })
+      })
+      return
+    }
+
+    const sceneDx = dx / zoom
+    const sceneDy = dy / zoom
+    const horizontal = drag.corner?.includes('w') ? -sceneDx : sceneDx
+    const vertical = drag.corner?.includes('n') ? -sceneDy : sceneDy
+    const widthFromX = drag.startWidth + horizontal
+    const widthFromY = (drag.startHeight + vertical) * drag.aspectRatio
+    const nextWidth = Math.max(60, Math.round(Math.abs(horizontal) > Math.abs(vertical) ? widthFromX : widthFromY))
+    const nextHeight = Math.max(60, Math.round(nextWidth / drag.aspectRatio))
+    const nextX = drag.corner?.includes('w') ? Math.round(drag.startX + drag.startWidth - nextWidth) : drag.startX
+    const nextY = drag.corner?.includes('n') ? Math.round(drag.startY + drag.startHeight - nextHeight) : drag.startY
+
+    patchLayer(drag.id, { x: nextX, y: nextY, width: nextWidth, height: nextHeight }, { persist: false })
   }
 
   const finishLayerDrag = async () => {
@@ -509,12 +678,30 @@ export default function VampireTable() {
     dragRef.current = null
     const layer = layersRef.current.find(item => item.id === drag.id)
     if (layer) {
-      await patchLayer(layer.id, {
-        x: layer.x,
-        y: layer.y,
-        width: layer.width,
-        height: layer.height,
-      })
+      await patchLayer(layer.id, { x: layer.x, y: layer.y, width: layer.width, height: layer.height })
+      const childUpdates = drag.childStartPositions
+        .map(child => layersRef.current.find(item => item.id === child.id))
+        .filter(Boolean) as TableLayer[]
+      await Promise.all(childUpdates.map(child => patchLayer(child.id, { x: child.x, y: child.y })))
+    }
+  }
+
+  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!event.ctrlKey && !event.metaKey) {
+      setPan(prev => ({ x: prev.x - event.deltaX, y: prev.y - event.deltaY }))
+      return
+    }
+
+    event.preventDefault()
+    const nextZoom = Math.min(3, Math.max(0.25, zoom * (event.deltaY > 0 ? 0.9 : 1.1)))
+    setZoom(nextZoom)
+  }
+
+  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault()
+    setIsDraggingOver(false)
+    if (event.dataTransfer.files?.length) {
+      await uploadFiles(event.dataTransfer.files)
     }
   }
 
@@ -527,10 +714,11 @@ export default function VampireTable() {
         </div>
         <div className="table-actions">
           <a href="/old" title="Открыть лист персонажа">Лист</a>
+          <button type="button" onClick={createFolder}>Папка</button>
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
             {isUploading ? 'Загрузка...' : 'Добавить слой'}
           </button>
-          <input ref={fileInputRef} type="file" accept="image/*" onChange={handleImageUpload} />
+          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} />
         </div>
       </section>
 
@@ -542,62 +730,95 @@ export default function VampireTable() {
               <strong>{layers.length ? `${layers.length} слоёв` : 'Пустая сцена'}</strong>
             </div>
             <div>
-              <span>Связь</span>
-              <strong>{connectionText}</strong>
+              <span>Масштаб</span>
+              <strong>{Math.round(zoom * 100)}%</strong>
+            </div>
+            <div className="zoom-tools">
+              <button type="button" onClick={() => setZoom(prev => Math.max(0.25, prev - 0.1))}>−</button>
+              <button type="button" onClick={() => setZoom(1)}>100</button>
+              <button type="button" onClick={() => setZoom(prev => Math.min(3, prev + 0.1))}>+</button>
             </div>
           </header>
 
           <div
             ref={sceneRef}
-            className="scene"
+            className={`scene ${isDraggingOver ? 'drag-over' : ''}`}
+            onPointerDown={startPan}
             onPointerMove={updateLayerDrag}
             onPointerUp={finishLayerDrag}
             onPointerCancel={finishLayerDrag}
             onPointerLeave={finishLayerDrag}
+            onWheel={handleWheel}
+            onDragOver={event => {
+              event.preventDefault()
+              setIsDraggingOver(true)
+            }}
+            onDragLeave={() => setIsDraggingOver(false)}
+            onDrop={handleDrop}
           >
-            {visibleLayers.length === 0 ? (
-              <div className="scene-empty">
-                <h2>Добавь первый слой</h2>
-                <p>Загрузи карту, сцену или портрет. Дальше их можно двигать, менять размер и раскладывать по слоям.</p>
-              </div>
-            ) : null}
+            <div
+              className="scene-world"
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+              }}
+            >
+              {visibleLayers.length === 0 ? (
+                <div className="scene-empty">
+                  <h2>Добавь первый слой</h2>
+                  <p>Перетащи картинки прямо на стол или нажми «Добавить слой».</p>
+                </div>
+              ) : null}
 
-            {visibleLayers.map(layer => (
-              <div
-                className={`scene-layer ${selectedLayerId === layer.id ? 'selected' : ''} ${layer.locked ? 'locked' : ''}`}
-                key={layer.id}
-                style={{
-                  left: layer.x,
-                  top: layer.y,
-                  width: layer.width,
-                  height: layer.height,
-                  zIndex: layer.zIndex,
-                }}
-                onPointerDown={event => startLayerDrag(event, layer, 'move')}
-              >
-                <img
-                  src={layer.imageData}
-                  alt=""
-                  draggable={false}
-                  onError={event => {
-                    event.currentTarget.style.display = 'none'
-                    event.currentTarget.parentElement?.classList.add('image-load-error')
+              {visibleLayers.map(layer => (
+                <div
+                  className={`scene-layer ${layer.layerType === 'folder' ? 'folder-layer' : ''} ${selectedLayerId === layer.id ? 'selected' : ''} ${layer.locked ? 'locked' : ''}`}
+                  key={layer.id}
+                  style={{
+                    left: layer.x,
+                    top: layer.y,
+                    width: layer.width,
+                    height: layer.height,
+                    zIndex: layer.zIndex,
                   }}
-                />
-                <span className="broken-image-label">{layer.name}</span>
-                {selectedLayerId === layer.id && !layer.locked ? (
-                  <button
-                    type="button"
-                    className="resize-handle"
-                    onPointerDown={event => {
-                      event.stopPropagation()
-                      startLayerDrag(event, layer, 'resize')
-                    }}
-                    title="Изменить размер"
-                  />
-                ) : null}
-              </div>
-            ))}
+                  onPointerDown={event => startLayerDrag(event, layer, 'move')}
+                >
+                  {layer.layerType === 'folder' ? (
+                    <div className="folder-surface">
+                      <span>{layer.name}</span>
+                    </div>
+                  ) : (
+                    <>
+                      <img
+                        src={layer.imageData}
+                        alt=""
+                        draggable={false}
+                        onError={event => {
+                          event.currentTarget.style.display = 'none'
+                          event.currentTarget.parentElement?.classList.add('image-load-error')
+                        }}
+                      />
+                      <span className="broken-image-label">{layer.name}</span>
+                    </>
+                  )}
+                  {selectedLayerId === layer.id && !layer.locked ? (
+                    <>
+                      {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (
+                        <button
+                          type="button"
+                          className={`resize-handle ${corner}`}
+                          key={corner}
+                          onPointerDown={event => {
+                            event.stopPropagation()
+                            startLayerDrag(event, layer, 'resize', corner)
+                          }}
+                          title="Изменить размер"
+                        />
+                      ))}
+                    </>
+                  ) : null}
+                </div>
+              ))}
+            </div>
           </div>
         </section>
 
@@ -615,9 +836,23 @@ export default function VampireTable() {
                 layerPanelItems.map(layer => (
                   <article className={`layer-row ${selectedLayerId === layer.id ? 'active' : ''}`} key={layer.id}>
                     <button type="button" className="layer-name" onClick={() => setSelectedLayerId(layer.id)}>
-                      <img src={layer.imageData} alt="" />
+                      {layer.layerType === 'folder' ? <span className="folder-thumb">▣</span> : <img src={layer.imageData} alt="" />}
                       <span>{layer.name}</span>
                     </button>
+                    {layer.layerType === 'image' && folders.length > 0 ? (
+                      <select
+                        className="folder-select"
+                        value={layer.parentId || ''}
+                        onChange={event => patchLayer(layer.id, { parentId: event.target.value || null })}
+                      >
+                        <option value="">Без папки</option>
+                        {folders.map(folder => (
+                          <option value={folder.id} key={folder.id}>
+                            {folder.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : null}
                     <div className="layer-tools">
                       <button type="button" onClick={() => patchLayer(layer.id, { visible: !layer.visible })} title="Показать/скрыть">
                         {layer.visible ? '👁' : '—'}
@@ -799,6 +1034,7 @@ export default function VampireTable() {
           justify-content: space-between;
           gap: 16px;
           padding: 12px 14px;
+          align-items: center;
         }
 
         .surface-head div {
@@ -820,15 +1056,50 @@ export default function VampireTable() {
           font-size: 15px;
         }
 
+        .zoom-tools {
+          display: flex !important;
+          gap: 6px !important;
+          align-items: center;
+        }
+
+        .zoom-tools button {
+          width: 34px;
+          height: 30px;
+          border-radius: 5px;
+          border: 1px solid #333;
+          background: #181818;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+        }
+
         .scene {
           position: relative;
           min-height: 0;
-          overflow: auto;
+          overflow: hidden;
           background-color: #080808;
           background-image:
             linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
             linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
           background-size: 32px 32px;
+          cursor: grab;
+        }
+
+        .scene:active {
+          cursor: grabbing;
+        }
+
+        .scene.drag-over {
+          outline: 2px solid #36d675;
+          outline-offset: -2px;
+        }
+
+        .scene-world {
+          position: absolute;
+          inset: 0;
+          width: 4000px;
+          height: 3000px;
+          transform-origin: 0 0;
         }
 
         .scene-empty {
@@ -885,6 +1156,38 @@ export default function VampireTable() {
           pointer-events: none;
         }
 
+        .folder-layer {
+          background: rgba(54, 214, 117, 0.05);
+          border-color: rgba(54, 214, 117, 0.38);
+          box-shadow: inset 0 0 0 1px rgba(54, 214, 117, 0.1), 0 10px 30px rgba(0,0,0,0.22);
+        }
+
+        .folder-surface {
+          width: 100%;
+          height: 100%;
+          display: flex;
+          align-items: flex-start;
+          padding: 9px 10px;
+          box-sizing: border-box;
+          color: #36d675;
+          background:
+            linear-gradient(135deg, rgba(54, 214, 117, 0.12), transparent 42%),
+            rgba(0, 0, 0, 0.12);
+          pointer-events: none;
+        }
+
+        .folder-surface span {
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 13px;
+          background: rgba(0,0,0,0.58);
+          border: 1px solid rgba(54, 214, 117, 0.28);
+          border-radius: 4px;
+          padding: 4px 6px;
+        }
+
         .broken-image-label {
           display: none;
           position: absolute;
@@ -903,13 +1206,34 @@ export default function VampireTable() {
 
         .resize-handle {
           position: absolute;
-          right: -7px;
-          bottom: -7px;
           width: 16px;
           height: 16px;
           border-radius: 50%;
           border: 2px solid #0b0b0b;
           background: #36d675;
+        }
+
+        .resize-handle.nw {
+          left: -7px;
+          top: -7px;
+          cursor: nwse-resize;
+        }
+
+        .resize-handle.ne {
+          right: -7px;
+          top: -7px;
+          cursor: nesw-resize;
+        }
+
+        .resize-handle.sw {
+          left: -7px;
+          bottom: -7px;
+          cursor: nesw-resize;
+        }
+
+        .resize-handle.se {
+          right: -7px;
+          bottom: -7px;
           cursor: nwse-resize;
         }
 
@@ -985,6 +1309,18 @@ export default function VampireTable() {
           border: 1px solid #333;
         }
 
+        .folder-thumb {
+          width: 42px;
+          height: 30px;
+          display: grid;
+          place-items: center;
+          background: rgba(54, 214, 117, 0.08);
+          color: #36d675;
+          border-radius: 4px;
+          border: 1px solid rgba(54, 214, 117, 0.28);
+          font-size: 15px;
+        }
+
         .layer-name span {
           min-width: 0;
           overflow: hidden;
@@ -998,6 +1334,18 @@ export default function VampireTable() {
           grid-template-columns: repeat(5, 1fr);
           gap: 5px;
           padding: 0 8px 8px;
+        }
+
+        .folder-select {
+          width: calc(100% - 16px);
+          margin: 0 8px 8px;
+          background: #090909;
+          color: #ccc;
+          border: 1px solid #333;
+          border-radius: 5px;
+          padding: 6px;
+          font: inherit;
+          font-size: 12px;
         }
 
         .layer-tools button {
