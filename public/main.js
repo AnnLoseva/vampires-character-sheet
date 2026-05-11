@@ -1913,6 +1913,8 @@ function restoreSpecializations(skillName, specs = []) {
 const DICE_TABLE_ROOM = 'campaign-666';
 const DICE_TABLE_CHANNEL = 'vtm-table-rolls';
 const DICE_TABLE_STORAGE_PREFIX = 'vtm-table-rolls:';
+const DICE_ATTRIBUTES = ["Сила", "Ловкость", "Выносливость", "Обаяние", "Манипуляция", "Самообладание", "Интеллект", "Смекалка", "Упорство"];
+const DICE_SKILLS = ["Атлетика", "Вождение", "Воровство", "Выживание", "Драка", "Ремесло", "Скрытность", "Стрельба", "Фехтование", "Запугивание", "Исполнение", "Лидерство", "Обращение с животными", "Проницательность", "Убеждение", "Уличное чутьё", "Хитрость", "Этикет", "Гуманитарные науки", "Естественные науки", "Медицина", "Наблюдательность", "Оккультизм", "Политика", "Расследование", "Техника", "Финансы"];
 let pendingDicePool = null;
 let diceRollChannel = null;
 
@@ -1926,36 +1928,44 @@ function setupDiceRollsFromLockedSheet() {
 
     document.addEventListener('click', (e) => {
         const target = e.target;
+        const attrNameEl = target.closest?.('.attr-name');
         const skillNameEl = target.closest?.('.skill-name');
         const specLine = target.closest?.('.skill-spec-line');
+        const disciplineItem = target.closest?.('.discipline-item:not(.xp-shop-discipline-option)');
 
-        if (!skillNameEl && !specLine) return;
+        if (!attrNameEl && !skillNameEl && !specLine && !disciplineItem) return;
         if (!startingSheetFixed || expShopMode) return;
 
         e.preventDefault();
         e.stopImmediatePropagation();
 
+        if (attrNameEl) {
+            const attrName = attrNameEl.getAttribute('data-attr') || attrNameEl.textContent.trim();
+            openDiceRollModal({ first: makeDicePart('attr', attrName) });
+            return;
+        }
+
         if (skillNameEl) {
             const skillName = skillNameEl.getAttribute('data-skill') || skillNameEl.textContent.trim();
+            openDiceRollModal({ second: makeDicePart('skill', skillName) });
+            return;
+        }
+
+        if (specLine) {
+            const input = specLine.querySelector('input[type="text"]');
+            const skillName = input?.dataset.skill || findSkillNameForSpecLine(specLine);
+            const specName = input?.value.trim() || 'Специальность';
+
             openDiceRollModal({
-                poolType: 'Навык',
-                skillName,
-                poolName: skillName,
-                diceCount: getSkillDots(skillName)
+                second: makeDicePart('skill', skillName),
+                modifier: 1,
+                modifierLabel: specName
             });
             return;
         }
 
-        const input = specLine.querySelector('input[type="text"]');
-        const skillName = input?.dataset.skill || findSkillNameForSpecLine(specLine);
-        const specName = input?.value.trim() || 'Специальность';
-
-        openDiceRollModal({
-            poolType: 'Специальность',
-            skillName,
-            poolName: `${skillName}: ${specName}`,
-            diceCount: getSkillDots(skillName)
-        });
+        const disciplineName = disciplineItem?.dataset.disciplineName || disciplineItem?.querySelector('div:first-child')?.textContent.trim();
+        if (disciplineName) openDiceRollModal({ first: makeDicePart('discipline', disciplineName) });
     }, true);
 }
 
@@ -1969,6 +1979,83 @@ function getSkillDots(skillName) {
     return Math.max(0, parseInt(checked?.value || '0', 10) || 0);
 }
 
+function getAttributeDots(attrName) {
+    const checked = document.querySelector(`input[name="${CSS.escape(attrName)}"]:checked`);
+    return Math.max(0, parseInt(checked?.value || '0', 10) || 0);
+}
+
+function getDisciplineDots(disciplineName) {
+    return Object.values(disciplineSources?.[disciplineName] || {}).reduce((sum, value) => sum + Number(value || 0), 0);
+}
+
+function makeDicePart(type, name) {
+    return `${type}:${name}`;
+}
+
+function escapeDiceHtml(value) {
+    return String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function parseDicePart(value) {
+    const [type, ...rest] = String(value || '').split(':');
+    return { type, name: rest.join(':') };
+}
+
+function getDicePartLabel(type) {
+    if (type === 'attr') return 'Характеристика';
+    if (type === 'skill') return 'Навык';
+    if (type === 'discipline') return 'Дисциплина';
+    return 'Параметр';
+}
+
+function getDicePartDots(partValue) {
+    const { type, name } = parseDicePart(partValue);
+    if (!name) return 0;
+    if (type === 'attr') return getAttributeDots(name);
+    if (type === 'skill') return getSkillDots(name);
+    if (type === 'discipline') return getDisciplineDots(name);
+    return 0;
+}
+
+function getDicePartName(partValue) {
+    return parseDicePart(partValue).name || '';
+}
+
+function getDicePoolOptions(selectedValue = '') {
+    const sections = [
+        {
+            label: 'Характеристики',
+            items: DICE_ATTRIBUTES.map(name => ({ value: makeDicePart('attr', name), label: `${name} (${getAttributeDots(name)})` }))
+        },
+        {
+            label: 'Навыки',
+            items: DICE_SKILLS.map(name => ({ value: makeDicePart('skill', name), label: `${name} (${getSkillDots(name)})` }))
+        },
+        {
+            label: 'Дисциплины',
+            items: Object.keys(disciplineSources || {})
+                .sort()
+                .map(name => ({ value: makeDicePart('discipline', name), label: `${name} (${getDisciplineDots(name)})` }))
+        }
+    ];
+
+    return `
+        <option value="">— не выбрано —</option>
+        ${sections
+            .filter(section => section.items.length > 0)
+            .map(section => `
+                <optgroup label="${section.label}">
+                    ${section.items.map(item => `<option value="${escapeDiceHtml(item.value)}" ${item.value === selectedValue ? 'selected' : ''}>${escapeDiceHtml(item.label)}</option>`).join('')}
+                </optgroup>
+            `).join('')}
+    `;
+}
+
 function getDiceRoom() {
     try {
         return new URLSearchParams(window.location.search).get('room') || DICE_TABLE_ROOM;
@@ -1977,19 +2064,21 @@ function getDiceRoom() {
     }
 }
 
-function openDiceRollModal(pool) {
-    if (!pool?.skillName) return;
-    if (pool.diceCount < 1) {
-        alert(`У "${pool.skillName}" нет точек для броска.`);
-        return;
-    }
-
-    pendingDicePool = pool;
+function openDiceRollModal(pool = {}) {
+    pendingDicePool = {
+        first: pool.first || '',
+        second: pool.second || '',
+        modifier: Number(pool.modifier || 0),
+        modifierLabel: pool.modifierLabel || ''
+    };
 
     const modal = getDiceRollModal();
-    modal.querySelector('#dice-roll-title').textContent = pool.poolName;
-    modal.querySelector('#dice-roll-subtitle').textContent = `${pool.poolType} • ${pool.diceCount}к10`;
+    modal.querySelector('#dice-roll-part-1').innerHTML = getDicePoolOptions(pendingDicePool.first);
+    modal.querySelector('#dice-roll-part-2').innerHTML = getDicePoolOptions(pendingDicePool.second);
+    modal.querySelector('#dice-roll-modifier').value = String(pendingDicePool.modifier);
+    modal.querySelector('#dice-roll-modifier-label').value = pendingDicePool.modifierLabel;
     modal.querySelector('#dice-roll-result').innerHTML = '';
+    updateDiceRollPoolPreview();
     modal.style.display = 'flex';
 }
 
@@ -2003,8 +2092,27 @@ function getDiceRollModal() {
         <div class="dice-roll-dialog">
             <button type="button" class="dice-roll-close" onclick="closeDiceRollModal()" title="Закрыть">×</button>
             <div class="dice-roll-label">Бросок кубиков</div>
-            <h2 id="dice-roll-title"></h2>
-            <p id="dice-roll-subtitle"></p>
+            <h2 id="dice-roll-title">Собрать пул</h2>
+            <p id="dice-roll-subtitle">Выбери два параметра и добавь модификатор, если он нужен.</p>
+            <div class="dice-roll-builder">
+                <label>
+                    <span>Первый параметр</span>
+                    <select id="dice-roll-part-1" onchange="updateDiceRollPoolPreview()"></select>
+                </label>
+                <label>
+                    <span>Второй параметр</span>
+                    <select id="dice-roll-part-2" onchange="updateDiceRollPoolPreview()"></select>
+                </label>
+                <label>
+                    <span>Доп. кубики</span>
+                    <input id="dice-roll-modifier" type="number" min="-20" max="20" value="0" oninput="updateDiceRollPoolPreview()">
+                </label>
+                <label>
+                    <span>Источник модификатора</span>
+                    <input id="dice-roll-modifier-label" type="text" placeholder="специальность, кровь, сложность..." oninput="updateDiceRollPoolPreview()">
+                </label>
+            </div>
+            <div id="dice-roll-pool-preview"></div>
             <div id="dice-roll-result"></div>
             <div class="dice-roll-actions">
                 <button type="button" onclick="closeDiceRollModal()">Отмена</button>
@@ -2013,6 +2121,50 @@ function getDiceRollModal() {
         </div>`;
     document.body.appendChild(modal);
     return modal;
+}
+
+function readDiceRollPool() {
+    const first = document.getElementById('dice-roll-part-1')?.value || '';
+    const second = document.getElementById('dice-roll-part-2')?.value || '';
+    const modifier = parseInt(document.getElementById('dice-roll-modifier')?.value || '0', 10) || 0;
+    const modifierLabel = document.getElementById('dice-roll-modifier-label')?.value?.trim() || '';
+    const firstDots = getDicePartDots(first);
+    const secondDots = getDicePartDots(second);
+    const diceCount = Math.max(0, firstDots + secondDots + modifier);
+    const parts = [first, second]
+        .filter(Boolean)
+        .map(part => `${getDicePartName(part)} ${getDicePartDots(part)}`);
+    const poolName = [
+        ...[first, second].filter(Boolean).map(getDicePartName),
+        modifier ? `${modifier > 0 ? '+' : ''}${modifier}${modifierLabel ? ` ${modifierLabel}` : ''}` : ''
+    ].filter(Boolean).join(' + ');
+
+    return {
+        first,
+        second,
+        modifier,
+        modifierLabel,
+        firstDots,
+        secondDots,
+        diceCount,
+        poolName: poolName || 'Свободный бросок',
+        poolType: parts.join(' + ') || 'Свободный пул'
+    };
+}
+
+function updateDiceRollPoolPreview() {
+    const preview = document.getElementById('dice-roll-pool-preview');
+    if (!preview) return;
+
+    const pool = readDiceRollPool();
+    const modifierText = pool.modifier
+        ? ` ${pool.modifier > 0 ? '+' : '-'} ${Math.abs(pool.modifier)}${pool.modifierLabel ? ` (${pool.modifierLabel})` : ''}`
+        : '';
+
+    preview.innerHTML = `
+        <strong>${pool.diceCount}к10</strong>
+        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}`)}</span>
+    `;
 }
 
 function closeDiceRollModal() {
@@ -2050,15 +2202,25 @@ function renderDicePreview(dice, successes) {
 function confirmDiceRoll() {
     if (!pendingDicePool) return;
 
-    const dice = rollD10Pool(pendingDicePool.diceCount);
+    const pool = readDiceRollPool();
+    if (!pool.first && !pool.second) {
+        alert('Выбери хотя бы один параметр для броска.');
+        return;
+    }
+    if (pool.diceCount < 1) {
+        alert('В пуле нет кубиков. Выбери параметры с точками или добавь модификатор.');
+        return;
+    }
+
+    const dice = rollD10Pool(pool.diceCount);
     const successes = countV5Successes(dice);
     const roll = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         room: getDiceRoom(),
         characterName: document.getElementById('char-name')?.value?.trim() || 'Безымянный',
-        poolName: pendingDicePool.poolName,
-        poolType: pendingDicePool.poolType,
-        diceCount: pendingDicePool.diceCount,
+        poolName: pool.poolName,
+        poolType: pool.poolType,
+        diceCount: pool.diceCount,
         dice,
         successes,
         createdAt: new Date().toISOString()
@@ -2087,6 +2249,7 @@ function publishDiceRoll(roll) {
 
 window.closeDiceRollModal = closeDiceRollModal;
 window.confirmDiceRoll = confirmDiceRoll;
+window.updateDiceRollPoolPreview = updateDiceRollPoolPreview;
 
 function updateSpecUI(skillName = null) {
     if (skillName) {

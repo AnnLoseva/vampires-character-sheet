@@ -12,7 +12,7 @@ type RollMessage = {
   room: string
   characterName: string
   poolName: string
-  poolType: 'Навык' | 'Специальность'
+  poolType: string
   diceCount: number
   dice: Die[]
   successes: number

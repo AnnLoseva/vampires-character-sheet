@@ -877,13 +877,17 @@
         }
 
         body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-name,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .attr-name,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .discipline-item,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-spec-line,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .dice-roll-specialty-input {
             cursor: pointer !important;
             opacity: 1 !important;
         }
 
-        body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-name {
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-name,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .attr-name,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .discipline-item > div:first-child {
             color: #f5f5f5;
             text-decoration: underline;
             text-decoration-color: rgba(255,49,49,0.5);
@@ -939,7 +943,7 @@
         }
 
         .dice-roll-dialog {
-            width: min(520px, 96vw);
+            width: min(680px, 96vw);
             background: #111;
             border: 2px solid #ff3131;
             border-radius: 10px;
@@ -981,6 +985,53 @@
         #dice-roll-subtitle {
             margin: 0 0 20px;
             color: #aaa;
+        }
+
+        .dice-roll-builder {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 12px;
+            margin: 18px 0;
+        }
+
+        .dice-roll-builder label {
+            display: grid;
+            gap: 6px;
+            color: #aaa;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .dice-roll-builder select,
+        .dice-roll-builder input {
+            width: 100%;
+            box-sizing: border-box;
+            background: #050505;
+            border: 1px solid #444;
+            border-radius: 6px;
+            color: #fff;
+            padding: 10px;
+            font: inherit;
+            letter-spacing: 0;
+            text-transform: none;
+        }
+
+        #dice-roll-pool-preview {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            padding: 12px 14px;
+            background: #080808;
+            border: 1px solid #333;
+            border-radius: 8px;
+            color: #aaa;
+        }
+
+        #dice-roll-pool-preview strong {
+            color: #36d675;
+            font-size: 24px;
         }
 
         .dice-roll-dice {
@@ -1045,6 +1096,12 @@
             background: #ff3131;
             color: #fff;
             font-weight: bold;
+        }
+
+        @media (max-width: 620px) {
+            .dice-roll-builder {
+                grid-template-columns: 1fr;
+            }
         }
 
         body.xp-shop-active #capture-area .dot-label,
