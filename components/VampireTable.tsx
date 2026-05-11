@@ -157,7 +157,7 @@ export default function VampireTable() {
                 <header>
                   <div>
                     <strong>{roll.characterName}</strong>
-                    <span>{roll.poolType}: {roll.poolName}</span>
+                    <span>{roll.poolName}</span>
                   </div>
                   <time dateTime={roll.createdAt}>{formatTime(roll.createdAt)}</time>
                 </header>
@@ -171,7 +171,7 @@ export default function VampireTable() {
                 </div>
 
                 <footer>
-                  <span>к10: {roll.diceCount}</span>
+                  <span>{roll.diceCount}к10</span>
                   <strong>Успехов: {roll.successes}</strong>
                 </footer>
               </article>

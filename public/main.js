@@ -2133,10 +2133,11 @@ function readDiceRollPool() {
     const diceCount = Math.max(0, firstDots + secondDots + modifier);
     const parts = [first, second]
         .filter(Boolean)
-        .map(part => `${getDicePartName(part)} ${getDicePartDots(part)}`);
+        .map(part => getDicePartDots(part));
+    const modifierName = modifierLabel || (modifier > 0 ? 'модификатор' : 'штраф');
     const poolName = [
         ...[first, second].filter(Boolean).map(getDicePartName),
-        modifier ? `${modifier > 0 ? '+' : ''}${modifier}${modifierLabel ? ` ${modifierLabel}` : ''}` : ''
+        modifier ? modifierName : ''
     ].filter(Boolean).join(' + ');
 
     return {
