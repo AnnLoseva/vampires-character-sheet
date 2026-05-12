@@ -186,6 +186,7 @@ type LayerDropTarget = {
 type RightRailTab = 'media' | 'rolls' | 'chat'
 type MediaTab = 'music' | 'layers'
 type ChatPanelTab = 'text' | 'voice'
+type VoiceQuality = 'balanced' | 'clear'
 
 const TABLE_ROLLS = 'table_rolls'
 const TABLE_CHAT_MESSAGES = 'table_chat_messages'
@@ -456,6 +457,7 @@ export default function VampireTable() {
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [voiceStatus, setVoiceStatus] = useState('Голос выключен')
   const [voiceMasterVolume, setVoiceMasterVolume] = useState(1)
+  const [voiceQuality, setVoiceQuality] = useState<VoiceQuality>('clear')
   const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipant[]>([])
   const [layers, setLayers] = useState<TableLayer[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
@@ -487,6 +489,7 @@ export default function VampireTable() {
   const selectedChatCharacterIdRef = useRef('')
   const voiceEnabledRef = useRef(false)
   const voiceMutedRef = useRef(false)
+  const voiceQualityRef = useRef<VoiceQuality>('clear')
   const voiceParticipantsRef = useRef<VoiceParticipant[]>([])
   const localVoiceStreamRef = useRef<MediaStream | null>(null)
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map())
@@ -526,6 +529,10 @@ export default function VampireTable() {
   useEffect(() => {
     voiceMutedRef.current = voiceMuted
   }, [voiceMuted])
+
+  useEffect(() => {
+    voiceQualityRef.current = voiceQuality
+  }, [voiceQuality])
 
   useEffect(() => {
     voiceParticipantsRef.current = voiceParticipants
@@ -1103,6 +1110,61 @@ export default function VampireTable() {
     }
   }
 
+  const getVoiceBitrate = () => (voiceQualityRef.current === 'clear' ? 96000 : 64000)
+
+  const getVoiceAudioConstraints = (): MediaTrackConstraints => {
+    const clearMode = voiceQualityRef.current === 'clear'
+    return {
+      channelCount: 1,
+      sampleRate: 48000,
+      echoCancellation: true,
+      noiseSuppression: !clearMode,
+      autoGainControl: !clearMode,
+    }
+  }
+
+  const enhanceVoiceSdp = (sdp = '') => {
+    const opusPayload = sdp.match(/a=rtpmap:(\d+) opus\/48000/i)?.[1]
+    if (!opusPayload) return sdp
+
+    const bitrate = getVoiceBitrate()
+    const opusOptions = `minptime=10;useinbandfec=1;usedtx=0;maxaveragebitrate=${bitrate};stereo=0;sprop-stereo=0;cbr=1`
+    const fmtpPattern = new RegExp(`a=fmtp:${opusPayload} .+`, 'i')
+
+    if (fmtpPattern.test(sdp)) {
+      return sdp.replace(fmtpPattern, line => {
+        const [, options = ''] = line.split(' ')
+        const cleaned = options
+          .split(';')
+          .map(option => option.trim())
+          .filter(option => option && !/^(minptime|useinbandfec|usedtx|maxaveragebitrate|stereo|sprop-stereo|cbr)=/i.test(option))
+          .join(';')
+        return `a=fmtp:${opusPayload} ${cleaned ? `${cleaned};` : ''}${opusOptions}`
+      })
+    }
+
+    return sdp.replace(new RegExp(`(a=rtpmap:${opusPayload} opus/48000.*\\r?\\n)`, 'i'), `$1a=fmtp:${opusPayload} ${opusOptions}\r\n`)
+  }
+
+  const enhanceVoiceDescription = (description: RTCSessionDescriptionInit): RTCSessionDescriptionInit => ({
+    type: description.type,
+    sdp: enhanceVoiceSdp(description.sdp || ''),
+  })
+
+  const tuneVoiceSender = async (sender: RTCRtpSender) => {
+    try {
+      const parameters = sender.getParameters()
+      parameters.encodings = parameters.encodings?.length ? parameters.encodings : [{}]
+      parameters.encodings = parameters.encodings.map(encoding => ({
+        ...encoding,
+        maxBitrate: getVoiceBitrate(),
+      }))
+      await sender.setParameters(parameters)
+    } catch (error) {
+      console.warn('Не удалось поднять битрейт голосового sender:', error)
+    }
+  }
+
   const createVoicePeer = async (participantId: string, offerAfterCreate: boolean) => {
     const existing = peerConnectionsRef.current.get(participantId)
     if (existing && existing.connectionState !== 'closed') return existing
@@ -1114,7 +1176,7 @@ export default function VampireTable() {
     peerConnectionsRef.current.set(participantId, connection)
     localVoiceStreamRef.current?.getTracks().forEach(track => {
       const stream = localVoiceStreamRef.current
-      if (stream) connection.addTrack(track, stream)
+      if (stream) void tuneVoiceSender(connection.addTrack(track, stream))
     })
 
     connection.onicecandidate = event => {
@@ -1141,7 +1203,7 @@ export default function VampireTable() {
 
     if (offerAfterCreate) {
       const offer = await connection.createOffer()
-      await connection.setLocalDescription(offer)
+      await connection.setLocalDescription(enhanceVoiceDescription(offer))
       broadcastVoiceSignal({
         type: 'offer',
         to: participantId,
@@ -1182,7 +1244,7 @@ export default function VampireTable() {
         const connection = await createVoicePeer(signal.from, false)
         await connection.setRemoteDescription(signal.description)
         const answer = await connection.createAnswer()
-        await connection.setLocalDescription(answer)
+        await connection.setLocalDescription(enhanceVoiceDescription(answer))
         broadcastVoiceSignal({
           type: 'answer',
           to: signal.from,
@@ -1237,11 +1299,7 @@ export default function VampireTable() {
 
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-        },
+        audio: getVoiceAudioConstraints(),
       })
       stream.getAudioTracks().forEach(track => {
         track.enabled = !voiceMutedRef.current
@@ -2418,6 +2476,17 @@ export default function VampireTable() {
                     onChange={event => setVoiceMasterVolume(Number(event.target.value))}
                   />
                   <strong>{Math.round(voiceMasterVolume * 100)}%</strong>
+                </label>
+                <label className="voice-quality">
+                  <span>Качество</span>
+                  <select
+                    value={voiceQuality}
+                    onChange={event => setVoiceQuality(event.target.value as VoiceQuality)}
+                    disabled={voiceEnabled}
+                  >
+                    <option value="clear">Чище голос</option>
+                    <option value="balanced">Шумодав</option>
+                  </select>
                 </label>
               </div>
 
@@ -3723,11 +3792,33 @@ export default function VampireTable() {
           align-items: center;
         }
 
+        .voice-controls .voice-quality {
+          grid-column: 1 / -1;
+          grid-template-columns: auto minmax(0, 1fr);
+        }
+
         .voice-controls input,
         .voice-participant input {
           min-width: 0;
           width: 100%;
           accent-color: #36d675;
+        }
+
+        .voice-controls select {
+          min-width: 0;
+          width: 100%;
+          height: 30px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 0 8px;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .voice-controls select:disabled {
+          opacity: 0.6;
         }
 
         .voice-participants {
