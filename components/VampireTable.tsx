@@ -183,7 +183,9 @@ type LayerDropTarget = {
   placement: LayerDropPlacement
 } | null
 
-type RightRailTab = 'music' | 'layers' | 'rolls' | 'chat'
+type RightRailTab = 'media' | 'rolls' | 'chat'
+type MediaTab = 'music' | 'layers'
+type ChatPanelTab = 'text' | 'voice'
 
 const TABLE_ROLLS = 'table_rolls'
 const TABLE_CHAT_MESSAGES = 'table_chat_messages'
@@ -468,7 +470,9 @@ export default function VampireTable() {
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
-  const [rightRailTab, setRightRailTab] = useState<RightRailTab>('layers')
+  const [rightRailTab, setRightRailTab] = useState<RightRailTab>('media')
+  const [mediaTab, setMediaTab] = useState<MediaTab>('layers')
+  const [chatPanelTab, setChatPanelTab] = useState<ChatPanelTab>('text')
   const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
@@ -548,7 +552,7 @@ export default function VampireTable() {
 
   useEffect(() => {
     chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight })
-  }, [chatMessages, rightRailTab])
+  }, [chatMessages, rightRailTab, chatPanelTab])
 
   useEffect(() => {
     if (!chatUser) {
@@ -2198,17 +2202,10 @@ export default function VampireTable() {
           <nav className="right-tabs" aria-label="Панели стола">
             <button
               type="button"
-              className={rightRailTab === 'music' ? 'active' : ''}
-              onClick={() => setRightRailTab('music')}
+              className={rightRailTab === 'media' ? 'active' : ''}
+              onClick={() => setRightRailTab('media')}
             >
-              Музыка
-            </button>
-            <button
-              type="button"
-              className={rightRailTab === 'layers' ? 'active' : ''}
-              onClick={() => setRightRailTab('layers')}
-            >
-              Изображения
+              Медиа
             </button>
             <button
               type="button"
@@ -2226,35 +2223,46 @@ export default function VampireTable() {
             </button>
           </nav>
 
-          <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} hidden={rightRailTab !== 'music'} />
+          <section className={`media-sidebar table-right-panel ${rightRailTab === 'media' ? '' : 'table-right-panel-hidden'}`} aria-label="Медиа стола">
+            <nav className="sub-tabs" aria-label="Медиа панели">
+              <button type="button" className={mediaTab === 'music' ? 'active' : ''} onClick={() => setMediaTab('music')}>
+                Музыка
+              </button>
+              <button type="button" className={mediaTab === 'layers' ? 'active' : ''} onClick={() => setMediaTab('layers')}>
+                Изображения
+              </button>
+            </nav>
 
-          <section className={`layer-panel table-right-panel ${rightRailTab === 'layers' ? '' : 'table-right-panel-hidden'}`} aria-label="Слои стола">
-            <header>
-              <strong>Слои</strong>
-              <span>{selectedManagerLayer?.name || 'ничего не выбрано'}</span>
-            </header>
+            <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} hidden={mediaTab !== 'music'} />
 
-            <div
-              className={`layer-list ${layerDropTarget?.layerId === ROOT_LAYER_DROP_ID ? 'drop-root' : ''}`}
-              onDragOver={handleLayerRootDragOver}
-              onDrop={handleLayerRootDrop}
-              onDragLeave={event => {
-                if (event.currentTarget === event.target) setLayerDropTarget(null)
-              }}
-            >
-              {layerTree.length === 0 ? (
-                <p className="panel-empty">Слоёв пока нет.</p>
-              ) : (
-                layerTree.map(layer => renderLayerNode(layer))
-              )}
+            <section className={`layer-panel table-right-panel ${mediaTab === 'layers' ? '' : 'table-right-panel-hidden'}`} aria-label="Слои стола">
+              <header>
+                <strong>Слои</strong>
+                <span>{selectedManagerLayer?.name || 'ничего не выбрано'}</span>
+              </header>
+
               <div
-                className="layer-root-drop-zone"
+                className={`layer-list ${layerDropTarget?.layerId === ROOT_LAYER_DROP_ID ? 'drop-root' : ''}`}
                 onDragOver={handleLayerRootDragOver}
                 onDrop={handleLayerRootDrop}
+                onDragLeave={event => {
+                  if (event.currentTarget === event.target) setLayerDropTarget(null)
+                }}
               >
-                Перетащи сюда, чтобы вынести в корень
+                {layerTree.length === 0 ? (
+                  <p className="panel-empty">Слоёв пока нет.</p>
+                ) : (
+                  layerTree.map(layer => renderLayerNode(layer))
+                )}
+                <div
+                  className="layer-root-drop-zone"
+                  onDragOver={handleLayerRootDragOver}
+                  onDrop={handleLayerRootDrop}
+                >
+                  Перетащи сюда, чтобы вынести в корень
+                </div>
               </div>
-            </div>
+            </section>
           </section>
 
           <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label="История бросков">
@@ -2365,7 +2373,16 @@ export default function VampireTable() {
               )}
             </div>
 
-            <section className="voice-panel" aria-label="Голосовой чат">
+            <nav className="sub-tabs" aria-label="Панели чата">
+              <button type="button" className={chatPanelTab === 'text' ? 'active' : ''} onClick={() => setChatPanelTab('text')}>
+                Текст
+              </button>
+              <button type="button" className={chatPanelTab === 'voice' ? 'active' : ''} onClick={() => setChatPanelTab('voice')}>
+                Голос
+              </button>
+            </nav>
+
+            <section className={`voice-panel ${chatPanelTab === 'voice' ? '' : 'table-right-panel-hidden'}`} aria-label="Голосовой чат">
               <header>
                 <div>
                   <strong>Голос</strong>
@@ -2468,7 +2485,7 @@ export default function VampireTable() {
               </div>
             </section>
 
-            <section className="chat-list" ref={chatListRef}>
+            <section className={`chat-list ${chatPanelTab === 'text' ? '' : 'table-right-panel-hidden'}`} ref={chatListRef}>
               {chatMessages.length === 0 ? (
                 <p className="panel-empty">Сообщений пока нет.</p>
               ) : (
@@ -2494,7 +2511,7 @@ export default function VampireTable() {
               )}
             </section>
 
-            <form className="chat-composer" onSubmit={sendChatMessage}>
+            <form className={`chat-composer ${chatPanelTab === 'text' ? '' : 'table-right-panel-hidden'}`} onSubmit={sendChatMessage}>
               <textarea
                 value={chatDraft}
                 onChange={event => setChatDraft(event.target.value)}
@@ -2675,6 +2692,7 @@ export default function VampireTable() {
         }
 
         .play-surface,
+        .media-sidebar,
         .layer-panel,
         .roll-sidebar,
         .chat-sidebar {
@@ -2934,7 +2952,7 @@ export default function VampireTable() {
 
         .right-tabs {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 4px;
           padding: 4px;
           border: 1px solid #2b2b2b;
@@ -2961,6 +2979,49 @@ export default function VampireTable() {
           border-color: #3b3b3b;
           background: #242424;
           color: #f4f4f4;
+        }
+
+        .sub-tabs {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 4px;
+          padding: 4px;
+          border-bottom: 1px solid #2b2b2b;
+          background: #101010;
+        }
+
+        .sub-tabs button {
+          min-width: 0;
+          height: 32px;
+          border: 1px solid transparent;
+          border-radius: 5px;
+          background: transparent;
+          color: #a9a9a9;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .sub-tabs button.active {
+          border-color: #3b3b3b;
+          background: #242424;
+          color: #f4f4f4;
+        }
+
+        .media-sidebar {
+          min-width: 0;
+          min-height: 0;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+        }
+
+        .media-sidebar > .table-right-panel {
+          min-height: 0;
+          border: 0;
+          border-radius: 0;
         }
 
         .table-right-panel {
