@@ -86,6 +86,30 @@ type MusicRow = {
   updated_at: string
 }
 
+type MusicLibraryItem = {
+  id: string
+  room: string
+  itemType: 'track' | 'folder'
+  parentId: string | null
+  name: string
+  url: string
+  createdAt: string
+}
+
+type MusicLibraryRow = {
+  id: string
+  room: string
+  item_type: 'track' | 'folder' | null
+  parent_id: string | null
+  name: string
+  url: string | null
+  created_at: string
+}
+
+type MusicTreeNode = MusicLibraryItem & {
+  children: MusicTreeNode[]
+}
+
 type SpotifyController = {
   loadUri: (spotifyUri: string, preferVideo?: boolean, startAt?: number) => void
   play: () => void
@@ -180,7 +204,9 @@ type RightRailTab = 'music' | 'layers' | 'rolls'
 const TABLE_ROLLS = 'table_rolls'
 const TABLE_IMAGES = 'table_images'
 const TABLE_MUSIC = 'table_music'
+const TABLE_MUSIC_LIBRARY = 'table_music_library'
 const TABLE_IMAGE_BUCKET = 'table-images'
+const TABLE_MUSIC_BUCKET = 'table-music'
 const ROOT_LAYER_DROP_ID = '__root__'
 
 function getRoomFromLocation() {
@@ -205,6 +231,12 @@ function upsertLayer(layers: TableLayer[], layer: TableLayer) {
   const exists = layers.some(item => item.id === layer.id)
   const next = exists ? layers.map(item => (item.id === layer.id ? layer : item)) : [...layers, layer]
   return sortLayers(next).slice(0, 80)
+}
+
+function upsertMusicLibraryItem(items: MusicLibraryItem[], item: MusicLibraryItem) {
+  const exists = items.some(existing => existing.id === item.id)
+  const next = exists ? items.map(existing => (existing.id === item.id ? item : existing)) : [...items, item]
+  return next.sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(0, 160)
 }
 
 function sortLayers(layers: TableLayer[]) {
@@ -299,6 +331,18 @@ function mapMusicRow(row: MusicRow): MusicState {
   }
 }
 
+function mapMusicLibraryRow(row: MusicLibraryRow): MusicLibraryItem {
+  return {
+    id: row.id,
+    room: row.room,
+    itemType: row.item_type ?? 'track',
+    parentId: row.parent_id ?? null,
+    name: row.name,
+    url: row.url || '',
+    createdAt: row.created_at,
+  }
+}
+
 function getSpotifyUri(url: string) {
   try {
     const parsed = new URL(url.trim())
@@ -320,6 +364,7 @@ function getMusicProvider(url: string) {
     const host = parsed.hostname.replace(/^www\./, '')
     if (host === 'youtu.be' || host.endsWith('youtube.com')) return 'youtube'
     if (host === 'open.spotify.com') return 'spotify'
+    if (/\.(mp3|wav|ogg|m4a|flac|webm|aac)(\?.*)?$/i.test(parsed.pathname)) return 'file'
   } catch {
     return 'none'
   }
@@ -431,10 +476,13 @@ export default function VampireTable() {
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
   const [rolls, setRolls] = useState<RollMessage[]>([])
   const [layers, setLayers] = useState<TableLayer[]>([])
+  const [musicLibrary, setMusicLibrary] = useState<MusicLibraryItem[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
+  const [selectedMusicFolderId, setSelectedMusicFolderId] = useState<string | null>(null)
   const [connectionText, setConnectionText] = useState('Подключение...')
   const [tableStatus, setTableStatus] = useState('Загрузка стола...')
   const [isUploading, setIsUploading] = useState(false)
+  const [isMusicUploading, setIsMusicUploading] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -447,11 +495,14 @@ export default function VampireTable() {
   const [musicStatus, setMusicStatus] = useState('Музыка не выбрана')
   const [localYouTubeVolume, setLocalYouTubeVolume] = useState(70)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
+  const [expandedMusicFolders, setExpandedMusicFolders] = useState<Set<string>>(new Set())
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
   const [rightRailTab, setRightRailTab] = useState<RightRailTab>('layers')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const musicFileInputRef = useRef<HTMLInputElement>(null)
+  const audioPlayerRef = useRef<HTMLAudioElement>(null)
   const youtubeShellRef = useRef<HTMLDivElement>(null)
   const youtubeMountRef = useRef<HTMLDivElement>(null)
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null)
@@ -472,12 +523,17 @@ export default function VampireTable() {
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
+  const musicLibraryRef = useRef<MusicLibraryItem[]>([])
   const panRef = useRef(pan)
   const isMaster = tableRole === 'master'
 
   useEffect(() => {
     layersRef.current = layers
   }, [layers])
+
+  useEffect(() => {
+    musicLibraryRef.current = musicLibrary
+  }, [musicLibrary])
 
   useEffect(() => {
     panRef.current = pan
@@ -588,6 +644,24 @@ export default function VampireTable() {
         else setMusicStatus('Музыка не выбрана')
       })
 
+    supabase
+      .from(TABLE_MUSIC_LIBRARY)
+      .select('id, room, item_type, parent_id, name, url, created_at')
+      .eq('room', currentRoom)
+      .order('created_at', { ascending: true })
+      .limit(160)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.error('Не удалось загрузить музыкальную библиотеку:', error)
+          return
+        }
+
+        const next = (data || []).map(row => mapMusicLibraryRow(row as MusicLibraryRow))
+        musicLibraryRef.current = next
+        setMusicLibrary(next)
+      })
+
     const channel = supabase
       .channel(`table-room:${currentRoom}`)
       .on('broadcast', { event: 'roll' }, payload => {
@@ -630,6 +704,15 @@ export default function VampireTable() {
         if (!music || music.room !== currentRoom) return
         applyMusicState(music)
       })
+      .on('broadcast', { event: 'music-library' }, payload => {
+        const item = payload.payload as MusicLibraryItem
+        if (!item || item.room !== currentRoom) return
+        setMusicLibrary(prev => {
+          const next = upsertMusicLibraryItem(prev, item)
+          musicLibraryRef.current = next
+          return next
+        })
+      })
       .on(
         'postgres_changes',
         {
@@ -655,6 +738,22 @@ export default function VampireTable() {
           const next = (payload.new || payload.old) as MusicRow
           const music = mapMusicRow(next)
           applyMusicState(music)
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: TABLE_MUSIC_LIBRARY,
+          filter: `room=eq.${currentRoom}`,
+        },
+        payload => {
+          setMusicLibrary(prev => {
+            const next = upsertMusicLibraryItem(prev, mapMusicLibraryRow(payload.new as MusicLibraryRow))
+            musicLibraryRef.current = next
+            return next
+          })
         }
       )
       .on(
@@ -781,6 +880,28 @@ export default function VampireTable() {
 
     return sortNodes(roots)
   }, [managerLayers])
+  const musicTree = useMemo<MusicTreeNode[]>(() => {
+    const nodeMap = new Map<string, MusicTreeNode>()
+    musicLibrary.forEach(item => nodeMap.set(item.id, { ...item, children: [] }))
+
+    const roots: MusicTreeNode[] = []
+    nodeMap.forEach(node => {
+      const parent = node.parentId ? nodeMap.get(node.parentId) : null
+      if (parent && parent.id !== node.id) parent.children.push(node)
+      else roots.push(node)
+    })
+
+    const sortNodes = (nodes: MusicTreeNode[]) => {
+      nodes.sort((a, b) => {
+        if (a.itemType !== b.itemType) return a.itemType === 'folder' ? -1 : 1
+        return a.name.localeCompare(b.name, 'ru')
+      })
+      nodes.forEach(node => sortNodes(node.children))
+      return nodes
+    }
+
+    return sortNodes(roots)
+  }, [musicLibrary])
   const spotifyEmbedUrl = useMemo(() => getSpotifyEmbedUrl(musicUrl), [musicUrl])
   const musicProvider = useMemo(() => getMusicProvider(musicUrl), [musicUrl])
   const youtubeVideoId = useMemo(() => (
@@ -905,6 +1026,116 @@ export default function VampireTable() {
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       await uploadFiles(event.target.files)
+      event.target.value = ''
+    }
+  }
+
+  const createMusicFolder = async () => {
+    if (!isMaster) return
+    const name = window.prompt('Название папки музыки', 'Новая папка')?.trim()
+    if (!name) return
+
+    const folder: MusicLibraryItem = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      itemType: 'folder',
+      parentId: selectedMusicFolderId,
+      name,
+      url: '',
+      createdAt: new Date().toISOString(),
+    }
+
+    const { error } = await createClient().from(TABLE_MUSIC_LIBRARY).insert({
+      id: folder.id,
+      room: folder.room,
+      item_type: folder.itemType,
+      parent_id: folder.parentId,
+      name: folder.name,
+      url: folder.url,
+      created_at: folder.createdAt,
+    })
+
+    const next = upsertMusicLibraryItem(musicLibraryRef.current, folder)
+    musicLibraryRef.current = next
+    setMusicLibrary(next)
+    setSelectedMusicFolderId(folder.id)
+    if (folder.parentId) setExpandedMusicFolders(prev => new Set(prev).add(folder.parentId as string))
+    broadcast('music-library', folder)
+
+    if (error) {
+      console.error('Не удалось сохранить папку музыки:', error)
+      setMusicStatus('Папка музыки не сохранилась')
+    }
+  }
+
+  const uploadMusicFiles = async (files: FileList | File[]) => {
+    if (!isMaster) return
+    const audioFiles = Array.from(files).filter(file => file.type.startsWith('audio/'))
+    if (audioFiles.length === 0) {
+      window.alert('Можно загрузить только аудиофайлы.')
+      return
+    }
+
+    setIsMusicUploading(true)
+
+    try {
+      const supabase = createClient()
+      for (const [index, file] of audioFiles.entries()) {
+        const id = `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`
+        const storagePath = `${room}/${id}-${safeStorageName(file.name)}`
+        const { error: uploadError } = await supabase.storage
+          .from(TABLE_MUSIC_BUCKET)
+          .upload(storagePath, file, {
+            cacheControl: '3600',
+            upsert: false,
+            contentType: file.type || 'audio/mpeg',
+          })
+
+        if (uploadError) {
+          console.error('Не удалось загрузить музыку в Storage:', uploadError)
+          window.alert('Музыка не загрузилась в Supabase Storage. Проверь bucket table-music и policies из SQL.')
+          continue
+        }
+
+        const { data: publicUrlData } = supabase.storage.from(TABLE_MUSIC_BUCKET).getPublicUrl(storagePath)
+        const item: MusicLibraryItem = {
+          id,
+          room,
+          itemType: 'track',
+          parentId: selectedMusicFolderId,
+          name: file.name,
+          url: publicUrlData.publicUrl,
+          createdAt: new Date().toISOString(),
+        }
+
+        const { error } = await supabase.from(TABLE_MUSIC_LIBRARY).insert({
+          id: item.id,
+          room: item.room,
+          item_type: item.itemType,
+          parent_id: item.parentId,
+          name: item.name,
+          url: item.url,
+          created_at: item.createdAt,
+        })
+
+        const next = upsertMusicLibraryItem(musicLibraryRef.current, item)
+        musicLibraryRef.current = next
+        setMusicLibrary(next)
+        broadcast('music-library', item)
+
+        if (error) {
+          console.error('Не удалось сохранить трек:', error)
+          setMusicStatus('Трек загружен, но не сохранён в библиотеке')
+        }
+      }
+    } finally {
+      setIsMusicUploading(false)
+    }
+  }
+
+  const handleMusicUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      await uploadMusicFiles(event.target.files)
       event.target.value = ''
     }
   }
@@ -1047,7 +1278,31 @@ export default function VampireTable() {
       return
     }
 
-    setMusicStatus('Поддерживаются YouTube и Spotify ссылки')
+    if (provider === 'file') {
+      publishMusicState({ url: normalizedUrl, activeUri: '', isPlaying: Boolean(options.play), positionSeconds: 0 })
+      return
+    }
+
+    setMusicStatus('Поддерживаются YouTube, Spotify и аудиофайлы')
+  }
+
+  const playMusicTrack = (track: MusicLibraryItem) => {
+    if (!isMaster || track.itemType !== 'track' || !track.url) return
+    publishMusicState({
+      url: track.url,
+      activeUri: track.id,
+      isPlaying: true,
+      positionSeconds: 0,
+    })
+  }
+
+  const publishAudioElementState = (isPlaying: boolean) => {
+    const audio = audioPlayerRef.current
+    if (!isMaster || !audio || musicProvider !== 'file') return
+    publishMusicState({
+      isPlaying,
+      positionSeconds: Math.max(0, Math.floor(audio.currentTime || 0)),
+    })
   }
 
   useEffect(() => {
@@ -1278,6 +1533,42 @@ export default function VampireTable() {
     if (musicPlaying) controller.resume()
     else controller.pause()
   }, [musicProvider, musicPlaying, musicPositionSeconds, musicUpdatedAt])
+
+  useEffect(() => {
+    if (musicProvider !== 'file' || !musicUrl) return
+    const audio = audioPlayerRef.current
+    if (!audio) return
+
+    const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
+    if (audio.src !== musicUrl) audio.src = musicUrl
+    if (Math.abs(audio.currentTime - positionSeconds) > 1.2) audio.currentTime = positionSeconds
+
+    if (musicPlaying) {
+      audio.play().catch(error => {
+        console.error('Браузер заблокировал автозапуск аудио:', error)
+        setMusicStatus('Нажми на страницу, чтобы включить музыку')
+      })
+    } else {
+      audio.pause()
+    }
+  }, [musicProvider, musicUrl, musicPlaying, musicPositionSeconds, musicUpdatedAt])
+
+  useEffect(() => {
+    if (musicProvider !== 'file' || !musicPlaying) return
+
+    const unlock = () => {
+      audioPlayerRef.current?.play().catch(() => undefined)
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+
+    window.addEventListener('pointerdown', unlock)
+    window.addEventListener('keydown', unlock)
+    return () => {
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+  }, [musicProvider, musicPlaying])
 
   const createFolder = async (parentId: string | null = null) => {
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
@@ -1728,6 +2019,41 @@ export default function VampireTable() {
     )
   }
 
+  const renderMusicNode = (item: MusicTreeNode, depth = 0): React.ReactNode => {
+    const isFolder = item.itemType === 'folder'
+    const isExpanded = expandedMusicFolders.has(item.id)
+    const isActive = musicActiveUri === item.id || musicUrl === item.url
+
+    return (
+      <div className="music-tree-item" key={item.id}>
+        <button
+          type="button"
+          className={`music-library-row ${isActive ? 'active' : ''} ${isFolder ? 'folder' : 'track'}`}
+          style={{ paddingLeft: 10 + depth * 18 }}
+          onClick={() => {
+            if (isFolder) {
+              setSelectedMusicFolderId(item.id)
+              setExpandedMusicFolders(prev => {
+                const next = new Set(prev)
+                if (next.has(item.id)) next.delete(item.id)
+                else next.add(item.id)
+                return next
+              })
+            } else {
+              playMusicTrack(item)
+            }
+          }}
+        >
+          <span className="music-row-icon">{isFolder ? (isExpanded ? '▾' : '▸') : '♪'}</span>
+          <span className={`music-row-thumb ${isFolder ? 'folder' : ''}`} />
+          <span className="music-row-name">{item.name}</span>
+          {!isFolder && isActive ? <span className="music-row-state">{musicPlaying ? 'play' : 'pause'}</span> : null}
+        </button>
+        {isFolder && isExpanded ? item.children.map(child => renderMusicNode(child, depth + 1)) : null}
+      </div>
+    )
+  }
+
   return (
     <main className="table-page-shell">
       <section className="table-topbar">
@@ -1919,6 +2245,16 @@ export default function VampireTable() {
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 loading="lazy"
               />
+            ) : musicProvider === 'file' && musicUrl ? (
+              <audio
+                ref={audioPlayerRef}
+                className="audio-player"
+                src={musicUrl}
+                controls={isMaster}
+                onPlay={() => publishAudioElementState(true)}
+                onPause={() => publishAudioElementState(false)}
+                onSeeked={() => publishAudioElementState(musicPlaying)}
+              />
             ) : null}
             {!isMaster && musicProvider === 'youtube' && youtubeVideoId ? (
               <div className="player-local-controls" aria-label="Локальные настройки плеера">
@@ -1936,6 +2272,31 @@ export default function VampireTable() {
                 <button type="button" onClick={openYouTubeFullscreen}>На весь экран</button>
               </div>
             ) : null}
+            <section className="music-library" aria-label="Музыкальная библиотека">
+              <header>
+                <strong>Библиотека</strong>
+                <span>{selectedMusicFolderId ? musicLibrary.find(item => item.id === selectedMusicFolderId)?.name || 'папка' : 'корень'}</span>
+              </header>
+              {isMaster ? (
+                <div className="music-library-actions">
+                  <button type="button" onClick={() => musicFileInputRef.current?.click()} disabled={isMusicUploading}>
+                    {isMusicUploading ? 'Загрузка...' : 'Загрузить'}
+                  </button>
+                  <button type="button" onClick={createMusicFolder}>Папка</button>
+                  <button type="button" onClick={() => setSelectedMusicFolderId(null)}>Корень</button>
+                  <input ref={musicFileInputRef} type="file" accept="audio/*" multiple onChange={handleMusicUpload} />
+                </div>
+              ) : (
+                <p className="music-readonly">Треки запускает мастер.</p>
+              )}
+              <div className="music-library-list">
+                {musicTree.length === 0 ? (
+                  <p className="panel-empty">Музыка ещё не загружена.</p>
+                ) : (
+                  musicTree.map(item => renderMusicNode(item))
+                )}
+              </div>
+            </section>
           </section>
 
           <section className={`layer-panel table-right-panel ${rightRailTab === 'layers' ? '' : 'table-right-panel-hidden'}`} aria-label="Слои стола">
@@ -2395,9 +2756,11 @@ export default function VampireTable() {
 
         .right-rail {
           min-width: 0;
+          min-height: 0;
           display: grid;
           grid-template-rows: auto minmax(0, 1fr);
           gap: 12px;
+          overflow: hidden;
         }
 
         .right-tabs {
@@ -2444,14 +2807,17 @@ export default function VampireTable() {
 
         .music-panel {
           display: grid;
-          grid-template-rows: auto auto auto;
-          align-self: start;
+          grid-template-rows: auto auto auto auto minmax(0, 1fr);
+          align-self: stretch;
+          overflow: hidden;
         }
 
         .music-panel header,
         .layer-panel,
         .roll-sidebar {
           min-height: 0;
+          height: 100%;
+          overflow: hidden;
           display: grid;
           grid-template-rows: auto 1fr;
         }
@@ -2502,6 +2868,16 @@ export default function VampireTable() {
           border: 0;
           border-top: 1px solid #252525;
           background: #050505;
+        }
+
+        .audio-player {
+          width: 100%;
+          border-top: 1px solid #252525;
+          background: #050505;
+        }
+
+        .audio-player:not([controls]) {
+          display: none;
         }
 
         .youtube-embed {
@@ -2599,9 +2975,147 @@ export default function VampireTable() {
           white-space: nowrap;
         }
 
+        .music-library {
+          min-height: 0;
+          display: grid;
+          grid-template-rows: auto auto minmax(0, 1fr);
+          border-top: 1px solid #252525;
+          overflow: hidden;
+        }
+
+        .music-library header {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+          padding: 9px 10px;
+          background: #121212;
+          border-bottom: 1px solid #252525;
+        }
+
+        .music-library header strong {
+          color: #f5f5f5;
+          font-size: 13px;
+        }
+
+        .music-library header span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #9c9c9c;
+          font-size: 12px;
+        }
+
+        .music-library-actions {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 6px;
+          padding: 8px 10px;
+          border-bottom: 1px solid #252525;
+        }
+
+        .music-library-actions input {
+          display: none;
+        }
+
+        .music-library-actions button,
+        .music-library-row {
+          min-width: 0;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #181818;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .music-library-actions button {
+          height: 30px;
+        }
+
+        .music-library-actions button:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+
+        .music-library-list {
+          min-height: 0;
+          overflow-y: auto;
+          display: flex;
+          flex-direction: column;
+        }
+
+        .music-library-row {
+          width: 100%;
+          height: 38px;
+          border: 0;
+          border-bottom: 1px solid #252525;
+          border-radius: 0;
+          background: #202020;
+          display: grid;
+          grid-template-columns: 18px 28px minmax(0, 1fr) auto;
+          gap: 8px;
+          align-items: center;
+          padding-right: 10px;
+          text-align: left;
+        }
+
+        .music-library-row:hover,
+        .music-library-row.active {
+          background: #343434;
+        }
+
+        .music-row-icon {
+          color: #bdbdbd;
+          text-align: center;
+        }
+
+        .music-row-thumb {
+          width: 24px;
+          height: 24px;
+          border: 1px solid #3a3a3a;
+          border-radius: 4px;
+          background: linear-gradient(135deg, #222, #4d3b3b);
+        }
+
+        .music-row-thumb.folder {
+          position: relative;
+          height: 17px;
+          background: #c9a557;
+          border-color: #8b7034;
+        }
+
+        .music-row-thumb.folder::before {
+          content: "";
+          position: absolute;
+          left: 1px;
+          top: -5px;
+          width: 11px;
+          height: 6px;
+          border-radius: 2px 2px 0 0;
+          background: #d7b562;
+          border: 1px solid #8b7034;
+          border-bottom: 0;
+        }
+
+        .music-row-name {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .music-row-state {
+          color: #9ab7ff;
+          font-size: 11px;
+        }
+
         .layer-list,
         .roll-list {
           min-height: 0;
+          height: 100%;
           overflow-y: auto;
           padding: 0;
           display: flex;
