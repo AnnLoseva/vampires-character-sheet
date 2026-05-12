@@ -178,6 +178,7 @@ const TABLE_ROLLS = 'table_rolls'
 const TABLE_IMAGES = 'table_images'
 const TABLE_MUSIC = 'table_music'
 const TABLE_IMAGE_BUCKET = 'table-images'
+const ROOT_LAYER_DROP_ID = '__root__'
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
@@ -1329,7 +1330,26 @@ export default function VampireTable() {
     })
   }
 
+  const canMoveLayer = (layer: TableLayer) => {
+    if (layer.locked) return false
+    return isMaster || layer.ownerRole !== 'master'
+  }
+
+  const canDropLayerOn = (dragged: TableLayer, target: TableLayer, placement: LayerDropPlacement) => {
+    if (!canMoveLayer(dragged)) return false
+    if (dragged.id === target.id) return false
+    if (placement === 'inside' && target.layerType !== 'folder') return false
+    if (dragged.layerType === 'folder' && getDescendantIds(dragged.id).has(target.id)) return false
+    return true
+  }
+
   const handleLayerDragStart = (event: React.DragEvent<HTMLElement>, layerId: string) => {
+    const layer = layersRef.current.find(item => item.id === layerId)
+    if (!layer || !canMoveLayer(layer)) {
+      event.preventDefault()
+      return
+    }
+
     event.dataTransfer.effectAllowed = 'move'
     event.dataTransfer.setData('text/plain', layerId)
     setDraggingLayerId(layerId)
@@ -1341,14 +1361,16 @@ export default function VampireTable() {
     if (!draggedId || draggedId === target.id) return
     const dragged = layersRef.current.find(layer => layer.id === draggedId)
     if (!dragged) return
-    if (dragged.layerType === 'folder' && getDescendantIds(dragged.id).has(target.id)) return
 
-    event.preventDefault()
     const rect = event.currentTarget.getBoundingClientRect()
     const y = event.clientY - rect.top
     const ratio = y / Math.max(1, rect.height)
     const placement: LayerDropPlacement =
       target.layerType === 'folder' && ratio > 0.28 && ratio < 0.72 ? 'inside' : ratio < 0.5 ? 'before' : 'after'
+    if (!canDropLayerOn(dragged, target, placement)) return
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
     setLayerDropTarget({ layerId: target.id, placement })
   }
 
@@ -1357,9 +1379,9 @@ export default function VampireTable() {
     const draggedId = draggingLayerId || event.dataTransfer.getData('text/plain')
     const dragged = layersRef.current.find(layer => layer.id === draggedId)
     if (!dragged || dragged.id === target.id) return
-    if (dragged.layerType === 'folder' && getDescendantIds(dragged.id).has(target.id)) return
 
     const placement = layerDropTarget?.layerId === target.id ? layerDropTarget.placement : 'after'
+    if (!canDropLayerOn(dragged, target, placement)) return
     const nextParentId = placement === 'inside' ? target.id : target.parentId
     const draggableLayers = isMaster ? layersRef.current : layersRef.current.filter(layer => layer.ownerRole !== 'master')
     const siblings = sortLayers(draggableLayers.filter(layer => layer.parentId === nextParentId && layer.id !== dragged.id)).reverse()
@@ -1377,6 +1399,42 @@ export default function VampireTable() {
     }))
 
     if (nextParentId) setExpandedFolders(prev => new Set(prev).add(nextParentId))
+    setDraggingLayerId(null)
+    setLayerDropTarget(null)
+    await patchLayers(patches)
+  }
+
+  const handleLayerRootDragOver = (event: React.DragEvent<HTMLDivElement>) => {
+    const draggedId = draggingLayerId || event.dataTransfer.getData('text/plain')
+    const dragged = layersRef.current.find(layer => layer.id === draggedId)
+    if (!dragged || !canMoveLayer(dragged)) return
+
+    if (event.currentTarget !== event.target) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    setLayerDropTarget({ layerId: ROOT_LAYER_DROP_ID, placement: 'inside' })
+  }
+
+  const handleLayerRootDrop = async (event: React.DragEvent<HTMLDivElement>) => {
+    if (event.currentTarget !== event.target && layerDropTarget?.layerId !== ROOT_LAYER_DROP_ID) return
+    event.preventDefault()
+    const draggedId = draggingLayerId || event.dataTransfer.getData('text/plain')
+    const dragged = layersRef.current.find(layer => layer.id === draggedId)
+    if (!dragged || !canMoveLayer(dragged)) return
+
+    const draggableLayers = isMaster ? layersRef.current : layersRef.current.filter(layer => layer.ownerRole !== 'master')
+    const siblings = sortLayers(draggableLayers.filter(layer => layer.parentId === null && layer.id !== dragged.id)).reverse()
+    siblings.push({ ...dragged, parentId: null })
+
+    const highestZ = Math.max(1, ...layersRef.current.map(layer => layer.zIndex)) + siblings.length
+    const patches = siblings.map((layer, index) => ({
+      id: layer.id,
+      patch: {
+        parentId: layer.id === dragged.id ? null : layer.parentId,
+        zIndex: highestZ - index,
+      },
+    }))
+
     setDraggingLayerId(null)
     setLayerDropTarget(null)
     await patchLayers(patches)
@@ -1408,7 +1466,7 @@ export default function VampireTable() {
       startPanY: panRef.current.y,
       aspectRatio: Math.max(0.01, layer.width / layer.height),
       childStartPositions: layersRef.current
-        .filter(item => item.parentId === layer.id)
+        .filter(item => getDescendantIds(layer.id).has(item.id))
         .map(item => ({ id: item.id, x: item.x, y: item.y })),
     }
   }
@@ -1528,18 +1586,21 @@ export default function VampireTable() {
     const isFolder = layer.layerType === 'folder'
     const isExpanded = expandedFolders.has(layer.id)
     const isDropTarget = layerDropTarget?.layerId === layer.id
+    const canDragLayer = canMoveLayer(layer)
+    const isEffectivelyVisible = isLayerEffectivelyVisible(layer)
 
     return (
       <div className="layer-tree-item" key={layer.id}>
         <article
-          className={`layer-row ${selectedLayerId === layer.id ? 'active' : ''} ${draggingLayerId === layer.id ? 'dragging' : ''} ${
+          className={`layer-row ${selectedLayerId === layer.id ? 'active' : ''} ${draggingLayerId === layer.id ? 'dragging' : ''} ${!isEffectivelyVisible ? 'hidden' : ''} ${layer.locked ? 'locked' : ''} ${
             isDropTarget ? `drop-${layerDropTarget?.placement}` : ''
           }`}
-          draggable
+          draggable={canDragLayer}
           onDragStart={event => handleLayerDragStart(event, layer.id)}
           onDragOver={event => handleLayerDragOver(event, layer)}
           onDrop={event => handleLayerDrop(event, layer)}
           onDragEnd={handleLayerDragEnd}
+          onClick={() => setSelectedLayerId(layer.id)}
           onContextMenu={event => {
             event.preventDefault()
             setSelectedLayerId(layer.id)
@@ -1550,36 +1611,56 @@ export default function VampireTable() {
           <button
             type="button"
             className={`layer-visibility ${layer.visible ? 'visible' : ''}`}
+            draggable={false}
+            onMouseDown={event => event.stopPropagation()}
+            onDragStart={event => event.preventDefault()}
             onClick={event => {
               event.stopPropagation()
               patchLayer(layer.id, { visible: !layer.visible })
             }}
             title={layer.visible ? 'Скрыть' : 'Показать'}
+            aria-label={layer.visible ? 'Скрыть слой' : 'Показать слой'}
           >
-            {layer.visible ? '◉' : '□'}
+            <span aria-hidden="true" />
           </button>
-          <div className="layer-name" style={{ paddingLeft: 8 + depth * 16 }}>
+          <div className="layer-name" style={{ paddingLeft: 6 + depth * 18 }}>
             {isFolder ? (
-              <button type="button" className="folder-toggle" onClick={() => toggleFolder(layer.id)} title={isExpanded ? 'Свернуть' : 'Открыть'}>
+              <button
+                type="button"
+                className="folder-toggle"
+                draggable={false}
+                onMouseDown={event => event.stopPropagation()}
+                onClick={event => {
+                  event.stopPropagation()
+                  toggleFolder(layer.id)
+                }}
+                title={isExpanded ? 'Свернуть' : 'Открыть'}
+                aria-label={isExpanded ? 'Свернуть папку' : 'Открыть папку'}
+              >
                 {isExpanded ? '▾' : '▸'}
               </button>
             ) : (
               <span className="folder-toggle spacer" />
             )}
-            <button type="button" className="layer-main" onClick={() => setSelectedLayerId(layer.id)}>
-              {isFolder ? <span className="folder-thumb">▣</span> : <img src={layer.imageData} alt="" />}
-              <span className="link-mark">⌁</span>
+            <div className="layer-thumb" aria-hidden="true">
+              {isFolder ? <span className="folder-thumb" /> : <img src={layer.imageData} alt="" draggable={false} />}
+            </div>
+            <div className="layer-title">
               <span>{layer.name}</span>
-            </button>
+              {isMaster ? <small>{layer.ownerRole === 'master' ? 'master' : 'player'}</small> : null}
+            </div>
             <div className="layer-quick-actions">
-              {isMaster ? <span className={`owner-badge ${layer.ownerRole}`}>{layer.ownerRole === 'master' ? 'M' : 'P'}</span> : null}
+              {layer.locked ? <span className="lock-indicator" title="Заблокирован">L</span> : null}
               <button
                 type="button"
+                draggable={false}
+                onMouseDown={event => event.stopPropagation()}
                 onClick={event => {
                   event.stopPropagation()
                   patchLayer(layer.id, { locked: !layer.locked })
                 }}
                 title={layer.locked ? 'Разблокировать' : 'Заблокировать'}
+                aria-label={layer.locked ? 'Разблокировать слой' : 'Заблокировать слой'}
               >
                 {layer.locked ? 'L' : 'U'}
               </button>
@@ -1768,12 +1849,26 @@ export default function VampireTable() {
               <span>{selectedManagerLayer?.name || 'ничего не выбрано'}</span>
             </header>
 
-            <div className="layer-list">
+            <div
+              className={`layer-list ${layerDropTarget?.layerId === ROOT_LAYER_DROP_ID ? 'drop-root' : ''}`}
+              onDragOver={handleLayerRootDragOver}
+              onDrop={handleLayerRootDrop}
+              onDragLeave={event => {
+                if (event.currentTarget === event.target) setLayerDropTarget(null)
+              }}
+            >
               {layerTree.length === 0 ? (
                 <p className="panel-empty">Слоёв пока нет.</p>
               ) : (
                 layerTree.map(layer => renderLayerNode(layer))
               )}
+              <div
+                className="layer-root-drop-zone"
+                onDragOver={handleLayerRootDragOver}
+                onDrop={handleLayerRootDrop}
+              >
+                Перетащи сюда, чтобы вынести в корень
+              </div>
             </div>
           </section>
 
@@ -2324,6 +2419,10 @@ export default function VampireTable() {
           gap: 0;
         }
 
+        .layer-list.drop-root {
+          box-shadow: inset 0 -2px 0 rgba(123, 168, 255, 0.8);
+        }
+
         .panel-empty {
           margin: auto;
           color: #888;
@@ -2334,19 +2433,29 @@ export default function VampireTable() {
         .layer-row {
           position: relative;
           display: grid;
-          grid-template-columns: 56px minmax(0, 1fr);
-          min-height: 50px;
+          grid-template-columns: 34px minmax(0, 1fr);
+          min-height: 44px;
           border: 0;
-          border-bottom: 1px solid #464646;
+          border-bottom: 1px solid #2b2b2b;
           border-radius: 0;
-          background: #505050;
+          background: #303030;
           overflow: visible;
           color: #eeeeee;
+          cursor: default;
+        }
+
+        .layer-row:hover {
+          background: #393939;
         }
 
         .layer-row.active {
-          border-color: #464646;
-          background: #696969;
+          background: #4b4b4b;
+          box-shadow: inset 3px 0 0 #9ab7ff;
+        }
+
+        .layer-row.hidden {
+          color: #888;
+          background: #262626;
         }
 
         .layer-row.dragging {
@@ -2357,11 +2466,11 @@ export default function VampireTable() {
         .layer-row.drop-after::after {
           content: "";
           position: absolute;
-          left: 56px;
+          left: 34px;
           right: 0;
           height: 2px;
-          background: #36d675;
-          box-shadow: 0 0 10px rgba(54, 214, 117, 0.5);
+          background: #7ba8ff;
+          box-shadow: 0 0 10px rgba(123, 168, 255, 0.45);
           z-index: 2;
         }
 
@@ -2374,175 +2483,201 @@ export default function VampireTable() {
         }
 
         .layer-row.drop-inside {
-          outline: 1px solid #36d675;
-          outline-offset: -2px;
-          background: rgba(54, 214, 117, 0.12);
+          outline: 1px solid rgba(123, 168, 255, 0.9);
+          outline-offset: -3px;
+          background: rgba(123, 168, 255, 0.16);
         }
 
         .layer-visibility {
           width: 100%;
-          min-height: 50px;
+          min-height: 44px;
           border: 0;
-          border-right: 1px solid #3f3f3f;
-          background: #4a4a4a;
+          border-right: 1px solid #262626;
+          background: transparent;
           color: #dcdcdc;
           cursor: pointer;
           font: inherit;
-          font-size: 18px;
           display: grid;
           place-items: center;
         }
 
+        .layer-visibility span {
+          position: relative;
+          width: 17px;
+          height: 11px;
+          border: 1.8px solid currentColor;
+          border-radius: 50%;
+          box-sizing: border-box;
+        }
+
+        .layer-visibility span::after {
+          content: "";
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          background: currentColor;
+          transform: translate(-50%, -50%);
+        }
+
         .layer-visibility:not(.visible) {
-          color: #666;
-          background: #454545;
+          color: #5f5f5f;
         }
 
         .layer-name {
           width: 100%;
-          min-height: 50px;
+          min-height: 44px;
           color: #f1f1f1;
           display: grid;
-          grid-template-columns: 22px minmax(0, 1fr) auto;
-          gap: 4px;
+          grid-template-columns: 18px 36px minmax(0, 1fr) auto;
+          gap: 7px;
           align-items: center;
-          padding: 6px 8px;
+          padding: 4px 8px 4px 0;
           box-sizing: border-box;
         }
 
         .folder-toggle {
-          width: 22px;
-          height: 28px;
+          width: 18px;
+          height: 32px;
           border: 0;
           background: transparent;
-          color: #eeeeee;
+          color: #bdbdbd;
           display: grid;
           place-items: center;
           padding: 0;
           cursor: pointer;
           font: inherit;
-          font-size: 13px;
+          font-size: 12px;
         }
 
         .folder-toggle.spacer {
           pointer-events: none;
         }
 
-        .layer-main {
+        .layer-thumb {
           min-width: 0;
-          border: 0;
-          background: transparent;
-          color: inherit;
+          width: 36px;
+          height: 32px;
           display: grid;
-          grid-template-columns: 58px 20px minmax(0, 1fr);
-          gap: 8px;
-          align-items: center;
-          padding: 0;
-          cursor: pointer;
-          text-align: left;
-          font: inherit;
-        }
-
-        .layer-main img {
-          width: 58px;
-          height: 42px;
-          object-fit: cover;
-          background-color: #f9f9f9;
+          place-items: center;
+          border: 1px solid #181818;
+          background-color: #f4f4f4;
           background-image:
             linear-gradient(45deg, #d8d8d8 25%, transparent 25%),
             linear-gradient(-45deg, #d8d8d8 25%, transparent 25%),
             linear-gradient(45deg, transparent 75%, #d8d8d8 75%),
             linear-gradient(-45deg, transparent 75%, #d8d8d8 75%);
-          background-size: 12px 12px;
-          background-position: 0 0, 0 6px, 6px -6px, -6px 0;
-          border-radius: 0;
-          border: 2px solid #363636;
+          background-size: 10px 10px;
+          background-position: 0 0, 0 5px, 5px -5px, -5px 0;
+          box-shadow: 0 0 0 1px #3f3f3f;
+          overflow: hidden;
+        }
+
+        .layer-thumb img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
         }
 
         .folder-thumb {
           position: relative;
-          width: 30px;
-          height: 20px;
+          width: 24px;
+          height: 17px;
           display: block;
-          margin-left: 2px;
-          background: #eeeeee;
+          background: #c9a557;
           border-radius: 2px;
-          border: 0;
+          border: 1px solid #8b7034;
           font-size: 0;
         }
 
         .folder-thumb::before {
           content: "";
           position: absolute;
-          left: 2px;
+          left: 1px;
           top: -5px;
-          width: 13px;
-          height: 7px;
+          width: 11px;
+          height: 6px;
           border-radius: 2px 2px 0 0;
-          background: #eeeeee;
+          background: #d7b562;
+          border: 1px solid #8b7034;
+          border-bottom: 0;
         }
 
-        .layer-main span {
+        .layer-title {
+          min-width: 0;
+          display: grid;
+          gap: 1px;
+        }
+
+        .layer-title span {
           min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          font-size: 15px;
-          font-weight: 700;
+          font-size: 13px;
+          font-weight: 600;
+          letter-spacing: 0;
         }
 
-        .link-mark {
-          color: #dddddd;
-          font-size: 21px !important;
-          font-weight: 400 !important;
-          text-align: center;
+        .layer-title small {
+          min-width: 0;
+          color: #989898;
+          font-size: 10px;
+          line-height: 1.1;
+          text-transform: uppercase;
         }
 
         .layer-quick-actions {
           display: flex;
-          gap: 3px;
+          gap: 5px;
           align-items: center;
         }
 
-        .owner-badge {
-          width: 22px;
-          height: 22px;
-          border: 1px solid #383838;
-          border-radius: 2px;
-          display: grid;
-          place-items: center;
-          font-size: 10px;
-          color: #ddd;
-          background: #454545;
-        }
-
-        .owner-badge.master {
-          color: #ffd6d6;
-          border-color: #733;
-        }
-
-        .owner-badge.player {
-          color: #dfffe9;
-          border-color: #2d6544;
+        .lock-indicator {
+          color: #d6d6d6;
+          font-size: 11px;
         }
 
         .layer-quick-actions button {
-          width: 22px;
-          height: 22px;
-          border: 1px solid #383838;
-          border-radius: 2px;
-          background: #454545;
-          color: #e7e7e7;
+          width: 20px;
+          height: 20px;
+          border: 1px solid #3a3a3a;
+          border-radius: 3px;
+          background: #272727;
+          color: #cfcfcf;
           font: inherit;
-          font-size: 11px;
+          font-size: 10px;
           padding: 0;
           cursor: pointer;
+        }
+
+        .layer-quick-actions button:hover,
+        .folder-toggle:hover,
+        .layer-visibility:hover {
+          color: #ffffff;
         }
 
         .layer-children {
           display: grid;
           gap: 0;
           margin-top: 0;
+        }
+
+        .layer-root-drop-zone {
+          min-height: 34px;
+          display: grid;
+          place-items: center;
+          color: #777;
+          font-size: 11px;
+          border-top: 1px dashed #333;
+        }
+
+        .layer-list.drop-root .layer-root-drop-zone {
+          color: #c7d7ff;
+          background: rgba(123, 168, 255, 0.09);
         }
 
         .layer-context-menu {
