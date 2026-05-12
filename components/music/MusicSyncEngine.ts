@@ -51,10 +51,27 @@ export class MusicSyncEngine {
 
   applyIncoming(next: MusicState) {
     if (!next || next.room !== this.options.room) return
-    this.state = {
+    const currentTime = new Date(this.state.updatedAt).getTime()
+    const nextTime = new Date(next.updatedAt).getTime()
+    if (Number.isFinite(currentTime) && Number.isFinite(nextTime) && nextTime < currentTime) return
+
+    const mapped = {
       ...next,
       provider: next.provider || getMusicProvider(next.url),
     }
+    if (
+      mapped.updatedAt === this.state.updatedAt &&
+      mapped.url === this.state.url &&
+      mapped.activeUri === this.state.activeUri &&
+      mapped.isPlaying === this.state.isPlaying &&
+      mapped.positionSeconds === this.state.positionSeconds &&
+      mapped.trackId === this.state.trackId &&
+      mapped.playlistIndex === this.state.playlistIndex
+    ) {
+      return
+    }
+
+    this.state = mapped
     this.options.onState(this.state)
   }
 

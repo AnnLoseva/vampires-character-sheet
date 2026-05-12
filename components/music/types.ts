@@ -95,6 +95,7 @@ export type YouTubePlayer = {
   seekTo: (seconds: number, allowSeekAhead: boolean) => void
   setVolume: (volume: number) => void
   getCurrentTime: () => number
+  getPlayerState?: () => number
   getPlaylistIndex?: () => number
   getVideoData?: () => { video_id?: string }
   destroy: () => void

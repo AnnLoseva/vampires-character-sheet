@@ -33,14 +33,15 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition(state)))
     if (this.audio.src !== state.url) this.audio.src = state.url
     this.audio.volume = this.options.volume / 100
-    if (Math.abs(this.audio.currentTime - positionSeconds) > 1.2) this.audio.currentTime = positionSeconds
+    const seekThreshold = this.options.isMaster ? 3.5 : 1.8
+    if (Math.abs(this.audio.currentTime - positionSeconds) > seekThreshold) this.audio.currentTime = positionSeconds
 
-    if (state.isPlaying) {
+    if (state.isPlaying && this.audio.paused) {
       this.audio.play().catch(error => {
         console.error('Браузер заблокировал автозапуск аудио:', error)
         this.options.onStatus('Нажми «Включить музыку», чтобы запустить звук')
       })
-    } else {
+    } else if (!state.isPlaying && !this.audio.paused) {
       this.audio.pause()
     }
   }

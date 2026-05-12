@@ -158,9 +158,18 @@ export class YouTubeAdapter implements MusicSyncAdapter {
       return
     }
 
-    this.player.seekTo(positionSeconds, true)
-    if (this.state.isPlaying) this.player.playVideo()
-    else this.player.pauseVideo()
+    const currentPosition = Math.max(0, this.player.getCurrentTime?.() || 0)
+    const currentPlayerState = this.player.getPlayerState?.()
+    const isActuallyPlaying = currentPlayerState === 1
+    const isActuallyPaused = currentPlayerState === 2 || currentPlayerState === 5 || currentPlayerState === 0
+    const seekThreshold = this.options.isMaster ? 4 : 2.25
+
+    if (Math.abs(currentPosition - positionSeconds) > seekThreshold) {
+      this.player.seekTo(positionSeconds, true)
+    }
+
+    if (this.state.isPlaying && !isActuallyPlaying) this.player.playVideo()
+    if (!this.state.isPlaying && !isActuallyPaused) this.player.pauseVideo()
   }
 
   private handlePlayerState(event: YouTubePlayerStateEvent) {
@@ -202,7 +211,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
 
       const positionSeconds = Math.max(0, Math.floor(this.player.getCurrentTime() || 0))
       const expectedPosition = getEffectiveMusicPosition(this.state, now)
-      if (Math.abs(positionSeconds - expectedPosition) <= 2) return
+      if (Math.abs(positionSeconds - expectedPosition) <= 4) return
 
       this.lastPublishAt = now
       const videoData = this.player.getVideoData?.() || {}

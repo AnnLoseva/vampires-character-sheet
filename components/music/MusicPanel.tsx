@@ -65,6 +65,8 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   const adapterMasterRef = useRef(isMaster)
   const musicStateRef = useRef<MusicState>(emptyMusicState(room))
   const musicLibraryRef = useRef<MusicLibraryItem[]>([])
+  const musicDraftEditingRef = useRef(false)
+  const musicDraftDirtyRef = useRef(false)
 
   const musicProvider = musicState.provider || getMusicProvider(musicState.url)
   const spotifyEmbedUrl = useMemo(() => getSpotifyEmbedUrl(musicState.activeUri || musicState.url), [musicState.activeUri, musicState.url])
@@ -97,7 +99,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       onState: next => {
         musicStateRef.current = next
         setMusicState(next)
-        setMusicDraft(next.url || '')
+        if (!musicDraftEditingRef.current && !musicDraftDirtyRef.current) setMusicDraft(next.url || '')
         setMusicStatus(next.url ? (next.isPlaying ? 'Играет синхронно' : 'Пауза') : 'Музыка выключена')
       },
       onStatus: setMusicStatus,
@@ -320,11 +322,13 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
     if (!normalizedUrl) {
       if (!currentMusic.url) return
+      musicDraftDirtyRef.current = false
       publishMusicState({ url: '', activeUri: '', provider: 'none', playlistId: undefined, playlistIndex: undefined, trackId: undefined, isPlaying: false, positionSeconds: 0 })
       return
     }
 
     if (normalizedUrl === currentMusic.url) {
+      musicDraftDirtyRef.current = false
       if (options.play && !currentMusic.isPlaying) {
         publishMusicState({ isPlaying: true, positionSeconds: Math.max(0, Math.floor(engineRef.current?.getEffectivePosition() ?? 0)) })
       }
@@ -347,6 +351,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         isPlaying: Boolean(options.play),
         positionSeconds: 0,
       })
+      musicDraftDirtyRef.current = false
       return
     }
 
@@ -357,11 +362,13 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         return
       }
       publishMusicState({ url: normalizedUrl, provider, activeUri, isPlaying: Boolean(options.play), positionSeconds: 0 })
+      musicDraftDirtyRef.current = false
       return
     }
 
     if (provider === 'file') {
       publishMusicState({ url: normalizedUrl, provider, activeUri: '', isPlaying: Boolean(options.play), positionSeconds: 0 })
+      musicDraftDirtyRef.current = false
       return
     }
 
@@ -664,14 +671,40 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         <div className="music-controls">
           <input
             value={musicDraft}
-            onChange={event => setMusicDraft(event.target.value)}
-            onBlur={() => applyMusicDraft()}
+            onFocus={() => {
+              musicDraftEditingRef.current = true
+            }}
+            onChange={event => {
+              musicDraftDirtyRef.current = true
+              setMusicDraft(event.target.value)
+            }}
+            onBlur={() => {
+              musicDraftEditingRef.current = false
+            }}
             onKeyDown={event => {
               if (event.key !== 'Enter') return
+              event.preventDefault()
               applyMusicDraft({ play: true })
             }}
-            placeholder="YouTube или Spotify ссылка, Enter чтобы применить"
+            placeholder="YouTube или Spotify ссылка"
           />
+          <div className="music-link-actions">
+            <button type="button" onClick={() => applyMusicDraft()}>
+              Применить
+            </button>
+            <button type="button" onClick={() => applyMusicDraft({ play: true })}>
+              Играть
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                musicDraftDirtyRef.current = false
+                setMusicDraft(musicStateRef.current.url || '')
+              }}
+            >
+              Сброс
+            </button>
+          </div>
           <div className="music-meta">
             <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider === 'youtube' ? youtubeLabel : musicProvider}</span>
             <span>{Math.floor(getEffectiveMusicPosition(musicState))} сек.</span>
@@ -766,6 +799,9 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .music-panel header strong { color: #f5f5f5; font-size: 15px; }
         .music-controls { display: grid; gap: 8px; padding: 10px; }
         .music-controls input { width: 100%; box-sizing: border-box; background: #090909; color: #eee; border: 1px solid #333; border-radius: 5px; padding: 8px; font: inherit; font-size: 12px; }
+        .music-link-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+        .music-link-actions button { min-width: 0; height: 30px; border: 1px solid #333; border-radius: 5px; background: #181818; color: #f4f4f4; cursor: pointer; font: inherit; font-size: 12px; }
+        .music-link-actions button:hover { background: #242424; }
         .music-meta { display: flex; justify-content: space-between; gap: 8px; color: #9c9c9c; font-size: 12px; }
         .music-warning { padding: 9px 10px; border-top: 1px solid #302b20; border-bottom: 1px solid #302b20; background: #1b1710; color: #d9c99d; font-size: 12px; line-height: 1.35; }
         .music-panel iframe { width: 100%; height: 86px; border: 0; border-top: 1px solid #252525; background: #050505; }

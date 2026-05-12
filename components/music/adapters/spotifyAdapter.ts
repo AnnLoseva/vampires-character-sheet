@@ -143,7 +143,7 @@ export class SpotifyAdapter implements MusicSyncAdapter {
   private syncController() {
     if (!this.controller || !this.state) return
     const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition(this.state)))
-    this.controller.seek(positionSeconds)
+    if (!this.options.isMaster) this.controller.seek(positionSeconds)
     if (this.state.isPlaying) this.controller.resume()
     else this.controller.pause()
   }
