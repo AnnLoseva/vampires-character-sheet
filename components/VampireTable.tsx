@@ -168,7 +168,7 @@ type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'ownerRole' | 'parentId
 
 type DragState = {
   id: string
-  mode: 'move' | 'resize' | 'pan'
+  mode: 'move' | 'resize' | 'pan' | 'select'
   corner?: 'nw' | 'ne' | 'sw' | 'se'
   startClientX: number
   startClientY: number
@@ -182,12 +182,19 @@ type DragState = {
   childStartPositions: Array<{ id: string; x: number; y: number }>
 }
 
+type SelectionRect = {
+  x: number
+  y: number
+  width: number
+  height: number
+} | null
+
 type LayerTreeNode = TableLayer & {
   children: LayerTreeNode[]
 }
 
 type LayerContextMenu = {
-  layerId: string
+  layerId: string | null
   x: number
   y: number
 } | null
@@ -478,6 +485,7 @@ export default function VampireTable() {
   const [layers, setLayers] = useState<TableLayer[]>([])
   const [musicLibrary, setMusicLibrary] = useState<MusicLibraryItem[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
+  const [selectedLayerIds, setSelectedLayerIds] = useState<Set<string>>(new Set())
   const [selectedMusicFolderId, setSelectedMusicFolderId] = useState<string | null>(null)
   const [connectionText, setConnectionText] = useState('Подключение...')
   const [tableStatus, setTableStatus] = useState('Загрузка стола...')
@@ -500,6 +508,7 @@ export default function VampireTable() {
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
   const [rightRailTab, setRightRailTab] = useState<RightRailTab>('layers')
+  const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const musicFileInputRef = useRef<HTMLInputElement>(null)
   const audioPlayerRef = useRef<HTMLAudioElement>(null)
@@ -525,6 +534,7 @@ export default function VampireTable() {
   const layersRef = useRef<TableLayer[]>([])
   const musicLibraryRef = useRef<MusicLibraryItem[]>([])
   const panRef = useRef(pan)
+  const suppressNextContextMenuRef = useRef(false)
   const isMaster = tableRole === 'master'
 
   useEffect(() => {
@@ -698,6 +708,11 @@ export default function VampireTable() {
           return next
         })
         setSelectedLayerId(prev => (prev === id ? null : prev))
+        setSelectedLayerIds(prev => {
+          const next = new Set(prev)
+          next.delete(id)
+          return next
+        })
       })
       .on('broadcast', { event: 'music' }, payload => {
         const music = payload.payload as MusicState
@@ -712,6 +727,12 @@ export default function VampireTable() {
           musicLibraryRef.current = next
           return next
         })
+      })
+      .on('broadcast', { event: 'viewport-focus' }, payload => {
+        const focus = payload.payload as { room?: string; pan?: { x: number; y: number }; zoom?: number }
+        if (focus.room !== currentRoom || !focus.pan || typeof focus.zoom !== 'number') return
+        setZoom(focus.zoom)
+        setPan(focus.pan)
       })
       .on(
         'postgres_changes',
@@ -1158,6 +1179,7 @@ export default function VampireTable() {
     layersRef.current = nextLayers
     setLayers(nextLayers)
     setSelectedLayerId(prev => (prev && deleteIds.has(prev) ? null : prev))
+    setSelectedLayerIds(prev => new Set([...prev].filter(id => !deleteIds.has(id))))
     deleteIds.forEach(id => broadcast('layer-delete', { id, room }))
     const supabase = createClient()
     await supabase.from(TABLE_IMAGES).delete().in('id', [...deleteIds])
@@ -1648,6 +1670,54 @@ export default function VampireTable() {
     setLayerContextMenu(null)
   }
 
+  const getContextLayerIds = (layerId: string | null) => {
+    if (layerId && selectedLayerIds.has(layerId) && selectedLayerIds.size > 1) return [...selectedLayerIds]
+    if (layerId) return [layerId]
+    return [...selectedLayerIds]
+  }
+
+  const setLayerSelection = (ids: string[], primaryId = ids[0] || null) => {
+    setSelectedLayerIds(new Set(ids))
+    setSelectedLayerId(primaryId)
+  }
+
+  const patchSelectedLayers = async (ids: string[], patchFor: (layer: TableLayer) => LayerPatch) => {
+    const patches = ids
+      .map(id => layersRef.current.find(layer => layer.id === id))
+      .filter((layer): layer is TableLayer => Boolean(layer))
+      .filter(layer => isMaster || layer.ownerRole !== 'master')
+      .map(layer => ({ id: layer.id, patch: patchFor(layer) }))
+    await patchLayers(patches)
+  }
+
+  const deleteSelectedLayers = async (ids: string[]) => {
+    for (const id of ids) await deleteLayer(id)
+  }
+
+  const focusLayersForEveryone = (ids: string[]) => {
+    const targets = ids
+      .map(id => layersRef.current.find(layer => layer.id === id))
+      .filter((layer): layer is TableLayer => Boolean(layer))
+    if (targets.length === 0 || !sceneRef.current) return
+
+    const minX = Math.min(...targets.map(layer => layer.x))
+    const minY = Math.min(...targets.map(layer => layer.y))
+    const maxX = Math.max(...targets.map(layer => layer.x + layer.width))
+    const maxY = Math.max(...targets.map(layer => layer.y + layer.height))
+    const rect = sceneRef.current.getBoundingClientRect()
+    const contentWidth = Math.max(1, maxX - minX)
+    const contentHeight = Math.max(1, maxY - minY)
+    const nextZoom = Math.min(3, Math.max(0.25, Math.min((rect.width - 80) / contentWidth, (rect.height - 80) / contentHeight)))
+    const nextPan = {
+      x: Math.round(rect.width / 2 - (minX + contentWidth / 2) * nextZoom),
+      y: Math.round(rect.height / 2 - (minY + contentHeight / 2) * nextZoom),
+    }
+
+    setZoom(nextZoom)
+    setPan(nextPan)
+    broadcast('viewport-focus', { room, pan: nextPan, zoom: nextZoom })
+  }
+
   const toggleFolder = (folderId: string) => {
     setExpandedFolders(prev => {
       const next = new Set(prev)
@@ -1772,13 +1842,34 @@ export default function VampireTable() {
     setLayerDropTarget(null)
   }
 
+  const getScenePoint = (event: React.PointerEvent<HTMLElement>) => {
+    const rect = sceneRef.current?.getBoundingClientRect()
+    if (!rect) return { x: 0, y: 0 }
+    return {
+      x: (event.clientX - rect.left - panRef.current.x) / zoom,
+      y: (event.clientY - rect.top - panRef.current.y) / zoom,
+    }
+  }
+
   const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize', corner: DragState['corner'] = 'se') => {
     if (event.button !== 0) return
     if (!isMaster && layer.ownerRole === 'master') return
     if (layer.locked) return
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
+    const nextSelection = selectedLayerIds.has(layer.id) ? selectedLayerIds : new Set([layer.id])
+    setSelectedLayerIds(nextSelection)
     setSelectedLayerId(layer.id)
+    const moveIds = new Set<string>()
+    if (mode === 'move') {
+      nextSelection.forEach(id => {
+        moveIds.add(id)
+        getDescendantIds(id).forEach(childId => moveIds.add(childId))
+      })
+      moveIds.delete(layer.id)
+    } else {
+      getDescendantIds(layer.id).forEach(childId => moveIds.add(childId))
+    }
     dragRef.current = {
       id: layer.id,
       mode,
@@ -1793,17 +1884,39 @@ export default function VampireTable() {
       startPanY: panRef.current.y,
       aspectRatio: Math.max(0.01, layer.width / layer.height),
       childStartPositions: layersRef.current
-        .filter(item => getDescendantIds(layer.id).has(item.id))
+        .filter(item => moveIds.has(item.id))
         .map(item => ({ id: item.id, x: item.x, y: item.y })),
     }
   }
 
   const startPan = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 2) return
+    if (event.button !== 2 && event.button !== 0) return
     const target = event.target as HTMLElement
-    if (!target.classList.contains('scene') && !target.classList.contains('scene-world')) return
+    const emptySceneTarget = target.classList.contains('scene') || target.classList.contains('scene-world')
+    if (event.button === 0 && !emptySceneTarget) return
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
+    suppressNextContextMenuRef.current = false
+    if (event.button === 0) {
+      const point = getScenePoint(event)
+      setLayerSelection([])
+      setSelectionRect({ x: point.x, y: point.y, width: 0, height: 0 })
+      dragRef.current = {
+        id: '',
+        mode: 'select',
+        startClientX: event.clientX,
+        startClientY: event.clientY,
+        startX: point.x,
+        startY: point.y,
+        startWidth: 0,
+        startHeight: 0,
+        startPanX: panRef.current.x,
+        startPanY: panRef.current.y,
+        aspectRatio: 1,
+        childStartPositions: [],
+      }
+      return
+    }
     dragRef.current = {
       id: '',
       mode: 'pan',
@@ -1828,7 +1941,28 @@ export default function VampireTable() {
     const dy = event.clientY - drag.startClientY
 
     if (drag.mode === 'pan') {
+      if (Math.abs(dx) + Math.abs(dy) > 6) suppressNextContextMenuRef.current = true
       setPan({ x: drag.startPanX + dx, y: drag.startPanY + dy })
+      return
+    }
+
+    if (drag.mode === 'select') {
+      const point = getScenePoint(event)
+      const x = Math.min(drag.startX, point.x)
+      const y = Math.min(drag.startY, point.y)
+      const width = Math.abs(point.x - drag.startX)
+      const height = Math.abs(point.y - drag.startY)
+      const rect = { x, y, width, height }
+      setSelectionRect(rect)
+      const selected = visibleLayers
+        .filter(layer => (
+          layer.x < x + width &&
+          layer.x + layer.width > x &&
+          layer.y < y + height &&
+          layer.y + layer.height > y
+        ))
+        .map(layer => layer.id)
+      setLayerSelection(selected)
       return
     }
 
@@ -1876,6 +2010,11 @@ export default function VampireTable() {
     if (!drag) return
 
     dragRef.current = null
+    if (drag.mode === 'select') {
+      setSelectionRect(null)
+      return
+    }
+    if (drag.mode === 'pan') return
     const layer = layersRef.current.find(item => item.id === drag.id)
     if (layer) {
       await patchLayer(layer.id, { x: layer.x, y: layer.y, width: layer.width, height: layer.height })
@@ -1919,7 +2058,7 @@ export default function VampireTable() {
     return (
       <div className="layer-tree-item" key={layer.id}>
         <article
-          className={`layer-row ${selectedLayerId === layer.id ? 'active' : ''} ${draggingLayerId === layer.id ? 'dragging' : ''} ${!isEffectivelyVisible ? 'hidden' : ''} ${layer.locked ? 'locked' : ''} ${
+          className={`layer-row ${selectedLayerIds.has(layer.id) ? 'active' : ''} ${draggingLayerId === layer.id ? 'dragging' : ''} ${!isEffectivelyVisible ? 'hidden' : ''} ${layer.locked ? 'locked' : ''} ${
             isDropTarget ? `drop-${layerDropTarget?.placement}` : ''
           }`}
           draggable={canDragLayer}
@@ -1927,10 +2066,10 @@ export default function VampireTable() {
           onDragOver={event => handleLayerDragOver(event, layer)}
           onDrop={event => handleLayerDrop(event, layer)}
           onDragEnd={handleLayerDragEnd}
-          onClick={() => setSelectedLayerId(layer.id)}
+          onClick={() => setLayerSelection([layer.id], layer.id)}
           onContextMenu={event => {
             event.preventDefault()
-            setSelectedLayerId(layer.id)
+            setLayerSelection([layer.id], layer.id)
             setLayerContextMenu({ layerId: layer.id, x: event.clientX, y: event.clientY })
           }}
           onDoubleClick={() => renameLayer(layer)}
@@ -2100,7 +2239,14 @@ export default function VampireTable() {
             onPointerUp={finishLayerDrag}
             onPointerCancel={finishLayerDrag}
             onPointerLeave={finishLayerDrag}
-            onContextMenu={event => event.preventDefault()}
+          onContextMenu={event => {
+            event.preventDefault()
+            if (suppressNextContextMenuRef.current) {
+              suppressNextContextMenuRef.current = false
+              return
+            }
+            if (selectedLayerIds.size > 0) setLayerContextMenu({ layerId: null, x: event.clientX, y: event.clientY })
+          }}
             onWheel={handleWheel}
             onDragOver={event => {
               event.preventDefault()
@@ -2124,7 +2270,7 @@ export default function VampireTable() {
 
               {visibleLayers.map(layer => (
                 <div
-                  className={`scene-layer ${layer.layerType === 'folder' ? 'folder-layer' : ''} ${selectedLayerId === layer.id ? 'selected' : ''} ${layer.locked || (!isMaster && layer.ownerRole === 'master') ? 'locked' : ''}`}
+                  className={`scene-layer ${layer.layerType === 'folder' ? 'folder-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || (!isMaster && layer.ownerRole === 'master') ? 'locked' : ''}`}
                   key={layer.id}
                   style={{
                     left: layer.x,
@@ -2134,6 +2280,17 @@ export default function VampireTable() {
                     zIndex: layer.zIndex,
                   }}
                   onPointerDown={event => startLayerDrag(event, layer, 'move')}
+                  onContextMenu={event => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    if (suppressNextContextMenuRef.current) {
+                      suppressNextContextMenuRef.current = false
+                      return
+                    }
+                    if (!selectedLayerIds.has(layer.id)) setLayerSelection([layer.id], layer.id)
+                    else setSelectedLayerId(layer.id)
+                    setLayerContextMenu({ layerId: layer.id, x: event.clientX, y: event.clientY })
+                  }}
                 >
                   {layer.layerType === 'folder' ? (
                     <div className="folder-surface">
@@ -2153,7 +2310,7 @@ export default function VampireTable() {
                       <span className="broken-image-label">{layer.name}</span>
                     </>
                   )}
-                  {selectedLayerId === layer.id && !layer.locked && (isMaster || layer.ownerRole !== 'master') ? (
+                  {selectedLayerId === layer.id && selectedLayerIds.size <= 1 && !layer.locked && (isMaster || layer.ownerRole !== 'master') ? (
                     <>
                       {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (
                         <button
@@ -2171,6 +2328,17 @@ export default function VampireTable() {
                   ) : null}
                 </div>
               ))}
+              {selectionRect ? (
+                <div
+                  className="selection-rect"
+                  style={{
+                    left: selectionRect.x,
+                    top: selectionRect.y,
+                    width: selectionRect.width,
+                    height: selectionRect.height,
+                  }}
+                />
+              ) : null}
             </div>
           </div>
         </section>
@@ -2378,40 +2546,52 @@ export default function VampireTable() {
 
       {layerContextMenu ? (() => {
         const layer = layers.find(item => item.id === layerContextMenu.layerId)
-        if (!layer) return null
+        const ids = getContextLayerIds(layerContextMenu.layerId)
+        const contextLayers = ids
+          .map(id => layers.find(item => item.id === id))
+          .filter((item): item is TableLayer => Boolean(item))
+        if (contextLayers.length === 0) return null
+        const firstLayer = layer || contextLayers[0]
+        const allVisible = contextLayers.every(item => item.visible)
+        const allLocked = contextLayers.every(item => item.locked)
+        const singleLayer = contextLayers.length === 1 ? contextLayers[0] : null
         return (
           <div
             className="layer-context-menu"
             style={{ left: layerContextMenu.x, top: layerContextMenu.y }}
             onClick={event => event.stopPropagation()}
           >
-            <button type="button" onClick={() => renameLayer(layer)}>Переименовать</button>
+            {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>Переименовать</button> : null}
             <button type="button" onClick={() => {
-              patchLayer(layer.id, { visible: !layer.visible })
+              patchSelectedLayers(ids, () => ({ visible: !allVisible }))
               setLayerContextMenu(null)
             }}>
-              {layer.visible ? 'Скрыть' : 'Показать'}
+              {allVisible ? 'Скрыть' : 'Показать'}
             </button>
             <button type="button" onClick={() => {
-              patchLayer(layer.id, { locked: !layer.locked })
+              patchSelectedLayers(ids, () => ({ locked: !allLocked }))
               setLayerContextMenu(null)
             }}>
-              {layer.locked ? 'Разблокировать' : 'Заблокировать'}
+              {allLocked ? 'Разблокировать' : 'Заблокировать'}
             </button>
-            {layer.layerType === 'folder' ? (
+            {singleLayer?.layerType === 'folder' ? (
               <button type="button" onClick={() => {
-                createFolder(layer.id)
+                createFolder(singleLayer.id)
                 setLayerContextMenu(null)
               }}>Новая папка внутри</button>
             ) : null}
-            {layer.parentId ? (
+            {contextLayers.some(item => item.parentId) ? (
               <button type="button" onClick={() => {
-                patchLayer(layer.id, { parentId: null })
+                patchSelectedLayers(ids, () => ({ parentId: null }))
                 setLayerContextMenu(null)
               }}>Вынести из папки</button>
             ) : null}
+            <button type="button" onClick={() => {
+              focusLayersForEveryone(ids.length > 0 ? ids : [firstLayer.id])
+              setLayerContextMenu(null)
+            }}>Указать всем</button>
             <button type="button" className="danger" onClick={() => {
-              deleteLayer(layer.id)
+              deleteSelectedLayers(ids)
               setLayerContextMenu(null)
             }}>Удалить</button>
           </div>
@@ -2665,6 +2845,14 @@ export default function VampireTable() {
         .scene-layer.locked {
           cursor: default;
           opacity: 0.82;
+        }
+
+        .selection-rect {
+          position: absolute;
+          z-index: 9999;
+          border: 1px solid #9ab7ff;
+          background: rgba(154, 183, 255, 0.16);
+          pointer-events: none;
         }
 
         .scene-layer img {
