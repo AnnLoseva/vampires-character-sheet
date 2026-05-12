@@ -115,6 +115,7 @@ type YouTubePlayer = {
   playVideo: () => void
   pauseVideo: () => void
   seekTo: (seconds: number, allowSeekAhead: boolean) => void
+  setVolume: (volume: number) => void
   getCurrentTime: () => number
   getVideoData: () => { video_id?: string }
   destroy: () => void
@@ -444,12 +445,14 @@ export default function VampireTable() {
   const [musicPositionSeconds, setMusicPositionSeconds] = useState(0)
   const [musicUpdatedAt, setMusicUpdatedAt] = useState(new Date(0).toISOString())
   const [musicStatus, setMusicStatus] = useState('Музыка не выбрана')
+  const [localYouTubeVolume, setLocalYouTubeVolume] = useState(70)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
   const [rightRailTab, setRightRailTab] = useState<RightRailTab>('layers')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const youtubeShellRef = useRef<HTMLDivElement>(null)
   const youtubeMountRef = useRef<HTMLDivElement>(null)
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null)
   const youtubeVideoIdRef = useRef('')
@@ -495,6 +498,11 @@ export default function VampireTable() {
       window.removeEventListener('keydown', closeMenu)
     }
   }, [layerContextMenu])
+
+  useEffect(() => {
+    const savedVolume = Number(window.localStorage.getItem('vtm-youtube-volume'))
+    if (Number.isFinite(savedVolume)) setLocalYouTubeVolume(Math.min(100, Math.max(0, savedVolume)))
+  }, [])
 
   const applyMusicState = (music: MusicState) => {
     musicStateRef.current = music
@@ -950,6 +958,17 @@ export default function VampireTable() {
     }
   }
 
+  const setPlayerLocalVolume = (volume: number) => {
+    const nextVolume = Math.min(100, Math.max(0, Math.round(volume)))
+    setLocalYouTubeVolume(nextVolume)
+    window.localStorage.setItem('vtm-youtube-volume', String(nextVolume))
+    youtubePlayerRef.current?.setVolume(nextVolume)
+  }
+
+  const openYouTubeFullscreen = () => {
+    youtubeShellRef.current?.requestFullscreen()
+  }
+
   const publishMusicState = async (patch: Partial<Omit<MusicState, 'room' | 'updatedAt'>>) => {
     if (!isMaster) {
       setMusicStatus('Музыкой управляет мастер')
@@ -1082,6 +1101,7 @@ export default function VampireTable() {
               onReady: event => {
                 if (cancelled) return
                 youtubeVideoIdRef.current = youtubeVideoId
+                event.target.setVolume(localYouTubeVolume)
                 syncPlayer(event.target)
               },
               onStateChange: event => {
@@ -1141,6 +1161,11 @@ export default function VampireTable() {
       window.removeEventListener('keydown', unlock)
     }
   }, [musicProvider, musicPlaying])
+
+  useEffect(() => {
+    if (musicProvider !== 'youtube') return
+    youtubePlayerRef.current?.setVolume(localYouTubeVolume)
+  }, [musicProvider, localYouTubeVolume])
 
   useEffect(() => {
     if (!isMaster || musicProvider !== 'youtube' || !youtubeVideoId) return
@@ -1864,9 +1889,10 @@ export default function VampireTable() {
             ) : musicProvider === 'youtube' && youtubeVideoId ? (
               <div
                 className={`youtube-embed ${isMaster ? '' : 'readonly'}`}
-                ref={youtubeMountRef}
-                aria-label="Музыка комнаты"
-              />
+                ref={youtubeShellRef}
+              >
+                <div ref={youtubeMountRef} aria-label="Музыка комнаты" />
+              </div>
             ) : spotifyEmbedUrl ? (
               <iframe
                 className={isMaster ? '' : 'readonly'}
@@ -1875,6 +1901,22 @@ export default function VampireTable() {
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 loading="lazy"
               />
+            ) : null}
+            {!isMaster && musicProvider === 'youtube' && youtubeVideoId ? (
+              <div className="player-local-controls" aria-label="Локальные настройки плеера">
+                <label>
+                  <span>Громкость</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="100"
+                    value={localYouTubeVolume}
+                    onChange={event => setPlayerLocalVolume(Number(event.target.value))}
+                  />
+                  <strong>{localYouTubeVolume}%</strong>
+                </label>
+                <button type="button" onClick={openYouTubeFullscreen}>На весь экран</button>
+              </div>
             ) : null}
           </section>
 
@@ -2449,6 +2491,11 @@ export default function VampireTable() {
           background: #050505;
         }
 
+        .youtube-embed > div {
+          width: 100%;
+          height: 100%;
+        }
+
         .youtube-embed iframe {
           width: 100%;
           height: 100%;
@@ -2485,6 +2532,50 @@ export default function VampireTable() {
 
         .youtube-embed.readonly {
           filter: grayscale(0.18);
+        }
+
+        .player-local-controls {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 10px;
+          align-items: center;
+          padding: 10px;
+          border-top: 1px solid #252525;
+          background: #0d0d0d;
+        }
+
+        .player-local-controls label {
+          min-width: 0;
+          display: grid;
+          grid-template-columns: auto minmax(80px, 1fr) 42px;
+          gap: 8px;
+          align-items: center;
+          color: #bdbdbd;
+          font-size: 12px;
+        }
+
+        .player-local-controls input {
+          width: 100%;
+          accent-color: #9ab7ff;
+        }
+
+        .player-local-controls strong {
+          color: #eee;
+          font-size: 12px;
+          text-align: right;
+        }
+
+        .player-local-controls button {
+          min-width: 0;
+          height: 30px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #181818;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          white-space: nowrap;
         }
 
         .layer-list,
