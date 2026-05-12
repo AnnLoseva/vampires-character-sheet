@@ -104,6 +104,39 @@ type SpotifyIframeApi = {
   ) => void
 }
 
+type YouTubePlayerStateEvent = {
+  data: number
+  target: YouTubePlayer
+}
+
+type YouTubePlayer = {
+  loadVideoById: (options: { videoId: string; startSeconds?: number }) => void
+  cueVideoById: (options: { videoId: string; startSeconds?: number }) => void
+  playVideo: () => void
+  pauseVideo: () => void
+  seekTo: (seconds: number, allowSeekAhead: boolean) => void
+  getCurrentTime: () => number
+  getVideoData: () => { video_id?: string }
+  destroy: () => void
+}
+
+type YouTubeIframeApi = {
+  Player: new (
+    element: HTMLElement,
+    options: {
+      videoId?: string
+      height?: string | number
+      width?: string | number
+      playerVars?: Record<string, string | number>
+      events?: {
+        onReady?: (event: { target: YouTubePlayer }) => void
+        onStateChange?: (event: YouTubePlayerStateEvent) => void
+        onAutoplayBlocked?: () => void
+      }
+    }
+  ) => YouTubePlayer
+}
+
 type TableRole = 'master' | 'player'
 
 type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'ownerRole' | 'parentId' | 'name' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked'>>
@@ -309,22 +342,13 @@ function getYouTubeId(url: string) {
   return ''
 }
 
-function getMusicEmbedUrl(music: MusicState) {
-  const raw = music.url.trim()
+function getSpotifyEmbedUrl(url: string) {
+  const raw = url.trim()
   if (!raw) return ''
 
   try {
     const parsed = new URL(raw)
     const host = parsed.hostname.replace(/^www\./, '')
-    const elapsed = music.isPlaying ? Math.max(0, (Date.now() - new Date(music.updatedAt).getTime()) / 1000) : 0
-    const start = Math.max(0, Math.floor(music.positionSeconds + elapsed))
-    const origin = typeof window === 'undefined' ? '' : window.location.origin
-
-    if (getMusicProvider(raw) === 'youtube') {
-      const id = getYouTubeId(raw)
-      return id ? `https://www.youtube.com/embed/${id}?enablejsapi=1&origin=${encodeURIComponent(origin)}&start=${start}&autoplay=${music.isPlaying ? 1 : 0}` : ''
-    }
-
     if (host === 'open.spotify.com') {
       const parts = parsed.pathname.split('/').filter(Boolean)
       if (parts.length >= 2) return `https://open.spotify.com/embed/${parts[0]}/${parts[1]}`
@@ -334,6 +358,37 @@ function getMusicEmbedUrl(music: MusicState) {
   }
 
   return ''
+}
+
+function loadYouTubeIframeApi() {
+  return new Promise<YouTubeIframeApi>((resolve, reject) => {
+    const win = window as typeof window & {
+      YT?: YouTubeIframeApi
+      __youtubeIframeApiResolvers?: Array<(api: YouTubeIframeApi) => void>
+      onYouTubeIframeAPIReady?: () => void
+    }
+
+    if (win.YT?.Player) {
+      resolve(win.YT)
+      return
+    }
+
+    win.__youtubeIframeApiResolvers = win.__youtubeIframeApiResolvers || []
+    win.__youtubeIframeApiResolvers.push(resolve)
+    win.onYouTubeIframeAPIReady = () => {
+      if (!win.YT?.Player) return
+      win.__youtubeIframeApiResolvers?.splice(0).forEach(callback => callback(win.YT as YouTubeIframeApi))
+    }
+
+    if (document.querySelector('script[data-youtube-iframe-api="true"]')) return
+
+    const script = document.createElement('script')
+    script.src = 'https://www.youtube.com/iframe_api'
+    script.async = true
+    script.dataset.youtubeIframeApi = 'true'
+    script.onerror = () => reject(new Error('YouTube IFrame API failed to load'))
+    document.body.appendChild(script)
+  })
 }
 
 function loadSpotifyIframeApi() {
@@ -391,7 +446,9 @@ export default function VampireTable() {
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const musicFrameRef = useRef<HTMLIFrameElement>(null)
+  const youtubeMountRef = useRef<HTMLDivElement>(null)
+  const youtubePlayerRef = useRef<YouTubePlayer | null>(null)
+  const youtubeVideoIdRef = useRef('')
   const spotifyMountRef = useRef<HTMLDivElement>(null)
   const spotifyControllerRef = useRef<SpotifyController | null>(null)
   const spotifyLastPublishRef = useRef(0)
@@ -711,16 +768,11 @@ export default function VampireTable() {
 
     return sortNodes(roots)
   }, [managerLayers])
-  const musicState = useMemo<MusicState>(() => ({
-    room,
-    url: musicUrl,
-    activeUri: musicActiveUri,
-    isPlaying: musicPlaying,
-    positionSeconds: musicPositionSeconds,
-    updatedAt: musicUpdatedAt,
-  }), [room, musicUrl, musicActiveUri, musicPlaying, musicPositionSeconds, musicUpdatedAt])
-  const musicEmbedUrl = useMemo(() => getMusicEmbedUrl(musicState), [musicState])
+  const spotifyEmbedUrl = useMemo(() => getSpotifyEmbedUrl(musicUrl), [musicUrl])
   const musicProvider = useMemo(() => getMusicProvider(musicUrl), [musicUrl])
+  const youtubeVideoId = useMemo(() => (
+    musicProvider === 'youtube' ? musicActiveUri || getYouTubeId(musicUrl) : ''
+  ), [musicProvider, musicActiveUri, musicUrl])
 
   const broadcast = (event: string, payload: unknown) => {
     channelRef.current?.send({ type: 'broadcast', event, payload })
@@ -881,17 +933,6 @@ export default function VampireTable() {
     return music.positionSeconds + Math.max(0, (Date.now() - new Date(music.updatedAt).getTime()) / 1000)
   }
 
-  const postYouTubeCommand = (command: string, args: unknown[] = []) => {
-    musicFrameRef.current?.contentWindow?.postMessage(
-      JSON.stringify({
-        event: 'command',
-        func: command,
-        args,
-      }),
-      '*'
-    )
-  }
-
   const controlSpotify = (action: 'play' | 'pause' | 'seek', positionSeconds?: number) => {
     const controller = spotifyControllerRef.current
     if (!controller) return
@@ -904,36 +945,33 @@ export default function VampireTable() {
     }
   }
 
-  const publishMusic = async (
-    nextUrl: string,
-    options: { isPlaying?: boolean; positionSeconds?: number; activeUri?: string } = {}
-  ) => {
+  const publishMusicState = async (patch: Partial<Omit<MusicState, 'room' | 'updatedAt'>>) => {
     if (!isMaster) {
       setMusicStatus('Музыкой управляет мастер')
       return
     }
 
-    const normalizedUrl = nextUrl.trim()
+    const current = musicStateRef.current
     const now = new Date().toISOString()
-    const music: MusicState = {
+    const next: MusicState = {
       room,
-      url: normalizedUrl,
-      activeUri: options.activeUri ?? (normalizedUrl === musicStateRef.current.url ? musicStateRef.current.activeUri : ''),
-      isPlaying: options.isPlaying ?? Boolean(normalizedUrl),
-      positionSeconds: Math.max(0, Math.floor(options.positionSeconds ?? 0)),
+      url: (patch.url ?? current.url).trim(),
+      activeUri: patch.activeUri ?? current.activeUri,
+      isPlaying: patch.isPlaying ?? current.isPlaying,
+      positionSeconds: Math.max(0, Math.floor(patch.positionSeconds ?? current.positionSeconds)),
       updatedAt: now,
     }
 
-    applyMusicState(music)
-    broadcast('music', music)
+    applyMusicState(next)
+    broadcast('music', next)
 
     const { error } = await createClient().from(TABLE_MUSIC).upsert({
-      room: music.room,
-      url: music.url,
-      active_uri: music.activeUri,
-      is_playing: music.isPlaying,
-      position_seconds: music.positionSeconds,
-      updated_at: music.updatedAt,
+      room: next.room,
+      url: next.url,
+      active_uri: next.activeUri,
+      is_playing: next.isPlaying,
+      position_seconds: next.positionSeconds,
+      updated_at: next.updatedAt,
     })
 
     if (error) {
@@ -942,34 +980,163 @@ export default function VampireTable() {
     }
   }
 
+  const applyMusicDraft = () => {
+    if (!isMaster) return
+
+    const normalizedUrl = musicDraft.trim()
+    const provider = getMusicProvider(normalizedUrl)
+
+    if (!normalizedUrl) {
+      publishMusicState({ url: '', activeUri: '', isPlaying: false, positionSeconds: 0 })
+      return
+    }
+
+    if (provider === 'youtube') {
+      const videoId = getYouTubeId(normalizedUrl)
+      if (!videoId) {
+        setMusicStatus('YouTube ссылка не распознана')
+        return
+      }
+      publishMusicState({ url: normalizedUrl, activeUri: videoId, isPlaying: false, positionSeconds: 0 })
+      return
+    }
+
+    if (provider === 'spotify') {
+      const activeUri = getSpotifyUri(normalizedUrl)
+      if (!activeUri) {
+        setMusicStatus('Spotify ссылка не распознана')
+        return
+      }
+      publishMusicState({ url: normalizedUrl, activeUri, isPlaying: false, positionSeconds: 0 })
+      return
+    }
+
+    setMusicStatus('Поддерживаются YouTube и Spotify ссылки')
+  }
+
   const setMusicPlayback = (isPlaying: boolean) => {
-    const positionSeconds = getEffectiveMusicPosition()
-    publishMusic(musicUrl, { isPlaying, positionSeconds })
-    if (musicProvider === 'youtube') postYouTubeCommand(isPlaying ? 'playVideo' : 'pauseVideo')
+    const player = youtubePlayerRef.current
+    const positionSeconds = musicProvider === 'youtube' && player
+      ? Math.max(0, Math.floor(player.getCurrentTime() || 0))
+      : Math.max(0, Math.floor(getEffectiveMusicPosition()))
+
+    if (musicProvider === 'youtube' && player) {
+      if (isPlaying) player.playVideo()
+      else player.pauseVideo()
+    }
     if (musicProvider === 'spotify') controlSpotify(isPlaying ? 'play' : 'pause')
+
+    publishMusicState({ isPlaying, positionSeconds })
   }
 
   const seekMusic = (deltaSeconds: number) => {
-    const positionSeconds = Math.max(0, getEffectiveMusicPosition() + deltaSeconds)
-    publishMusic(musicUrl, { isPlaying: musicPlaying, positionSeconds })
-    if (musicProvider === 'youtube') {
-      postYouTubeCommand('seekTo', [positionSeconds, true])
-      if (musicPlaying) postYouTubeCommand('playVideo')
+    const player = youtubePlayerRef.current
+    const basePosition = musicProvider === 'youtube' && player
+      ? player.getCurrentTime() || 0
+      : getEffectiveMusicPosition()
+    const positionSeconds = Math.max(0, Math.floor(basePosition + deltaSeconds))
+
+    if (musicProvider === 'youtube' && player) {
+      player.seekTo(positionSeconds, true)
+      if (musicPlaying) player.playVideo()
     }
     if (musicProvider === 'spotify') controlSpotify('seek', positionSeconds)
+    publishMusicState({ positionSeconds })
   }
 
   useEffect(() => {
-    if (musicProvider !== 'youtube' || !musicUrl) return
+    if (musicProvider !== 'youtube' || !youtubeVideoId || !youtubeMountRef.current) {
+      youtubePlayerRef.current?.destroy()
+      youtubePlayerRef.current = null
+      youtubeVideoIdRef.current = ''
+      return
+    }
 
-    const timeout = window.setTimeout(() => {
-      const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
-      postYouTubeCommand('seekTo', [positionSeconds, true])
-      postYouTubeCommand(musicPlaying ? 'playVideo' : 'pauseVideo')
-    }, 800)
+    let cancelled = false
+    const container = youtubeMountRef.current
 
-    return () => window.clearTimeout(timeout)
-  }, [musicEmbedUrl, musicPlaying, musicPositionSeconds, musicUpdatedAt, musicProvider, musicUrl])
+    loadYouTubeIframeApi()
+      .then(api => {
+        if (cancelled) return
+
+        const syncPlayer = (player: YouTubePlayer) => {
+          const currentMusic = musicStateRef.current
+          const nextVideoId = currentMusic.activeUri || getYouTubeId(currentMusic.url)
+          if (!nextVideoId) return
+
+          const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
+          const loadedVideoId = player.getVideoData().video_id || youtubeVideoIdRef.current
+
+          if (loadedVideoId !== nextVideoId) {
+            if (currentMusic.isPlaying) player.loadVideoById({ videoId: nextVideoId, startSeconds: positionSeconds })
+            else player.cueVideoById({ videoId: nextVideoId, startSeconds: positionSeconds })
+            youtubeVideoIdRef.current = nextVideoId
+          } else {
+            player.seekTo(positionSeconds, true)
+            if (currentMusic.isPlaying) player.playVideo()
+            else player.pauseVideo()
+          }
+        }
+
+        if (!youtubePlayerRef.current) {
+          container.innerHTML = ''
+          youtubePlayerRef.current = new api.Player(container, {
+            videoId: youtubeVideoId,
+            width: '100%',
+            height: 180,
+            playerVars: {
+              autoplay: 0,
+              controls: isMaster ? 1 : 0,
+              enablejsapi: 1,
+              origin: window.location.origin,
+              playsinline: 1,
+            },
+            events: {
+              onReady: event => {
+                if (cancelled) return
+                youtubeVideoIdRef.current = youtubeVideoId
+                syncPlayer(event.target)
+              },
+              onStateChange: event => {
+                if (event.data === 1) setMusicStatus('Играет синхронно')
+                if (event.data === 2) setMusicStatus('Пауза')
+              },
+              onAutoplayBlocked: () => {
+                if (musicStateRef.current.isPlaying) setMusicStatus('Нажми на страницу, чтобы включить музыку')
+              },
+            },
+          })
+          return
+        }
+
+        syncPlayer(youtubePlayerRef.current)
+      })
+      .catch(error => {
+        console.error('YouTube IFrame API не загрузился:', error)
+        setMusicStatus('YouTube API недоступен')
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [musicProvider, youtubeVideoId, musicPlaying, musicPositionSeconds, musicUpdatedAt, isMaster])
+
+  useEffect(() => {
+    if (musicProvider !== 'youtube' || !musicPlaying) return
+
+    const unlock = () => {
+      youtubePlayerRef.current?.playVideo()
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+
+    window.addEventListener('pointerdown', unlock)
+    window.addEventListener('keydown', unlock)
+    return () => {
+      window.removeEventListener('pointerdown', unlock)
+      window.removeEventListener('keydown', unlock)
+    }
+  }, [musicProvider, musicPlaying])
 
   useEffect(() => {
     if (musicProvider !== 'spotify' || !musicUrl || !spotifyMountRef.current) return
@@ -1022,7 +1189,7 @@ export default function VampireTable() {
 
               if (positionChanged || stateChanged) {
                 spotifyLastPublishRef.current = now
-                publishMusic(currentMusic.url, {
+                publishMusicState({
                   isPlaying: nextPlaying,
                   positionSeconds: nextPosition,
                   activeUri: nextUri,
@@ -1540,22 +1707,47 @@ export default function VampireTable() {
                   onChange={event => setMusicDraft(event.target.value)}
                   onKeyDown={event => {
                     if (event.key !== 'Enter') return
-                    publishMusic(musicDraft, { isPlaying: Boolean(musicDraft.trim()), positionSeconds: 0 })
+                    applyMusicDraft()
                   }}
                   placeholder="YouTube или Spotify ссылка"
                 />
+                <div className="music-meta">
+                  <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider}</span>
+                  <span>{Math.floor(getEffectiveMusicPosition())} сек.</span>
+                </div>
+                <div className="music-buttons">
+                  <button type="button" onClick={applyMusicDraft}>Применить</button>
+                  <button type="button" onClick={() => setMusicPlayback(true)} disabled={!musicUrl}>▶</button>
+                  <button type="button" onClick={() => setMusicPlayback(false)} disabled={!musicUrl}>⏸</button>
+                  <button type="button" onClick={() => seekMusic(-10)} disabled={!musicUrl}>-10</button>
+                  <button type="button" onClick={() => seekMusic(10)} disabled={!musicUrl}>+10</button>
+                  <button
+                    type="button"
+                    onClick={() => publishMusicState({ url: '', activeUri: '', isPlaying: false, positionSeconds: 0 })}
+                  >
+                    Очистить
+                  </button>
+                </div>
               </div>
             ) : (
-              <p className="music-readonly">Трек и пауза синхронизируются с мастером.</p>
+              <div className="music-readonly">
+                <p>Музыкой управляет мастер</p>
+                <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider}</span>
+              </div>
             )}
             {musicProvider === 'spotify' && musicUrl ? (
               <div className={`spotify-embed ${isMaster ? '' : 'readonly'}`} ref={spotifyMountRef} />
-            ) : musicEmbedUrl ? (
+            ) : musicProvider === 'youtube' && youtubeVideoId ? (
+              <div
+                className={`youtube-embed ${isMaster ? '' : 'readonly'}`}
+                ref={youtubeMountRef}
+                aria-label="Музыка комнаты"
+              />
+            ) : spotifyEmbedUrl ? (
               <iframe
                 className={isMaster ? '' : 'readonly'}
-                ref={musicFrameRef}
                 title="Музыка комнаты"
-                src={musicEmbedUrl}
+                src={spotifyEmbedUrl}
                 allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
                 loading="lazy"
               />
@@ -2055,12 +2247,58 @@ export default function VampireTable() {
           font-size: 12px;
         }
 
+        .music-meta {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          color: #9c9c9c;
+          font-size: 12px;
+        }
+
+        .music-buttons {
+          display: grid;
+          grid-template-columns: 1.4fr repeat(4, 42px) 1fr;
+          gap: 6px;
+        }
+
+        .music-buttons button {
+          min-width: 0;
+          height: 30px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #181818;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .music-buttons button:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
+        }
+
         .music-panel iframe {
           width: 100%;
           height: 86px;
           border: 0;
           border-top: 1px solid #252525;
           background: #050505;
+        }
+
+        .youtube-embed {
+          width: 100%;
+          aspect-ratio: 16 / 9;
+          min-height: 140px;
+          border-top: 1px solid #252525;
+          background: #050505;
+        }
+
+        .youtube-embed iframe {
+          width: 100%;
+          height: 100%;
+          display: block;
+          border: 0;
         }
 
         .spotify-embed {
@@ -2079,7 +2317,13 @@ export default function VampireTable() {
           border-bottom: 1px solid #252525;
         }
 
+        .music-readonly p {
+          margin: 0 0 4px;
+          color: #ddd;
+        }
+
         .music-panel iframe.readonly,
+        .youtube-embed.readonly,
         .spotify-embed.readonly {
           pointer-events: none;
           filter: grayscale(0.35);
