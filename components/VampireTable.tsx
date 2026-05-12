@@ -343,9 +343,9 @@ function getImageNameFromUrl(url: string) {
   try {
     const parsed = new URL(url)
     const lastPart = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || '')
-    return lastPart || parsed.hostname || 'internet-image'
+    return lastPart || parsed.hostname || 'internet-media'
   } catch {
-    return 'internet-image'
+    return 'internet-media'
   }
 }
 
@@ -439,6 +439,16 @@ function getDroppedMediaUrls(dataTransfer: DataTransfer) {
     .filter((item): item is { url: string; layerType: 'image' | 'video' } => Boolean(item))
 }
 
+function getMediaUrlsFromText(value: string) {
+  return [...new Set(value.split(/\s+/).map(item => item.trim()).filter(Boolean))]
+    .map(url => {
+      if (isImageUrlCandidate(url)) return { url, layerType: 'image' as const }
+      if (isVideoUrlCandidate(url)) return { url, layerType: 'video' as const }
+      return null
+    })
+    .filter((item): item is { url: string; layerType: 'image' | 'video' } => Boolean(item))
+}
+
 export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
@@ -468,6 +478,7 @@ export default function VampireTable() {
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
+  const [mediaUrlDraft, setMediaUrlDraft] = useState('')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
@@ -1400,6 +1411,7 @@ export default function VampireTable() {
     layersRef.current = upsertLayer(layersRef.current, layer)
     setLayers(layersRef.current)
     setSelectedLayerId(layer.id)
+    setSelectedLayerIds(new Set([layer.id]))
     broadcast('layer', layer)
 
     if (error) {
@@ -1480,6 +1492,18 @@ export default function VampireTable() {
       await uploadFiles(event.target.files)
       event.target.value = ''
     }
+  }
+
+  const handleMediaUrlSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const items = getMediaUrlsFromText(mediaUrlDraft)
+    if (items.length === 0) {
+      window.alert('Вставь прямую ссылку на картинку или видео: jpg, png, webp, gif, svg, mp4, webm, mov, m4v, ogg.')
+      return
+    }
+
+    const added = await addRemoteMediaUrls(items)
+    if (added) setMediaUrlDraft('')
   }
 
   const deleteLayer = async (layerId: string) => {
@@ -1775,6 +1799,15 @@ export default function VampireTable() {
     if (event.button !== 0) return
     if (!isMaster && layer.ownerRole === 'master') return
     if (layer.locked) return
+    const target = event.target as HTMLElement
+    if (mode === 'move' && layer.layerType === 'video' && target instanceof HTMLVideoElement) {
+      const rect = target.getBoundingClientRect()
+      const controlHeight = Math.min(56, Math.max(36, rect.height * 0.3))
+      if (event.clientY >= rect.bottom - controlHeight) {
+        setLayerSelection([layer.id], layer.id)
+        return
+      }
+    }
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
     const nextSelection = selectedLayerIds.has(layer.id) ? selectedLayerIds : new Set([layer.id])
@@ -2201,7 +2234,6 @@ export default function VampireTable() {
                         loop
                         playsInline
                         draggable={false}
-                        onPointerDown={event => event.stopPropagation()}
                         onError={event => {
                           event.currentTarget.style.display = 'none'
                           event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -2298,6 +2330,18 @@ export default function VampireTable() {
                 <strong>Слои</strong>
                 <span>{selectedManagerLayer?.name || 'ничего не выбрано'}</span>
               </header>
+
+              <form className="media-url-form" onSubmit={handleMediaUrlSubmit}>
+                <input
+                  value={mediaUrlDraft}
+                  onChange={event => setMediaUrlDraft(event.target.value)}
+                  placeholder="Ссылка на картинку или видео"
+                  disabled={isUploading}
+                />
+                <button type="submit" disabled={isUploading || !mediaUrlDraft.trim()}>
+                  Вставить
+                </button>
+              </form>
 
               <div
                 className={`layer-list ${layerDropTarget?.layerId === ROOT_LAYER_DROP_ID ? 'drop-root' : ''}`}
@@ -3093,6 +3137,11 @@ export default function VampireTable() {
           border-radius: 0;
         }
 
+        .layer-panel {
+          display: grid;
+          grid-template-rows: auto auto minmax(0, 1fr);
+        }
+
         .table-right-panel {
           width: 100%;
           min-width: 0;
@@ -3125,6 +3174,48 @@ export default function VampireTable() {
           color: #888;
           text-align: center;
           font-size: 13px;
+        }
+
+        .media-url-form {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 6px;
+          padding: 8px;
+          border-bottom: 1px solid #2b2b2b;
+          background: #141414;
+        }
+
+        .media-url-form input {
+          min-width: 0;
+          height: 34px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #0c0c0c;
+          color: #f4f4f4;
+          padding: 0 10px;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .media-url-form input:disabled {
+          opacity: 0.6;
+        }
+
+        .media-url-form button {
+          height: 34px;
+          border: 1px solid #773030;
+          border-radius: 5px;
+          background: #1b1b1b;
+          color: #f4f4f4;
+          padding: 0 10px;
+          font: inherit;
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        .media-url-form button:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
 
         .layer-row {
