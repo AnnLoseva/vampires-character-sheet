@@ -80,6 +80,29 @@ type ChatMessageRow = {
   created_at: string
 }
 
+type VoiceParticipant = {
+  id: string
+  username: string
+  characterName: string
+  characterImage: string
+  volume: number
+  muted: boolean
+  connected: boolean
+}
+
+type VoiceSignal = {
+  type: 'join' | 'offer' | 'answer' | 'ice' | 'leave' | 'mute'
+  room: string
+  from: string
+  to?: string
+  username?: string
+  characterName?: string
+  characterImage?: string
+  muted?: boolean
+  description?: RTCSessionDescriptionInit
+  candidate?: RTCIceCandidateInit
+}
+
 type TableLayer = {
   id: string
   room: string
@@ -427,6 +450,11 @@ export default function VampireTable() {
   const [chatAuthMode, setChatAuthMode] = useState<'login' | 'register'>('login')
   const [chatStatus, setChatStatus] = useState('Чат подключается...')
   const [isChatBusy, setIsChatBusy] = useState(false)
+  const [voiceEnabled, setVoiceEnabled] = useState(false)
+  const [voiceMuted, setVoiceMuted] = useState(false)
+  const [voiceStatus, setVoiceStatus] = useState('Голос выключен')
+  const [voiceMasterVolume, setVoiceMasterVolume] = useState(1)
+  const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipant[]>([])
   const [layers, setLayers] = useState<TableLayer[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
   const [selectedLayerIds, setSelectedLayerIds] = useState<Set<string>>(new Set())
@@ -449,6 +477,17 @@ export default function VampireTable() {
   const dragRef = useRef<DragState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
   const panRef = useRef(pan)
+  const roomRef = useRef(room)
+  const chatUserRef = useRef<ChatUser | null>(null)
+  const chatCharactersRef = useRef<CharacterOption[]>([])
+  const selectedChatCharacterIdRef = useRef('')
+  const voiceEnabledRef = useRef(false)
+  const voiceMutedRef = useRef(false)
+  const voiceParticipantsRef = useRef<VoiceParticipant[]>([])
+  const localVoiceStreamRef = useRef<MediaStream | null>(null)
+  const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map())
+  const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map())
+  const voiceAudioRefs = useRef<Map<string, HTMLAudioElement>>(new Map())
   const suppressNextContextMenuRef = useRef(false)
   const isMaster = tableRole === 'master'
 
@@ -459,6 +498,38 @@ export default function VampireTable() {
   useEffect(() => {
     panRef.current = pan
   }, [pan])
+
+  useEffect(() => {
+    roomRef.current = room
+  }, [room])
+
+  useEffect(() => {
+    chatUserRef.current = chatUser
+  }, [chatUser])
+
+  useEffect(() => {
+    chatCharactersRef.current = chatCharacters
+  }, [chatCharacters])
+
+  useEffect(() => {
+    selectedChatCharacterIdRef.current = selectedChatCharacterId
+  }, [selectedChatCharacterId])
+
+  useEffect(() => {
+    voiceEnabledRef.current = voiceEnabled
+  }, [voiceEnabled])
+
+  useEffect(() => {
+    voiceMutedRef.current = voiceMuted
+  }, [voiceMuted])
+
+  useEffect(() => {
+    voiceParticipantsRef.current = voiceParticipants
+    voiceParticipants.forEach(participant => {
+      const audio = voiceAudioRefs.current.get(participant.id)
+      if (audio) audio.volume = Math.max(0, Math.min(1, participant.volume * voiceMasterVolume))
+    })
+  }, [voiceParticipants, voiceMasterVolume])
 
   useEffect(() => {
     const savedRole = window.localStorage.getItem('vtm-table-role')
@@ -654,6 +725,9 @@ export default function VampireTable() {
         if (!message || message.room !== currentRoom) return
         setChatMessages(prev => mergeChatMessage(prev, message))
         setChatStatus('Чат онлайн')
+      })
+      .on('broadcast', { event: 'voice-signal' }, payload => {
+        handleVoiceSignal(payload.payload as VoiceSignal)
       })
 
 
@@ -894,6 +968,7 @@ export default function VampireTable() {
   }
 
   const logoutChat = () => {
+    stopVoice()
     window.localStorage.removeItem('vtm-chat-user')
     setChatUser(null)
     setChatStatus('Выйди в аккаунт, чтобы писать')
@@ -949,6 +1024,249 @@ export default function VampireTable() {
       setChatStatus('Чат онлайн')
     }
   }
+
+  const getVoiceIdentity = () => {
+    const user = chatUserRef.current
+    const character = chatCharactersRef.current.find(item => item.id === selectedChatCharacterIdRef.current)
+    if (!user || !character) return null
+    return {
+      id: user.id,
+      username: user.username,
+      characterName: character.name,
+      characterImage: character.image,
+    }
+  }
+
+  const getSavedVoiceVolume = (participantId: string) => {
+    const saved = Number(window.localStorage.getItem(`vtm-voice-volume:${participantId}`))
+    return Number.isFinite(saved) ? Math.max(0, Math.min(1, saved)) : 1
+  }
+
+  const upsertVoiceParticipant = (signal: VoiceSignal, patch: Partial<VoiceParticipant> = {}) => {
+    if (!signal.from || signal.from === chatUserRef.current?.id) return
+    setVoiceParticipants(prev => {
+      const existing = prev.find(item => item.id === signal.from)
+      const base: VoiceParticipant = {
+        id: signal.from,
+        username: signal.username || existing?.username || 'Участник',
+        characterName: signal.characterName || existing?.characterName || 'Безымянный',
+        characterImage: signal.characterImage ?? existing?.characterImage ?? '',
+        volume: existing?.volume ?? getSavedVoiceVolume(signal.from),
+        muted: signal.muted ?? existing?.muted ?? false,
+        connected: existing?.connected ?? false,
+      }
+      const next = { ...base, ...patch }
+      return existing ? prev.map(item => (item.id === signal.from ? next : item)) : [...prev, next]
+    })
+  }
+
+  const removeVoiceParticipant = (participantId: string) => {
+    const connection = peerConnectionsRef.current.get(participantId)
+    connection?.close()
+    peerConnectionsRef.current.delete(participantId)
+    remoteStreamsRef.current.delete(participantId)
+    voiceAudioRefs.current.delete(participantId)
+    setVoiceParticipants(prev => prev.filter(item => item.id !== participantId))
+  }
+
+  const setVoiceParticipantVolume = (participantId: string, volume: number) => {
+    const nextVolume = Math.max(0, Math.min(1, volume))
+    window.localStorage.setItem(`vtm-voice-volume:${participantId}`, String(nextVolume))
+    setVoiceParticipants(prev => prev.map(item => (item.id === participantId ? { ...item, volume: nextVolume } : item)))
+  }
+
+  const broadcastVoiceSignal = (signal: Omit<VoiceSignal, 'room' | 'from'>) => {
+    const identity = getVoiceIdentity()
+    if (!identity) return
+    broadcast('voice-signal', {
+      ...signal,
+      room: roomRef.current,
+      from: identity.id,
+      username: identity.username,
+      characterName: identity.characterName,
+      characterImage: identity.characterImage,
+      muted: voiceMutedRef.current,
+    })
+  }
+
+  const attachRemoteStream = (participantId: string, stream: MediaStream) => {
+    remoteStreamsRef.current.set(participantId, stream)
+    const audio = voiceAudioRefs.current.get(participantId)
+    if (audio) {
+      audio.srcObject = stream
+      audio.volume = Math.max(0, Math.min(1, (voiceParticipantsRef.current.find(item => item.id === participantId)?.volume ?? 1) * voiceMasterVolume))
+      audio.play().catch(() => setVoiceStatus('Нажми на страницу, если браузер заблокировал звук'))
+    }
+  }
+
+  const createVoicePeer = async (participantId: string, offerAfterCreate: boolean) => {
+    const existing = peerConnectionsRef.current.get(participantId)
+    if (existing && existing.connectionState !== 'closed') return existing
+
+    const connection = new RTCPeerConnection({
+      iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
+    })
+
+    peerConnectionsRef.current.set(participantId, connection)
+    localVoiceStreamRef.current?.getTracks().forEach(track => {
+      const stream = localVoiceStreamRef.current
+      if (stream) connection.addTrack(track, stream)
+    })
+
+    connection.onicecandidate = event => {
+      if (!event.candidate) return
+      broadcastVoiceSignal({
+        type: 'ice',
+        to: participantId,
+        candidate: event.candidate.toJSON(),
+      })
+    }
+
+    connection.ontrack = event => {
+      const [stream] = event.streams
+      if (stream) attachRemoteStream(participantId, stream)
+      upsertVoiceParticipant({ type: 'join', room: roomRef.current, from: participantId }, { connected: true })
+    }
+
+    connection.onconnectionstatechange = () => {
+      const connected = connection.connectionState === 'connected'
+      const failed = connection.connectionState === 'failed' || connection.connectionState === 'closed' || connection.connectionState === 'disconnected'
+      setVoiceParticipants(prev => prev.map(item => (item.id === participantId ? { ...item, connected: connected || (!failed && item.connected) } : item)))
+      if (failed) setVoiceStatus('Кто-то отключился от голоса')
+    }
+
+    if (offerAfterCreate) {
+      const offer = await connection.createOffer()
+      await connection.setLocalDescription(offer)
+      broadcastVoiceSignal({
+        type: 'offer',
+        to: participantId,
+        description: connection.localDescription?.toJSON(),
+      })
+    }
+
+    return connection
+  }
+
+  const handleVoiceSignal = async (signal: VoiceSignal) => {
+    const currentUser = chatUserRef.current
+    if (!signal || signal.room !== roomRef.current || !signal.from || signal.from === currentUser?.id) return
+
+    if (signal.to && signal.to !== currentUser?.id) return
+
+    if (signal.type === 'leave') {
+      removeVoiceParticipant(signal.from)
+      return
+    }
+
+    if (signal.type === 'mute') {
+      upsertVoiceParticipant(signal, { muted: Boolean(signal.muted) })
+      return
+    }
+
+    upsertVoiceParticipant(signal)
+
+    if (!voiceEnabledRef.current || !currentUser) return
+
+    try {
+      if (signal.type === 'join') {
+        await createVoicePeer(signal.from, true)
+        return
+      }
+
+      if (signal.type === 'offer' && signal.description) {
+        const connection = await createVoicePeer(signal.from, false)
+        await connection.setRemoteDescription(signal.description)
+        const answer = await connection.createAnswer()
+        await connection.setLocalDescription(answer)
+        broadcastVoiceSignal({
+          type: 'answer',
+          to: signal.from,
+          description: connection.localDescription?.toJSON(),
+        })
+        return
+      }
+
+      if (signal.type === 'answer' && signal.description) {
+        const connection = peerConnectionsRef.current.get(signal.from)
+        if (connection && connection.signalingState !== 'stable') {
+          await connection.setRemoteDescription(signal.description)
+        }
+        return
+      }
+
+      if (signal.type === 'ice' && signal.candidate) {
+        const connection = peerConnectionsRef.current.get(signal.from)
+        if (connection?.remoteDescription) await connection.addIceCandidate(signal.candidate)
+      }
+    } catch (error) {
+      console.error('Не удалось обработать голосовой сигнал:', error)
+      setVoiceStatus('Голос не смог соединиться')
+    }
+  }
+
+  const stopVoice = () => {
+    const wasEnabled = voiceEnabledRef.current
+    if (wasEnabled) broadcastVoiceSignal({ type: 'leave' })
+    voiceEnabledRef.current = false
+    peerConnectionsRef.current.forEach(connection => connection.close())
+    peerConnectionsRef.current.clear()
+    remoteStreamsRef.current.clear()
+    voiceAudioRefs.current.clear()
+    localVoiceStreamRef.current?.getTracks().forEach(track => track.stop())
+    localVoiceStreamRef.current = null
+    setVoiceEnabled(false)
+    setVoiceParticipants([])
+    setVoiceStatus('Голос выключен')
+  }
+
+  const startVoice = async () => {
+    const identity = getVoiceIdentity()
+    if (!chatUserRef.current) {
+      window.alert('Сначала войди в аккаунт.')
+      return
+    }
+    if (!identity) {
+      window.alert('Выбери персонажа для голоса.')
+      return
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      })
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = !voiceMutedRef.current
+      })
+      localVoiceStreamRef.current = stream
+      voiceEnabledRef.current = true
+      setVoiceEnabled(true)
+      setVoiceStatus('Голос онлайн')
+      broadcastVoiceSignal({ type: 'join' })
+    } catch (error) {
+      console.error('Микрофон недоступен:', error)
+      setVoiceStatus('Микрофон недоступен')
+      window.alert('Не получилось включить микрофон. Проверь разрешение браузера.')
+    }
+  }
+
+  const toggleVoiceMuted = () => {
+    const nextMuted = !voiceMutedRef.current
+    localVoiceStreamRef.current?.getAudioTracks().forEach(track => {
+      track.enabled = !nextMuted
+    })
+    setVoiceMuted(nextMuted)
+    voiceMutedRef.current = nextMuted
+    if (voiceEnabledRef.current) broadcastVoiceSignal({ type: 'mute', muted: nextMuted })
+  }
+
+  useEffect(() => {
+    return () => stopVoice()
+  }, [])
 
   const patchLayer = async (id: string, patch: LayerPatch, options: { persist?: boolean } = { persist: true }) => {
     const existingLayer = layersRef.current.find(layer => layer.id === id)
@@ -2047,6 +2365,109 @@ export default function VampireTable() {
               )}
             </div>
 
+            <section className="voice-panel" aria-label="Голосовой чат">
+              <header>
+                <div>
+                  <strong>Голос</strong>
+                  <span>{voiceStatus}</span>
+                </div>
+                <button
+                  type="button"
+                  className={voiceEnabled ? 'danger' : ''}
+                  onClick={voiceEnabled ? stopVoice : startVoice}
+                  disabled={!chatUser || chatCharacters.length === 0}
+                >
+                  {voiceEnabled ? 'Выйти' : 'Войти'}
+                </button>
+              </header>
+
+              <div className="voice-controls">
+                <button
+                  type="button"
+                  className={voiceMuted ? 'muted' : ''}
+                  onClick={toggleVoiceMuted}
+                  disabled={!voiceEnabled}
+                >
+                  {voiceMuted ? 'Микрофон выкл.' : 'Микрофон вкл.'}
+                </button>
+                <label>
+                  <span>Общая громкость</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    value={voiceMasterVolume}
+                    onChange={event => setVoiceMasterVolume(Number(event.target.value))}
+                  />
+                  <strong>{Math.round(voiceMasterVolume * 100)}%</strong>
+                </label>
+              </div>
+
+              <div className="voice-participants">
+                {voiceEnabled ? (
+                  <article className="voice-participant self">
+                    <div className="chat-avatar" aria-hidden="true">
+                      {chatCharacters.find(item => item.id === selectedChatCharacterId)?.image ? (
+                        <img src={chatCharacters.find(item => item.id === selectedChatCharacterId)?.image} alt="" />
+                      ) : (
+                        <span>{(chatCharacters.find(item => item.id === selectedChatCharacterId)?.name || chatUser?.username || 'Я').slice(0, 1).toUpperCase()}</span>
+                      )}
+                    </div>
+                    <div>
+                      <strong>{chatCharacters.find(item => item.id === selectedChatCharacterId)?.name || 'Вы'}</strong>
+                      <span>{voiceMuted ? 'микрофон выключен' : 'вы в голосе'}</span>
+                    </div>
+                  </article>
+                ) : null}
+
+                {voiceParticipants.length === 0 ? (
+                  <p>{voiceEnabled ? 'Пока никого не слышно.' : 'Войди в голос, чтобы слышать участников.'}</p>
+                ) : (
+                  voiceParticipants.map(participant => (
+                    <article className="voice-participant" key={participant.id}>
+                      <audio
+                        autoPlay
+                        playsInline
+                        ref={element => {
+                          if (!element) {
+                            voiceAudioRefs.current.delete(participant.id)
+                            return
+                          }
+                          voiceAudioRefs.current.set(participant.id, element)
+                          const stream = remoteStreamsRef.current.get(participant.id)
+                          if (stream && element.srcObject !== stream) element.srcObject = stream
+                          element.volume = Math.max(0, Math.min(1, participant.volume * voiceMasterVolume))
+                          if (stream) element.play().catch(() => setVoiceStatus('Нажми на страницу, если браузер заблокировал звук'))
+                        }}
+                      />
+                      <div className="chat-avatar" aria-hidden="true">
+                        {participant.characterImage ? <img src={participant.characterImage} alt="" /> : <span>{participant.characterName.slice(0, 1).toUpperCase()}</span>}
+                      </div>
+                      <div className="voice-participant-main">
+                        <div>
+                          <strong>{participant.characterName}</strong>
+                          <span>{participant.muted ? 'микрофон выключен' : participant.connected ? 'слышно' : 'соединение...'}</span>
+                        </div>
+                        <label>
+                          <span>Громкость</span>
+                          <input
+                            type="range"
+                            min="0"
+                            max="1"
+                            step="0.01"
+                            value={participant.volume}
+                            onChange={event => setVoiceParticipantVolume(participant.id, Number(event.target.value))}
+                          />
+                          <strong>{Math.round(participant.volume * 100)}%</strong>
+                        </label>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+            </section>
+
             <section className="chat-list" ref={chatListRef}>
               {chatMessages.length === 0 ? (
                 <p className="panel-empty">Сообщений пока нет.</p>
@@ -3039,7 +3460,7 @@ export default function VampireTable() {
 
         .chat-sidebar {
           display: grid;
-          grid-template-rows: auto auto minmax(0, 1fr) auto;
+          grid-template-rows: auto auto auto minmax(0, 1fr) auto;
         }
 
         .chat-sidebar header {
@@ -3157,6 +3578,132 @@ export default function VampireTable() {
           color: #9c9c9c;
           font-size: 12px;
           line-height: 1.35;
+        }
+
+        .voice-panel {
+          border-bottom: 1px solid #292929;
+          background: #0f0f0f;
+          display: grid;
+          gap: 9px;
+          padding: 10px;
+        }
+
+        .voice-panel header {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 76px;
+          gap: 8px;
+          align-items: center;
+          border: 0;
+          background: transparent;
+        }
+
+        .voice-panel header div {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .voice-panel header strong,
+        .voice-participant strong,
+        .voice-controls strong {
+          min-width: 0;
+          color: #f3f3f3;
+          font-size: 12px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .voice-panel header span,
+        .voice-participant span,
+        .voice-controls span,
+        .voice-participants p {
+          color: #9c9c9c;
+          font-size: 11px;
+        }
+
+        .voice-panel button {
+          min-width: 0;
+          height: 30px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #1d1d1d;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .voice-panel button:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+
+        .voice-panel button.danger,
+        .voice-panel button.muted {
+          border-color: #703333;
+          color: #ffd0d0;
+          background: #271414;
+        }
+
+        .voice-controls {
+          display: grid;
+          grid-template-columns: 112px minmax(0, 1fr);
+          gap: 8px;
+          align-items: center;
+        }
+
+        .voice-controls label,
+        .voice-participant label {
+          min-width: 0;
+          display: grid;
+          grid-template-columns: auto minmax(72px, 1fr) 38px;
+          gap: 7px;
+          align-items: center;
+        }
+
+        .voice-controls input,
+        .voice-participant input {
+          min-width: 0;
+          width: 100%;
+          accent-color: #36d675;
+        }
+
+        .voice-participants {
+          display: grid;
+          gap: 7px;
+        }
+
+        .voice-participants p {
+          margin: 0;
+        }
+
+        .voice-participant {
+          display: grid;
+          grid-template-columns: 38px minmax(0, 1fr);
+          gap: 9px;
+          align-items: center;
+          border: 1px solid #292929;
+          border-radius: 7px;
+          background: #151515;
+          padding: 7px;
+        }
+
+        .voice-participant.self {
+          border-color: rgba(54, 214, 117, 0.34);
+          background: #122018;
+        }
+
+        .voice-participant-main,
+        .voice-participant-main > div,
+        .voice-participant.self > div {
+          min-width: 0;
+          display: grid;
+          gap: 4px;
+        }
+
+        .voice-participant audio {
+          display: none;
         }
 
         .chat-list {
