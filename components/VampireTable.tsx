@@ -36,7 +36,7 @@ type RollRow = {
 type TableLayer = {
   id: string
   room: string
-  layerType: 'image' | 'folder'
+  layerType: 'image' | 'video' | 'folder'
   ownerRole: TableRole
   parentId: string | null
   name: string
@@ -54,7 +54,7 @@ type TableLayer = {
 type TableLayerRow = {
   id: string
   room: string
-  layer_type: 'image' | 'folder' | null
+  layer_type: 'image' | 'video' | 'folder' | null
   owner_role: TableRole | null
   parent_id: string | null
   name: string
@@ -207,6 +207,25 @@ function getImageSize(src: string) {
   })
 }
 
+function getVideoSize(src: string) {
+  return new Promise<{ width: number; height: number }>(resolve => {
+    const video = document.createElement('video')
+    video.preload = 'metadata'
+    video.muted = true
+    video.onloadedmetadata = () => {
+      resolve({ width: video.videoWidth || 640, height: video.videoHeight || 360 })
+      video.removeAttribute('src')
+      video.load()
+    }
+    video.onerror = () => resolve({ width: 640, height: 360 })
+    video.src = src
+  })
+}
+
+function getMediaSize(src: string, layerType: TableLayer['layerType']) {
+  return layerType === 'video' ? getVideoSize(src) : getImageSize(src)
+}
+
 function safeStorageName(name: string) {
   const cleanName = name
     .normalize('NFKD')
@@ -249,6 +268,20 @@ function isImageUrlCandidate(value: string) {
   }
 }
 
+function isVideoUrlCandidate(value: string) {
+  const raw = value.trim()
+  if (!raw) return false
+  if (/^data:video\//i.test(raw) || /^blob:/i.test(raw)) return true
+
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    return /\.(mp4|webm|mov|m4v|ogv|ogg)(?:$|[?#])/i.test(parsed.pathname + parsed.search)
+  } catch {
+    return false
+  }
+}
+
 function extractImageUrlsFromHtml(html: string) {
   if (!html.trim()) return []
   const documentFragment = new DOMParser().parseFromString(html, 'text/html')
@@ -272,9 +305,28 @@ function extractImageUrlsFromHtml(html: string) {
   return urls
 }
 
-function getDroppedImageUrls(dataTransfer: DataTransfer) {
+function extractVideoUrlsFromHtml(html: string) {
+  if (!html.trim()) return []
+  const documentFragment = new DOMParser().parseFromString(html, 'text/html')
+  const urls: string[] = []
+
+  documentFragment.querySelectorAll('video, source').forEach(element => {
+    const src = element.getAttribute('src') || element.getAttribute('data-src')
+    if (src) urls.push(src)
+  })
+
+  documentFragment.querySelectorAll('meta[property="og:video"], meta[property="og:video:url"], meta[name="twitter:player:stream"]').forEach(element => {
+    const content = element.getAttribute('content')
+    if (content) urls.push(content)
+  })
+
+  return urls
+}
+
+function getDroppedMediaUrls(dataTransfer: DataTransfer) {
   const candidates: string[] = []
   candidates.push(...extractImageUrlsFromHtml(dataTransfer.getData('text/html')))
+  candidates.push(...extractVideoUrlsFromHtml(dataTransfer.getData('text/html')))
   candidates.push(
     ...dataTransfer
       .getData('text/uri-list')
@@ -283,7 +335,13 @@ function getDroppedImageUrls(dataTransfer: DataTransfer) {
   )
   candidates.push(dataTransfer.getData('text/plain'))
 
-  return [...new Set(candidates.map(value => value.trim()).filter(isImageUrlCandidate))]
+  return [...new Set(candidates.map(value => value.trim()))]
+    .map(url => {
+      if (isImageUrlCandidate(url)) return { url, layerType: 'image' as const }
+      if (isVideoUrlCandidate(url)) return { url, layerType: 'video' as const }
+      return null
+    })
+    .filter((item): item is { url: string; layerType: 'image' | 'video' } => Boolean(item))
 }
 
 export default function VampireTable() {
@@ -606,10 +664,11 @@ export default function VampireTable() {
     }
   }
 
-  const addImageLayer = async (
+  const addMediaLayer = async (
     imageData: string,
     name: string,
     natural: { width: number; height: number },
+    layerType: 'image' | 'video' = 'image',
     index = 0,
     point?: { x: number; y: number }
   ) => {
@@ -621,7 +680,7 @@ export default function VampireTable() {
     const layer: TableLayer = {
       id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
       room,
-      layerType: 'image',
+      layerType,
       ownerRole,
       parentId: activeFolder?.id || null,
       name,
@@ -667,9 +726,9 @@ export default function VampireTable() {
   }
 
   const uploadFiles = async (files: FileList | File[]) => {
-    const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
-    if (imageFiles.length === 0) {
-      window.alert('Можно загрузить только картинки.')
+    const mediaFiles = Array.from(files).filter(file => file.type.startsWith('image/') || file.type.startsWith('video/'))
+    if (mediaFiles.length === 0) {
+      window.alert('Можно загрузить только картинки или видео.')
       return
     }
 
@@ -677,10 +736,11 @@ export default function VampireTable() {
 
     try {
       const supabase = createClient()
-      for (const [index, file] of imageFiles.entries()) {
+      for (const [index, file] of mediaFiles.entries()) {
+        const layerType = file.type.startsWith('video/') ? 'video' : 'image'
         const id = `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`
         const objectUrl = URL.createObjectURL(file)
-        const natural = await getImageSize(objectUrl)
+        const natural = await getMediaSize(objectUrl, layerType)
         URL.revokeObjectURL(objectUrl)
 
         const storagePath = `${room}/${id}-${safeStorageName(file.name)}`
@@ -699,7 +759,7 @@ export default function VampireTable() {
         }
 
         const { data: publicUrlData } = supabase.storage.from(TABLE_IMAGE_BUCKET).getPublicUrl(storagePath)
-        await addImageLayer(publicUrlData.publicUrl, file.name, natural, index)
+        await addMediaLayer(publicUrlData.publicUrl, file.name, natural, layerType, index)
       }
 
       setTableStatus('Сцена онлайн')
@@ -708,17 +768,18 @@ export default function VampireTable() {
     }
   }
 
-  const addRemoteImageUrls = async (urls: string[], point?: { x: number; y: number }) => {
-    if (urls.length === 0) return false
+  const addRemoteMediaUrls = async (items: Array<{ url: string; layerType: 'image' | 'video' }>, point?: { x: number; y: number }) => {
+    if (items.length === 0) return false
     setIsUploading(true)
 
     try {
-      for (const [index, url] of urls.entries()) {
-        const natural = await getImageSize(url)
-        await addImageLayer(
-          url,
-          getImageNameFromUrl(url),
+      for (const [index, item] of items.entries()) {
+        const natural = await getMediaSize(item.url, item.layerType)
+        await addMediaLayer(
+          item.url,
+          getImageNameFromUrl(item.url),
           natural,
+          item.layerType,
           index,
           point ? { x: point.x + index * 28, y: point.y + index * 24 } : undefined
         )
@@ -756,7 +817,7 @@ export default function VampireTable() {
     const supabase = createClient()
     await supabase.from(TABLE_IMAGES).delete().in('id', [...deleteIds])
 
-    await Promise.all(deletedLayers.filter(item => item.layerType === 'image').map(async deletedLayer => {
+    await Promise.all(deletedLayers.filter(item => item.layerType === 'image' || item.layerType === 'video').map(async deletedLayer => {
       const storagePath = getStoragePathFromPublicUrl(deletedLayer.imageData)
       if (storagePath) {
         const { error } = await supabase.storage.from(TABLE_IMAGE_BUCKET).remove([storagePath])
@@ -1219,14 +1280,14 @@ export default function VampireTable() {
     event.preventDefault()
     setIsDraggingOver(false)
     const droppedFiles = Array.from(event.dataTransfer.files || [])
-    if (droppedFiles.some(file => file.type.startsWith('image/'))) {
+    if (droppedFiles.some(file => file.type.startsWith('image/') || file.type.startsWith('video/'))) {
       await uploadFiles(droppedFiles)
       return
     }
 
-    const imageUrls = getDroppedImageUrls(event.dataTransfer)
-    if (imageUrls.length > 0) {
-      await addRemoteImageUrls(imageUrls, getScenePointFromClient(event.clientX, event.clientY))
+    const mediaUrls = getDroppedMediaUrls(event.dataTransfer)
+    if (mediaUrls.length > 0) {
+      await addRemoteMediaUrls(mediaUrls, getScenePointFromClient(event.clientX, event.clientY))
       return
     }
 
@@ -1296,6 +1357,8 @@ export default function VampireTable() {
             <div className="layer-thumb" aria-hidden="true">
               {isFolder ? (
                 <span className="folder-thumb" />
+              ) : layer.layerType === 'video' ? (
+                <span className="video-thumb">▶</span>
               ) : (
                 <img
                   src={layer.imageData}
@@ -1359,7 +1422,7 @@ export default function VampireTable() {
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
             {isUploading ? 'Загрузка...' : 'Добавить слой'}
           </button>
-          <input ref={fileInputRef} type="file" accept="image/*" multiple onChange={handleImageUpload} />
+          <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleImageUpload} />
         </div>
       </section>
 
@@ -1420,7 +1483,7 @@ export default function VampireTable() {
 
               {visibleLayers.map(layer => (
                 <div
-                  className={`scene-layer ${layer.layerType === 'folder' ? 'folder-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || (!isMaster && layer.ownerRole === 'master') ? 'locked' : ''}`}
+                  className={`scene-layer ${layer.layerType === 'folder' ? 'folder-layer' : ''} ${layer.layerType === 'video' ? 'video-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || (!isMaster && layer.ownerRole === 'master') ? 'locked' : ''}`}
                   key={layer.id}
                   style={{
                     left: layer.x,
@@ -1446,6 +1509,22 @@ export default function VampireTable() {
                     <div className="folder-surface">
                       <span>{layer.name}</span>
                     </div>
+                  ) : layer.layerType === 'video' ? (
+                    <>
+                      <video
+                        src={layer.imageData}
+                        controls
+                        loop
+                        playsInline
+                        draggable={false}
+                        onPointerDown={event => event.stopPropagation()}
+                        onError={event => {
+                          event.currentTarget.style.display = 'none'
+                          event.currentTarget.parentElement?.classList.add('image-load-error')
+                        }}
+                      />
+                      <span className="broken-image-label">{layer.name}</span>
+                    </>
                   ) : (
                     <>
                       <img
@@ -1904,12 +1983,21 @@ export default function VampireTable() {
           pointer-events: none;
         }
 
-        .scene-layer img {
+        .scene-layer img,
+        .scene-layer video {
           width: 100%;
           height: 100%;
           object-fit: fill;
           display: block;
+        }
+
+        .scene-layer img {
           pointer-events: none;
+        }
+
+        .scene-layer video,
+        .video-layer {
+          background: #050505;
         }
 
         .folder-layer {
@@ -2227,6 +2315,16 @@ export default function VampireTable() {
           object-fit: cover;
           display: block;
           pointer-events: none;
+        }
+
+        .video-thumb {
+          width: 100%;
+          height: 100%;
+          display: grid;
+          place-items: center;
+          background: #131722;
+          color: #9ab7ff;
+          font-size: 12px;
         }
 
         .folder-thumb {
