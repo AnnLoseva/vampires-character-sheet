@@ -225,6 +225,67 @@ function getStoragePathFromPublicUrl(publicUrl: string, bucket = TABLE_IMAGE_BUC
   return decodeURIComponent(publicUrl.slice(index + marker.length).split('?')[0])
 }
 
+function getImageNameFromUrl(url: string) {
+  try {
+    const parsed = new URL(url)
+    const lastPart = decodeURIComponent(parsed.pathname.split('/').filter(Boolean).pop() || '')
+    return lastPart || parsed.hostname || 'internet-image'
+  } catch {
+    return 'internet-image'
+  }
+}
+
+function isImageUrlCandidate(value: string) {
+  const raw = value.trim()
+  if (!raw) return false
+  if (/^data:image\//i.test(raw) || /^blob:/i.test(raw)) return true
+
+  try {
+    const parsed = new URL(raw)
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+    return /\.(apng|avif|gif|jpe?g|png|svg|webp)(?:$|[?#])/i.test(parsed.pathname + parsed.search)
+  } catch {
+    return false
+  }
+}
+
+function extractImageUrlsFromHtml(html: string) {
+  if (!html.trim()) return []
+  const documentFragment = new DOMParser().parseFromString(html, 'text/html')
+  const urls: string[] = []
+
+  documentFragment.querySelectorAll('img, source').forEach(element => {
+    const src = element.getAttribute('src') || element.getAttribute('data-src')
+    if (src) urls.push(src)
+    const srcset = element.getAttribute('srcset')
+    if (srcset) {
+      const firstSrc = srcset.split(',')[0]?.trim().split(/\s+/)[0]
+      if (firstSrc) urls.push(firstSrc)
+    }
+  })
+
+  documentFragment.querySelectorAll('meta[property="og:image"], meta[name="twitter:image"]').forEach(element => {
+    const content = element.getAttribute('content')
+    if (content) urls.push(content)
+  })
+
+  return urls
+}
+
+function getDroppedImageUrls(dataTransfer: DataTransfer) {
+  const candidates: string[] = []
+  candidates.push(...extractImageUrlsFromHtml(dataTransfer.getData('text/html')))
+  candidates.push(
+    ...dataTransfer
+      .getData('text/uri-list')
+      .split(/\r?\n/)
+      .filter(line => line && !line.startsWith('#'))
+  )
+  candidates.push(dataTransfer.getData('text/plain'))
+
+  return [...new Set(candidates.map(value => value.trim()).filter(isImageUrlCandidate))]
+}
+
 export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
@@ -545,6 +606,66 @@ export default function VampireTable() {
     }
   }
 
+  const addImageLayer = async (
+    imageData: string,
+    name: string,
+    natural: { width: number; height: number },
+    index = 0,
+    point?: { x: number; y: number }
+  ) => {
+    const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
+    const fitWidth = Math.min(760, Math.max(220, natural.width))
+    const fitHeight = Math.max(160, Math.round((fitWidth / Math.max(1, natural.width)) * Math.max(1, natural.height)))
+    const ownerRole = tableRole ?? 'player'
+    const activeFolder = selectedLayer?.layerType === 'folder' && (isMaster || selectedLayer.ownerRole !== 'master') ? selectedLayer : null
+    const layer: TableLayer = {
+      id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+      room,
+      layerType: 'image',
+      ownerRole,
+      parentId: activeFolder?.id || null,
+      name,
+      imageData,
+      x: Math.round(point?.x ?? (activeFolder?.x ?? 80) + ((layersRef.current.length + index) % 6) * 28),
+      y: Math.round(point?.y ?? (activeFolder?.y ?? 70) + ((layersRef.current.length + index) % 6) * 24),
+      width: fitWidth,
+      height: fitHeight,
+      zIndex: maxZ + 1,
+      visible: true,
+      locked: false,
+      createdAt: new Date().toISOString(),
+    }
+
+    const { error } = await createClient().from(TABLE_IMAGES).insert({
+      id: layer.id,
+      room: layer.room,
+      layer_type: layer.layerType,
+      owner_role: layer.ownerRole,
+      parent_id: layer.parentId,
+      name: layer.name,
+      image_data: layer.imageData,
+      x: layer.x,
+      y: layer.y,
+      width: layer.width,
+      height: layer.height,
+      z_index: layer.zIndex,
+      visible: layer.visible,
+      locked: layer.locked,
+      created_at: layer.createdAt,
+    })
+
+    layersRef.current = upsertLayer(layersRef.current, layer)
+    setLayers(layersRef.current)
+    setSelectedLayerId(layer.id)
+    broadcast('layer', layer)
+
+    if (error) {
+      console.error('Не удалось сохранить слой стола:', error)
+      setTableStatus('Слой показан онлайн, но не сохранён')
+      window.alert('Слой показан онлайн, но не сохранился. Нужно обновить table_images в Supabase.')
+    }
+  }
+
   const uploadFiles = async (files: FileList | File[]) => {
     const imageFiles = Array.from(files).filter(file => file.type.startsWith('image/'))
     if (imageFiles.length === 0) {
@@ -578,61 +699,32 @@ export default function VampireTable() {
         }
 
         const { data: publicUrlData } = supabase.storage.from(TABLE_IMAGE_BUCKET).getPublicUrl(storagePath)
-        const imageData = publicUrlData.publicUrl
-        const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
-        const fitWidth = Math.min(760, Math.max(220, natural.width))
-        const fitHeight = Math.max(160, Math.round((fitWidth / natural.width) * natural.height))
-        const ownerRole = tableRole ?? 'player'
-        const activeFolder = selectedLayer?.layerType === 'folder' && (isMaster || selectedLayer.ownerRole !== 'master') ? selectedLayer : null
-        const layer: TableLayer = {
-          id,
-          room,
-          layerType: 'image',
-          ownerRole,
-          parentId: activeFolder?.id || null,
-          name: file.name,
-          imageData,
-          x: (activeFolder?.x ?? 80) + ((layersRef.current.length + index) % 6) * 28,
-          y: (activeFolder?.y ?? 70) + ((layersRef.current.length + index) % 6) * 24,
-          width: fitWidth,
-          height: fitHeight,
-          zIndex: maxZ + 1,
-          visible: true,
-          locked: false,
-          createdAt: new Date().toISOString(),
-        }
-
-        const { error } = await supabase.from(TABLE_IMAGES).insert({
-          id: layer.id,
-          room: layer.room,
-          layer_type: layer.layerType,
-          owner_role: layer.ownerRole,
-          parent_id: layer.parentId,
-          name: layer.name,
-          image_data: layer.imageData,
-          x: layer.x,
-          y: layer.y,
-          width: layer.width,
-          height: layer.height,
-          z_index: layer.zIndex,
-          visible: layer.visible,
-          locked: layer.locked,
-          created_at: layer.createdAt,
-        })
-
-        layersRef.current = upsertLayer(layersRef.current, layer)
-        setLayers(layersRef.current)
-        setSelectedLayerId(layer.id)
-        broadcast('layer', layer)
-
-        if (error) {
-          console.error('Не удалось сохранить слой стола:', error)
-          setTableStatus('Слой показан онлайн, но не сохранён')
-          window.alert('Слой показан онлайн, но не сохранился. Нужно обновить table_images в Supabase.')
-        }
+        await addImageLayer(publicUrlData.publicUrl, file.name, natural, index)
       }
 
       setTableStatus('Сцена онлайн')
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const addRemoteImageUrls = async (urls: string[], point?: { x: number; y: number }) => {
+    if (urls.length === 0) return false
+    setIsUploading(true)
+
+    try {
+      for (const [index, url] of urls.entries()) {
+        const natural = await getImageSize(url)
+        await addImageLayer(
+          url,
+          getImageNameFromUrl(url),
+          natural,
+          index,
+          point ? { x: point.x + index * 28, y: point.y + index * 24 } : undefined
+        )
+      }
+      setTableStatus('Сцена онлайн')
+      return true
     } finally {
       setIsUploading(false)
     }
@@ -923,14 +1015,16 @@ export default function VampireTable() {
     setLayerDropTarget(null)
   }
 
-  const getScenePoint = (event: React.PointerEvent<HTMLElement>) => {
+  const getScenePointFromClient = (clientX: number, clientY: number) => {
     const rect = sceneRef.current?.getBoundingClientRect()
     if (!rect) return { x: 0, y: 0 }
     return {
-      x: (event.clientX - rect.left - panRef.current.x) / zoom,
-      y: (event.clientY - rect.top - panRef.current.y) / zoom,
+      x: (clientX - rect.left - panRef.current.x) / zoom,
+      y: (clientY - rect.top - panRef.current.y) / zoom,
     }
   }
+
+  const getScenePoint = (event: React.PointerEvent<HTMLElement>) => getScenePointFromClient(event.clientX, event.clientY)
 
   const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize', corner: DragState['corner'] = 'se') => {
     if (event.button !== 0) return
@@ -1124,9 +1218,19 @@ export default function VampireTable() {
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDraggingOver(false)
-    if (event.dataTransfer.files?.length) {
-      await uploadFiles(event.dataTransfer.files)
+    const droppedFiles = Array.from(event.dataTransfer.files || [])
+    if (droppedFiles.some(file => file.type.startsWith('image/'))) {
+      await uploadFiles(droppedFiles)
+      return
     }
+
+    const imageUrls = getDroppedImageUrls(event.dataTransfer)
+    if (imageUrls.length > 0) {
+      await addRemoteImageUrls(imageUrls, getScenePointFromClient(event.clientX, event.clientY))
+      return
+    }
+
+    if (droppedFiles.length > 0) await uploadFiles(droppedFiles)
   }
 
   const renderLayerNode = (layer: LayerTreeNode, depth = 0): React.ReactNode => {
