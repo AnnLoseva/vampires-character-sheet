@@ -303,6 +303,8 @@ function getImageSize(src: string) {
 }
 
 function getVideoSize(src: string) {
+  if (getEmbeddableVideoUrl(src)) return Promise.resolve({ width: 640, height: 360 })
+
   return new Promise<{ width: number; height: number }>(resolve => {
     const video = document.createElement('video')
     video.preload = 'metadata'
@@ -367,6 +369,7 @@ function isVideoUrlCandidate(value: string) {
   const raw = value.trim()
   if (!raw) return false
   if (/^data:video\//i.test(raw) || /^blob:/i.test(raw)) return true
+  if (getEmbeddableVideoUrl(raw)) return true
 
   try {
     const parsed = new URL(raw)
@@ -375,6 +378,34 @@ function isVideoUrlCandidate(value: string) {
   } catch {
     return false
   }
+}
+
+function getYouTubeId(url: string) {
+  try {
+    const parsed = new URL(url)
+    const hostname = parsed.hostname.replace(/^www\./i, '').toLowerCase()
+    if (hostname === 'youtu.be') return parsed.pathname.split('/').filter(Boolean)[0] || ''
+    if (!hostname.endsWith('youtube.com') && !hostname.endsWith('youtube-nocookie.com')) return ''
+
+    if (parsed.pathname === '/watch') return parsed.searchParams.get('v') || ''
+    const parts = parsed.pathname.split('/').filter(Boolean)
+    if (['embed', 'shorts', 'live'].includes(parts[0])) return parts[1] || ''
+    return ''
+  } catch {
+    return ''
+  }
+}
+
+function getEmbeddableVideoUrl(url: string) {
+  const youtubeId = getYouTubeId(url)
+  if (!youtubeId) return ''
+  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtubeId)}?rel=0`
+}
+
+function getMediaUrlCandidate(url: string) {
+  if (isImageUrlCandidate(url)) return { url, layerType: 'image' as const }
+  if (isVideoUrlCandidate(url)) return { url, layerType: 'video' as const }
+  return null
 }
 
 function extractImageUrlsFromHtml(html: string) {
@@ -431,21 +462,13 @@ function getDroppedMediaUrls(dataTransfer: DataTransfer) {
   candidates.push(dataTransfer.getData('text/plain'))
 
   return [...new Set(candidates.map(value => value.trim()))]
-    .map(url => {
-      if (isImageUrlCandidate(url)) return { url, layerType: 'image' as const }
-      if (isVideoUrlCandidate(url)) return { url, layerType: 'video' as const }
-      return null
-    })
+    .map(getMediaUrlCandidate)
     .filter((item): item is { url: string; layerType: 'image' | 'video' } => Boolean(item))
 }
 
 function getMediaUrlsFromText(value: string) {
   return [...new Set(value.split(/\s+/).map(item => item.trim()).filter(Boolean))]
-    .map(url => {
-      if (isImageUrlCandidate(url)) return { url, layerType: 'image' as const }
-      if (isVideoUrlCandidate(url)) return { url, layerType: 'video' as const }
-      return null
-    })
+    .map(getMediaUrlCandidate)
     .filter((item): item is { url: string; layerType: 'image' | 'video' } => Boolean(item))
 }
 
@@ -1498,7 +1521,7 @@ export default function VampireTable() {
     event.preventDefault()
     const items = getMediaUrlsFromText(mediaUrlDraft)
     if (items.length === 0) {
-      window.alert('Вставь прямую ссылку на картинку или видео: jpg, png, webp, gif, svg, mp4, webm, mov, m4v, ogg.')
+      window.alert('Вставь ссылку на YouTube или прямую ссылку на файл: jpg, png, webp, gif, svg, mp4, webm, mov, m4v, ogg.')
       return
     }
 
@@ -2228,17 +2251,40 @@ export default function VampireTable() {
                     </div>
                   ) : layer.layerType === 'video' ? (
                     <>
-                      <video
-                        src={layer.imageData}
-                        controls
-                        loop
-                        playsInline
-                        draggable={false}
-                        onError={event => {
-                          event.currentTarget.style.display = 'none'
-                          event.currentTarget.parentElement?.classList.add('image-load-error')
-                        }}
-                      />
+                      {getEmbeddableVideoUrl(layer.imageData) ? (
+                        <>
+                          <iframe
+                            src={getEmbeddableVideoUrl(layer.imageData)}
+                            title={layer.name}
+                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                            allowFullScreen
+                          />
+                          <button
+                            type="button"
+                            className="embedded-video-drag-handle"
+                            onPointerDown={event => {
+                              event.stopPropagation()
+                              startLayerDrag(event, layer, 'move')
+                            }}
+                            title="Переместить видео"
+                            aria-label="Переместить видео"
+                          >
+                            ⠿
+                          </button>
+                        </>
+                      ) : (
+                        <video
+                          src={layer.imageData}
+                          controls
+                          loop
+                          playsInline
+                          draggable={false}
+                          onError={event => {
+                            event.currentTarget.style.display = 'none'
+                            event.currentTarget.parentElement?.classList.add('image-load-error')
+                          }}
+                        />
+                      )}
                       <span className="broken-image-label">{layer.name}</span>
                     </>
                   ) : (
@@ -2335,7 +2381,7 @@ export default function VampireTable() {
                 <input
                   value={mediaUrlDraft}
                   onChange={event => setMediaUrlDraft(event.target.value)}
-                  placeholder="Ссылка на картинку или видео"
+                  placeholder="Ссылка на картинку, видео или YouTube"
                   disabled={isUploading}
                 />
                 <button type="submit" disabled={isUploading || !mediaUrlDraft.trim()}>
@@ -2959,11 +3005,16 @@ export default function VampireTable() {
         }
 
         .scene-layer img,
-        .scene-layer video {
+        .scene-layer video,
+        .scene-layer iframe {
           width: 100%;
           height: 100%;
-          object-fit: fill;
           display: block;
+        }
+
+        .scene-layer img,
+        .scene-layer video {
+          object-fit: fill;
         }
 
         .scene-layer img {
@@ -2971,8 +3022,37 @@ export default function VampireTable() {
         }
 
         .scene-layer video,
+        .scene-layer iframe,
         .video-layer {
           background: #050505;
+        }
+
+        .scene-layer iframe {
+          border: 0;
+        }
+
+        .embedded-video-drag-handle {
+          position: absolute;
+          left: 8px;
+          top: 8px;
+          width: 30px;
+          height: 30px;
+          border: 1px solid rgba(255,255,255,0.22);
+          border-radius: 5px;
+          background: rgba(0,0,0,0.68);
+          color: #f4f4f4;
+          display: grid;
+          place-items: center;
+          font: inherit;
+          line-height: 1;
+          cursor: move;
+          opacity: 0.72;
+          z-index: 2;
+        }
+
+        .embedded-video-drag-handle:hover,
+        .scene-layer.selected .embedded-video-drag-handle {
+          opacity: 1;
         }
 
         .folder-layer {
