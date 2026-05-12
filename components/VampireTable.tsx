@@ -42,12 +42,18 @@ type CharacterOption = {
   id: string
   name: string
   clan: string | null
+  image: string
 }
 
 type CharacterRow = {
   id: string
   name: string
   clan: string | null
+  data: {
+    characterImage?: string
+    image?: string
+    portrait?: string
+  } | null
 }
 
 type ChatMessage = {
@@ -57,6 +63,7 @@ type ChatMessage = {
   username: string
   characterId: string | null
   characterName: string
+  characterImage: string
   message: string
   createdAt: string
 }
@@ -68,6 +75,7 @@ type ChatMessageRow = {
   username: string
   character_id: string | null
   character_name: string
+  character_image: string | null
   message: string
   created_at: string
 }
@@ -217,6 +225,7 @@ function mapChatRow(row: ChatMessageRow): ChatMessage {
     username: row.username,
     characterId: row.character_id,
     characterName: row.character_name,
+    characterImage: row.character_image || '',
     message: row.message,
     createdAt: row.created_at,
   }
@@ -480,7 +489,7 @@ export default function VampireTable() {
     let cancelled = false
     createClient()
       .from('characters')
-      .select('id, name, clan')
+      .select('id, name, clan, data')
       .eq('user_id', chatUser.id)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -491,7 +500,15 @@ export default function VampireTable() {
           return
         }
 
-        const characters = (data || []).map(row => row as CharacterRow)
+        const characters = (data || []).map(row => {
+          const character = row as CharacterRow
+          return {
+            id: character.id,
+            name: character.name,
+            clan: character.clan,
+            image: character.data?.characterImage || character.data?.image || character.data?.portrait || '',
+          }
+        })
         setChatCharacters(characters)
         const savedId = window.localStorage.getItem(`vtm-chat-character:${chatUser.id}`)
         const nextId = savedId && characters.some(character => character.id === savedId)
@@ -573,7 +590,7 @@ export default function VampireTable() {
 
     supabase
       .from(TABLE_CHAT_MESSAGES)
-      .select('id, room, user_id, username, character_id, character_name, message, created_at')
+      .select('id, room, user_id, username, character_id, character_name, character_image, message, created_at')
       .eq('room', currentRoom)
       .order('created_at', { ascending: false })
       .limit(120)
@@ -903,6 +920,7 @@ export default function VampireTable() {
       username: chatUser.username,
       characterId: character.id,
       characterName: character.name,
+      characterImage: character.image,
       message: text,
       createdAt: new Date().toISOString(),
     }
@@ -918,6 +936,7 @@ export default function VampireTable() {
       username: message.username,
       character_id: message.characterId,
       character_name: message.characterName,
+      character_image: message.characterImage,
       message: message.message,
       created_at: message.createdAt,
     })
@@ -2034,9 +2053,18 @@ export default function VampireTable() {
               ) : (
                 chatMessages.map(message => (
                   <article className={`chat-message ${message.userId === chatUser?.id ? 'own' : ''}`} key={message.id}>
-                    <div className="chat-message-meta">
-                      <strong>{message.characterName}</strong>
-                      <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                    <div className="chat-message-head">
+                      <div className="chat-avatar" aria-hidden="true">
+                        {message.characterImage ? (
+                          <img src={message.characterImage} alt="" />
+                        ) : (
+                          <span>{message.characterName.slice(0, 1).toUpperCase()}</span>
+                        )}
+                      </div>
+                      <div className="chat-message-meta">
+                        <strong>{message.characterName}</strong>
+                        <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                      </div>
                     </div>
                     <p>{message.message}</p>
                     <span>{message.username}</span>
@@ -3148,11 +3176,39 @@ export default function VampireTable() {
           background: #142019;
         }
 
-        .chat-message-meta {
-          display: flex;
-          justify-content: space-between;
+        .chat-message-head {
+          display: grid;
+          grid-template-columns: 38px minmax(0, 1fr);
           gap: 10px;
           align-items: center;
+        }
+
+        .chat-avatar {
+          width: 38px;
+          height: 38px;
+          border: 1px solid #343434;
+          border-radius: 6px;
+          background: #202020;
+          overflow: hidden;
+          display: grid;
+          place-items: center;
+          color: #d7d7d7;
+          font-size: 16px;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+
+        .chat-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .chat-message-meta {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
         }
 
         .chat-message-meta strong {

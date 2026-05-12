@@ -5,9 +5,13 @@ create table if not exists public.table_chat_messages (
   username text not null,
   character_id text null,
   character_name text not null,
+  character_image text not null default '',
   message text not null check (char_length(trim(message)) > 0 and char_length(message) <= 4000),
   created_at timestamptz not null default now()
 );
+
+alter table public.table_chat_messages
+  add column if not exists character_image text not null default '';
 
 create index if not exists table_chat_messages_room_created_at_idx
   on public.table_chat_messages (room, created_at desc);
