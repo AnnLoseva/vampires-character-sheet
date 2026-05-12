@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import MusicPanel from './music/MusicPanel'
 
 type Die = {
   value: number
@@ -68,104 +69,6 @@ type TableLayerRow = {
   created_at: string
 }
 
-type MusicState = {
-  room: string
-  url: string
-  activeUri: string
-  isPlaying: boolean
-  positionSeconds: number
-  updatedAt: string
-}
-
-type MusicRow = {
-  room: string
-  url: string
-  active_uri: string | null
-  is_playing: boolean | null
-  position_seconds: number | null
-  updated_at: string
-}
-
-type MusicLibraryItem = {
-  id: string
-  room: string
-  itemType: 'track' | 'folder'
-  parentId: string | null
-  name: string
-  url: string
-  createdAt: string
-}
-
-type MusicLibraryRow = {
-  id: string
-  room: string
-  item_type: 'track' | 'folder' | null
-  parent_id: string | null
-  name: string
-  url: string | null
-  created_at: string
-}
-
-type MusicTreeNode = MusicLibraryItem & {
-  children: MusicTreeNode[]
-}
-
-type MusicDropTarget = {
-  id: string | null
-} | null
-
-type SpotifyController = {
-  loadUri: (spotifyUri: string, preferVideo?: boolean, startAt?: number) => void
-  play: () => void
-  pause: () => void
-  resume: () => void
-  seek: (seconds: number) => void
-  destroy: () => void
-  addListener: (event: string, callback: (event: { data: { playingURI?: string; isPaused?: boolean; position?: number } }) => void) => void
-}
-
-type SpotifyIframeApi = {
-  createController: (
-    element: HTMLElement,
-    options: { uri: string; width?: string | number; height?: string | number; theme?: string },
-    callback: (controller: SpotifyController) => void
-  ) => void
-}
-
-type YouTubePlayerStateEvent = {
-  data: number
-  target: YouTubePlayer
-}
-
-type YouTubePlayer = {
-  loadVideoById: (options: { videoId: string; startSeconds?: number }) => void
-  cueVideoById: (options: { videoId: string; startSeconds?: number }) => void
-  playVideo: () => void
-  pauseVideo: () => void
-  seekTo: (seconds: number, allowSeekAhead: boolean) => void
-  setVolume: (volume: number) => void
-  getCurrentTime: () => number
-  getVideoData: () => { video_id?: string }
-  destroy: () => void
-}
-
-type YouTubeIframeApi = {
-  Player: new (
-    element: HTMLElement,
-    options: {
-      videoId?: string
-      height?: string | number
-      width?: string | number
-      playerVars?: Record<string, string | number>
-      events?: {
-        onReady?: (event: { target: YouTubePlayer }) => void
-        onStateChange?: (event: YouTubePlayerStateEvent) => void
-        onAutoplayBlocked?: () => void
-      }
-    }
-  ) => YouTubePlayer
-}
-
 type TableRole = 'master' | 'player'
 
 type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'ownerRole' | 'parentId' | 'name' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked'>>
@@ -214,10 +117,7 @@ type RightRailTab = 'music' | 'layers' | 'rolls'
 
 const TABLE_ROLLS = 'table_rolls'
 const TABLE_IMAGES = 'table_images'
-const TABLE_MUSIC = 'table_music'
-const TABLE_MUSIC_LIBRARY = 'table_music_library'
 const TABLE_IMAGE_BUCKET = 'table-images'
-const TABLE_MUSIC_BUCKET = 'table-music'
 const ROOT_LAYER_DROP_ID = '__root__'
 
 function getRoomFromLocation() {
@@ -242,12 +142,6 @@ function upsertLayer(layers: TableLayer[], layer: TableLayer) {
   const exists = layers.some(item => item.id === layer.id)
   const next = exists ? layers.map(item => (item.id === layer.id ? layer : item)) : [...layers, layer]
   return sortLayers(next).slice(0, 80)
-}
-
-function upsertMusicLibraryItem(items: MusicLibraryItem[], item: MusicLibraryItem) {
-  const exists = items.some(existing => existing.id === item.id)
-  const next = exists ? items.map(existing => (existing.id === item.id ? item : existing)) : [...items, item]
-  return next.sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(0, 160)
 }
 
 function sortLayers(layers: TableLayer[]) {
@@ -331,226 +225,37 @@ function getStoragePathFromPublicUrl(publicUrl: string, bucket = TABLE_IMAGE_BUC
   return decodeURIComponent(publicUrl.slice(index + marker.length).split('?')[0])
 }
 
-function mapMusicRow(row: MusicRow): MusicState {
-  return {
-    room: row.room,
-    url: row.url || '',
-    activeUri: row.active_uri || '',
-    isPlaying: row.is_playing ?? false,
-    positionSeconds: row.position_seconds ?? 0,
-    updatedAt: row.updated_at,
-  }
-}
-
-function mapMusicLibraryRow(row: MusicLibraryRow): MusicLibraryItem {
-  return {
-    id: row.id,
-    room: row.room,
-    itemType: row.item_type ?? 'track',
-    parentId: row.parent_id ?? null,
-    name: row.name,
-    url: row.url || '',
-    createdAt: row.created_at,
-  }
-}
-
-function getSpotifyUri(url: string) {
-  try {
-    const parsed = new URL(url.trim())
-    if (parsed.hostname.replace(/^www\./, '') !== 'open.spotify.com') return ''
-
-    const [type, id] = parsed.pathname.split('/').filter(Boolean)
-    return type && id ? `spotify:${type}:${id}` : ''
-  } catch {
-    return ''
-  }
-}
-
-function getMusicProvider(url: string) {
-  const raw = url.trim()
-  if (!raw) return 'none'
-
-  try {
-    const parsed = new URL(raw)
-    const host = parsed.hostname.replace(/^www\./, '')
-    if (host === 'youtu.be' || host.endsWith('youtube.com')) return 'youtube'
-    if (host === 'open.spotify.com') return 'spotify'
-    if (/\.(mp3|wav|ogg|m4a|flac|webm|aac)(\?.*)?$/i.test(parsed.pathname)) return 'file'
-  } catch {
-    return 'none'
-  }
-
-  return 'none'
-}
-
-function getYouTubeId(url: string) {
-  try {
-    const parsed = new URL(url)
-    const host = parsed.hostname.replace(/^www\./, '')
-
-    if (host === 'youtu.be') {
-      return parsed.pathname.split('/').filter(Boolean)[0] || ''
-    }
-
-    if (host.endsWith('youtube.com')) {
-      return parsed.searchParams.get('v') || parsed.pathname.split('/').filter(Boolean).pop() || ''
-    }
-  } catch {
-    return ''
-  }
-
-  return ''
-}
-
-function getSpotifyEmbedUrl(url: string) {
-  const raw = url.trim()
-  if (!raw) return ''
-
-  try {
-    const parsed = new URL(raw)
-    const host = parsed.hostname.replace(/^www\./, '')
-    if (host === 'open.spotify.com') {
-      const parts = parsed.pathname.split('/').filter(Boolean)
-      if (parts.length >= 2) return `https://open.spotify.com/embed/${parts[0]}/${parts[1]}`
-    }
-  } catch {
-    return ''
-  }
-
-  return ''
-}
-
-function loadYouTubeIframeApi() {
-  return new Promise<YouTubeIframeApi>((resolve, reject) => {
-    const win = window as typeof window & {
-      YT?: YouTubeIframeApi
-      __youtubeIframeApiResolvers?: Array<(api: YouTubeIframeApi) => void>
-      onYouTubeIframeAPIReady?: () => void
-    }
-
-    if (win.YT?.Player) {
-      resolve(win.YT)
-      return
-    }
-
-    win.__youtubeIframeApiResolvers = win.__youtubeIframeApiResolvers || []
-    win.__youtubeIframeApiResolvers.push(resolve)
-    win.onYouTubeIframeAPIReady = () => {
-      if (!win.YT?.Player) return
-      win.__youtubeIframeApiResolvers?.splice(0).forEach(callback => callback(win.YT as YouTubeIframeApi))
-    }
-
-    if (document.querySelector('script[data-youtube-iframe-api="true"]')) return
-
-    const script = document.createElement('script')
-    script.src = 'https://www.youtube.com/iframe_api'
-    script.async = true
-    script.dataset.youtubeIframeApi = 'true'
-    script.onerror = () => reject(new Error('YouTube IFrame API failed to load'))
-    document.body.appendChild(script)
-  })
-}
-
-function loadSpotifyIframeApi() {
-  return new Promise<SpotifyIframeApi>((resolve, reject) => {
-    const win = window as typeof window & {
-      __spotifyIframeApi?: SpotifyIframeApi
-      __spotifyIframeApiResolvers?: Array<(api: SpotifyIframeApi) => void>
-      onSpotifyIframeApiReady?: (api: SpotifyIframeApi) => void
-    }
-
-    if (win.__spotifyIframeApi) {
-      resolve(win.__spotifyIframeApi)
-      return
-    }
-
-    win.__spotifyIframeApiResolvers = win.__spotifyIframeApiResolvers || []
-    win.__spotifyIframeApiResolvers.push(resolve)
-    win.onSpotifyIframeApiReady = api => {
-      win.__spotifyIframeApi = api
-      win.__spotifyIframeApiResolvers?.splice(0).forEach(callback => callback(api))
-    }
-
-    if (document.querySelector('script[data-spotify-iframe-api="true"]')) return
-
-    const script = document.createElement('script')
-    script.src = 'https://open.spotify.com/embed/iframe-api/v1'
-    script.async = true
-    script.dataset.spotifyIframeApi = 'true'
-    script.onerror = () => reject(new Error('Spotify iFrame API failed to load'))
-    document.body.appendChild(script)
-  })
-}
-
 export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
   const [rolls, setRolls] = useState<RollMessage[]>([])
   const [layers, setLayers] = useState<TableLayer[]>([])
-  const [musicLibrary, setMusicLibrary] = useState<MusicLibraryItem[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
   const [selectedLayerIds, setSelectedLayerIds] = useState<Set<string>>(new Set())
-  const [selectedMusicFolderId, setSelectedMusicFolderId] = useState<string | null>(null)
   const [connectionText, setConnectionText] = useState('Подключение...')
   const [tableStatus, setTableStatus] = useState('Загрузка стола...')
   const [isUploading, setIsUploading] = useState(false)
-  const [isMusicUploading, setIsMusicUploading] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
-  const [musicUrl, setMusicUrl] = useState('')
-  const [musicActiveUri, setMusicActiveUri] = useState('')
-  const [musicDraft, setMusicDraft] = useState('')
-  const [musicPlaying, setMusicPlaying] = useState(false)
-  const [musicPositionSeconds, setMusicPositionSeconds] = useState(0)
-  const [musicUpdatedAt, setMusicUpdatedAt] = useState(new Date(0).toISOString())
-  const [musicStatus, setMusicStatus] = useState('Музыка не выбрана')
-  const [localYouTubeVolume, setLocalYouTubeVolume] = useState(70)
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
-  const [expandedMusicFolders, setExpandedMusicFolders] = useState<Set<string>>(new Set())
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
-  const [draggingMusicId, setDraggingMusicId] = useState<string | null>(null)
-  const [musicDropTarget, setMusicDropTarget] = useState<MusicDropTarget>(null)
   const [rightRailTab, setRightRailTab] = useState<RightRailTab>('layers')
   const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const musicFileInputRef = useRef<HTMLInputElement>(null)
-  const audioPlayerRef = useRef<HTMLAudioElement>(null)
-  const youtubeShellRef = useRef<HTMLDivElement>(null)
-  const youtubeMountRef = useRef<HTMLDivElement>(null)
-  const youtubePlayerRef = useRef<YouTubePlayer | null>(null)
-  const youtubeVideoIdRef = useRef('')
-  const youtubeLastPublishRef = useRef(0)
-  const spotifyMountRef = useRef<HTMLDivElement>(null)
-  const spotifyControllerRef = useRef<SpotifyController | null>(null)
-  const spotifyLastPublishRef = useRef(0)
-  const musicStateRef = useRef<MusicState>({
-    room: 'campaign-666',
-    url: '',
-    activeUri: '',
-    isPlaying: false,
-    positionSeconds: 0,
-    updatedAt: new Date(0).toISOString(),
-  })
   const sceneRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
-  const musicLibraryRef = useRef<MusicLibraryItem[]>([])
   const panRef = useRef(pan)
   const suppressNextContextMenuRef = useRef(false)
-  const musicLifecycleLockedRef = useRef(false)
   const isMaster = tableRole === 'master'
 
   useEffect(() => {
     layersRef.current = layers
   }, [layers])
-
-  useEffect(() => {
-    musicLibraryRef.current = musicLibrary
-  }, [musicLibrary])
 
   useEffect(() => {
     panRef.current = pan
@@ -559,21 +264,6 @@ export default function VampireTable() {
   useEffect(() => {
     const savedRole = window.localStorage.getItem('vtm-table-role')
     if (savedRole === 'master' || savedRole === 'player') setTableRole(savedRole)
-  }, [])
-
-  useEffect(() => {
-    musicLifecycleLockedRef.current = false
-    const lockMusicLifecycle = () => {
-      musicLifecycleLockedRef.current = true
-    }
-
-    window.addEventListener('pagehide', lockMusicLifecycle)
-    window.addEventListener('beforeunload', lockMusicLifecycle)
-    return () => {
-      musicLifecycleLockedRef.current = true
-      window.removeEventListener('pagehide', lockMusicLifecycle)
-      window.removeEventListener('beforeunload', lockMusicLifecycle)
-    }
   }, [])
 
   useEffect(() => {
@@ -586,22 +276,6 @@ export default function VampireTable() {
       window.removeEventListener('keydown', closeMenu)
     }
   }, [layerContextMenu])
-
-  useEffect(() => {
-    const savedVolume = Number(window.localStorage.getItem('vtm-youtube-volume'))
-    if (Number.isFinite(savedVolume)) setLocalYouTubeVolume(Math.min(100, Math.max(0, savedVolume)))
-  }, [])
-
-  const applyMusicState = (music: MusicState) => {
-    musicStateRef.current = music
-    setMusicUrl(music.url || '')
-    setMusicActiveUri(music.activeUri || '')
-    setMusicDraft(music.url || '')
-    setMusicPlaying(music.isPlaying)
-    setMusicPositionSeconds(music.positionSeconds)
-    setMusicUpdatedAt(music.updatedAt)
-    setMusicStatus(music.url ? (music.isPlaying ? 'Играет синхронно' : 'Пауза') : 'Музыка выключена')
-  }
 
   const chooseTableRole = (role: TableRole) => {
     window.localStorage.setItem('vtm-table-role', role)
@@ -658,41 +332,6 @@ export default function VampireTable() {
         setTableStatus('Сцена онлайн')
       })
 
-    supabase
-      .from(TABLE_MUSIC)
-      .select('room, url, active_uri, is_playing, position_seconds, updated_at')
-      .eq('room', currentRoom)
-      .maybeSingle()
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error('Не удалось загрузить музыку комнаты:', error)
-          setMusicStatus('Нет общей музыки')
-          return
-        }
-
-        const music = data ? mapMusicRow(data as MusicRow) : null
-        if (music) applyMusicState(music)
-        else setMusicStatus('Музыка не выбрана')
-      })
-
-    supabase
-      .from(TABLE_MUSIC_LIBRARY)
-      .select('id, room, item_type, parent_id, name, url, created_at')
-      .eq('room', currentRoom)
-      .order('created_at', { ascending: true })
-      .limit(160)
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error('Не удалось загрузить музыкальную библиотеку:', error)
-          return
-        }
-
-        const next = (data || []).map(row => mapMusicLibraryRow(row as MusicLibraryRow))
-        musicLibraryRef.current = next
-        setMusicLibrary(next)
-      })
 
     const channel = supabase
       .channel(`table-room:${currentRoom}`)
@@ -736,30 +375,9 @@ export default function VampireTable() {
           return next
         })
       })
-      .on('broadcast', { event: 'music' }, payload => {
-        const music = payload.payload as MusicState
-        if (!music || music.room !== currentRoom) return
-        applyMusicState(music)
-      })
-      .on('broadcast', { event: 'music-library' }, payload => {
-        const item = payload.payload as MusicLibraryItem
-        if (!item || item.room !== currentRoom) return
-        setMusicLibrary(prev => {
-          const next = upsertMusicLibraryItem(prev, item)
-          musicLibraryRef.current = next
-          return next
-        })
-      })
-      .on('broadcast', { event: 'music-library-delete' }, payload => {
-        const deleted = payload.payload as { room?: string; ids?: string[] }
-        if (deleted.room !== currentRoom || !deleted.ids) return
-        setMusicLibrary(prev => {
-          const idSet = new Set(deleted.ids)
-          const next = prev.filter(item => !idSet.has(item.id))
-          musicLibraryRef.current = next
-          return next
-        })
-      })
+
+
+
       .on('broadcast', { event: 'viewport-focus' }, payload => {
         const focus = payload.payload as { room?: string; pan?: { x: number; y: number }; zoom?: number }
         if (focus.room !== currentRoom || !focus.pan || typeof focus.zoom !== 'number') return
@@ -779,48 +397,8 @@ export default function VampireTable() {
           setConnectionText('Онлайн')
         }
       )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: TABLE_MUSIC,
-          filter: `room=eq.${currentRoom}`,
-        },
-        payload => {
-          const next = (payload.new || payload.old) as MusicRow
-          const music = mapMusicRow(next)
-          applyMusicState(music)
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: TABLE_MUSIC_LIBRARY,
-          filter: `room=eq.${currentRoom}`,
-        },
-        payload => {
-          if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as { id?: string }
-            if (!deleted.id) return
-            setMusicLibrary(prev => {
-              const next = prev.filter(item => item.id !== deleted.id)
-              musicLibraryRef.current = next
-              return next
-            })
-            return
-          }
 
-          const row = payload.new as MusicLibraryRow
-          setMusicLibrary(prev => {
-            const next = upsertMusicLibraryItem(prev, mapMusicLibraryRow(row))
-            musicLibraryRef.current = next
-            return next
-          })
-        }
-      )
+
       .on(
         'postgres_changes',
         {
@@ -945,34 +523,6 @@ export default function VampireTable() {
 
     return sortNodes(roots)
   }, [managerLayers])
-  const musicTree = useMemo<MusicTreeNode[]>(() => {
-    const nodeMap = new Map<string, MusicTreeNode>()
-    musicLibrary.forEach(item => nodeMap.set(item.id, { ...item, children: [] }))
-
-    const roots: MusicTreeNode[] = []
-    nodeMap.forEach(node => {
-      const parent = node.parentId ? nodeMap.get(node.parentId) : null
-      if (parent && parent.id !== node.id) parent.children.push(node)
-      else roots.push(node)
-    })
-
-    const sortNodes = (nodes: MusicTreeNode[]) => {
-      nodes.sort((a, b) => {
-        if (a.itemType !== b.itemType) return a.itemType === 'folder' ? -1 : 1
-        return a.name.localeCompare(b.name, 'ru')
-      })
-      nodes.forEach(node => sortNodes(node.children))
-      return nodes
-    }
-
-    return sortNodes(roots)
-  }, [musicLibrary])
-  const spotifyEmbedUrl = useMemo(() => getSpotifyEmbedUrl(musicUrl), [musicUrl])
-  const musicProvider = useMemo(() => getMusicProvider(musicUrl), [musicUrl])
-  const youtubeVideoId = useMemo(() => (
-    musicProvider === 'youtube' ? musicActiveUri || getYouTubeId(musicUrl) : ''
-  ), [musicProvider, musicActiveUri, musicUrl])
-
   const broadcast = (event: string, payload: unknown) => {
     channelRef.current?.send({ type: 'broadcast', event, payload })
   }
@@ -1095,217 +645,6 @@ export default function VampireTable() {
     }
   }
 
-  const createMusicFolder = async () => {
-    if (!isMaster) return
-    const name = window.prompt('Название папки музыки', 'Новая папка')?.trim()
-    if (!name) return
-
-    const folder: MusicLibraryItem = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      room,
-      itemType: 'folder',
-      parentId: selectedMusicFolderId,
-      name,
-      url: '',
-      createdAt: new Date().toISOString(),
-    }
-
-    const { error } = await createClient().from(TABLE_MUSIC_LIBRARY).insert({
-      id: folder.id,
-      room: folder.room,
-      item_type: folder.itemType,
-      parent_id: folder.parentId,
-      name: folder.name,
-      url: folder.url,
-      created_at: folder.createdAt,
-    })
-
-    const next = upsertMusicLibraryItem(musicLibraryRef.current, folder)
-    musicLibraryRef.current = next
-    setMusicLibrary(next)
-    setSelectedMusicFolderId(folder.id)
-    if (folder.parentId) setExpandedMusicFolders(prev => new Set(prev).add(folder.parentId as string))
-    broadcast('music-library', folder)
-
-    if (error) {
-      console.error('Не удалось сохранить папку музыки:', error)
-      setMusicStatus('Папка музыки не сохранилась')
-    }
-  }
-
-  const uploadMusicFiles = async (files: FileList | File[]) => {
-    if (!isMaster) return
-    const audioFiles = Array.from(files).filter(file => file.type.startsWith('audio/'))
-    if (audioFiles.length === 0) {
-      window.alert('Можно загрузить только аудиофайлы.')
-      return
-    }
-
-    setIsMusicUploading(true)
-
-    try {
-      const supabase = createClient()
-      for (const [index, file] of audioFiles.entries()) {
-        const id = `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`
-        const storagePath = `${room}/${id}-${safeStorageName(file.name)}`
-        const { error: uploadError } = await supabase.storage
-          .from(TABLE_MUSIC_BUCKET)
-          .upload(storagePath, file, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: file.type || 'audio/mpeg',
-          })
-
-        if (uploadError) {
-          console.error('Не удалось загрузить музыку в Storage:', uploadError)
-          window.alert('Музыка не загрузилась в Supabase Storage. Проверь bucket table-music и policies из SQL.')
-          continue
-        }
-
-        const { data: publicUrlData } = supabase.storage.from(TABLE_MUSIC_BUCKET).getPublicUrl(storagePath)
-        const item: MusicLibraryItem = {
-          id,
-          room,
-          itemType: 'track',
-          parentId: selectedMusicFolderId,
-          name: file.name,
-          url: publicUrlData.publicUrl,
-          createdAt: new Date().toISOString(),
-        }
-
-        const { error } = await supabase.from(TABLE_MUSIC_LIBRARY).insert({
-          id: item.id,
-          room: item.room,
-          item_type: item.itemType,
-          parent_id: item.parentId,
-          name: item.name,
-          url: item.url,
-          created_at: item.createdAt,
-        })
-
-        const next = upsertMusicLibraryItem(musicLibraryRef.current, item)
-        musicLibraryRef.current = next
-        setMusicLibrary(next)
-        broadcast('music-library', item)
-
-        if (error) {
-          console.error('Не удалось сохранить трек:', error)
-          setMusicStatus('Трек загружен, но не сохранён в библиотеке')
-        }
-      }
-    } finally {
-      setIsMusicUploading(false)
-    }
-  }
-
-  const handleMusicUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      await uploadMusicFiles(event.target.files)
-      event.target.value = ''
-    }
-  }
-
-  const getMusicDescendantIds = (itemId: string) => {
-    const ids = new Set<string>()
-    const visit = (parentId: string) => {
-      musicLibraryRef.current.forEach(item => {
-        if (item.parentId !== parentId || ids.has(item.id)) return
-        ids.add(item.id)
-        visit(item.id)
-      })
-    }
-    visit(itemId)
-    return ids
-  }
-
-  const moveMusicItem = async (itemId: string, parentId: string | null) => {
-    if (!isMaster) return
-    const item = musicLibraryRef.current.find(entry => entry.id === itemId)
-    if (!item || item.parentId === parentId) return
-    if (item.itemType === 'folder' && parentId && getMusicDescendantIds(item.id).has(parentId)) return
-
-    const patch = { parentId }
-    const nextItem = { ...item, parentId }
-    const nextLibrary = musicLibraryRef.current.map(entry => (entry.id === itemId ? nextItem : entry))
-    musicLibraryRef.current = nextLibrary
-    setMusicLibrary(nextLibrary)
-    if (parentId) setExpandedMusicFolders(prev => new Set(prev).add(parentId))
-    broadcast('music-library', nextItem)
-
-    const { error } = await createClient()
-      .from(TABLE_MUSIC_LIBRARY)
-      .update({ parent_id: patch.parentId })
-      .eq('id', itemId)
-
-    if (error) {
-      console.error('Не удалось переместить музыку:', error)
-      setMusicStatus('Музыка не переместилась')
-    }
-  }
-
-  const deleteMusicItem = async (itemId: string) => {
-    if (!isMaster) return
-    const deleteIds = new Set([itemId, ...getMusicDescendantIds(itemId)])
-    const deletedItems = musicLibraryRef.current.filter(item => deleteIds.has(item.id))
-    if (deletedItems.length === 0) return
-
-    const nextLibrary = musicLibraryRef.current.filter(item => !deleteIds.has(item.id))
-    musicLibraryRef.current = nextLibrary
-    setMusicLibrary(nextLibrary)
-    setSelectedMusicFolderId(prev => (prev && deleteIds.has(prev) ? null : prev))
-    broadcast('music-library-delete', { room, ids: [...deleteIds] })
-
-    const supabase = createClient()
-    await supabase.from(TABLE_MUSIC_LIBRARY).delete().in('id', [...deleteIds])
-
-    await Promise.all(deletedItems.filter(item => item.itemType === 'track').map(async item => {
-      const storagePath = getStoragePathFromPublicUrl(item.url, TABLE_MUSIC_BUCKET)
-      if (storagePath) {
-        const { error } = await supabase.storage.from(TABLE_MUSIC_BUCKET).remove([storagePath])
-        if (error) console.error('Не удалось удалить музыку из Storage:', error)
-      }
-    }))
-
-    if (deletedItems.some(item => item.url && item.url === musicStateRef.current.url)) {
-      publishMusicState({ url: '', activeUri: '', isPlaying: false, positionSeconds: 0 })
-    }
-  }
-
-  const handleMusicDragStart = (event: React.DragEvent<HTMLElement>, itemId: string) => {
-    if (!isMaster) {
-      event.preventDefault()
-      return
-    }
-    event.dataTransfer.effectAllowed = 'move'
-    event.dataTransfer.setData('text/plain', itemId)
-    setDraggingMusicId(itemId)
-  }
-
-  const handleMusicDragOver = (event: React.DragEvent<HTMLElement>, target: MusicLibraryItem | null) => {
-    if (!isMaster) return
-    const draggedId = draggingMusicId || event.dataTransfer.getData('text/plain')
-    if (!draggedId) return
-    if (target && target.itemType !== 'folder') return
-    if (target && target.id === draggedId) return
-    const dragged = musicLibraryRef.current.find(item => item.id === draggedId)
-    if (!dragged) return
-    if (dragged.itemType === 'folder' && target && getMusicDescendantIds(dragged.id).has(target.id)) return
-
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    setMusicDropTarget({ id: target?.id ?? null })
-  }
-
-  const handleMusicDrop = async (event: React.DragEvent<HTMLElement>, target: MusicLibraryItem | null) => {
-    if (!isMaster) return
-    event.preventDefault()
-    const draggedId = draggingMusicId || event.dataTransfer.getData('text/plain')
-    setDraggingMusicId(null)
-    setMusicDropTarget(null)
-    if (!draggedId) return
-    await moveMusicItem(draggedId, target?.id ?? null)
-  }
-
   const deleteLayer = async (layerId: string) => {
     const layer = layersRef.current.find(item => item.id === layerId) || layers.find(item => item.id === layerId)
     const childIds = getDescendantIds(layerId)
@@ -1333,411 +672,6 @@ export default function VampireTable() {
       }
     }))
   }
-
-  const getEffectiveMusicPosition = () => {
-    const music = musicStateRef.current
-    if (!music.isPlaying) return music.positionSeconds
-    return music.positionSeconds + Math.max(0, (Date.now() - new Date(music.updatedAt).getTime()) / 1000)
-  }
-
-  const controlSpotify = (action: 'play' | 'pause' | 'seek', positionSeconds?: number) => {
-    const controller = spotifyControllerRef.current
-    if (!controller) return
-
-    if (action === 'pause') controller.pause()
-    if (action === 'play') controller.resume()
-    if (action === 'seek' && positionSeconds !== undefined) {
-      controller.seek(Math.max(0, Math.floor(positionSeconds)))
-      if (musicPlaying) controller.resume()
-    }
-  }
-
-  const setPlayerLocalVolume = (volume: number) => {
-    const nextVolume = Math.min(100, Math.max(0, Math.round(volume)))
-    setLocalYouTubeVolume(nextVolume)
-    window.localStorage.setItem('vtm-youtube-volume', String(nextVolume))
-    youtubePlayerRef.current?.setVolume(nextVolume)
-    if (audioPlayerRef.current) audioPlayerRef.current.volume = nextVolume / 100
-  }
-
-  const openYouTubeFullscreen = () => {
-    youtubeShellRef.current?.requestFullscreen()
-  }
-
-  const publishMusicState = async (patch: Partial<Omit<MusicState, 'room' | 'updatedAt'>>) => {
-    if (!isMaster) {
-      setMusicStatus('Музыкой управляет мастер')
-      return
-    }
-
-    const current = musicStateRef.current
-    const now = new Date().toISOString()
-    const next: MusicState = {
-      room,
-      url: (patch.url ?? current.url).trim(),
-      activeUri: patch.activeUri ?? current.activeUri,
-      isPlaying: patch.isPlaying ?? current.isPlaying,
-      positionSeconds: Math.max(0, Math.floor(patch.positionSeconds ?? current.positionSeconds)),
-      updatedAt: now,
-    }
-
-    applyMusicState(next)
-    broadcast('music', next)
-
-    const { error } = await createClient().from(TABLE_MUSIC).upsert({
-      room: next.room,
-      url: next.url,
-      active_uri: next.activeUri,
-      is_playing: next.isPlaying,
-      position_seconds: next.positionSeconds,
-      updated_at: next.updatedAt,
-    })
-
-    if (error) {
-      console.error('Не удалось сохранить музыку комнаты:', error)
-      setMusicStatus('Музыка отправлена онлайн, но не сохранена')
-    }
-  }
-
-  const applyMusicDraft = (options: { play?: boolean } = {}) => {
-    if (!isMaster) return
-
-    const normalizedUrl = musicDraft.trim()
-    const provider = getMusicProvider(normalizedUrl)
-    const currentMusic = musicStateRef.current
-
-    if (!normalizedUrl) {
-      if (!currentMusic.url) return
-      publishMusicState({ url: '', activeUri: '', isPlaying: false, positionSeconds: 0 })
-      return
-    }
-
-    if (normalizedUrl === currentMusic.url) {
-      if (options.play && !currentMusic.isPlaying) {
-        publishMusicState({
-          isPlaying: true,
-          positionSeconds: Math.max(0, Math.floor(getEffectiveMusicPosition())),
-        })
-      }
-      return
-    }
-
-    if (provider === 'youtube') {
-      const videoId = getYouTubeId(normalizedUrl)
-      if (!videoId) {
-        setMusicStatus('YouTube ссылка не распознана')
-        return
-      }
-      publishMusicState({ url: normalizedUrl, activeUri: videoId, isPlaying: Boolean(options.play), positionSeconds: 0 })
-      return
-    }
-
-    if (provider === 'spotify') {
-      const activeUri = getSpotifyUri(normalizedUrl)
-      if (!activeUri) {
-        setMusicStatus('Spotify ссылка не распознана')
-        return
-      }
-      publishMusicState({ url: normalizedUrl, activeUri, isPlaying: Boolean(options.play), positionSeconds: 0 })
-      return
-    }
-
-    if (provider === 'file') {
-      publishMusicState({ url: normalizedUrl, activeUri: '', isPlaying: Boolean(options.play), positionSeconds: 0 })
-      return
-    }
-
-    setMusicStatus('Поддерживаются YouTube, Spotify и аудиофайлы')
-  }
-
-  const playMusicTrack = (track: MusicLibraryItem) => {
-    if (!isMaster || track.itemType !== 'track' || !track.url) return
-    publishMusicState({
-      url: track.url,
-      activeUri: track.id,
-      isPlaying: true,
-      positionSeconds: 0,
-    })
-  }
-
-  const publishAudioElementState = (isPlaying: boolean) => {
-    const audio = audioPlayerRef.current
-    if (!isMaster || !audio || musicProvider !== 'file') return
-    if (musicLifecycleLockedRef.current || document.visibilityState !== 'visible') return
-    publishMusicState({
-      isPlaying,
-      positionSeconds: Math.max(0, Math.floor(audio.currentTime || 0)),
-    })
-  }
-
-  useEffect(() => {
-    if (musicProvider !== 'youtube' || !youtubeVideoId || !youtubeMountRef.current) {
-      youtubePlayerRef.current?.destroy()
-      youtubePlayerRef.current = null
-      youtubeVideoIdRef.current = ''
-      return
-    }
-
-    let cancelled = false
-    const container = youtubeMountRef.current
-
-    loadYouTubeIframeApi()
-      .then(api => {
-        if (cancelled) return
-
-        const syncPlayer = (player: YouTubePlayer) => {
-          const currentMusic = musicStateRef.current
-          const nextVideoId = currentMusic.activeUri || getYouTubeId(currentMusic.url)
-          if (!nextVideoId) return
-
-          const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
-          const loadedVideoId = player.getVideoData().video_id || youtubeVideoIdRef.current
-
-          if (loadedVideoId !== nextVideoId) {
-            if (currentMusic.isPlaying) player.loadVideoById({ videoId: nextVideoId, startSeconds: positionSeconds })
-            else player.cueVideoById({ videoId: nextVideoId, startSeconds: positionSeconds })
-            youtubeVideoIdRef.current = nextVideoId
-          } else {
-            player.seekTo(positionSeconds, true)
-            if (currentMusic.isPlaying) player.playVideo()
-            else player.pauseVideo()
-          }
-        }
-
-        if (!youtubePlayerRef.current) {
-          container.innerHTML = ''
-          youtubePlayerRef.current = new api.Player(container, {
-            videoId: youtubeVideoId,
-            width: '100%',
-            height: 260,
-            playerVars: {
-              autoplay: 0,
-              controls: isMaster ? 1 : 0,
-              enablejsapi: 1,
-              origin: window.location.origin,
-              playsinline: 1,
-            },
-            events: {
-              onReady: event => {
-                if (cancelled) return
-                youtubeVideoIdRef.current = youtubeVideoId
-                event.target.setVolume(localYouTubeVolume)
-                syncPlayer(event.target)
-              },
-              onStateChange: event => {
-                if (event.data === 1) setMusicStatus('Играет синхронно')
-                if (event.data === 2) setMusicStatus('Пауза')
-                if (event.data === 0) setMusicStatus('Пауза')
-
-                if (!isMaster || (event.data !== 0 && event.data !== 1 && event.data !== 2)) return
-                if (musicLifecycleLockedRef.current || document.visibilityState !== 'visible') return
-
-                const positionSeconds = Math.max(0, Math.floor(event.target.getCurrentTime() || 0))
-                const nextPlaying = event.data === 1
-                const currentMusic = musicStateRef.current
-                const stateChanged = currentMusic.isPlaying !== nextPlaying
-                const positionChanged = Math.abs(positionSeconds - getEffectiveMusicPosition()) > 1
-
-                if (stateChanged || positionChanged) {
-                  youtubeLastPublishRef.current = Date.now()
-                  publishMusicState({
-                    isPlaying: nextPlaying,
-                    positionSeconds: event.data === 0 ? 0 : positionSeconds,
-                  })
-                }
-              },
-              onAutoplayBlocked: () => {
-                if (musicStateRef.current.isPlaying) setMusicStatus('Нажми на страницу, чтобы включить музыку')
-              },
-            },
-          })
-          return
-        }
-
-        syncPlayer(youtubePlayerRef.current)
-      })
-      .catch(error => {
-        console.error('YouTube IFrame API не загрузился:', error)
-        setMusicStatus('YouTube API недоступен')
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [musicProvider, youtubeVideoId, musicPlaying, musicPositionSeconds, musicUpdatedAt, isMaster])
-
-  useEffect(() => {
-    if (musicProvider !== 'youtube' || !musicPlaying) return
-
-    const unlock = () => {
-      youtubePlayerRef.current?.playVideo()
-      window.removeEventListener('pointerdown', unlock)
-      window.removeEventListener('keydown', unlock)
-    }
-
-    window.addEventListener('pointerdown', unlock)
-    window.addEventListener('keydown', unlock)
-    return () => {
-      window.removeEventListener('pointerdown', unlock)
-      window.removeEventListener('keydown', unlock)
-    }
-  }, [musicProvider, musicPlaying])
-
-  useEffect(() => {
-    if (musicProvider !== 'youtube') return
-    youtubePlayerRef.current?.setVolume(localYouTubeVolume)
-  }, [musicProvider, localYouTubeVolume])
-
-  useEffect(() => {
-    if (!isMaster || musicProvider !== 'youtube' || !youtubeVideoId) return
-
-    const interval = window.setInterval(() => {
-      if (musicLifecycleLockedRef.current || document.visibilityState !== 'visible') return
-      const player = youtubePlayerRef.current
-      if (!player) return
-
-      const now = Date.now()
-      if (now - youtubeLastPublishRef.current < 900) return
-
-      const positionSeconds = Math.max(0, Math.floor(player.getCurrentTime() || 0))
-      const currentMusic = musicStateRef.current
-      const expectedPosition = currentMusic.isPlaying
-        ? currentMusic.positionSeconds + Math.max(0, (now - new Date(currentMusic.updatedAt).getTime()) / 1000)
-        : currentMusic.positionSeconds
-
-      if (Math.abs(positionSeconds - expectedPosition) <= 2) return
-
-      youtubeLastPublishRef.current = now
-      publishMusicState({
-        isPlaying: currentMusic.isPlaying,
-        positionSeconds,
-      })
-    }, 1000)
-
-    return () => window.clearInterval(interval)
-  }, [isMaster, musicProvider, youtubeVideoId])
-
-  useEffect(() => {
-    if (musicProvider !== 'spotify' || !musicUrl || !spotifyMountRef.current) return
-
-    let cancelled = false
-    const container = spotifyMountRef.current
-    const uri = musicActiveUri || getSpotifyUri(musicUrl)
-    if (!uri) return
-
-    container.innerHTML = ''
-    spotifyControllerRef.current?.destroy()
-    spotifyControllerRef.current = null
-
-    loadSpotifyIframeApi()
-      .then(api => {
-        if (cancelled) return
-
-        api.createController(
-          container,
-          {
-            uri,
-            width: '100%',
-            height: 86,
-            theme: 'dark',
-          },
-          controller => {
-            if (cancelled) {
-              controller.destroy()
-              return
-            }
-
-            spotifyControllerRef.current = controller
-            controller.addListener('ready', () => {
-              const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
-              controller.seek(positionSeconds)
-              if (musicPlaying) controller.resume()
-              else controller.pause()
-            })
-            controller.addListener('playback_update', event => {
-              if (!isMaster) return
-              if (musicLifecycleLockedRef.current || document.visibilityState !== 'visible') return
-              const now = Date.now()
-              const nextPosition = Math.max(0, Math.floor((event.data.position || 0) / 1000))
-              const currentMusic = musicStateRef.current
-              const nextPlaying = typeof event.data.isPaused === 'boolean' ? !event.data.isPaused : currentMusic.isPlaying
-              const nextUri = event.data.playingURI || currentMusic.activeUri
-              const positionChanged = Math.abs(nextPosition - getEffectiveMusicPosition()) > 2
-              const stateChanged = nextPlaying !== currentMusic.isPlaying || nextUri !== currentMusic.activeUri
-
-              if (positionChanged && !stateChanged && now - spotifyLastPublishRef.current < 1800) return
-
-              if (positionChanged || stateChanged) {
-                spotifyLastPublishRef.current = now
-                publishMusicState({
-                  isPlaying: nextPlaying,
-                  positionSeconds: nextPosition,
-                  activeUri: nextUri,
-                })
-              }
-            })
-          }
-        )
-      })
-      .catch(error => {
-        console.error('Spotify iFrame API не загрузился:', error)
-        setMusicStatus('Spotify API недоступен')
-      })
-
-    return () => {
-      cancelled = true
-      spotifyControllerRef.current?.destroy()
-      spotifyControllerRef.current = null
-    }
-  }, [musicProvider, musicUrl, musicActiveUri, isMaster])
-
-  useEffect(() => {
-    if (musicProvider !== 'spotify') return
-    const controller = spotifyControllerRef.current
-    if (!controller) return
-
-    const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
-    controller.seek(positionSeconds)
-    if (musicPlaying) controller.resume()
-    else controller.pause()
-  }, [musicProvider, musicPlaying, musicPositionSeconds, musicUpdatedAt])
-
-  useEffect(() => {
-    if (musicProvider !== 'file' || !musicUrl) return
-    const audio = audioPlayerRef.current
-    if (!audio) return
-
-    const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
-    if (audio.src !== musicUrl) audio.src = musicUrl
-    audio.volume = localYouTubeVolume / 100
-    if (Math.abs(audio.currentTime - positionSeconds) > 1.2) audio.currentTime = positionSeconds
-
-    if (musicPlaying) {
-      audio.play().catch(error => {
-        console.error('Браузер заблокировал автозапуск аудио:', error)
-        setMusicStatus('Нажми на страницу, чтобы включить музыку')
-      })
-    } else {
-      audio.pause()
-    }
-  }, [musicProvider, musicUrl, musicPlaying, musicPositionSeconds, musicUpdatedAt, localYouTubeVolume])
-
-  useEffect(() => {
-    if (musicProvider !== 'file' || !musicPlaying) return
-
-    const unlock = () => {
-      audioPlayerRef.current?.play().catch(() => undefined)
-      window.removeEventListener('pointerdown', unlock)
-      window.removeEventListener('keydown', unlock)
-    }
-
-    window.addEventListener('pointerdown', unlock)
-    window.addEventListener('keydown', unlock)
-    return () => {
-      window.removeEventListener('pointerdown', unlock)
-      window.removeEventListener('keydown', unlock)
-    }
-  }, [musicProvider, musicPlaying])
 
   const createFolder = async (parentId: string | null = null) => {
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
@@ -2305,70 +1239,6 @@ export default function VampireTable() {
     )
   }
 
-  const renderMusicNode = (item: MusicTreeNode, depth = 0): React.ReactNode => {
-    const isFolder = item.itemType === 'folder'
-    const isExpanded = expandedMusicFolders.has(item.id)
-    const isActive = musicActiveUri === item.id || musicUrl === item.url
-    const isDropTarget = musicDropTarget?.id === item.id
-
-    return (
-      <div className="music-tree-item" key={item.id}>
-        <button
-          type="button"
-          className={`music-library-row ${isActive ? 'active' : ''} ${isFolder ? 'folder' : 'track'} ${isDropTarget ? 'drop-inside' : ''}`}
-          style={{ paddingLeft: 10 + depth * 18 }}
-          draggable={isMaster}
-          onDragStart={event => handleMusicDragStart(event, item.id)}
-          onDragOver={event => handleMusicDragOver(event, item)}
-          onDrop={event => handleMusicDrop(event, item)}
-          onDragEnd={() => {
-            setDraggingMusicId(null)
-            setMusicDropTarget(null)
-          }}
-          onClick={() => {
-            if (isFolder) {
-              setSelectedMusicFolderId(item.id)
-              setExpandedMusicFolders(prev => {
-                const next = new Set(prev)
-                if (next.has(item.id)) next.delete(item.id)
-                else next.add(item.id)
-                return next
-              })
-            } else {
-              playMusicTrack(item)
-            }
-          }}
-        >
-          <span className="music-row-icon">{isFolder ? (isExpanded ? '▾' : '▸') : '♪'}</span>
-          <span className={`music-row-thumb ${isFolder ? 'folder' : ''}`} />
-          <span className="music-row-name">{item.name}</span>
-          {!isFolder && isActive ? <span className="music-row-state">{musicPlaying ? 'play' : 'pause'}</span> : null}
-          {isMaster ? (
-            <span
-              className="music-row-delete"
-              role="button"
-              tabIndex={0}
-              onClick={event => {
-                event.stopPropagation()
-                deleteMusicItem(item.id)
-              }}
-              onKeyDown={event => {
-                if (event.key !== 'Enter' && event.key !== ' ') return
-                event.preventDefault()
-                event.stopPropagation()
-                deleteMusicItem(item.id)
-              }}
-              title="Удалить"
-            >
-              ×
-            </span>
-          ) : null}
-        </button>
-        {isFolder && isExpanded ? item.children.map(child => renderMusicNode(child, depth + 1)) : null}
-      </div>
-    )
-  }
-
   return (
     <main className="table-page-shell">
       <section className="table-topbar">
@@ -2544,108 +1414,7 @@ export default function VampireTable() {
             </button>
           </nav>
 
-          <section className={`music-panel table-right-panel ${rightRailTab === 'music' ? '' : 'table-right-panel-hidden'}`} aria-label="Музыка комнаты">
-            <header>
-              <strong>Музыка</strong>
-              <span>{isMaster ? musicStatus : 'Музыкой управляет мастер'}</span>
-            </header>
-            {isMaster ? (
-              <div className="music-controls">
-                <input
-                  value={musicDraft}
-                  onChange={event => setMusicDraft(event.target.value)}
-                  onBlur={() => applyMusicDraft()}
-                  onKeyDown={event => {
-                    if (event.key !== 'Enter') return
-                    applyMusicDraft({ play: true })
-                  }}
-                  placeholder="YouTube или Spotify ссылка, Enter чтобы применить"
-                />
-                <div className="music-meta">
-                  <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider}</span>
-                  <span>{Math.floor(getEffectiveMusicPosition())} сек.</span>
-                </div>
-              </div>
-            ) : (
-              <div className="music-readonly">
-                <p>Музыкой управляет мастер</p>
-                <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider}</span>
-              </div>
-            )}
-            {musicProvider === 'spotify' && musicUrl ? (
-              <div className={`spotify-embed ${isMaster ? '' : 'readonly'}`} ref={spotifyMountRef} />
-            ) : musicProvider === 'youtube' && youtubeVideoId ? (
-              <div
-                className={`youtube-embed ${isMaster ? '' : 'readonly'}`}
-                ref={youtubeShellRef}
-              >
-                <div ref={youtubeMountRef} aria-label="Музыка комнаты" />
-              </div>
-            ) : spotifyEmbedUrl ? (
-              <iframe
-                className={isMaster ? '' : 'readonly'}
-                title="Музыка комнаты"
-                src={spotifyEmbedUrl}
-                allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                loading="lazy"
-              />
-            ) : musicProvider === 'file' && musicUrl ? (
-              <audio
-                ref={audioPlayerRef}
-                className="audio-player"
-                src={musicUrl}
-                controls={isMaster}
-                onPlay={() => publishAudioElementState(true)}
-                onPause={() => publishAudioElementState(false)}
-                onSeeked={() => publishAudioElementState(musicPlaying)}
-              />
-            ) : null}
-            {!isMaster && ((musicProvider === 'youtube' && youtubeVideoId) || (musicProvider === 'file' && musicUrl)) ? (
-              <div className="player-local-controls" aria-label="Локальные настройки плеера">
-                <label>
-                  <span>Громкость</span>
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={localYouTubeVolume}
-                    onChange={event => setPlayerLocalVolume(Number(event.target.value))}
-                  />
-                  <strong>{localYouTubeVolume}%</strong>
-                </label>
-                {musicProvider === 'youtube' ? <button type="button" onClick={openYouTubeFullscreen}>На весь экран</button> : null}
-              </div>
-            ) : null}
-            <section className="music-library" aria-label="Музыкальная библиотека">
-              <header>
-                <strong>Библиотека</strong>
-                <span>{selectedMusicFolderId ? musicLibrary.find(item => item.id === selectedMusicFolderId)?.name || 'папка' : 'корень'}</span>
-              </header>
-              {isMaster ? (
-                <div className="music-library-actions">
-                  <button type="button" onClick={() => musicFileInputRef.current?.click()} disabled={isMusicUploading}>
-                    {isMusicUploading ? 'Загрузка...' : 'Загрузить'}
-                  </button>
-                  <button type="button" onClick={createMusicFolder}>Папка</button>
-                  <button type="button" onClick={() => setSelectedMusicFolderId(null)}>Корень</button>
-                  <input ref={musicFileInputRef} type="file" accept="audio/*" multiple onChange={handleMusicUpload} />
-                </div>
-              ) : (
-                <p className="music-readonly">Треки запускает мастер.</p>
-              )}
-              <div
-                className={`music-library-list ${musicDropTarget?.id === null ? 'drop-root' : ''}`}
-                onDragOver={event => handleMusicDragOver(event, null)}
-                onDrop={event => handleMusicDrop(event, null)}
-              >
-                {musicTree.length === 0 ? (
-                  <p className="panel-empty">Музыка ещё не загружена.</p>
-                ) : (
-                  musicTree.map(item => renderMusicNode(item))
-                )}
-              </div>
-            </section>
-          </section>
+          <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} hidden={rightRailTab !== 'music'} />
 
           <section className={`layer-panel table-right-panel ${rightRailTab === 'layers' ? '' : 'table-right-panel-hidden'}`} aria-label="Слои стола">
             <header>
@@ -2883,7 +1652,6 @@ export default function VampireTable() {
         }
 
         .play-surface,
-        .music-panel,
         .layer-panel,
         .roll-sidebar {
           border: 1px solid #2b2b2b;
@@ -2899,7 +1667,6 @@ export default function VampireTable() {
         }
 
         .surface-head,
-        .music-panel header,
         .layer-panel header,
         .roll-sidebar header {
           border-bottom: 1px solid #2b2b2b;
@@ -2920,7 +1687,6 @@ export default function VampireTable() {
         }
 
         .surface-head span,
-        .music-panel header span,
         .layer-panel header span,
         .roll-sidebar header span {
           color: #9c9c9c;
@@ -2928,7 +1694,6 @@ export default function VampireTable() {
         }
 
         .surface-head strong,
-        .music-panel header strong,
         .layer-panel header strong,
         .roll-sidebar header strong {
           color: #f5f5f5;
@@ -3171,346 +1936,6 @@ export default function VampireTable() {
 
         .table-right-panel-hidden {
           display: none !important;
-        }
-
-        .music-panel {
-          display: grid;
-          grid-template-rows: auto auto auto auto minmax(0, 1fr);
-          align-self: stretch;
-          overflow: hidden;
-        }
-
-        .music-panel header,
-        .layer-panel,
-        .roll-sidebar {
-          min-height: 0;
-          height: 100%;
-          overflow: hidden;
-          display: grid;
-          grid-template-rows: auto 1fr;
-        }
-
-        .layer-panel header {
-          display: grid;
-          gap: 4px;
-          padding: 10px 12px;
-          background: #3f3f3f;
-          border-bottom-color: #2d2d2d;
-        }
-
-        .music-panel header {
-          display: grid;
-          gap: 4px;
-          padding: 12px;
-        }
-
-        .music-controls {
-          display: grid;
-          gap: 8px;
-          padding: 10px;
-        }
-
-        .music-controls input {
-          width: 100%;
-          box-sizing: border-box;
-          background: #090909;
-          color: #eee;
-          border: 1px solid #333;
-          border-radius: 5px;
-          padding: 8px;
-          font: inherit;
-          font-size: 12px;
-        }
-
-        .music-meta {
-          display: flex;
-          justify-content: space-between;
-          gap: 8px;
-          color: #9c9c9c;
-          font-size: 12px;
-        }
-
-        .music-panel iframe {
-          width: 100%;
-          height: 86px;
-          border: 0;
-          border-top: 1px solid #252525;
-          background: #050505;
-        }
-
-        .audio-player {
-          width: 100%;
-          border-top: 1px solid #252525;
-          background: #050505;
-        }
-
-        .audio-player:not([controls]) {
-          display: none;
-        }
-
-        .youtube-embed {
-          width: 100%;
-          aspect-ratio: 16 / 9;
-          min-height: 230px;
-          border-top: 1px solid #252525;
-          background: #050505;
-        }
-
-        .youtube-embed > div {
-          width: 100%;
-          height: 100%;
-        }
-
-        .youtube-embed iframe {
-          width: 100%;
-          height: 100%;
-          display: block;
-          border: 0;
-        }
-
-        .spotify-embed {
-          width: 100%;
-          min-height: 86px;
-          border-top: 1px solid #252525;
-          background: #050505;
-        }
-
-        .music-readonly {
-          margin: 0;
-          padding: 10px;
-          color: #9d9d9d;
-          font-size: 12px;
-          line-height: 1.35;
-          border-bottom: 1px solid #252525;
-        }
-
-        .music-readonly p {
-          margin: 0 0 4px;
-          color: #ddd;
-        }
-
-        .music-panel iframe.readonly,
-        .spotify-embed.readonly {
-          pointer-events: none;
-          filter: grayscale(0.35);
-        }
-
-        .youtube-embed.readonly {
-          filter: grayscale(0.18);
-        }
-
-        .youtube-embed.readonly > div,
-        .youtube-embed.readonly iframe {
-          pointer-events: none;
-        }
-
-        .player-local-controls {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
-          gap: 10px;
-          align-items: center;
-          padding: 10px;
-          border-top: 1px solid #252525;
-          background: #0d0d0d;
-        }
-
-        .player-local-controls label {
-          min-width: 0;
-          display: grid;
-          grid-template-columns: auto minmax(80px, 1fr) 42px;
-          gap: 8px;
-          align-items: center;
-          color: #bdbdbd;
-          font-size: 12px;
-        }
-
-        .player-local-controls input {
-          width: 100%;
-          accent-color: #9ab7ff;
-        }
-
-        .player-local-controls strong {
-          color: #eee;
-          font-size: 12px;
-          text-align: right;
-        }
-
-        .player-local-controls button {
-          min-width: 0;
-          height: 30px;
-          border: 1px solid #333;
-          border-radius: 5px;
-          background: #181818;
-          color: #f4f4f4;
-          cursor: pointer;
-          font: inherit;
-          font-size: 12px;
-          white-space: nowrap;
-        }
-
-        .music-library {
-          min-height: 0;
-          display: grid;
-          grid-template-rows: auto auto minmax(0, 1fr);
-          border-top: 1px solid #252525;
-          overflow: hidden;
-        }
-
-        .music-library header {
-          display: flex;
-          justify-content: space-between;
-          gap: 10px;
-          align-items: center;
-          padding: 9px 10px;
-          background: #121212;
-          border-bottom: 1px solid #252525;
-        }
-
-        .music-library header strong {
-          color: #f5f5f5;
-          font-size: 13px;
-        }
-
-        .music-library header span {
-          min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: #9c9c9c;
-          font-size: 12px;
-        }
-
-        .music-library-actions {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 6px;
-          padding: 8px 10px;
-          border-bottom: 1px solid #252525;
-        }
-
-        .music-library-actions input {
-          display: none;
-        }
-
-        .music-library-actions button,
-        .music-library-row {
-          min-width: 0;
-          border: 1px solid #333;
-          border-radius: 5px;
-          background: #181818;
-          color: #f4f4f4;
-          cursor: pointer;
-          font: inherit;
-          font-size: 12px;
-        }
-
-        .music-library-actions button {
-          height: 30px;
-        }
-
-        .music-library-actions button:disabled {
-          cursor: not-allowed;
-          opacity: 0.5;
-        }
-
-        .music-library-list {
-          min-height: 0;
-          overflow-y: auto;
-          display: flex;
-          flex-direction: column;
-        }
-
-        .music-library-list.drop-root {
-          box-shadow: inset 0 0 0 1px rgba(154, 183, 255, 0.6);
-        }
-
-        .music-library-row {
-          width: 100%;
-          height: 38px;
-          border: 0;
-          border-bottom: 1px solid #252525;
-          border-radius: 0;
-          background: #202020;
-          display: grid;
-          grid-template-columns: 18px 28px minmax(0, 1fr) auto auto;
-          gap: 8px;
-          align-items: center;
-          padding-right: 10px;
-          text-align: left;
-        }
-
-        .music-library-row:hover,
-        .music-library-row.active {
-          background: #343434;
-        }
-
-        .music-library-row.drop-inside {
-          outline: 1px solid rgba(154, 183, 255, 0.9);
-          outline-offset: -2px;
-          background: rgba(154, 183, 255, 0.14);
-        }
-
-        .music-row-icon {
-          color: #bdbdbd;
-          text-align: center;
-        }
-
-        .music-row-thumb {
-          width: 24px;
-          height: 24px;
-          border: 1px solid #3a3a3a;
-          border-radius: 4px;
-          background: linear-gradient(135deg, #222, #4d3b3b);
-        }
-
-        .music-row-thumb.folder {
-          position: relative;
-          height: 17px;
-          background: #c9a557;
-          border-color: #8b7034;
-        }
-
-        .music-row-thumb.folder::before {
-          content: "";
-          position: absolute;
-          left: 1px;
-          top: -5px;
-          width: 11px;
-          height: 6px;
-          border-radius: 2px 2px 0 0;
-          background: #d7b562;
-          border: 1px solid #8b7034;
-          border-bottom: 0;
-        }
-
-        .music-row-name {
-          min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-        }
-
-        .music-row-state {
-          color: #9ab7ff;
-          font-size: 11px;
-        }
-
-        .music-row-delete {
-          width: 22px;
-          height: 22px;
-          display: grid;
-          place-items: center;
-          border: 1px solid #3a3a3a;
-          border-radius: 3px;
-          color: #ddd;
-          background: #252525;
-          font-size: 14px;
-        }
-
-        .music-row-delete:hover {
-          border-color: #703333;
-          color: #fff;
-          background: #3a1717;
         }
 
         .layer-list,

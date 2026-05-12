@@ -7,6 +7,13 @@ create table if not exists public.table_music (
   updated_at timestamptz not null default now()
 );
 
+alter table public.table_music
+  add column if not exists provider text default 'none',
+  add column if not exists playlist_id text,
+  add column if not exists playlist_index integer,
+  add column if not exists track_id text,
+  add column if not exists source_type text;
+
 alter table public.table_music enable row level security;
 
 drop policy if exists "Anyone can read table music" on public.table_music;
