@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import MusicPanel from './music/MusicPanel'
 
@@ -30,6 +30,45 @@ type RollRow = {
   dice_count: number
   dice: Die[]
   successes: number
+  created_at: string
+}
+
+type ChatUser = {
+  id: string
+  username: string
+}
+
+type CharacterOption = {
+  id: string
+  name: string
+  clan: string | null
+}
+
+type CharacterRow = {
+  id: string
+  name: string
+  clan: string | null
+}
+
+type ChatMessage = {
+  id: string
+  room: string
+  userId: string
+  username: string
+  characterId: string | null
+  characterName: string
+  message: string
+  createdAt: string
+}
+
+type ChatMessageRow = {
+  id: string
+  room: string
+  user_id: string
+  username: string
+  character_id: string | null
+  character_name: string
+  message: string
   created_at: string
 }
 
@@ -113,9 +152,10 @@ type LayerDropTarget = {
   placement: LayerDropPlacement
 } | null
 
-type RightRailTab = 'music' | 'layers' | 'rolls'
+type RightRailTab = 'music' | 'layers' | 'rolls' | 'chat'
 
 const TABLE_ROLLS = 'table_rolls'
+const TABLE_CHAT_MESSAGES = 'table_chat_messages'
 const TABLE_IMAGES = 'table_images'
 const TABLE_IMAGE_BUCKET = 'table-images'
 const ROOT_LAYER_DROP_ID = '__root__'
@@ -138,6 +178,13 @@ function mergeRoll(rolls: RollMessage[], roll: RollMessage) {
   return [roll, ...rolls].slice(0, 80)
 }
 
+function mergeChatMessage(messages: ChatMessage[], message: ChatMessage) {
+  if (messages.some(item => item.id === message.id)) return messages
+  return [...messages, message]
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .slice(-120)
+}
+
 function upsertLayer(layers: TableLayer[], layer: TableLayer) {
   const exists = layers.some(item => item.id === layer.id)
   const next = exists ? layers.map(item => (item.id === layer.id ? layer : item)) : [...layers, layer]
@@ -158,6 +205,19 @@ function mapRollRow(row: RollRow): RollMessage {
     diceCount: row.dice_count,
     dice: row.dice || [],
     successes: row.successes,
+    createdAt: row.created_at,
+  }
+}
+
+function mapChatRow(row: ChatMessageRow): ChatMessage {
+  return {
+    id: row.id,
+    room: row.room,
+    userId: row.user_id,
+    username: row.username,
+    characterId: row.character_id,
+    characterName: row.character_name,
+    message: row.message,
     createdAt: row.created_at,
   }
 }
@@ -348,6 +408,16 @@ export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
   const [rolls, setRolls] = useState<RollMessage[]>([])
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
+  const [chatUser, setChatUser] = useState<ChatUser | null>(null)
+  const [chatCharacters, setChatCharacters] = useState<CharacterOption[]>([])
+  const [selectedChatCharacterId, setSelectedChatCharacterId] = useState('')
+  const [chatDraft, setChatDraft] = useState('')
+  const [chatUsernameDraft, setChatUsernameDraft] = useState('')
+  const [chatPasswordDraft, setChatPasswordDraft] = useState('')
+  const [chatAuthMode, setChatAuthMode] = useState<'login' | 'register'>('login')
+  const [chatStatus, setChatStatus] = useState('Чат подключается...')
+  const [isChatBusy, setIsChatBusy] = useState(false)
   const [layers, setLayers] = useState<TableLayer[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
   const [selectedLayerIds, setSelectedLayerIds] = useState<Set<string>>(new Set())
@@ -365,6 +435,7 @@ export default function VampireTable() {
   const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
+  const chatListRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
@@ -383,7 +454,56 @@ export default function VampireTable() {
   useEffect(() => {
     const savedRole = window.localStorage.getItem('vtm-table-role')
     if (savedRole === 'master' || savedRole === 'player') setTableRole(savedRole)
+
+    const savedUser = window.localStorage.getItem('vtm-chat-user')
+    if (savedUser) {
+      try {
+        const parsed = JSON.parse(savedUser) as ChatUser
+        if (parsed?.id && parsed?.username) setChatUser(parsed)
+      } catch {
+        window.localStorage.removeItem('vtm-chat-user')
+      }
+    }
   }, [])
+
+  useEffect(() => {
+    chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight })
+  }, [chatMessages, rightRailTab])
+
+  useEffect(() => {
+    if (!chatUser) {
+      setChatCharacters([])
+      setSelectedChatCharacterId('')
+      return
+    }
+
+    let cancelled = false
+    createClient()
+      .from('characters')
+      .select('id, name, clan')
+      .eq('user_id', chatUser.id)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.error('Не удалось загрузить персонажей:', error)
+          setChatStatus('Персонажи не загрузились')
+          return
+        }
+
+        const characters = (data || []).map(row => row as CharacterRow)
+        setChatCharacters(characters)
+        const savedId = window.localStorage.getItem(`vtm-chat-character:${chatUser.id}`)
+        const nextId = savedId && characters.some(character => character.id === savedId)
+          ? savedId
+          : characters[0]?.id || ''
+        setSelectedChatCharacterId(nextId)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [chatUser])
 
   useEffect(() => {
     if (!layerContextMenu) return
@@ -451,6 +571,24 @@ export default function VampireTable() {
         setTableStatus('Сцена онлайн')
       })
 
+    supabase
+      .from(TABLE_CHAT_MESSAGES)
+      .select('id, room, user_id, username, character_id, character_name, message, created_at')
+      .eq('room', currentRoom)
+      .order('created_at', { ascending: false })
+      .limit(120)
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.error('Не удалось загрузить чат:', error)
+          setChatStatus('Нет общей истории чата')
+          return
+        }
+
+        setChatMessages((data || []).map(row => mapChatRow(row as ChatMessageRow)).reverse())
+        setChatStatus('Чат онлайн')
+      })
+
 
     const channel = supabase
       .channel(`table-room:${currentRoom}`)
@@ -494,6 +632,12 @@ export default function VampireTable() {
           return next
         })
       })
+      .on('broadcast', { event: 'chat-message' }, payload => {
+        const message = payload.payload as ChatMessage
+        if (!message || message.room !== currentRoom) return
+        setChatMessages(prev => mergeChatMessage(prev, message))
+        setChatStatus('Чат онлайн')
+      })
 
 
 
@@ -514,6 +658,20 @@ export default function VampireTable() {
         payload => {
           setRolls(prev => mergeRoll(prev, mapRollRow(payload.new as RollRow)))
           setConnectionText('Онлайн')
+        }
+      )
+
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: TABLE_CHAT_MESSAGES,
+          filter: `room=eq.${currentRoom}`,
+        },
+        payload => {
+          setChatMessages(prev => mergeChatMessage(prev, mapChatRow(payload.new as ChatMessageRow)))
+          setChatStatus('Чат онлайн')
         }
       )
 
@@ -644,6 +802,133 @@ export default function VampireTable() {
   }, [managerLayers])
   const broadcast = (event: string, payload: unknown) => {
     channelRef.current?.send({ type: 'broadcast', event, payload })
+  }
+
+  const hashChatPassword = (password: string) => {
+    try {
+      return window.btoa(password)
+    } catch {
+      return window.btoa(unescape(encodeURIComponent(password)))
+    }
+  }
+
+  const rememberChatUser = (user: ChatUser) => {
+    window.localStorage.setItem('vtm-chat-user', JSON.stringify(user))
+    setChatUser(user)
+    setChatUsernameDraft('')
+    setChatPasswordDraft('')
+  }
+
+  const handleChatAuth = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const username = chatUsernameDraft.trim()
+    const password = chatPasswordDraft.trim()
+
+    if (username.length < 3) {
+      window.alert('Имя пользователя минимум 3 символа.')
+      return
+    }
+    if (password.length < 6) {
+      window.alert('Пароль минимум 6 символов.')
+      return
+    }
+
+    setIsChatBusy(true)
+    try {
+      const supabase = createClient()
+      const passwordHash = hashChatPassword(password)
+
+      if (chatAuthMode === 'register') {
+        const { data, error } = await supabase
+          .from('users')
+          .insert({ username, password_hash: passwordHash })
+          .select('id, username')
+          .single()
+
+        if (error || !data) {
+          console.error('Не удалось зарегистрировать пользователя:', error)
+          window.alert(error?.code === '23505' ? 'Пользователь с таким именем уже существует.' : 'Не удалось создать аккаунт.')
+          return
+        }
+
+        rememberChatUser(data as ChatUser)
+        setChatStatus('Вход выполнен')
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username')
+        .eq('username', username)
+        .eq('password_hash', passwordHash)
+        .single()
+
+      if (error || !data) {
+        console.error('Не удалось войти в чат:', error)
+        window.alert('Неверный логин или пароль.')
+        return
+      }
+
+      rememberChatUser(data as ChatUser)
+      setChatStatus('Вход выполнен')
+    } finally {
+      setIsChatBusy(false)
+    }
+  }
+
+  const logoutChat = () => {
+    window.localStorage.removeItem('vtm-chat-user')
+    setChatUser(null)
+    setChatStatus('Выйди в аккаунт, чтобы писать')
+  }
+
+  const sendChatMessage = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const text = chatDraft.trim()
+    const character = chatCharacters.find(item => item.id === selectedChatCharacterId)
+    if (!chatUser) {
+      window.alert('Сначала войди в аккаунт.')
+      return
+    }
+    if (!character) {
+      window.alert('Выбери персонажа. Сохранённые персонажи берутся из личного кабинета листа.')
+      return
+    }
+    if (!text) return
+
+    const message: ChatMessage = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      userId: chatUser.id,
+      username: chatUser.username,
+      characterId: character.id,
+      characterName: character.name,
+      message: text,
+      createdAt: new Date().toISOString(),
+    }
+
+    setChatDraft('')
+    setChatMessages(prev => mergeChatMessage(prev, message))
+    broadcast('chat-message', message)
+
+    const { error } = await createClient().from(TABLE_CHAT_MESSAGES).insert({
+      id: message.id,
+      room: message.room,
+      user_id: message.userId,
+      username: message.username,
+      character_id: message.characterId,
+      character_name: message.characterName,
+      message: message.message,
+      created_at: message.createdAt,
+    })
+
+    if (error) {
+      console.error('Не удалось сохранить сообщение чата:', error)
+      setChatStatus('Сообщение показано онлайн, но не сохранилось')
+      window.alert('Сообщение отправлено в realtime, но не сохранилось. Нужно применить SQL для table_chat_messages.')
+    } else {
+      setChatStatus('Чат онлайн')
+    }
   }
 
   const patchLayer = async (id: string, patch: LayerPatch, options: { persist?: boolean } = { persist: true }) => {
@@ -1595,6 +1880,13 @@ export default function VampireTable() {
             >
               Броски
             </button>
+            <button
+              type="button"
+              className={rightRailTab === 'chat' ? 'active' : ''}
+              onClick={() => setRightRailTab('chat')}
+            >
+              Чат
+            </button>
           </nav>
 
           <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} hidden={rightRailTab !== 'music'} />
@@ -1672,6 +1964,105 @@ export default function VampireTable() {
                 ))
               )}
             </section>
+          </section>
+
+          <section className={`chat-sidebar table-right-panel ${rightRailTab === 'chat' ? '' : 'table-right-panel-hidden'}`} aria-label="Чат стола">
+            <header>
+              <div>
+                <span>Чат</span>
+                <strong>{chatMessages.length}</strong>
+              </div>
+              <div>
+                <span>Статус</span>
+                <strong>{chatStatus}</strong>
+              </div>
+            </header>
+
+            <div className="chat-login">
+              {chatUser ? (
+                <>
+                  <div className="chat-user-row">
+                    <span>{chatUser.username}</span>
+                    <button type="button" onClick={logoutChat}>Выйти</button>
+                  </div>
+                  <label>
+                    <span>Писать как</span>
+                    <select
+                      value={selectedChatCharacterId}
+                      onChange={event => {
+                        setSelectedChatCharacterId(event.target.value)
+                        window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, event.target.value)
+                      }}
+                    >
+                      {chatCharacters.length === 0 ? <option value="">Нет сохранённых персонажей</option> : null}
+                      {chatCharacters.map(character => (
+                        <option value={character.id} key={character.id}>
+                          {character.name}{character.clan ? `, ${character.clan}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  {chatCharacters.length === 0 ? <p>Сохрани персонажа на листе в личный кабинет, и он появится здесь.</p> : null}
+                </>
+              ) : (
+                <form onSubmit={handleChatAuth}>
+                  <div className="chat-auth-tabs">
+                    <button type="button" className={chatAuthMode === 'login' ? 'active' : ''} onClick={() => setChatAuthMode('login')}>Вход</button>
+                    <button type="button" className={chatAuthMode === 'register' ? 'active' : ''} onClick={() => setChatAuthMode('register')}>Регистрация</button>
+                  </div>
+                  <input
+                    value={chatUsernameDraft}
+                    onChange={event => setChatUsernameDraft(event.target.value)}
+                    placeholder="Имя пользователя"
+                    autoComplete="username"
+                  />
+                  <input
+                    value={chatPasswordDraft}
+                    onChange={event => setChatPasswordDraft(event.target.value)}
+                    placeholder="Пароль"
+                    type="password"
+                    autoComplete={chatAuthMode === 'login' ? 'current-password' : 'new-password'}
+                  />
+                  <button type="submit" disabled={isChatBusy}>{isChatBusy ? '...' : chatAuthMode === 'login' ? 'Войти' : 'Создать аккаунт'}</button>
+                </form>
+              )}
+            </div>
+
+            <section className="chat-list" ref={chatListRef}>
+              {chatMessages.length === 0 ? (
+                <p className="panel-empty">Сообщений пока нет.</p>
+              ) : (
+                chatMessages.map(message => (
+                  <article className={`chat-message ${message.userId === chatUser?.id ? 'own' : ''}`} key={message.id}>
+                    <div className="chat-message-meta">
+                      <strong>{message.characterName}</strong>
+                      <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                    </div>
+                    <p>{message.message}</p>
+                    <span>{message.username}</span>
+                  </article>
+                ))
+              )}
+            </section>
+
+            <form className="chat-composer" onSubmit={sendChatMessage}>
+              <textarea
+                value={chatDraft}
+                onChange={event => setChatDraft(event.target.value)}
+                placeholder={chatUser ? 'Сообщение в сцену...' : 'Войди, чтобы писать'}
+                disabled={!chatUser || chatCharacters.length === 0}
+                rows={3}
+                onKeyDown={event => {
+                  if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault()
+                    event.currentTarget.form?.requestSubmit()
+                  }
+                }}
+              />
+              <button type="submit" disabled={!chatUser || chatCharacters.length === 0 || !chatDraft.trim()}>
+                Отправить
+              </button>
+            </form>
           </section>
         </aside>
       </section>
@@ -1836,7 +2227,8 @@ export default function VampireTable() {
 
         .play-surface,
         .layer-panel,
-        .roll-sidebar {
+        .roll-sidebar,
+        .chat-sidebar {
           border: 1px solid #2b2b2b;
           background: #101010;
           border-radius: 8px;
@@ -1851,7 +2243,8 @@ export default function VampireTable() {
 
         .surface-head,
         .layer-panel header,
-        .roll-sidebar header {
+        .roll-sidebar header,
+        .chat-sidebar header {
           border-bottom: 1px solid #2b2b2b;
           background: #111;
         }
@@ -1871,14 +2264,16 @@ export default function VampireTable() {
 
         .surface-head span,
         .layer-panel header span,
-        .roll-sidebar header span {
+        .roll-sidebar header span,
+        .chat-sidebar header span {
           color: #9c9c9c;
           font-size: 12px;
         }
 
         .surface-head strong,
         .layer-panel header strong,
-        .roll-sidebar header strong {
+        .roll-sidebar header strong,
+        .chat-sidebar header strong {
           color: #f5f5f5;
           font-size: 15px;
         }
@@ -2090,7 +2485,7 @@ export default function VampireTable() {
 
         .right-tabs {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 4px;
           padding: 4px;
           border: 1px solid #2b2b2b;
@@ -2131,7 +2526,8 @@ export default function VampireTable() {
         }
 
         .layer-list,
-        .roll-list {
+        .roll-list,
+        .chat-list {
           min-height: 0;
           height: 100%;
           overflow-y: auto;
@@ -2611,6 +3007,190 @@ export default function VampireTable() {
         .roll-card footer strong {
           color: #36d675;
           font-size: 18px;
+        }
+
+        .chat-sidebar {
+          display: grid;
+          grid-template-rows: auto auto minmax(0, 1fr) auto;
+        }
+
+        .chat-sidebar header {
+          display: grid;
+          grid-template-columns: 92px minmax(0, 1fr);
+        }
+
+        .chat-sidebar header div {
+          display: grid;
+          gap: 4px;
+          padding: 10px;
+          border-right: 1px solid #292929;
+          min-width: 0;
+        }
+
+        .chat-sidebar header div:last-child {
+          border-right: none;
+        }
+
+        .chat-sidebar header strong {
+          color: #36d675;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 14px;
+        }
+
+        .chat-login {
+          border-bottom: 1px solid #292929;
+          background: #121212;
+          padding: 10px;
+          display: grid;
+          gap: 8px;
+        }
+
+        .chat-login form,
+        .chat-login label {
+          display: grid;
+          gap: 8px;
+        }
+
+        .chat-login label span {
+          color: #9c9c9c;
+          font-size: 12px;
+        }
+
+        .chat-login input,
+        .chat-login select,
+        .chat-composer textarea {
+          width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 8px;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .chat-login select {
+          height: 34px;
+        }
+
+        .chat-login button,
+        .chat-composer button {
+          min-width: 0;
+          height: 32px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #1d1d1d;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .chat-login button:disabled,
+        .chat-composer button:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+
+        .chat-auth-tabs {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+        }
+
+        .chat-auth-tabs button.active {
+          border-color: #36d675;
+          color: #dfffe9;
+          background: #17221a;
+        }
+
+        .chat-user-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 70px;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .chat-user-row span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #f2f2f2;
+          font-size: 13px;
+        }
+
+        .chat-login p {
+          margin: 0;
+          color: #9c9c9c;
+          font-size: 12px;
+          line-height: 1.35;
+        }
+
+        .chat-list {
+          gap: 8px;
+          padding: 10px;
+        }
+
+        .chat-message {
+          border: 1px solid #303030;
+          border-radius: 8px;
+          background: #151515;
+          padding: 10px;
+        }
+
+        .chat-message.own {
+          border-color: rgba(54, 214, 117, 0.42);
+          background: #142019;
+        }
+
+        .chat-message-meta {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .chat-message-meta strong {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 14px;
+          color: #f4f4f4;
+        }
+
+        .chat-message-meta time,
+        .chat-message > span {
+          color: #8e8e8e;
+          font-size: 11px;
+        }
+
+        .chat-message p {
+          margin: 7px 0 6px;
+          color: #e9e9e9;
+          font-size: 13px;
+          line-height: 1.42;
+          white-space: pre-wrap;
+          overflow-wrap: anywhere;
+        }
+
+        .chat-composer {
+          display: grid;
+          gap: 8px;
+          padding: 10px;
+          border-top: 1px solid #292929;
+          background: #101010;
+        }
+
+        .chat-composer textarea {
+          min-height: 72px;
+          resize: vertical;
+          line-height: 1.35;
         }
 
         @media (max-width: 1040px) {
