@@ -535,6 +535,7 @@ export default function VampireTable() {
   const musicLibraryRef = useRef<MusicLibraryItem[]>([])
   const panRef = useRef(pan)
   const suppressNextContextMenuRef = useRef(false)
+  const musicLifecycleLockedRef = useRef(false)
   const isMaster = tableRole === 'master'
 
   useEffect(() => {
@@ -552,6 +553,21 @@ export default function VampireTable() {
   useEffect(() => {
     const savedRole = window.localStorage.getItem('vtm-table-role')
     if (savedRole === 'master' || savedRole === 'player') setTableRole(savedRole)
+  }, [])
+
+  useEffect(() => {
+    musicLifecycleLockedRef.current = false
+    const lockMusicLifecycle = () => {
+      musicLifecycleLockedRef.current = true
+    }
+
+    window.addEventListener('pagehide', lockMusicLifecycle)
+    window.addEventListener('beforeunload', lockMusicLifecycle)
+    return () => {
+      musicLifecycleLockedRef.current = true
+      window.removeEventListener('pagehide', lockMusicLifecycle)
+      window.removeEventListener('beforeunload', lockMusicLifecycle)
+    }
   }, [])
 
   useEffect(() => {
@@ -1321,6 +1337,7 @@ export default function VampireTable() {
   const publishAudioElementState = (isPlaying: boolean) => {
     const audio = audioPlayerRef.current
     if (!isMaster || !audio || musicProvider !== 'file') return
+    if (musicLifecycleLockedRef.current || document.visibilityState !== 'visible') return
     publishMusicState({
       isPlaying,
       positionSeconds: Math.max(0, Math.floor(audio.currentTime || 0)),
@@ -1369,7 +1386,7 @@ export default function VampireTable() {
             height: 260,
             playerVars: {
               autoplay: 0,
-              controls: 1,
+              controls: isMaster ? 1 : 0,
               enablejsapi: 1,
               origin: window.location.origin,
               playsinline: 1,
@@ -1387,6 +1404,7 @@ export default function VampireTable() {
                 if (event.data === 0) setMusicStatus('Пауза')
 
                 if (!isMaster || (event.data !== 0 && event.data !== 1 && event.data !== 2)) return
+                if (musicLifecycleLockedRef.current || document.visibilityState !== 'visible') return
 
                 const positionSeconds = Math.max(0, Math.floor(event.target.getCurrentTime() || 0))
                 const nextPlaying = event.data === 1
@@ -1448,6 +1466,7 @@ export default function VampireTable() {
     if (!isMaster || musicProvider !== 'youtube' || !youtubeVideoId) return
 
     const interval = window.setInterval(() => {
+      if (musicLifecycleLockedRef.current || document.visibilityState !== 'visible') return
       const player = youtubePlayerRef.current
       if (!player) return
 
@@ -1511,6 +1530,7 @@ export default function VampireTable() {
             })
             controller.addListener('playback_update', event => {
               if (!isMaster) return
+              if (musicLifecycleLockedRef.current || document.visibilityState !== 'visible') return
               const now = Date.now()
               const nextPosition = Math.max(0, Math.floor((event.data.position || 0) / 1000))
               const currentMusic = musicStateRef.current
@@ -3117,6 +3137,11 @@ export default function VampireTable() {
 
         .youtube-embed.readonly {
           filter: grayscale(0.18);
+        }
+
+        .youtube-embed.readonly > div,
+        .youtube-embed.readonly iframe {
+          pointer-events: none;
         }
 
         .player-local-controls {
