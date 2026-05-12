@@ -110,6 +110,10 @@ type MusicTreeNode = MusicLibraryItem & {
   children: MusicTreeNode[]
 }
 
+type MusicDropTarget = {
+  id: string | null
+} | null
+
 type SpotifyController = {
   loadUri: (spotifyUri: string, preferVideo?: boolean, startAt?: number) => void
   play: () => void
@@ -320,8 +324,8 @@ function safeStorageName(name: string) {
   return cleanName || 'image'
 }
 
-function getStoragePathFromPublicUrl(publicUrl: string) {
-  const marker = `/storage/v1/object/public/${TABLE_IMAGE_BUCKET}/`
+function getStoragePathFromPublicUrl(publicUrl: string, bucket = TABLE_IMAGE_BUCKET) {
+  const marker = `/storage/v1/object/public/${bucket}/`
   const index = publicUrl.indexOf(marker)
   if (index === -1) return null
   return decodeURIComponent(publicUrl.slice(index + marker.length).split('?')[0])
@@ -507,6 +511,8 @@ export default function VampireTable() {
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
+  const [draggingMusicId, setDraggingMusicId] = useState<string | null>(null)
+  const [musicDropTarget, setMusicDropTarget] = useState<MusicDropTarget>(null)
   const [rightRailTab, setRightRailTab] = useState<RightRailTab>('layers')
   const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -744,6 +750,16 @@ export default function VampireTable() {
           return next
         })
       })
+      .on('broadcast', { event: 'music-library-delete' }, payload => {
+        const deleted = payload.payload as { room?: string; ids?: string[] }
+        if (deleted.room !== currentRoom || !deleted.ids) return
+        setMusicLibrary(prev => {
+          const idSet = new Set(deleted.ids)
+          const next = prev.filter(item => !idSet.has(item.id))
+          musicLibraryRef.current = next
+          return next
+        })
+      })
       .on('broadcast', { event: 'viewport-focus' }, payload => {
         const focus = payload.payload as { room?: string; pan?: { x: number; y: number }; zoom?: number }
         if (focus.room !== currentRoom || !focus.pan || typeof focus.zoom !== 'number') return
@@ -780,14 +796,26 @@ export default function VampireTable() {
       .on(
         'postgres_changes',
         {
-          event: 'INSERT',
+          event: '*',
           schema: 'public',
           table: TABLE_MUSIC_LIBRARY,
           filter: `room=eq.${currentRoom}`,
         },
         payload => {
+          if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as { id?: string }
+            if (!deleted.id) return
+            setMusicLibrary(prev => {
+              const next = prev.filter(item => item.id !== deleted.id)
+              musicLibraryRef.current = next
+              return next
+            })
+            return
+          }
+
+          const row = payload.new as MusicLibraryRow
           setMusicLibrary(prev => {
-            const next = upsertMusicLibraryItem(prev, mapMusicLibraryRow(payload.new as MusicLibraryRow))
+            const next = upsertMusicLibraryItem(prev, mapMusicLibraryRow(row))
             musicLibraryRef.current = next
             return next
           })
@@ -1177,6 +1205,107 @@ export default function VampireTable() {
     }
   }
 
+  const getMusicDescendantIds = (itemId: string) => {
+    const ids = new Set<string>()
+    const visit = (parentId: string) => {
+      musicLibraryRef.current.forEach(item => {
+        if (item.parentId !== parentId || ids.has(item.id)) return
+        ids.add(item.id)
+        visit(item.id)
+      })
+    }
+    visit(itemId)
+    return ids
+  }
+
+  const moveMusicItem = async (itemId: string, parentId: string | null) => {
+    if (!isMaster) return
+    const item = musicLibraryRef.current.find(entry => entry.id === itemId)
+    if (!item || item.parentId === parentId) return
+    if (item.itemType === 'folder' && parentId && getMusicDescendantIds(item.id).has(parentId)) return
+
+    const patch = { parentId }
+    const nextItem = { ...item, parentId }
+    const nextLibrary = musicLibraryRef.current.map(entry => (entry.id === itemId ? nextItem : entry))
+    musicLibraryRef.current = nextLibrary
+    setMusicLibrary(nextLibrary)
+    if (parentId) setExpandedMusicFolders(prev => new Set(prev).add(parentId))
+    broadcast('music-library', nextItem)
+
+    const { error } = await createClient()
+      .from(TABLE_MUSIC_LIBRARY)
+      .update({ parent_id: patch.parentId })
+      .eq('id', itemId)
+
+    if (error) {
+      console.error('Не удалось переместить музыку:', error)
+      setMusicStatus('Музыка не переместилась')
+    }
+  }
+
+  const deleteMusicItem = async (itemId: string) => {
+    if (!isMaster) return
+    const deleteIds = new Set([itemId, ...getMusicDescendantIds(itemId)])
+    const deletedItems = musicLibraryRef.current.filter(item => deleteIds.has(item.id))
+    if (deletedItems.length === 0) return
+
+    const nextLibrary = musicLibraryRef.current.filter(item => !deleteIds.has(item.id))
+    musicLibraryRef.current = nextLibrary
+    setMusicLibrary(nextLibrary)
+    setSelectedMusicFolderId(prev => (prev && deleteIds.has(prev) ? null : prev))
+    broadcast('music-library-delete', { room, ids: [...deleteIds] })
+
+    const supabase = createClient()
+    await supabase.from(TABLE_MUSIC_LIBRARY).delete().in('id', [...deleteIds])
+
+    await Promise.all(deletedItems.filter(item => item.itemType === 'track').map(async item => {
+      const storagePath = getStoragePathFromPublicUrl(item.url, TABLE_MUSIC_BUCKET)
+      if (storagePath) {
+        const { error } = await supabase.storage.from(TABLE_MUSIC_BUCKET).remove([storagePath])
+        if (error) console.error('Не удалось удалить музыку из Storage:', error)
+      }
+    }))
+
+    if (deletedItems.some(item => item.url && item.url === musicStateRef.current.url)) {
+      publishMusicState({ url: '', activeUri: '', isPlaying: false, positionSeconds: 0 })
+    }
+  }
+
+  const handleMusicDragStart = (event: React.DragEvent<HTMLElement>, itemId: string) => {
+    if (!isMaster) {
+      event.preventDefault()
+      return
+    }
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', itemId)
+    setDraggingMusicId(itemId)
+  }
+
+  const handleMusicDragOver = (event: React.DragEvent<HTMLElement>, target: MusicLibraryItem | null) => {
+    if (!isMaster) return
+    const draggedId = draggingMusicId || event.dataTransfer.getData('text/plain')
+    if (!draggedId) return
+    if (target && target.itemType !== 'folder') return
+    if (target && target.id === draggedId) return
+    const dragged = musicLibraryRef.current.find(item => item.id === draggedId)
+    if (!dragged) return
+    if (dragged.itemType === 'folder' && target && getMusicDescendantIds(dragged.id).has(target.id)) return
+
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'move'
+    setMusicDropTarget({ id: target?.id ?? null })
+  }
+
+  const handleMusicDrop = async (event: React.DragEvent<HTMLElement>, target: MusicLibraryItem | null) => {
+    if (!isMaster) return
+    event.preventDefault()
+    const draggedId = draggingMusicId || event.dataTransfer.getData('text/plain')
+    setDraggingMusicId(null)
+    setMusicDropTarget(null)
+    if (!draggedId) return
+    await moveMusicItem(draggedId, target?.id ?? null)
+  }
+
   const deleteLayer = async (layerId: string) => {
     const layer = layersRef.current.find(item => item.id === layerId) || layers.find(item => item.id === layerId)
     const childIds = getDescendantIds(layerId)
@@ -1185,10 +1314,6 @@ export default function VampireTable() {
       ? requestedDeleteIds
       : new Set([...requestedDeleteIds].filter(id => layersRef.current.find(item => item.id === id)?.ownerRole !== 'master'))
     if (deleteIds.size === 0) return
-    const prompt = layer?.layerType === 'folder' && childIds.size > 0
-      ? `Удалить папку «${layer.name}» и ${childIds.size} вложенных слоёв?`
-      : 'Удалить слой со стола?'
-    if (!window.confirm(prompt)) return
 
     const deletedLayers = layersRef.current.filter(item => deleteIds.has(item.id))
     const nextLayers = layersRef.current.filter(item => !deleteIds.has(item.id))
@@ -1232,6 +1357,7 @@ export default function VampireTable() {
     setLocalYouTubeVolume(nextVolume)
     window.localStorage.setItem('vtm-youtube-volume', String(nextVolume))
     youtubePlayerRef.current?.setVolume(nextVolume)
+    if (audioPlayerRef.current) audioPlayerRef.current.volume = nextVolume / 100
   }
 
   const openYouTubeFullscreen = () => {
@@ -1583,6 +1709,7 @@ export default function VampireTable() {
 
     const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition()))
     if (audio.src !== musicUrl) audio.src = musicUrl
+    audio.volume = localYouTubeVolume / 100
     if (Math.abs(audio.currentTime - positionSeconds) > 1.2) audio.currentTime = positionSeconds
 
     if (musicPlaying) {
@@ -1593,7 +1720,7 @@ export default function VampireTable() {
     } else {
       audio.pause()
     }
-  }, [musicProvider, musicUrl, musicPlaying, musicPositionSeconds, musicUpdatedAt])
+  }, [musicProvider, musicUrl, musicPlaying, musicPositionSeconds, musicUpdatedAt, localYouTubeVolume])
 
   useEffect(() => {
     if (musicProvider !== 'file' || !musicPlaying) return
@@ -2182,13 +2309,22 @@ export default function VampireTable() {
     const isFolder = item.itemType === 'folder'
     const isExpanded = expandedMusicFolders.has(item.id)
     const isActive = musicActiveUri === item.id || musicUrl === item.url
+    const isDropTarget = musicDropTarget?.id === item.id
 
     return (
       <div className="music-tree-item" key={item.id}>
         <button
           type="button"
-          className={`music-library-row ${isActive ? 'active' : ''} ${isFolder ? 'folder' : 'track'}`}
+          className={`music-library-row ${isActive ? 'active' : ''} ${isFolder ? 'folder' : 'track'} ${isDropTarget ? 'drop-inside' : ''}`}
           style={{ paddingLeft: 10 + depth * 18 }}
+          draggable={isMaster}
+          onDragStart={event => handleMusicDragStart(event, item.id)}
+          onDragOver={event => handleMusicDragOver(event, item)}
+          onDrop={event => handleMusicDrop(event, item)}
+          onDragEnd={() => {
+            setDraggingMusicId(null)
+            setMusicDropTarget(null)
+          }}
           onClick={() => {
             if (isFolder) {
               setSelectedMusicFolderId(item.id)
@@ -2207,6 +2343,26 @@ export default function VampireTable() {
           <span className={`music-row-thumb ${isFolder ? 'folder' : ''}`} />
           <span className="music-row-name">{item.name}</span>
           {!isFolder && isActive ? <span className="music-row-state">{musicPlaying ? 'play' : 'pause'}</span> : null}
+          {isMaster ? (
+            <span
+              className="music-row-delete"
+              role="button"
+              tabIndex={0}
+              onClick={event => {
+                event.stopPropagation()
+                deleteMusicItem(item.id)
+              }}
+              onKeyDown={event => {
+                if (event.key !== 'Enter' && event.key !== ' ') return
+                event.preventDefault()
+                event.stopPropagation()
+                deleteMusicItem(item.id)
+              }}
+              title="Удалить"
+            >
+              ×
+            </span>
+          ) : null}
         </button>
         {isFolder && isExpanded ? item.children.map(child => renderMusicNode(child, depth + 1)) : null}
       </div>
@@ -2444,7 +2600,7 @@ export default function VampireTable() {
                 onSeeked={() => publishAudioElementState(musicPlaying)}
               />
             ) : null}
-            {!isMaster && musicProvider === 'youtube' && youtubeVideoId ? (
+            {!isMaster && ((musicProvider === 'youtube' && youtubeVideoId) || (musicProvider === 'file' && musicUrl)) ? (
               <div className="player-local-controls" aria-label="Локальные настройки плеера">
                 <label>
                   <span>Громкость</span>
@@ -2457,7 +2613,7 @@ export default function VampireTable() {
                   />
                   <strong>{localYouTubeVolume}%</strong>
                 </label>
-                <button type="button" onClick={openYouTubeFullscreen}>На весь экран</button>
+                {musicProvider === 'youtube' ? <button type="button" onClick={openYouTubeFullscreen}>На весь экран</button> : null}
               </div>
             ) : null}
             <section className="music-library" aria-label="Музыкальная библиотека">
@@ -2477,7 +2633,11 @@ export default function VampireTable() {
               ) : (
                 <p className="music-readonly">Треки запускает мастер.</p>
               )}
-              <div className="music-library-list">
+              <div
+                className={`music-library-list ${musicDropTarget?.id === null ? 'drop-root' : ''}`}
+                onDragOver={event => handleMusicDragOver(event, null)}
+                onDrop={event => handleMusicDrop(event, null)}
+              >
                 {musicTree.length === 0 ? (
                   <p className="panel-empty">Музыка ещё не загружена.</p>
                 ) : (
@@ -3260,6 +3420,10 @@ export default function VampireTable() {
           flex-direction: column;
         }
 
+        .music-library-list.drop-root {
+          box-shadow: inset 0 0 0 1px rgba(154, 183, 255, 0.6);
+        }
+
         .music-library-row {
           width: 100%;
           height: 38px;
@@ -3268,7 +3432,7 @@ export default function VampireTable() {
           border-radius: 0;
           background: #202020;
           display: grid;
-          grid-template-columns: 18px 28px minmax(0, 1fr) auto;
+          grid-template-columns: 18px 28px minmax(0, 1fr) auto auto;
           gap: 8px;
           align-items: center;
           padding-right: 10px;
@@ -3278,6 +3442,12 @@ export default function VampireTable() {
         .music-library-row:hover,
         .music-library-row.active {
           background: #343434;
+        }
+
+        .music-library-row.drop-inside {
+          outline: 1px solid rgba(154, 183, 255, 0.9);
+          outline-offset: -2px;
+          background: rgba(154, 183, 255, 0.14);
         }
 
         .music-row-icon {
@@ -3323,6 +3493,24 @@ export default function VampireTable() {
         .music-row-state {
           color: #9ab7ff;
           font-size: 11px;
+        }
+
+        .music-row-delete {
+          width: 22px;
+          height: 22px;
+          display: grid;
+          place-items: center;
+          border: 1px solid #3a3a3a;
+          border-radius: 3px;
+          color: #ddd;
+          background: #252525;
+          font-size: 14px;
+        }
+
+        .music-row-delete:hover {
+          border-color: #703333;
+          color: #fff;
+          background: #3a1717;
         }
 
         .layer-list,
