@@ -1679,7 +1679,25 @@ export default function VampireTable() {
               <span className="folder-toggle spacer" />
             )}
             <div className="layer-thumb" aria-hidden="true">
-              {isFolder ? <span className="folder-thumb" /> : <img src={layer.imageData} alt="" draggable={false} />}
+              {isFolder ? (
+                <span className="folder-thumb" />
+              ) : (
+                <img
+                  src={layer.imageData}
+                  alt=""
+                  draggable={false}
+                  width={36}
+                  height={32}
+                  style={{
+                    width: 36,
+                    height: 32,
+                    maxWidth: 36,
+                    maxHeight: 32,
+                    objectFit: 'cover',
+                    display: 'block',
+                  }}
+                />
+              )}
             </div>
             <div className="layer-title">
               <span>{layer.name}</span>
@@ -1856,7 +1874,7 @@ export default function VampireTable() {
             </button>
           </nav>
 
-          <section className={`music-panel right-panel ${rightRailTab === 'music' ? '' : 'right-panel-hidden'}`} aria-label="Музыка комнаты">
+          <section className={`music-panel table-right-panel ${rightRailTab === 'music' ? '' : 'table-right-panel-hidden'}`} aria-label="Музыка комнаты">
             <header>
               <strong>Музыка</strong>
               <span>{isMaster ? musicStatus : 'Музыкой управляет мастер'}</span>
@@ -1920,7 +1938,7 @@ export default function VampireTable() {
             ) : null}
           </section>
 
-          <section className={`layer-panel right-panel ${rightRailTab === 'layers' ? '' : 'right-panel-hidden'}`} aria-label="Слои стола">
+          <section className={`layer-panel table-right-panel ${rightRailTab === 'layers' ? '' : 'table-right-panel-hidden'}`} aria-label="Слои стола">
             <header>
               <strong>Слои</strong>
               <span>{selectedManagerLayer?.name || 'ничего не выбрано'}</span>
@@ -1949,7 +1967,7 @@ export default function VampireTable() {
             </div>
           </section>
 
-          <section className={`roll-sidebar right-panel ${rightRailTab === 'rolls' ? '' : 'right-panel-hidden'}`} aria-label="История бросков">
+          <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label="История бросков">
             <header>
               <div>
                 <span>Броски</span>
@@ -2413,11 +2431,14 @@ export default function VampireTable() {
           color: #f4f4f4;
         }
 
-        .right-panel {
+        .table-right-panel {
+          width: 100%;
+          min-width: 0;
           min-height: 0;
+          align-self: stretch;
         }
 
-        .right-panel-hidden {
+        .table-right-panel-hidden {
           display: none !important;
         }
 
@@ -2603,7 +2624,9 @@ export default function VampireTable() {
           position: relative;
           display: grid;
           grid-template-columns: 34px minmax(0, 1fr);
+          width: 100%;
           min-height: 44px;
+          max-height: 44px;
           border: 0;
           border-bottom: 1px solid #2b2b2b;
           border-radius: 0;
@@ -2698,6 +2721,7 @@ export default function VampireTable() {
         .layer-name {
           width: 100%;
           min-height: 44px;
+          max-height: 44px;
           color: #f1f1f1;
           display: grid;
           grid-template-columns: 18px 36px minmax(0, 1fr) auto;
@@ -2727,11 +2751,12 @@ export default function VampireTable() {
 
         .layer-thumb {
           min-width: 0;
-          width: 36px;
-          height: 32px;
-          min-height: 32px;
-          max-width: 36px;
-          max-height: 32px;
+          width: 36px !important;
+          height: 32px !important;
+          min-width: 36px !important;
+          min-height: 32px !important;
+          max-width: 36px !important;
+          max-height: 32px !important;
           display: grid;
           place-items: center;
           border: 1px solid #181818;
@@ -2744,8 +2769,8 @@ export default function VampireTable() {
           background-size: 10px 10px;
           background-position: 0 0, 0 5px, 5px -5px, -5px 0;
           box-shadow: 0 0 0 1px #3f3f3f;
-          overflow: hidden;
-          flex: 0 0 36px;
+          overflow: hidden !important;
+          flex: 0 0 36px !important;
         }
 
         .layer-thumb img {
