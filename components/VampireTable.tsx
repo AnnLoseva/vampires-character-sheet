@@ -174,6 +174,8 @@ type LayerDropTarget = {
   placement: LayerDropPlacement
 } | null
 
+type RightRailTab = 'music' | 'layers' | 'rolls'
+
 const TABLE_ROLLS = 'table_rolls'
 const TABLE_IMAGES = 'table_images'
 const TABLE_MUSIC = 'table_music'
@@ -446,6 +448,7 @@ export default function VampireTable() {
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
+  const [rightRailTab, setRightRailTab] = useState<RightRailTab>('layers')
   const fileInputRef = useRef<HTMLInputElement>(null)
   const youtubeMountRef = useRef<HTMLDivElement>(null)
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null)
@@ -1804,7 +1807,31 @@ export default function VampireTable() {
         </section>
 
         <aside className="right-rail">
-          <section className="music-panel" aria-label="Музыка комнаты">
+          <nav className="right-tabs" aria-label="Панели стола">
+            <button
+              type="button"
+              className={rightRailTab === 'music' ? 'active' : ''}
+              onClick={() => setRightRailTab('music')}
+            >
+              Музыка
+            </button>
+            <button
+              type="button"
+              className={rightRailTab === 'layers' ? 'active' : ''}
+              onClick={() => setRightRailTab('layers')}
+            >
+              Изображения
+            </button>
+            <button
+              type="button"
+              className={rightRailTab === 'rolls' ? 'active' : ''}
+              onClick={() => setRightRailTab('rolls')}
+            >
+              Броски
+            </button>
+          </nav>
+
+          <section className={`music-panel right-panel ${rightRailTab === 'music' ? '' : 'right-panel-hidden'}`} aria-label="Музыка комнаты">
             <header>
               <strong>Музыка</strong>
               <span>{isMaster ? musicStatus : 'Музыкой управляет мастер'}</span>
@@ -1851,7 +1878,7 @@ export default function VampireTable() {
             ) : null}
           </section>
 
-          <section className="layer-panel" aria-label="Слои стола">
+          <section className={`layer-panel right-panel ${rightRailTab === 'layers' ? '' : 'right-panel-hidden'}`} aria-label="Слои стола">
             <header>
               <strong>Слои</strong>
               <span>{selectedManagerLayer?.name || 'ничего не выбрано'}</span>
@@ -1880,7 +1907,7 @@ export default function VampireTable() {
             </div>
           </section>
 
-          <section className="roll-sidebar" aria-label="История бросков">
+          <section className={`roll-sidebar right-panel ${rightRailTab === 'rolls' ? '' : 'right-panel-hidden'}`} aria-label="История бросков">
             <header>
               <div>
                 <span>Броски</span>
@@ -2309,13 +2336,53 @@ export default function VampireTable() {
         .right-rail {
           min-width: 0;
           display: grid;
-          grid-template-rows: auto minmax(220px, 0.42fr) minmax(260px, 0.58fr);
+          grid-template-rows: auto minmax(0, 1fr);
           gap: 12px;
+        }
+
+        .right-tabs {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 4px;
+          padding: 4px;
+          border: 1px solid #2b2b2b;
+          border-radius: 8px;
+          background: #101010;
+        }
+
+        .right-tabs button {
+          min-width: 0;
+          height: 34px;
+          border: 1px solid transparent;
+          border-radius: 5px;
+          background: transparent;
+          color: #a9a9a9;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .right-tabs button.active {
+          border-color: #3b3b3b;
+          background: #242424;
+          color: #f4f4f4;
+        }
+
+        .right-panel {
+          min-height: 0;
+        }
+
+        .right-panel-hidden {
+          display: none !important;
         }
 
         .music-panel {
           display: grid;
           grid-template-rows: auto auto auto;
+          align-self: start;
         }
 
         .music-panel header,
@@ -2571,6 +2638,9 @@ export default function VampireTable() {
           min-width: 0;
           width: 36px;
           height: 32px;
+          min-height: 32px;
+          max-width: 36px;
+          max-height: 32px;
           display: grid;
           place-items: center;
           border: 1px solid #181818;
@@ -2584,13 +2654,19 @@ export default function VampireTable() {
           background-position: 0 0, 0 5px, 5px -5px, -5px 0;
           box-shadow: 0 0 0 1px #3f3f3f;
           overflow: hidden;
+          flex: 0 0 36px;
         }
 
         .layer-thumb img {
-          width: 100%;
-          height: 100%;
+          width: 100% !important;
+          height: 100% !important;
+          min-width: 0 !important;
+          min-height: 0 !important;
+          max-width: 36px !important;
+          max-height: 32px !important;
           object-fit: cover;
           display: block;
+          pointer-events: none;
         }
 
         .folder-thumb {
@@ -2899,7 +2975,7 @@ export default function VampireTable() {
           }
 
           .right-rail {
-            grid-template-rows: 360px 440px;
+            grid-template-rows: auto 520px;
           }
 
           .table-topbar {
