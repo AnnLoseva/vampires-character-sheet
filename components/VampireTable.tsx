@@ -449,6 +449,7 @@ export default function VampireTable() {
   const youtubeMountRef = useRef<HTMLDivElement>(null)
   const youtubePlayerRef = useRef<YouTubePlayer | null>(null)
   const youtubeVideoIdRef = useRef('')
+  const youtubeLastPublishRef = useRef(0)
   const spotifyMountRef = useRef<HTMLDivElement>(null)
   const spotifyControllerRef = useRef<SpotifyController | null>(null)
   const spotifyLastPublishRef = useRef(0)
@@ -985,11 +986,15 @@ export default function VampireTable() {
 
     const normalizedUrl = musicDraft.trim()
     const provider = getMusicProvider(normalizedUrl)
+    const currentMusic = musicStateRef.current
 
     if (!normalizedUrl) {
+      if (!currentMusic.url) return
       publishMusicState({ url: '', activeUri: '', isPlaying: false, positionSeconds: 0 })
       return
     }
+
+    if (normalizedUrl === currentMusic.url) return
 
     if (provider === 'youtube') {
       const videoId = getYouTubeId(normalizedUrl)
@@ -1012,36 +1017,6 @@ export default function VampireTable() {
     }
 
     setMusicStatus('Поддерживаются YouTube и Spotify ссылки')
-  }
-
-  const setMusicPlayback = (isPlaying: boolean) => {
-    const player = youtubePlayerRef.current
-    const positionSeconds = musicProvider === 'youtube' && player
-      ? Math.max(0, Math.floor(player.getCurrentTime() || 0))
-      : Math.max(0, Math.floor(getEffectiveMusicPosition()))
-
-    if (musicProvider === 'youtube' && player) {
-      if (isPlaying) player.playVideo()
-      else player.pauseVideo()
-    }
-    if (musicProvider === 'spotify') controlSpotify(isPlaying ? 'play' : 'pause')
-
-    publishMusicState({ isPlaying, positionSeconds })
-  }
-
-  const seekMusic = (deltaSeconds: number) => {
-    const player = youtubePlayerRef.current
-    const basePosition = musicProvider === 'youtube' && player
-      ? player.getCurrentTime() || 0
-      : getEffectiveMusicPosition()
-    const positionSeconds = Math.max(0, Math.floor(basePosition + deltaSeconds))
-
-    if (musicProvider === 'youtube' && player) {
-      player.seekTo(positionSeconds, true)
-      if (musicPlaying) player.playVideo()
-    }
-    if (musicProvider === 'spotify') controlSpotify('seek', positionSeconds)
-    publishMusicState({ positionSeconds })
   }
 
   useEffect(() => {
@@ -1100,6 +1075,23 @@ export default function VampireTable() {
               onStateChange: event => {
                 if (event.data === 1) setMusicStatus('Играет синхронно')
                 if (event.data === 2) setMusicStatus('Пауза')
+                if (event.data === 0) setMusicStatus('Пауза')
+
+                if (!isMaster || (event.data !== 0 && event.data !== 1 && event.data !== 2)) return
+
+                const positionSeconds = Math.max(0, Math.floor(event.target.getCurrentTime() || 0))
+                const nextPlaying = event.data === 1
+                const currentMusic = musicStateRef.current
+                const stateChanged = currentMusic.isPlaying !== nextPlaying
+                const positionChanged = Math.abs(positionSeconds - getEffectiveMusicPosition()) > 1
+
+                if (stateChanged || positionChanged) {
+                  youtubeLastPublishRef.current = Date.now()
+                  publishMusicState({
+                    isPlaying: nextPlaying,
+                    positionSeconds: event.data === 0 ? 0 : positionSeconds,
+                  })
+                }
               },
               onAutoplayBlocked: () => {
                 if (musicStateRef.current.isPlaying) setMusicStatus('Нажми на страницу, чтобы включить музыку')
@@ -1137,6 +1129,34 @@ export default function VampireTable() {
       window.removeEventListener('keydown', unlock)
     }
   }, [musicProvider, musicPlaying])
+
+  useEffect(() => {
+    if (!isMaster || musicProvider !== 'youtube' || !youtubeVideoId) return
+
+    const interval = window.setInterval(() => {
+      const player = youtubePlayerRef.current
+      if (!player) return
+
+      const now = Date.now()
+      if (now - youtubeLastPublishRef.current < 900) return
+
+      const positionSeconds = Math.max(0, Math.floor(player.getCurrentTime() || 0))
+      const currentMusic = musicStateRef.current
+      const expectedPosition = currentMusic.isPlaying
+        ? currentMusic.positionSeconds + Math.max(0, (now - new Date(currentMusic.updatedAt).getTime()) / 1000)
+        : currentMusic.positionSeconds
+
+      if (Math.abs(positionSeconds - expectedPosition) <= 2) return
+
+      youtubeLastPublishRef.current = now
+      publishMusicState({
+        isPlaying: currentMusic.isPlaying,
+        positionSeconds,
+      })
+    }, 1000)
+
+    return () => window.clearInterval(interval)
+  }, [isMaster, musicProvider, youtubeVideoId])
 
   useEffect(() => {
     if (musicProvider !== 'spotify' || !musicUrl || !spotifyMountRef.current) return
@@ -1705,28 +1725,16 @@ export default function VampireTable() {
                 <input
                   value={musicDraft}
                   onChange={event => setMusicDraft(event.target.value)}
+                  onBlur={applyMusicDraft}
                   onKeyDown={event => {
                     if (event.key !== 'Enter') return
                     applyMusicDraft()
                   }}
-                  placeholder="YouTube или Spotify ссылка"
+                  placeholder="YouTube или Spotify ссылка, Enter чтобы применить"
                 />
                 <div className="music-meta">
                   <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider}</span>
                   <span>{Math.floor(getEffectiveMusicPosition())} сек.</span>
-                </div>
-                <div className="music-buttons">
-                  <button type="button" onClick={applyMusicDraft}>Применить</button>
-                  <button type="button" onClick={() => setMusicPlayback(true)} disabled={!musicUrl}>▶</button>
-                  <button type="button" onClick={() => setMusicPlayback(false)} disabled={!musicUrl}>⏸</button>
-                  <button type="button" onClick={() => seekMusic(-10)} disabled={!musicUrl}>-10</button>
-                  <button type="button" onClick={() => seekMusic(10)} disabled={!musicUrl}>+10</button>
-                  <button
-                    type="button"
-                    onClick={() => publishMusicState({ url: '', activeUri: '', isPlaying: false, positionSeconds: 0 })}
-                  >
-                    Очистить
-                  </button>
                 </div>
               </div>
             ) : (
@@ -2253,29 +2261,6 @@ export default function VampireTable() {
           gap: 8px;
           color: #9c9c9c;
           font-size: 12px;
-        }
-
-        .music-buttons {
-          display: grid;
-          grid-template-columns: 1.4fr repeat(4, 42px) 1fr;
-          gap: 6px;
-        }
-
-        .music-buttons button {
-          min-width: 0;
-          height: 30px;
-          border: 1px solid #333;
-          border-radius: 5px;
-          background: #181818;
-          color: #f4f4f4;
-          cursor: pointer;
-          font: inherit;
-          font-size: 12px;
-        }
-
-        .music-buttons button:disabled {
-          cursor: not-allowed;
-          opacity: 0.45;
         }
 
         .music-panel iframe {
