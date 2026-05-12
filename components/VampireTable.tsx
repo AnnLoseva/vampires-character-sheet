@@ -982,7 +982,7 @@ export default function VampireTable() {
     }
   }
 
-  const applyMusicDraft = () => {
+  const applyMusicDraft = (options: { play?: boolean } = {}) => {
     if (!isMaster) return
 
     const normalizedUrl = musicDraft.trim()
@@ -995,7 +995,15 @@ export default function VampireTable() {
       return
     }
 
-    if (normalizedUrl === currentMusic.url) return
+    if (normalizedUrl === currentMusic.url) {
+      if (options.play && !currentMusic.isPlaying) {
+        publishMusicState({
+          isPlaying: true,
+          positionSeconds: Math.max(0, Math.floor(getEffectiveMusicPosition())),
+        })
+      }
+      return
+    }
 
     if (provider === 'youtube') {
       const videoId = getYouTubeId(normalizedUrl)
@@ -1003,7 +1011,7 @@ export default function VampireTable() {
         setMusicStatus('YouTube ссылка не распознана')
         return
       }
-      publishMusicState({ url: normalizedUrl, activeUri: videoId, isPlaying: false, positionSeconds: 0 })
+      publishMusicState({ url: normalizedUrl, activeUri: videoId, isPlaying: Boolean(options.play), positionSeconds: 0 })
       return
     }
 
@@ -1013,7 +1021,7 @@ export default function VampireTable() {
         setMusicStatus('Spotify ссылка не распознана')
         return
       }
-      publishMusicState({ url: normalizedUrl, activeUri, isPlaying: false, positionSeconds: 0 })
+      publishMusicState({ url: normalizedUrl, activeUri, isPlaying: Boolean(options.play), positionSeconds: 0 })
       return
     }
 
@@ -1059,10 +1067,10 @@ export default function VampireTable() {
           youtubePlayerRef.current = new api.Player(container, {
             videoId: youtubeVideoId,
             width: '100%',
-            height: 180,
+            height: 260,
             playerVars: {
               autoplay: 0,
-              controls: isMaster ? 1 : 0,
+              controls: 1,
               enablejsapi: 1,
               origin: window.location.origin,
               playsinline: 1,
@@ -1806,10 +1814,10 @@ export default function VampireTable() {
                 <input
                   value={musicDraft}
                   onChange={event => setMusicDraft(event.target.value)}
-                  onBlur={applyMusicDraft}
+                  onBlur={() => applyMusicDraft()}
                   onKeyDown={event => {
                     if (event.key !== 'Enter') return
-                    applyMusicDraft()
+                    applyMusicDraft({ play: true })
                   }}
                   placeholder="YouTube или Spotify ссылка, Enter чтобы применить"
                 />
@@ -2301,7 +2309,7 @@ export default function VampireTable() {
         .right-rail {
           min-width: 0;
           display: grid;
-          grid-template-rows: auto minmax(220px, 0.45fr) minmax(260px, 0.55fr);
+          grid-template-rows: auto minmax(220px, 0.42fr) minmax(260px, 0.58fr);
           gap: 12px;
         }
 
@@ -2369,7 +2377,7 @@ export default function VampireTable() {
         .youtube-embed {
           width: 100%;
           aspect-ratio: 16 / 9;
-          min-height: 140px;
+          min-height: 230px;
           border-top: 1px solid #252525;
           background: #050505;
         }
@@ -2403,10 +2411,13 @@ export default function VampireTable() {
         }
 
         .music-panel iframe.readonly,
-        .youtube-embed.readonly,
         .spotify-embed.readonly {
           pointer-events: none;
           filter: grayscale(0.35);
+        }
+
+        .youtube-embed.readonly {
+          filter: grayscale(0.18);
         }
 
         .layer-list,
