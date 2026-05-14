@@ -15,8 +15,25 @@ function initSupabase() {
 }
 
 async function checkUserSession() {
-    // Можно добавить сохранение в localStorage позже
+    try {
+        const savedUser = localStorage.getItem('vtm-sheet-user') || localStorage.getItem('vtm-chat-user');
+        if (savedUser) currentUser = JSON.parse(savedUser);
+    } catch (error) {
+        console.warn('Не удалось восстановить пользователя:', error);
+        localStorage.removeItem('vtm-sheet-user');
+        localStorage.removeItem('vtm-chat-user');
+        currentUser = null;
+    }
     updateAuthButton();
+}
+
+function rememberUserSession(user) {
+    currentUser = user;
+    localStorage.setItem('vtm-sheet-user', JSON.stringify(user));
+    localStorage.setItem('vtm-chat-user', JSON.stringify({
+        id: user.id,
+        username: user.username,
+    }));
 }
 
 // ==================== UI КНОПКИ ====================
@@ -96,7 +113,7 @@ window.handleLogin = async () => {
     if (error || !data) {
         alert("❌ Неверный логин или пароль");
     } else {
-        currentUser = data;
+        rememberUserSession(data);
         updateAuthButton();
         closeModal();
         alert(`✅ Добро пожаловать, ${username}!`);
@@ -105,6 +122,8 @@ window.handleLogin = async () => {
 
 async function logout() {
     currentUser = null;
+    localStorage.removeItem('vtm-sheet-user');
+    localStorage.removeItem('vtm-chat-user');
     updateAuthButton();
     alert("👋 Вы вышли");
 }

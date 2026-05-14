@@ -1,54 +1,12 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-export default function OldCharacterSheet() {
-  return (
-    <>
-      <style jsx global>{`
-        html, body, #__next, div {
-          margin: 0 !important;
-          padding: 0 !important;
-          height: 100vh !important;
-          width: 100vw !important;
-          overflow: hidden !important;
-          background: #0a0a0a !important;
-        }
-        
-        iframe {
-          border: none !important;
-          margin: 0 !important;
-          padding: 0 !important;
-        }
+type OldCharacterSheetRedirectProps = {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}
 
-        /* Красный скроллбар */
-        ::-webkit-scrollbar {
-          width: 10px;
-          height: 10px;
-        }
-        ::-webkit-scrollbar-track {
-          background: #111;
-        }
-        ::-webkit-scrollbar-thumb {
-          background: #991b1b;
-          border-radius: 5px;
-        }
-        ::-webkit-scrollbar-thumb:hover {
-          background: #ff3131;
-        }
-      `}</style>
-
-      <iframe 
-        src="/old-sheet.html" 
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          border: 'none',
-          zIndex: 9999,
-        }}
-        title="VTM V5 Character Sheet"
-      />
-    </>
-  )
+export default async function OldCharacterSheetRedirect({ searchParams }: OldCharacterSheetRedirectProps) {
+  const params = (await searchParams) || {}
+  const roomParam = params.room
+  const room = Array.isArray(roomParam) ? roomParam[0] : roomParam
+  redirect(room ? `/character-sheet?room=${encodeURIComponent(room)}` : '/character-sheet')
 }

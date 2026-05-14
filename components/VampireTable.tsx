@@ -196,7 +196,13 @@ const ROOT_LAYER_DROP_ID = '__root__'
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
-  return new URLSearchParams(window.location.search).get('room') || 'campaign-666'
+  return new URLSearchParams(window.location.search).get('room') || window.localStorage.getItem('vtm-table-room') || 'campaign-666'
+}
+
+function getRoleFromLocation() {
+  if (typeof window === 'undefined') return null
+  const role = new URLSearchParams(window.location.search).get('role')
+  return role === 'master' || role === 'player' ? role : null
 }
 
 function formatTime(value: string) {
@@ -578,7 +584,11 @@ export default function VampireTable() {
 
   useEffect(() => {
     const savedRole = window.localStorage.getItem('vtm-table-role')
-    if (savedRole === 'master' || savedRole === 'player') setTableRole(savedRole)
+    const urlRole = getRoleFromLocation()
+    if (urlRole) {
+      window.localStorage.setItem('vtm-table-role', urlRole)
+      setTableRole(urlRole)
+    } else if (savedRole === 'master' || savedRole === 'player') setTableRole(savedRole)
 
     const savedUser = window.localStorage.getItem('vtm-chat-user')
     if (savedUser) {
@@ -665,6 +675,7 @@ export default function VampireTable() {
     let cancelled = false
 
     setRoom(currentRoom)
+    window.localStorage.setItem('vtm-table-room', currentRoom)
 
     supabase
       .from(TABLE_ROLLS)
@@ -950,6 +961,7 @@ export default function VampireTable() {
 
   const rememberChatUser = (user: ChatUser) => {
     window.localStorage.setItem('vtm-chat-user', JSON.stringify(user))
+    window.localStorage.setItem('vtm-sheet-user', JSON.stringify(user))
     setChatUser(user)
     setChatUsernameDraft('')
     setChatPasswordDraft('')
@@ -1015,6 +1027,7 @@ export default function VampireTable() {
   const logoutChat = () => {
     stopVoice()
     window.localStorage.removeItem('vtm-chat-user')
+    window.localStorage.removeItem('vtm-sheet-user')
     setChatUser(null)
     setChatStatus('Выйди в аккаунт, чтобы писать')
   }
@@ -2157,7 +2170,7 @@ export default function VampireTable() {
           <button type="button" className="role-pill" onClick={resetTableRole}>
             {isMaster ? 'Мастер' : tableRole === 'player' ? 'Игрок' : 'Выбрать роль'}
           </button>
-          <a href="/old" title="Открыть лист персонажа">Лист</a>
+          <a href={`/character-sheet?room=${encodeURIComponent(room)}`} title="Открыть лист персонажа">Лист</a>
           <button type="button" onClick={() => createFolder()}>Папка</button>
           <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
             {isUploading ? 'Загрузка...' : 'Добавить слой'}
