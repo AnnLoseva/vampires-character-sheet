@@ -170,6 +170,18 @@ type SelectionRect = {
   height: number
 } | null
 
+type TouchGestureState = {
+  mode: 'pan' | 'pinch'
+  startClientX: number
+  startClientY: number
+  startPanX: number
+  startPanY: number
+  startDistance: number
+  startZoom: number
+  worldCenterX: number
+  worldCenterY: number
+}
+
 type LayerTreeNode = TableLayer & {
   children: LayerTreeNode[]
 }
@@ -589,6 +601,7 @@ export default function VampireTable() {
   const chatListRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
   const dragRef = useRef<DragState | null>(null)
+  const touchGestureRef = useRef<TouchGestureState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
   const panRef = useRef(pan)
   const roomRef = useRef(room)
@@ -2331,6 +2344,94 @@ export default function VampireTable() {
     setZoom(nextZoom)
   }
 
+  const getTouchCenter = (touches: React.TouchList | TouchList) => {
+    const first = touches[0]
+    const second = touches[1] || touches[0]
+    return {
+      x: (first.clientX + second.clientX) / 2,
+      y: (first.clientY + second.clientY) / 2,
+    }
+  }
+
+  const getTouchDistance = (touches: React.TouchList | TouchList) => {
+    if (touches.length < 2) return 1
+    const dx = touches[0].clientX - touches[1].clientX
+    const dy = touches[0].clientY - touches[1].clientY
+    return Math.max(1, Math.hypot(dx, dy))
+  }
+
+  const startSceneTouch = (event: React.TouchEvent<HTMLDivElement>) => {
+    const rect = sceneRef.current?.getBoundingClientRect()
+    if (!rect) return
+
+    if (event.touches.length >= 2) {
+      event.preventDefault()
+      dragRef.current = null
+      setSelectionRect(null)
+      const center = getTouchCenter(event.touches)
+      touchGestureRef.current = {
+        mode: 'pinch',
+        startClientX: center.x,
+        startClientY: center.y,
+        startPanX: panRef.current.x,
+        startPanY: panRef.current.y,
+        startDistance: getTouchDistance(event.touches),
+        startZoom: zoom,
+        worldCenterX: (center.x - rect.left - panRef.current.x) / zoom,
+        worldCenterY: (center.y - rect.top - panRef.current.y) / zoom,
+      }
+      return
+    }
+
+    const target = event.target as HTMLElement
+    const emptySceneTarget = target.classList.contains('scene') || target.classList.contains('scene-world')
+    if (!emptySceneTarget) return
+
+    event.preventDefault()
+    const touch = event.touches[0]
+    touchGestureRef.current = {
+      mode: 'pan',
+      startClientX: touch.clientX,
+      startClientY: touch.clientY,
+      startPanX: panRef.current.x,
+      startPanY: panRef.current.y,
+      startDistance: 1,
+      startZoom: zoom,
+      worldCenterX: 0,
+      worldCenterY: 0,
+    }
+  }
+
+  const updateSceneTouch = (event: React.TouchEvent<HTMLDivElement>) => {
+    const gesture = touchGestureRef.current
+    const rect = sceneRef.current?.getBoundingClientRect()
+    if (!gesture || !rect) return
+
+    event.preventDefault()
+    if (gesture.mode === 'pinch' && event.touches.length >= 2) {
+      const center = getTouchCenter(event.touches)
+      const nextZoom = Math.min(3, Math.max(0.25, gesture.startZoom * (getTouchDistance(event.touches) / gesture.startDistance)))
+      setZoom(nextZoom)
+      setPan({
+        x: Math.round(center.x - rect.left - gesture.worldCenterX * nextZoom),
+        y: Math.round(center.y - rect.top - gesture.worldCenterY * nextZoom),
+      })
+      return
+    }
+
+    if (gesture.mode === 'pan' && event.touches.length === 1) {
+      const touch = event.touches[0]
+      setPan({
+        x: Math.round(gesture.startPanX + touch.clientX - gesture.startClientX),
+        y: Math.round(gesture.startPanY + touch.clientY - gesture.startClientY),
+      })
+    }
+  }
+
+  const finishSceneTouch = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (event.touches.length === 0) touchGestureRef.current = null
+  }
+
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDraggingOver(false)
@@ -2555,6 +2656,10 @@ export default function VampireTable() {
             onPointerUp={finishLayerDrag}
             onPointerCancel={finishLayerDrag}
             onPointerLeave={finishLayerDrag}
+            onTouchStart={startSceneTouch}
+            onTouchMove={updateSceneTouch}
+            onTouchEnd={finishSceneTouch}
+            onTouchCancel={finishSceneTouch}
           onContextMenu={event => {
             event.preventDefault()
             if (suppressNextContextMenuRef.current) {
@@ -3494,6 +3599,8 @@ export default function VampireTable() {
           position: relative;
           min-height: 0;
           overflow: hidden;
+          touch-action: none;
+          overscroll-behavior: contain;
           background-color: #080808;
           background-image:
             linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
@@ -5100,18 +5207,139 @@ export default function VampireTable() {
           .table-layout {
             grid-template-columns: 1fr;
             height: auto;
+            min-height: 0;
           }
 
           .play-surface {
-            height: 68vh;
+            height: min(68svh, 680px);
+            min-height: 420px;
           }
 
           .right-rail {
-            grid-template-rows: auto 520px;
+            grid-template-rows: auto minmax(420px, 52svh);
           }
 
           .table-topbar {
             display: grid;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .table-page-shell {
+            padding: 8px;
+          }
+
+          .table-topbar {
+            gap: 10px;
+            margin-bottom: 8px;
+          }
+
+          h1 {
+            font-size: 24px;
+          }
+
+          .table-kicker {
+            font-size: 10px;
+            margin-bottom: 3px;
+          }
+
+          .table-actions {
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 2px;
+          }
+
+          .table-actions a,
+          .table-actions button {
+            flex: 0 0 auto;
+            padding: 8px 10px;
+            font-size: 12px;
+          }
+
+          .master-password-control {
+            min-width: 260px;
+          }
+
+          .table-layout {
+            gap: 8px;
+          }
+
+          .play-surface {
+            height: 58svh;
+            min-height: 340px;
+          }
+
+          .surface-head {
+            grid-template-columns: 1fr auto;
+            display: grid;
+            padding: 8px;
+          }
+
+          .surface-head div:nth-child(2) {
+            display: none;
+          }
+
+          .zoom-tools button {
+            width: 38px;
+            height: 34px;
+          }
+
+          .right-rail {
+            grid-template-rows: auto minmax(360px, 42svh);
+            gap: 8px;
+          }
+
+          .right-tabs button,
+          .sub-tabs button {
+            height: 38px;
+            font-size: 12px;
+          }
+
+          .layer-row {
+            min-height: 76px;
+          }
+
+          .layer-name {
+            min-height: 76px;
+            grid-template-columns: 64px minmax(0, 1fr) 24px auto;
+            gap: 9px;
+            padding: 6px;
+          }
+
+          .layer-thumb {
+            width: 64px !important;
+            height: 54px !important;
+            min-width: 64px !important;
+            min-height: 54px !important;
+            max-width: 64px !important;
+            max-height: 54px !important;
+          }
+
+          .layer-title span {
+            font-size: 17px;
+          }
+
+          .folder-toggle {
+            width: 24px;
+            height: 40px;
+            font-size: 26px;
+          }
+
+          .layer-quick-actions {
+            gap: 5px;
+          }
+
+          .layer-quick-actions button {
+            width: 28px;
+            height: 28px;
+          }
+
+          .media-preview-backdrop {
+            padding: 8px;
+          }
+
+          .media-preview-modal {
+            height: 88svh;
           }
         }
       `}</style>
