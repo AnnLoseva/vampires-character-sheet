@@ -43,7 +43,7 @@ end $$;
 create table if not exists public.table_images (
   id text primary key,
   room text not null,
-  layer_type text not null default 'image' check (layer_type in ('image', 'video', 'folder', 'text')),
+  layer_type text not null default 'image' check (layer_type in ('image', 'video', 'folder', 'text', 'file')),
   owner_role text not null default 'player' check (owner_role in ('master', 'player')),
   owner_id text null,
   parent_id text null,
@@ -78,7 +78,7 @@ alter table public.table_images
   drop constraint if exists table_images_layer_type_check;
 
 alter table public.table_images
-  add constraint table_images_layer_type_check check (layer_type in ('image', 'video', 'folder', 'text'));
+  add constraint table_images_layer_type_check check (layer_type in ('image', 'video', 'folder', 'text', 'file'));
 
 alter table public.table_images
   drop constraint if exists table_images_owner_role_check;
@@ -185,18 +185,7 @@ values (
   'table-images',
   true,
   null,
-  array[
-    'image/jpeg',
-    'image/png',
-    'image/webp',
-    'image/gif',
-    'image/svg+xml',
-    'video/mp4',
-    'video/webm',
-    'video/ogg',
-    'video/quicktime',
-    'video/x-m4v'
-  ]
+  null
 )
 on conflict (id) do update
 set public = excluded.public,

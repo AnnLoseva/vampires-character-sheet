@@ -106,7 +106,7 @@ type VoiceSignal = {
 type TableLayer = {
   id: string
   room: string
-  layerType: 'image' | 'video' | 'folder' | 'text'
+  layerType: 'image' | 'video' | 'folder' | 'text' | 'file'
   ownerRole: TableRole
   ownerId: string | null
   parentId: string | null
@@ -126,7 +126,7 @@ type TableLayer = {
 type TableLayerRow = {
   id: string
   room: string
-  layer_type: 'image' | 'video' | 'folder' | 'text' | null
+  layer_type: 'image' | 'video' | 'folder' | 'text' | 'file' | null
   owner_role: TableRole | null
   owner_id?: string | null
   parent_id: string | null
@@ -486,6 +486,49 @@ function getMediaUrlsFromText(value: string) {
   return [...new Set(value.split(/\s+/).map(item => item.trim()).filter(Boolean))]
     .map(getMediaUrlCandidate)
     .filter((item): item is { url: string; layerType: 'image' | 'video' } => Boolean(item))
+}
+
+function isReadableTextFile(file: File) {
+  const name = file.name.toLowerCase()
+  return file.type.startsWith('text/') || /\.(txt|md|markdown|rtf|html?|css|json|csv|xml|svg)$/i.test(name)
+}
+
+function isWordLikeFile(file: File) {
+  return /\.(docx?|odt)$/i.test(file.name) || /wordprocessingml|msword|opendocument\.text/i.test(file.type)
+}
+
+function escapeHtml(value: string) {
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;')
+}
+
+async function getFileText(file: File) {
+  return file.text()
+}
+
+function getTextLayerData(file: File, text: string) {
+  if (/\.html?$/i.test(file.name) || /html/i.test(file.type)) return text
+  if (/\.rtf$/i.test(file.name) || /rtf/i.test(file.type)) {
+    return `<pre>${escapeHtml(text.replace(/\\'[0-9a-fA-F]{2}/g, '').replace(/[{}]/g, '').replace(/\\[a-z]+-?\\d* ?/g, ''))}</pre>`
+  }
+  return `<pre>${escapeHtml(text)}</pre>`
+}
+
+function getFileLayerMeta(value: string) {
+  try {
+    const parsed = JSON.parse(value) as { url?: string; type?: string; wordLike?: boolean }
+    return {
+      url: parsed.url || '',
+      type: parsed.type || 'file',
+      wordLike: Boolean(parsed.wordLike),
+    }
+  } catch {
+    return { url: value, type: 'file', wordLike: false }
+  }
 }
 
 export default function VampireTable() {
@@ -1444,7 +1487,7 @@ export default function VampireTable() {
     imageData: string,
     name: string,
     natural: { width: number; height: number },
-    layerType: 'image' | 'video' | 'text' = 'image',
+    layerType: 'image' | 'video' | 'text' | 'file' = 'image',
     index = 0,
     point?: { x: number; y: number },
     onTable = true
@@ -1513,21 +1556,28 @@ export default function VampireTable() {
   }
 
   const uploadFiles = async (files: FileList | File[], onTable = true) => {
-    const mediaFiles = Array.from(files).filter(file => file.type.startsWith('image/') || file.type.startsWith('video/'))
-    if (mediaFiles.length === 0) {
-      window.alert('Можно загрузить только картинки или видео.')
-      return
-    }
+    const uploadItems = Array.from(files)
+    if (uploadItems.length === 0) return
 
     setIsUploading(true)
 
     try {
       const supabase = createClient()
-      for (const [index, file] of mediaFiles.entries()) {
-        const layerType = file.type.startsWith('video/') ? 'video' : 'image'
+      for (const [index, file] of uploadItems.entries()) {
+        const layerType: 'image' | 'video' | 'text' | 'file' = file.type.startsWith('image/')
+          ? 'image'
+          : file.type.startsWith('video/')
+            ? 'video'
+            : isReadableTextFile(file)
+              ? 'text'
+              : 'file'
         const id = `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`
         const objectUrl = URL.createObjectURL(file)
-        const natural = await getMediaSize(objectUrl, layerType)
+        const natural = layerType === 'image' || layerType === 'video'
+          ? await getMediaSize(objectUrl, layerType)
+          : isWordLikeFile(file)
+            ? { width: 460, height: 320 }
+            : { width: 440, height: 300 }
         URL.revokeObjectURL(objectUrl)
 
         const storagePath = `${room}/${id}-${safeStorageName(file.name)}`
@@ -1540,13 +1590,18 @@ export default function VampireTable() {
           })
 
         if (uploadError) {
-          console.error('Не удалось загрузить картинку в Storage:', uploadError)
-          window.alert('Картинка не загрузилась в Supabase Storage. Проверь, что создан bucket table-images и policies из SQL.')
+          console.error('Не удалось загрузить файл в Storage:', uploadError)
+          window.alert('Файл не загрузился в Supabase Storage. Примени обновлённый SQL для bucket table-images.')
           continue
         }
 
         const { data: publicUrlData } = supabase.storage.from(TABLE_IMAGE_BUCKET).getPublicUrl(storagePath)
-        await addMediaLayer(publicUrlData.publicUrl, file.name, natural, layerType, index, undefined, onTable)
+        const layerData = layerType === 'text'
+          ? getTextLayerData(file, await getFileText(file))
+          : layerType === 'file'
+            ? JSON.stringify({ url: publicUrlData.publicUrl, type: file.type || 'application/octet-stream', wordLike: isWordLikeFile(file) })
+            : publicUrlData.publicUrl
+        await addMediaLayer(layerData, file.name, natural, layerType, index, undefined, onTable)
       }
 
       setTableStatus('Сцена онлайн')
@@ -1618,6 +1673,18 @@ export default function VampireTable() {
   const placeLayerOnTable = async (layerId: string, point?: { x: number; y: number }) => {
     const layer = layersRef.current.find(item => item.id === layerId)
     if (!layer || !canEditLayer(layer)) return
+    if (!layer.onTable) {
+      await addMediaLayer(
+        layer.imageData,
+        layer.name,
+        { width: layer.width, height: layer.height },
+        layer.layerType === 'folder' ? 'file' : layer.layerType,
+        0,
+        point,
+        true
+      )
+      return
+    }
     const maxZ = layersRef.current.reduce((max, item) => Math.max(max, item.zIndex), 0)
     await patchLayer(layer.id, {
       onTable: true,
@@ -1643,7 +1710,9 @@ export default function VampireTable() {
   }
 
   const createFolderForSelection = async (ids: string[]) => {
-    const folderId = await createFolder(null, 'Новая папка', false, true)
+    const folderName = window.prompt('Название новой папки', 'Новая папка')?.trim()
+    if (!folderName) return
+    const folderId = await createFolder(null, folderName, false, true)
     if (!folderId) return
     await moveLayersToFolder(ids, folderId)
   }
@@ -1695,7 +1764,7 @@ export default function VampireTable() {
       ownerRole: tableRole ?? 'player',
       ownerId: currentOwnerId,
       parentId,
-      name: name || `Папка ${siblingCount + 1}`,
+      name: name?.trim() || `Папка ${siblingCount + 1}`,
       imageData: '',
       x: (parentFolder?.x ?? 120) + (siblingCount % 5) * 36,
       y: (parentFolder?.y ?? 120) + (siblingCount % 5) * 28,
@@ -1770,6 +1839,12 @@ export default function VampireTable() {
     setLayerContextMenu(null)
   }
 
+  const createNamedFolder = async (parentId: string | null = null, onTable = true) => {
+    const nextName = window.prompt('Название папки', 'Новая папка')?.trim()
+    if (!nextName) return null
+    return createFolder(parentId, nextName, true, onTable)
+  }
+
   const getContextLayerIds = (layerId: string | null) => {
     if (layerId && selectedLayerIds.has(layerId) && selectedLayerIds.size > 1) return [...selectedLayerIds]
     if (layerId) return [layerId]
@@ -1787,6 +1862,45 @@ export default function VampireTable() {
       .filter((layer): layer is TableLayer => Boolean(layer))
       .filter(layer => canEditLayer(layer))
       .map(layer => ({ id: layer.id, patch: patchFor(layer) }))
+    await patchLayers(patches)
+  }
+
+  const reorderLayers = async (ids: string[], direction: 'top' | 'up' | 'down' | 'bottom') => {
+    const selected = ids
+      .map(id => layersRef.current.find(layer => layer.id === id))
+      .filter((layer): layer is TableLayer => Boolean(layer))
+      .filter(layer => canEditLayer(layer))
+    if (selected.length === 0) return
+
+    const patches: Array<{ id: string; patch: LayerPatch }> = []
+    const groups = new Map<string, TableLayer[]>()
+    selected.forEach(layer => {
+      const key = layer.parentId || ROOT_LAYER_DROP_ID
+      groups.set(key, [...(groups.get(key) || []), layer])
+    })
+
+    groups.forEach(groupSelected => {
+      const selectedIds = new Set(groupSelected.map(layer => layer.id))
+      const parentId = groupSelected[0]?.parentId ?? null
+      const siblings = sortLayers(layersRef.current.filter(layer => layer.parentId === parentId))
+      const ordered = siblings.filter(layer => !selectedIds.has(layer.id))
+      const picked = siblings.filter(layer => selectedIds.has(layer.id))
+      const firstIndex = Math.min(...picked.map(layer => siblings.findIndex(item => item.id === layer.id)))
+      const insertIndex =
+        direction === 'top'
+          ? ordered.length
+          : direction === 'bottom'
+            ? 0
+            : direction === 'up'
+              ? Math.min(ordered.length, firstIndex + 1)
+              : Math.max(0, firstIndex - 1)
+      ordered.splice(insertIndex, 0, ...picked)
+      ordered.forEach((layer, index) => {
+        const nextZ = index + 1
+        if (layer.zIndex !== nextZ) patches.push({ id: layer.id, patch: { zIndex: nextZ } })
+      })
+    })
+
     await patchLayers(patches)
   }
 
@@ -2241,6 +2355,8 @@ export default function VampireTable() {
                 <span className="video-thumb">▶</span>
               ) : layer.layerType === 'text' ? (
                 <span className="text-thumb">T</span>
+              ) : layer.layerType === 'file' ? (
+                <span className="file-thumb">F</span>
               ) : (
                 <img
                   src={layer.imageData}
@@ -2312,7 +2428,7 @@ export default function VampireTable() {
             </label>
           ) : null}
           <a href={`/character-sheet?room=${encodeURIComponent(room)}`} title="Открыть лист персонажа">Лист</a>
-          <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleImageUpload} />
+          <input ref={fileInputRef} type="file" multiple onChange={handleImageUpload} />
         </div>
       </section>
 
@@ -2436,7 +2552,13 @@ export default function VampireTable() {
                   ) : layer.layerType === 'text' ? (
                     <article className="scene-text-material">
                       <strong>{layer.name}</strong>
-                      <p>{layer.imageData}</p>
+                      <div dangerouslySetInnerHTML={{ __html: layer.imageData }} />
+                    </article>
+                  ) : layer.layerType === 'file' ? (
+                    <article className="scene-file-material">
+                      <strong>{layer.name}</strong>
+                      <span>{getFileLayerMeta(layer.imageData).wordLike ? 'Word-документ' : getFileLayerMeta(layer.imageData).type}</span>
+                      <a href={getFileLayerMeta(layer.imageData).url} target="_blank" rel="noreferrer">Открыть файл</a>
                     </article>
                   ) : (
                     <>
@@ -2532,7 +2654,7 @@ export default function VampireTable() {
               </header>
 
               <div className="media-manager-toolbar">
-                <button type="button" onClick={() => createFolder()}>Папка</button>
+                <button type="button" onClick={() => createNamedFolder()}>Папка</button>
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
                   {isUploading ? 'Загрузка...' : 'Новый слой'}
                 </button>
@@ -2583,7 +2705,7 @@ export default function VampireTable() {
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
                   {isUploading ? 'Загрузка...' : 'Загрузить'}
                 </button>
-                <button type="button" onClick={() => createFolder(null, 'Папка материалов', true, false)}>Папка</button>
+                <button type="button" onClick={() => createNamedFolder(null, false)}>Папка</button>
               </div>
 
               {isMaster ? (
@@ -2603,7 +2725,17 @@ export default function VampireTable() {
                 </form>
               ) : null}
 
-              <div className="library-grid">
+              <div
+                className="library-grid"
+                onDragOver={event => {
+                  if (event.dataTransfer.types.includes('Files')) event.preventDefault()
+                }}
+                onDrop={async event => {
+                  event.preventDefault()
+                  const droppedFiles = Array.from(event.dataTransfer.files || [])
+                  if (droppedFiles.length > 0) await uploadFiles(droppedFiles, false)
+                }}
+              >
                 {libraryLayers.length === 0 ? (
                   <p className="panel-empty">Здесь будут материалы, которые ещё не лежат на столе.</p>
                 ) : (
@@ -2621,6 +2753,7 @@ export default function VampireTable() {
                       <div className="library-preview" aria-hidden="true">
                         {layer.layerType === 'video' ? <span className="video-thumb">▶</span> : null}
                         {layer.layerType === 'text' ? <span className="text-thumb">T</span> : null}
+                        {layer.layerType === 'file' ? <span className="file-thumb">F</span> : null}
                         {layer.layerType === 'folder' ? <span className="folder-thumb" /> : null}
                         {layer.layerType === 'image' ? <img src={layer.imageData} alt="" /> : null}
                       </div>
@@ -2944,9 +3077,28 @@ export default function VampireTable() {
             }}>
               {allLocked ? 'Разблокировать' : 'Заблокировать'}
             </button>
+            <div className="context-menu-group">
+              <span>Порядок слоя</span>
+              <button type="button" onClick={() => {
+                reorderLayers(ids, 'top')
+                setLayerContextMenu(null)
+              }}>На самый верх</button>
+              <button type="button" onClick={() => {
+                reorderLayers(ids, 'up')
+                setLayerContextMenu(null)
+              }}>Выше</button>
+              <button type="button" onClick={() => {
+                reorderLayers(ids, 'down')
+                setLayerContextMenu(null)
+              }}>Ниже</button>
+              <button type="button" onClick={() => {
+                reorderLayers(ids, 'bottom')
+                setLayerContextMenu(null)
+              }}>На самый низ</button>
+            </div>
             {singleLayer?.layerType === 'folder' ? (
               <button type="button" onClick={() => {
-                createFolder(singleLayer.id)
+                createNamedFolder(singleLayer.id, singleLayer.onTable)
                 setLayerContextMenu(null)
               }}>Новая папка внутри</button>
             ) : null}
@@ -3320,12 +3472,61 @@ export default function VampireTable() {
           white-space: nowrap;
         }
 
-        .scene-text-material p {
+        .scene-text-material div {
           margin: 0;
-          white-space: pre-wrap;
           overflow: auto;
           line-height: 1.45;
           font-size: 14px;
+        }
+
+        .scene-text-material pre {
+          margin: 0;
+          white-space: pre-wrap;
+          font: inherit;
+        }
+
+        .scene-text-material img {
+          max-width: 100%;
+          height: auto;
+          object-fit: contain;
+          pointer-events: none;
+        }
+
+        .scene-file-material {
+          width: 100%;
+          height: 100%;
+          display: grid;
+          align-content: center;
+          gap: 10px;
+          padding: 18px;
+          box-sizing: border-box;
+          color: #ffffff;
+          background: #030303;
+          border: 1px solid #ff3131;
+          box-shadow: inset 0 0 20px rgba(255,49,49,0.18);
+        }
+
+        .scene-file-material strong {
+          color: #ffb3b3;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .scene-file-material span {
+          color: #aaa;
+          font-size: 12px;
+        }
+
+        .scene-file-material a {
+          width: fit-content;
+          border: 1px solid #773030;
+          border-radius: 5px;
+          color: #fff;
+          background: #171717;
+          padding: 8px 10px;
+          text-decoration: none;
+          font-size: 12px;
         }
 
         .embedded-video-drag-handle {
@@ -3804,7 +4005,8 @@ export default function VampireTable() {
           font-size: 12px;
         }
 
-        .text-thumb {
+        .text-thumb,
+        .file-thumb {
           width: 100%;
           height: 100%;
           display: grid;
