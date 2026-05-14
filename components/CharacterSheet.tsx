@@ -313,18 +313,6 @@ export default function CharacterSheet() {
         ))}
       </div>
 
-      <header className="salon-nav" aria-label="Companion system header">
-        <Link href="/" className="crest" aria-label="VTM home">
-          VTM
-        </Link>
-        <span>Welcome, Kindred</span>
-        <div className="nav-actions" aria-label="Interface settings">
-          <small>{authStatus}</small>
-          <span aria-hidden="true">☼</span>
-          <span aria-hidden="true">⚙</span>
-        </div>
-      </header>
-
       <section className="hero-content" aria-label="Vampire companion system">
         <motion.div
           className="title-block"
@@ -460,7 +448,7 @@ export default function CharacterSheet() {
         </section>
       </section>
 
-      <style jsx>{`
+      <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
 
         .salon-shell {
@@ -541,67 +529,11 @@ export default function CharacterSheet() {
           opacity: 0;
         }
 
-        .salon-nav {
-          position: fixed;
-          inset: 18px 24px auto;
-          z-index: 3;
-          display: grid;
-          grid-template-columns: auto 1fr auto;
-          align-items: center;
-          gap: 16px;
-          color: rgba(238, 232, 223, 0.68);
-          text-transform: uppercase;
-          letter-spacing: 0.12em;
-          font-size: 12px;
-        }
-
-        .nav-actions {
-          display: flex;
-          align-items: center;
-          justify-content: flex-end;
-          gap: 12px;
-        }
-
-        .nav-actions span {
-          width: 34px;
-          height: 34px;
-          display: grid;
-          place-items: center;
-          border: 1px solid rgba(214, 176, 108, 0.32);
-          border-radius: 999px;
-          color: rgba(214, 176, 108, 0.74);
-          background: rgba(0,0,0,0.26);
-          backdrop-filter: blur(14px);
-          font-size: 13px;
-        }
-
-        .crest {
-          width: 48px;
-          height: 48px;
-          display: grid;
-          place-items: center;
-          border: 1px solid rgba(201, 160, 92, 0.42);
-          color: #d6b06c;
-          font-family: Cinzel, Georgia, serif;
-          text-decoration: none;
-          transform: rotate(45deg);
-          background: rgba(0,0,0,0.36);
-          backdrop-filter: blur(14px);
-        }
-
-        .crest::first-letter {
-          transform: rotate(-45deg);
-        }
-
-        .crest {
-          font-size: 12px;
-        }
-
         .hero-content {
           min-height: 100vh;
           width: min(1240px, calc(100% - 36px));
           margin: 0 auto;
-          padding: 82px 0 40px;
+          padding: 52px 0 40px;
           display: grid;
           align-content: center;
           gap: clamp(22px, 3.4vh, 38px);
@@ -1001,13 +933,9 @@ export default function CharacterSheet() {
         }
 
         @media (max-width: 980px) {
-          .salon-nav {
-            position: absolute;
-          }
-
           .hero-content {
             align-content: start;
-            padding-top: 106px;
+            padding-top: 42px;
           }
 
           .card-grid {
@@ -1016,18 +944,9 @@ export default function CharacterSheet() {
         }
 
         @media (max-width: 620px) {
-          .salon-nav {
-            inset: 14px;
-            grid-template-columns: auto 1fr;
-          }
-
-          .salon-nav small {
-            grid-column: 2;
-          }
-
           .hero-content {
             width: min(100% - 20px, 1180px);
-            padding-top: 112px;
+            padding-top: 32px;
           }
 
           .elysium-card {
