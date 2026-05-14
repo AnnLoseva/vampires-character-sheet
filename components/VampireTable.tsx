@@ -518,17 +518,27 @@ function getTextLayerData(file: File, text: string) {
   return `<pre>${escapeHtml(text)}</pre>`
 }
 
-function getFileLayerMeta(value: string) {
+function getFileLayerMeta(value: string, fallbackName = '') {
   try {
-    const parsed = JSON.parse(value) as { url?: string; type?: string; wordLike?: boolean }
+    const parsed = JSON.parse(value) as { url?: string; type?: string; wordLike?: boolean; pdf?: boolean; name?: string }
+    const name = parsed.name || fallbackName
     return {
       url: parsed.url || '',
       type: parsed.type || 'file',
       wordLike: Boolean(parsed.wordLike),
+      pdf: Boolean(parsed.pdf) || /\.pdf$/i.test(name) || /pdf/i.test(parsed.type || ''),
+      name,
     }
   } catch {
-    return { url: value, type: 'file', wordLike: false }
+    return { url: value, type: 'file', wordLike: /\.(docx?|odt)$/i.test(fallbackName), pdf: /\.pdf$/i.test(fallbackName), name: fallbackName }
   }
+}
+
+function getDocumentEmbedUrl(meta: ReturnType<typeof getFileLayerMeta>) {
+  if (!meta.url) return ''
+  if (meta.pdf) return meta.url
+  if (meta.wordLike) return `https://view.officeapps.live.com/op/embed.aspx?src=${encodeURIComponent(meta.url)}`
+  return ''
 }
 
 export default function VampireTable() {
@@ -1599,7 +1609,13 @@ export default function VampireTable() {
         const layerData = layerType === 'text'
           ? getTextLayerData(file, await getFileText(file))
           : layerType === 'file'
-            ? JSON.stringify({ url: publicUrlData.publicUrl, type: file.type || 'application/octet-stream', wordLike: isWordLikeFile(file) })
+            ? JSON.stringify({
+              url: publicUrlData.publicUrl,
+              type: file.type || 'application/octet-stream',
+              wordLike: isWordLikeFile(file),
+              pdf: /\.pdf$/i.test(file.name) || /pdf/i.test(file.type),
+              name: file.name,
+            })
             : publicUrlData.publicUrl
         await addMediaLayer(layerData, file.name, natural, layerType, index, undefined, onTable)
       }
@@ -1739,8 +1755,14 @@ export default function VampireTable() {
     const supabase = createClient()
     await supabase.from(TABLE_IMAGES).delete().in('id', [...deleteIds])
 
-    await Promise.all(deletedLayers.filter(item => item.layerType === 'image' || item.layerType === 'video').map(async deletedLayer => {
-      const storagePath = getStoragePathFromPublicUrl(deletedLayer.imageData)
+    await Promise.all(deletedLayers.map(async deletedLayer => {
+      const fileUrl = deletedLayer.layerType === 'file' ? getFileLayerMeta(deletedLayer.imageData, deletedLayer.name).url : deletedLayer.imageData
+      const stillUsed = nextLayers.some(item => {
+        const itemUrl = item.layerType === 'file' ? getFileLayerMeta(item.imageData, item.name).url : item.imageData
+        return itemUrl && itemUrl === fileUrl
+      })
+      if (stillUsed) return
+      const storagePath = getStoragePathFromPublicUrl(fileUrl)
       if (storagePath) {
         const { error } = await supabase.storage.from(TABLE_IMAGE_BUCKET).remove([storagePath])
         if (error) console.error('Не удалось удалить файл слоя из Storage:', error)
@@ -2554,13 +2576,23 @@ export default function VampireTable() {
                       <strong>{layer.name}</strong>
                       <div dangerouslySetInnerHTML={{ __html: layer.imageData }} />
                     </article>
-                  ) : layer.layerType === 'file' ? (
-                    <article className="scene-file-material">
-                      <strong>{layer.name}</strong>
-                      <span>{getFileLayerMeta(layer.imageData).wordLike ? 'Word-документ' : getFileLayerMeta(layer.imageData).type}</span>
-                      <a href={getFileLayerMeta(layer.imageData).url} target="_blank" rel="noreferrer">Открыть файл</a>
-                    </article>
-                  ) : (
+                  ) : layer.layerType === 'file' ? (() => {
+                    const meta = getFileLayerMeta(layer.imageData, layer.name)
+                    const embedUrl = getDocumentEmbedUrl(meta)
+                    return (
+                      <article className={`scene-file-material ${embedUrl ? 'embedded-document' : ''}`}>
+                        <strong>{layer.name}</strong>
+                        {embedUrl ? (
+                          <iframe src={embedUrl} title={layer.name} />
+                        ) : (
+                          <>
+                            <span>{meta.type}</span>
+                            <a href={meta.url} target="_blank" rel="noreferrer">Открыть файл</a>
+                          </>
+                        )}
+                      </article>
+                    )
+                  })() : (
                     <>
                       <img
                         src={layer.imageData}
@@ -2758,7 +2790,19 @@ export default function VampireTable() {
                         {layer.layerType === 'image' ? <img src={layer.imageData} alt="" /> : null}
                       </div>
                       <strong>{layer.name}</strong>
-                      <button type="button" onClick={() => placeLayerOnTable(layer.id)}>На стол</button>
+                      <div className="library-card-actions">
+                        <button type="button" onClick={() => placeLayerOnTable(layer.id)}>На стол</button>
+                        <button
+                          type="button"
+                          className="danger"
+                          onClick={event => {
+                            event.stopPropagation()
+                            deleteLayer(layer.id)
+                          }}
+                        >
+                          Удалить
+                        </button>
+                      </div>
                     </article>
                   ))
                 )}
@@ -3506,6 +3550,12 @@ export default function VampireTable() {
           box-shadow: inset 0 0 20px rgba(255,49,49,0.18);
         }
 
+        .scene-file-material.embedded-document {
+          align-content: stretch;
+          grid-template-rows: auto minmax(0, 1fr);
+          padding: 10px;
+        }
+
         .scene-file-material strong {
           color: #ffb3b3;
           overflow: hidden;
@@ -3527,6 +3577,15 @@ export default function VampireTable() {
           padding: 8px 10px;
           text-decoration: none;
           font-size: 12px;
+        }
+
+        .scene-file-material iframe {
+          width: 100%;
+          height: 100%;
+          min-height: 0;
+          border: 1px solid rgba(255,49,49,0.32);
+          border-radius: 4px;
+          background: #111;
         }
 
         .embedded-video-drag-handle {
@@ -4234,6 +4293,17 @@ export default function VampireTable() {
           text-overflow: ellipsis;
           white-space: nowrap;
           font-size: 12px;
+        }
+
+        .library-card-actions {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 6px;
+        }
+
+        .library-card button.danger {
+          color: #ff9c9c;
+          border-color: #6a2727;
         }
 
         .role-gate {
