@@ -318,7 +318,11 @@ export default function CharacterSheet() {
           VTM
         </Link>
         <span>Welcome, Kindred</span>
-        <small>{authStatus}</small>
+        <div className="nav-actions" aria-label="Interface settings">
+          <small>{authStatus}</small>
+          <span aria-hidden="true">☼</span>
+          <span aria-hidden="true">⚙</span>
+        </div>
       </header>
 
       <section className="hero-content" aria-label="Vampire companion system">
@@ -469,6 +473,16 @@ export default function CharacterSheet() {
           isolation: isolate;
         }
 
+        .salon-shell::before {
+          content: "";
+          position: fixed;
+          inset: 14px;
+          border: 1px solid rgba(178, 126, 71, 0.26);
+          box-shadow: inset 0 0 0 1px rgba(255,255,255,0.025), 0 0 70px rgba(0,0,0,0.65);
+          pointer-events: none;
+          z-index: 4;
+        }
+
         .salon-background {
           position: absolute;
           inset: -28px;
@@ -499,6 +513,15 @@ export default function CharacterSheet() {
             radial-gradient(circle at 50% 35%, transparent 0 35%, rgba(0,0,0,0.46) 66%, rgba(0,0,0,0.92) 100%),
             linear-gradient(180deg, rgba(0,0,0,0.32), rgba(0,0,0,0.18) 48%, rgba(0,0,0,0.84));
           z-index: -2;
+        }
+
+        .vignette::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(90deg, rgba(0,0,0,0.76), transparent 18%, transparent 82%, rgba(0,0,0,0.78)),
+            linear-gradient(180deg, rgba(0,0,0,0.5), transparent 28%, rgba(0,0,0,0.78));
         }
 
         .dust-field {
@@ -532,6 +555,26 @@ export default function CharacterSheet() {
           font-size: 12px;
         }
 
+        .nav-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 12px;
+        }
+
+        .nav-actions span {
+          width: 34px;
+          height: 34px;
+          display: grid;
+          place-items: center;
+          border: 1px solid rgba(214, 176, 108, 0.32);
+          border-radius: 999px;
+          color: rgba(214, 176, 108, 0.74);
+          background: rgba(0,0,0,0.26);
+          backdrop-filter: blur(14px);
+          font-size: 13px;
+        }
+
         .crest {
           width: 48px;
           height: 48px;
@@ -556,12 +599,12 @@ export default function CharacterSheet() {
 
         .hero-content {
           min-height: 100vh;
-          width: min(1180px, calc(100% - 32px));
+          width: min(1240px, calc(100% - 36px));
           margin: 0 auto;
-          padding: 112px 0 28px;
+          padding: 82px 0 40px;
           display: grid;
           align-content: center;
-          gap: clamp(18px, 4vh, 34px);
+          gap: clamp(22px, 3.4vh, 38px);
         }
 
         .title-block {
@@ -590,7 +633,7 @@ export default function CharacterSheet() {
         }
 
         h1 span:first-child {
-          font-size: clamp(54px, 9vw, 116px);
+          font-size: clamp(60px, 8.4vw, 128px);
           color: #e8dfd3;
         }
 
@@ -602,7 +645,7 @@ export default function CharacterSheet() {
         h1 span:last-child {
           font-size: clamp(16px, 2.1vw, 28px);
           color: #d22f38;
-          letter-spacing: 0.26em;
+          letter-spacing: 0.28em;
         }
 
         .divider {
@@ -642,23 +685,23 @@ export default function CharacterSheet() {
         .card-grid {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 16px;
+          gap: 22px;
         }
 
         .elysium-card {
           position: relative;
-          min-height: 360px;
-          padding: 28px;
+          min-height: 372px;
+          padding: 30px 28px;
           display: grid;
           align-content: end;
           justify-items: center;
-          gap: 18px;
+          gap: 16px;
           text-align: center;
           border: 1px solid color-mix(in srgb, var(--accent) 54%, transparent);
           background:
             linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.015)),
             radial-gradient(circle at 50% 22%, color-mix(in srgb, var(--accent) 19%, transparent), transparent 42%),
-            rgba(4, 4, 5, 0.62);
+            rgba(4, 4, 5, 0.5);
           box-shadow: 0 18px 72px rgba(0,0,0,0.45), inset 0 0 0 1px rgba(255,255,255,0.03);
           backdrop-filter: blur(18px);
           overflow: hidden;
@@ -668,25 +711,50 @@ export default function CharacterSheet() {
           content: "";
           position: absolute;
           inset: 0;
-          background: linear-gradient(135deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 34% 66%, color-mix(in srgb, var(--accent) 15%, transparent));
-          opacity: 0;
+          background:
+            linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.22) 35%, rgba(0,0,0,0.88) 100%),
+            radial-gradient(circle at 50% 33%, transparent, rgba(0,0,0,0.58) 68%),
+            var(--card-image) center / cover no-repeat;
+          filter: saturate(0.92) contrast(1.1);
+          transform: scale(1.01);
+          transition: transform 420ms ease, filter 420ms ease;
+          z-index: 0;
+        }
+
+        .elysium-card::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            linear-gradient(135deg, color-mix(in srgb, var(--accent) 20%, transparent), transparent 30% 70%, color-mix(in srgb, var(--accent) 14%, transparent)),
+            linear-gradient(180deg, transparent, rgba(0,0,0,0.36));
+          opacity: 0.34;
           transition: opacity 260ms ease;
+          z-index: 0;
         }
 
         .elysium-card:hover::before {
-          opacity: 1;
+          transform: scale(1.055);
+          filter: saturate(1.04) contrast(1.16);
+        }
+
+        .elysium-card:hover::after {
+          opacity: 0.72;
         }
 
         .elysium-card.gold {
           --accent: #d7ae68;
+          --card-image: url('/card-account.png');
         }
 
         .elysium-card.red {
           --accent: #d6313a;
+          --card-image: url('/card-chronicle.png');
         }
 
         .elysium-card.cyan {
           --accent: #8bd5d7;
+          --card-image: url('/card-character-sheet.png');
         }
 
         .card-corners {
@@ -695,9 +763,32 @@ export default function CharacterSheet() {
           border-top: 1px solid color-mix(in srgb, var(--accent) 44%, transparent);
           border-bottom: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
           pointer-events: none;
+          z-index: 2;
+        }
+
+        .card-corners::before,
+        .card-corners::after {
+          content: "";
+          position: absolute;
+          top: -1px;
+          width: 38px;
+          height: 38px;
+          border-top: 1px solid color-mix(in srgb, var(--accent) 74%, transparent);
+        }
+
+        .card-corners::before {
+          left: 0;
+          border-left: 1px solid color-mix(in srgb, var(--accent) 74%, transparent);
+        }
+
+        .card-corners::after {
+          right: 0;
+          border-right: 1px solid color-mix(in srgb, var(--accent) 74%, transparent);
         }
 
         .sigil {
+          position: relative;
+          z-index: 1;
           width: 74px;
           height: 74px;
           display: grid;
@@ -708,9 +799,12 @@ export default function CharacterSheet() {
           font-family: Cinzel, Georgia, serif;
           font-size: 28px;
           box-shadow: 0 0 36px color-mix(in srgb, var(--accent) 20%, transparent);
+          backdrop-filter: blur(6px);
         }
 
         .elysium-card h2 {
+          position: relative;
+          z-index: 1;
           margin: 0;
           color: var(--accent);
           font-family: Cinzel, Georgia, serif;
@@ -720,6 +814,8 @@ export default function CharacterSheet() {
         }
 
         .elysium-card p {
+          position: relative;
+          z-index: 1;
           min-height: 66px;
           margin: 0;
           color: rgba(232, 223, 211, 0.72);
