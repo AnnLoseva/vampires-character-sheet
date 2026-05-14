@@ -3,9 +3,34 @@
 import Link from 'next/link'
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
+import { createClient } from '@/lib/supabase'
 
 type TableRole = 'master' | 'player'
 type Accent = 'gold' | 'red' | 'cyan'
+type AuthMode = 'login' | 'register'
+
+type ChatUser = {
+  id: string
+  username: string
+}
+
+type CharacterOption = {
+  id: string
+  name: string
+  clan: string | null
+  image: string
+}
+
+type CharacterRow = {
+  id: string
+  name: string
+  clan: string | null
+  data: {
+    characterImage?: string
+    image?: string
+    portrait?: string
+  } | null
+}
 
 const DEFAULT_ROOM = 'campaign-666'
 
@@ -17,29 +42,6 @@ const particles = Array.from({ length: 36 }, (_, index) => ({
   duration: `${7 + (index % 6)}s`,
   size: `${2 + (index % 3)}px`,
 }))
-
-const statusItems = [
-  {
-    label: 'Active Chronicles',
-    value: '3',
-    detail: 'Красная заря · Elysium · Сентябрь',
-  },
-  {
-    label: 'Online Players',
-    value: '17',
-    detail: 'синхронизация комнат включена',
-  },
-  {
-    label: 'Latest Characters',
-    value: '42',
-    detail: 'последние листы сохранены',
-  },
-  {
-    label: 'System Version',
-    value: 'V5',
-    detail: 'companion system v1.2.3',
-  },
-]
 
 function sanitizeRoom(value: string) {
   return value
@@ -87,30 +89,17 @@ function EntryCard({
   )
 }
 
-function StatusPanel() {
-  return (
-    <motion.section
-      className="status-panel"
-      initial={{ opacity: 0, y: 18 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.55, duration: 0.8 }}
-      aria-label="System status"
-    >
-      {statusItems.map(item => (
-        <div className="status-item" key={item.label}>
-          <span>{item.label}</span>
-          <strong>{item.value}</strong>
-          <small>{item.detail}</small>
-        </div>
-      ))}
-    </motion.section>
-  )
-}
-
 export default function CharacterSheet() {
   const [roomDraft, setRoomDraft] = useState(DEFAULT_ROOM)
   const [role, setRole] = useState<TableRole>('player')
-  const [cachedUsername, setCachedUsername] = useState('')
+  const [chatUser, setChatUser] = useState<ChatUser | null>(null)
+  const [characters, setCharacters] = useState<CharacterOption[]>([])
+  const [selectedCharacterId, setSelectedCharacterId] = useState('')
+  const [authMode, setAuthMode] = useState<AuthMode>('login')
+  const [usernameDraft, setUsernameDraft] = useState('')
+  const [passwordDraft, setPasswordDraft] = useState('')
+  const [authStatus, setAuthStatus] = useState('Private archive access')
+  const [isAuthBusy, setIsAuthBusy] = useState(false)
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
   const smoothX = useSpring(mouseX, { stiffness: 45, damping: 22 })
@@ -127,13 +116,65 @@ export default function CharacterSheet() {
     if (savedRole === 'master' || savedRole === 'player') setRole(savedRole)
     if (savedUser) {
       try {
-        const user = JSON.parse(savedUser) as { username?: string }
-        if (user?.username) setCachedUsername(user.username)
+        const user = JSON.parse(savedUser) as ChatUser
+        if (user?.id && user?.username) {
+          setChatUser(user)
+          setAuthStatus(`Session: ${user.username}`)
+        }
       } catch {
-        setCachedUsername('')
+        window.localStorage.removeItem('vtm-chat-user')
+        window.localStorage.removeItem('vtm-sheet-user')
       }
     }
   }, [])
+
+  useEffect(() => {
+    if (!chatUser) {
+      setCharacters([])
+      setSelectedCharacterId('')
+      return
+    }
+
+    let cancelled = false
+    createClient()
+      .from('characters')
+      .select('id, name, clan, data')
+      .eq('user_id', chatUser.id)
+      .order('created_at', { ascending: false })
+      .then(({ data, error }) => {
+        if (cancelled) return
+        if (error) {
+          console.error('Не удалось загрузить персонажей:', error)
+          setAuthStatus('Архив вошёл, но персонажи не загрузились')
+          return
+        }
+
+        const nextCharacters = (data || []).map(row => {
+          const character = row as CharacterRow
+          return {
+            id: character.id,
+            name: character.name,
+            clan: character.clan,
+            image: character.data?.characterImage || character.data?.image || character.data?.portrait || '',
+          }
+        })
+        setCharacters(nextCharacters)
+        const savedId = window.localStorage.getItem(`vtm-chat-character:${chatUser.id}`) || window.localStorage.getItem(`vtm-home-character:${chatUser.id}`)
+        const nextId = savedId && nextCharacters.some(character => character.id === savedId)
+          ? savedId
+          : nextCharacters[0]?.id || ''
+        setSelectedCharacterId(nextId)
+        if (nextId) {
+          window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, nextId)
+          window.localStorage.setItem(`vtm-home-character:${chatUser.id}`, nextId)
+        }
+        setAuthStatus(`Session: ${chatUser.username}`)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [chatUser])
 
   const room = useMemo(() => sanitizeRoom(roomDraft) || DEFAULT_ROOM, [roomDraft])
   const tableHref = `/table?room=${encodeURIComponent(room)}&role=${role}`
@@ -153,6 +194,97 @@ export default function CharacterSheet() {
     event.preventDefault()
     enterTable(role)
   }
+
+  const hashPassword = (password: string) => {
+    try {
+      return window.btoa(password)
+    } catch {
+      return window.btoa(unescape(encodeURIComponent(password)))
+    }
+  }
+
+  const rememberUser = (user: ChatUser) => {
+    window.localStorage.setItem('vtm-chat-user', JSON.stringify(user))
+    window.localStorage.setItem('vtm-sheet-user', JSON.stringify(user))
+    setChatUser(user)
+    setUsernameDraft('')
+    setPasswordDraft('')
+    setAuthStatus(`Session: ${user.username}`)
+  }
+
+  const handleAuth = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const username = usernameDraft.trim()
+    const password = passwordDraft.trim()
+
+    if (username.length < 3) {
+      setAuthStatus('Имя пользователя минимум 3 символа')
+      return
+    }
+    if (password.length < 6) {
+      setAuthStatus('Пароль минимум 6 символов')
+      return
+    }
+
+    setIsAuthBusy(true)
+    setAuthStatus(authMode === 'login' ? 'Проверяю доступ...' : 'Создаю запись в архиве...')
+    try {
+      const supabase = createClient()
+      const passwordHash = hashPassword(password)
+
+      if (authMode === 'register') {
+        const { data, error } = await supabase
+          .from('users')
+          .insert({ username, password_hash: passwordHash })
+          .select('id, username')
+          .single()
+
+        if (error || !data) {
+          console.error('Не удалось зарегистрировать пользователя:', error)
+          setAuthStatus(error?.code === '23505' ? 'Такой пользователь уже существует' : 'Регистрация не прошла')
+          return
+        }
+
+        rememberUser(data as ChatUser)
+        return
+      }
+
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, username')
+        .eq('username', username)
+        .eq('password_hash', passwordHash)
+        .single()
+
+      if (error || !data) {
+        setAuthStatus('Неверный логин или пароль')
+        return
+      }
+
+      rememberUser(data as ChatUser)
+    } finally {
+      setIsAuthBusy(false)
+    }
+  }
+
+  const logout = () => {
+    window.localStorage.removeItem('vtm-chat-user')
+    window.localStorage.removeItem('vtm-sheet-user')
+    setChatUser(null)
+    setCharacters([])
+    setSelectedCharacterId('')
+    setAuthStatus('Private archive access')
+  }
+
+  const chooseCharacter = (characterId: string) => {
+    setSelectedCharacterId(characterId)
+    if (chatUser) {
+      window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, characterId)
+      window.localStorage.setItem(`vtm-home-character:${chatUser.id}`, characterId)
+    }
+  }
+
+  const selectedCharacter = characters.find(character => character.id === selectedCharacterId) || characters[0] || null
 
   return (
     <main
@@ -186,7 +318,7 @@ export default function CharacterSheet() {
           VTM
         </Link>
         <span>Welcome, Kindred</span>
-        <small>{cachedUsername ? `Session: ${cachedUsername}` : 'Private archive access'}</small>
+        <small>{authStatus}</small>
       </header>
 
       <section className="hero-content" aria-label="Vampire companion system">
@@ -214,11 +346,65 @@ export default function CharacterSheet() {
           <EntryCard
             accent="gold"
             title="Архив личности"
-            description="Войдите в систему и получите доступ к персонажам, хроникам и сохранённым данным."
+            description={chatUser ? 'Аккаунт активен. Последний персонаж доступен прямо из салона.' : 'Войдите в систему и получите доступ к персонажам, хроникам и сохранённым данным.'}
             button={
-              <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
-                Войти в аккаунт
-              </Link>
+              chatUser ? (
+                <div className="identity-panel">
+                  <div className="character-preview">
+                    {selectedCharacter?.image ? (
+                      <img src={selectedCharacter.image} alt="" />
+                    ) : (
+                      <span>{selectedCharacter?.name.slice(0, 1).toUpperCase() || chatUser.username.slice(0, 1).toUpperCase()}</span>
+                    )}
+                  </div>
+                  <strong>{selectedCharacter?.name || chatUser.username}</strong>
+                  <small>{selectedCharacter?.clan || (characters.length ? 'Клан не указан' : 'Персонажей пока нет')}</small>
+                  {characters.length > 1 ? (
+                    <select value={selectedCharacterId} onChange={event => chooseCharacter(event.target.value)} aria-label="Активный персонаж">
+                      {characters.map(character => (
+                        <option value={character.id} key={character.id}>
+                          {character.name}{character.clan ? ` · ${character.clan}` : ''}
+                        </option>
+                      ))}
+                    </select>
+                  ) : null}
+                  <div className="identity-actions">
+                    <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
+                      Листы
+                    </Link>
+                    <button type="button" className="ghost-action" onClick={logout}>
+                      Выйти
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <form className="auth-form" onSubmit={handleAuth}>
+                  <div className="auth-tabs">
+                    <button type="button" className={authMode === 'login' ? 'active' : ''} onClick={() => setAuthMode('login')}>
+                      Вход
+                    </button>
+                    <button type="button" className={authMode === 'register' ? 'active' : ''} onClick={() => setAuthMode('register')}>
+                      Регистрация
+                    </button>
+                  </div>
+                  <input
+                    value={usernameDraft}
+                    onChange={event => setUsernameDraft(event.target.value)}
+                    placeholder="Имя пользователя"
+                    autoComplete="username"
+                  />
+                  <input
+                    value={passwordDraft}
+                    onChange={event => setPasswordDraft(event.target.value)}
+                    placeholder="Пароль"
+                    type="password"
+                    autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
+                  />
+                  <button type="submit" className="card-action" disabled={isAuthBusy}>
+                    {isAuthBusy ? '...' : authMode === 'login' ? 'Войти в аккаунт' : 'Создать аккаунт'}
+                  </button>
+                </form>
+              )
             }
           >
             <Sigil>◉</Sigil>
@@ -268,8 +454,6 @@ export default function CharacterSheet() {
             <Sigil>✦</Sigil>
           </EntryCard>
         </section>
-
-        <StatusPanel />
       </section>
 
       <style jsx>{`
@@ -289,13 +473,10 @@ export default function CharacterSheet() {
           position: absolute;
           inset: -28px;
           background:
-            linear-gradient(180deg, rgba(0,0,0,0.25), rgba(0,0,0,0.74)),
-            linear-gradient(90deg, rgba(0,0,0,0.9), transparent 30%, transparent 70%, rgba(0,0,0,0.9)),
-            url('/static/clan_gallery/nosferatu_full.png') left 47% / 30% auto no-repeat,
-            url('/static/clan_gallery/ventrue_full.png') right 42% / 30% auto no-repeat,
-            radial-gradient(circle at 50% 18%, rgba(197, 156, 87, 0.16), transparent 24%),
-            linear-gradient(180deg, #090706, #020202 82%);
-          filter: saturate(0.76) contrast(1.16);
+            linear-gradient(180deg, rgba(0,0,0,0.08), rgba(0,0,0,0.62)),
+            linear-gradient(90deg, rgba(0,0,0,0.74), transparent 24%, transparent 76%, rgba(0,0,0,0.76)),
+            url('/landing-background.png') center center / cover no-repeat;
+          filter: saturate(0.9) contrast(1.08);
           transform: scale(1.05);
           z-index: -4;
         }
@@ -305,9 +486,9 @@ export default function CharacterSheet() {
           position: absolute;
           inset: 0;
           background:
-            linear-gradient(90deg, transparent 0 18%, rgba(80, 18, 22, 0.22) 19%, transparent 21% 78%, rgba(12, 64, 70, 0.16) 80%, transparent 82%),
+            radial-gradient(circle at 50% 10%, rgba(218, 180, 107, 0.12), transparent 26%),
             repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0 1px, transparent 1px 7vw);
-          opacity: 0.72;
+          opacity: 0.58;
         }
 
         .vignette {
@@ -315,8 +496,8 @@ export default function CharacterSheet() {
           inset: 0;
           pointer-events: none;
           background:
-            radial-gradient(circle at 50% 26%, transparent 0 28%, rgba(0,0,0,0.5) 62%, rgba(0,0,0,0.92) 100%),
-            linear-gradient(180deg, rgba(0,0,0,0.4), transparent 18%, rgba(0,0,0,0.82));
+            radial-gradient(circle at 50% 35%, transparent 0 35%, rgba(0,0,0,0.46) 66%, rgba(0,0,0,0.92) 100%),
+            linear-gradient(180deg, rgba(0,0,0,0.32), rgba(0,0,0,0.18) 48%, rgba(0,0,0,0.84));
           z-index: -2;
         }
 
@@ -380,7 +561,7 @@ export default function CharacterSheet() {
           padding: 112px 0 28px;
           display: grid;
           align-content: center;
-          gap: clamp(18px, 3vh, 28px);
+          gap: clamp(18px, 4vh, 34px);
         }
 
         .title-block {
@@ -466,7 +647,7 @@ export default function CharacterSheet() {
 
         .elysium-card {
           position: relative;
-          min-height: 330px;
+          min-height: 360px;
           padding: 28px;
           display: grid;
           align-content: end;
@@ -566,6 +747,11 @@ export default function CharacterSheet() {
           cursor: pointer;
         }
 
+        .card-action:disabled {
+          opacity: 0.58;
+          cursor: wait;
+        }
+
         .card-action:hover {
           background: color-mix(in srgb, var(--accent) 18%, rgba(0,0,0,0.4));
           box-shadow: 0 0 28px color-mix(in srgb, var(--accent) 18%, transparent);
@@ -578,6 +764,105 @@ export default function CharacterSheet() {
           gap: 10px;
           width: 100%;
           justify-items: center;
+        }
+
+        .auth-form {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          display: grid;
+          gap: 9px;
+          justify-items: center;
+        }
+
+        .auth-tabs {
+          width: 100%;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 6px;
+        }
+
+        .auth-tabs button,
+        .ghost-action {
+          min-height: 34px;
+          border: 1px solid rgba(215, 174, 104, 0.22);
+          border-radius: 4px;
+          background: rgba(0,0,0,0.22);
+          color: rgba(238, 232, 223, 0.72);
+          font: inherit;
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        .auth-tabs button.active {
+          border-color: rgba(215, 174, 104, 0.58);
+          color: #f4dfb7;
+          background: rgba(215, 174, 104, 0.12);
+        }
+
+        .identity-panel {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          display: grid;
+          justify-items: center;
+          gap: 9px;
+        }
+
+        .character-preview {
+          width: 96px;
+          height: 126px;
+          border: 1px solid rgba(215, 174, 104, 0.45);
+          background: rgba(0,0,0,0.42);
+          box-shadow: 0 12px 34px rgba(0,0,0,0.45), 0 0 22px rgba(215, 174, 104, 0.13);
+          overflow: hidden;
+          display: grid;
+          place-items: center;
+          color: #d7ae68;
+          font-family: Cinzel, Georgia, serif;
+          font-size: 34px;
+        }
+
+        .character-preview img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .identity-panel strong {
+          color: #f3e5cc;
+          font-family: Cinzel, Georgia, serif;
+          font-size: 17px;
+          font-weight: 500;
+        }
+
+        .identity-panel small {
+          color: rgba(238, 232, 223, 0.62);
+        }
+
+        .identity-panel select {
+          width: 100%;
+          color: #f3dfbd;
+        }
+
+        .identity-actions {
+          width: 100%;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .ghost-action {
+          min-width: 76px;
+          height: 42px;
+          border-color: rgba(255,255,255,0.14);
+        }
+
+        .ghost-action:hover {
+          border-color: rgba(215, 174, 104, 0.48);
+          color: #f4dfb7;
         }
 
         .room-line {
@@ -602,47 +887,6 @@ export default function CharacterSheet() {
 
         select {
           color: #f3d2d2;
-        }
-
-        .status-panel {
-          display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
-          border: 1px solid rgba(255,255,255,0.12);
-          background: rgba(5,5,6,0.58);
-          backdrop-filter: blur(18px);
-          box-shadow: 0 18px 52px rgba(0,0,0,0.32);
-        }
-
-        .status-item {
-          min-height: 112px;
-          padding: 20px;
-          display: grid;
-          align-content: center;
-          gap: 7px;
-          border-right: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .status-item:last-child {
-          border-right: 0;
-        }
-
-        .status-item span {
-          color: rgba(232, 223, 211, 0.52);
-          text-transform: uppercase;
-          letter-spacing: 0.12em;
-          font-size: 11px;
-        }
-
-        .status-item strong {
-          color: #d7ae68;
-          font-family: Cinzel, Georgia, serif;
-          font-size: 30px;
-          font-weight: 400;
-        }
-
-        .status-item small {
-          color: rgba(232, 223, 211, 0.64);
-          line-height: 1.35;
         }
 
         @keyframes drift {
@@ -670,18 +914,8 @@ export default function CharacterSheet() {
             padding-top: 106px;
           }
 
-          .card-grid,
-          .status-panel {
+          .card-grid {
             grid-template-columns: 1fr;
-          }
-
-          .status-item {
-            border-right: 0;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-          }
-
-          .status-item:last-child {
-            border-bottom: 0;
           }
         }
 
