@@ -1026,9 +1026,9 @@ export default function VampireTable() {
   const tableManagerLayers = useMemo(() => managerLayers.filter(layer => layer.onTable), [managerLayers])
   const libraryLayers = useMemo(() => managerLayers.filter(layer => !layer.onTable), [managerLayers])
   const selectedManagerLayer = managerLayers.find(layer => layer.id === selectedLayerId) || null
-  const layerTree = useMemo<LayerTreeNode[]>(() => {
+  const buildLayerTree = (sourceLayers: TableLayer[]) => {
     const nodeMap = new Map<string, LayerTreeNode>()
-    sortLayers(tableManagerLayers).forEach(layer => nodeMap.set(layer.id, { ...layer, children: [] }))
+    sortLayers(sourceLayers).forEach(layer => nodeMap.set(layer.id, { ...layer, children: [] }))
 
     const roots: LayerTreeNode[] = []
     nodeMap.forEach(node => {
@@ -1044,7 +1044,13 @@ export default function VampireTable() {
     }
 
     return sortNodes(roots)
+  }
+  const layerTree = useMemo<LayerTreeNode[]>(() => {
+    return buildLayerTree(tableManagerLayers)
   }, [tableManagerLayers])
+  const libraryTree = useMemo<LayerTreeNode[]>(() => {
+    return buildLayerTree(libraryLayers)
+  }, [libraryLayers])
   const broadcast = (event: string, payload: unknown) => {
     channelRef.current?.send({ type: 'broadcast', event, payload })
   }
@@ -2403,6 +2409,37 @@ export default function VampireTable() {
             </div>
             <div className="layer-quick-actions">
               {layer.locked ? <span className="lock-indicator" title="Заблокирован">L</span> : null}
+              {!layer.onTable && layer.layerType !== 'folder' ? (
+                <button
+                  type="button"
+                  draggable={false}
+                  onMouseDown={event => event.stopPropagation()}
+                  onClick={event => {
+                    event.stopPropagation()
+                    placeLayerOnTable(layer.id)
+                  }}
+                  title="Вынести на стол"
+                  aria-label="Вынести на стол"
+                >
+                  ↗
+                </button>
+              ) : null}
+              {!layer.onTable ? (
+                <button
+                  type="button"
+                  className="danger"
+                  draggable={false}
+                  onMouseDown={event => event.stopPropagation()}
+                  onClick={event => {
+                    event.stopPropagation()
+                    deleteLayer(layer.id)
+                  }}
+                  title="Удалить из медиа"
+                  aria-label="Удалить из медиа"
+                >
+                  ×
+                </button>
+              ) : null}
               <button
                 type="button"
                 draggable={false}
@@ -2758,54 +2795,39 @@ export default function VampireTable() {
               ) : null}
 
               <div
-                className="library-grid"
+                className={`layer-list library-list ${layerDropTarget?.layerId === ROOT_LAYER_DROP_ID ? 'drop-root' : ''}`}
                 onDragOver={event => {
-                  if (event.dataTransfer.types.includes('Files')) event.preventDefault()
+                  if (event.dataTransfer.types.includes('Files')) {
+                    event.preventDefault()
+                    return
+                  }
+                  handleLayerRootDragOver(event)
                 }}
                 onDrop={async event => {
-                  event.preventDefault()
                   const droppedFiles = Array.from(event.dataTransfer.files || [])
-                  if (droppedFiles.length > 0) await uploadFiles(droppedFiles, false)
+                  if (droppedFiles.length > 0) {
+                    event.preventDefault()
+                    await uploadFiles(droppedFiles, false)
+                    return
+                  }
+                  await handleLayerRootDrop(event)
+                }}
+                onDragLeave={event => {
+                  if (event.currentTarget === event.target) setLayerDropTarget(null)
                 }}
               >
-                {libraryLayers.length === 0 ? (
+                {libraryTree.length === 0 ? (
                   <p className="panel-empty">Здесь будут материалы, которые ещё не лежат на столе.</p>
                 ) : (
-                  libraryLayers.map(layer => (
-                    <article
-                      className={`library-card ${selectedLayerId === layer.id ? 'active' : ''}`}
-                      key={layer.id}
-                      draggable={canEditLayer(layer)}
-                      onClick={() => setLayerSelection([layer.id], layer.id)}
-                      onDragStart={event => {
-                        event.dataTransfer.effectAllowed = 'move'
-                        event.dataTransfer.setData('application/x-vtm-library-layer', layer.id)
-                      }}
-                    >
-                      <div className="library-preview" aria-hidden="true">
-                        {layer.layerType === 'video' ? <span className="video-thumb">▶</span> : null}
-                        {layer.layerType === 'text' ? <span className="text-thumb">T</span> : null}
-                        {layer.layerType === 'file' ? <span className="file-thumb">F</span> : null}
-                        {layer.layerType === 'folder' ? <span className="folder-thumb" /> : null}
-                        {layer.layerType === 'image' ? <img src={layer.imageData} alt="" /> : null}
-                      </div>
-                      <strong>{layer.name}</strong>
-                      <div className="library-card-actions">
-                        <button type="button" onClick={() => placeLayerOnTable(layer.id)}>На стол</button>
-                        <button
-                          type="button"
-                          className="danger"
-                          onClick={event => {
-                            event.stopPropagation()
-                            deleteLayer(layer.id)
-                          }}
-                        >
-                          Удалить
-                        </button>
-                      </div>
-                    </article>
-                  ))
+                  libraryTree.map(layer => renderLayerNode(layer))
                 )}
+                <div
+                  className="layer-root-drop-zone"
+                  onDragOver={handleLayerRootDragOver}
+                  onDrop={handleLayerRootDrop}
+                >
+                  Перетащи сюда, чтобы вынести из папки
+                </div>
               </div>
             </section>
           </section>
@@ -3101,7 +3123,8 @@ export default function VampireTable() {
         const allLocked = contextLayers.every(item => item.locked)
         const singleLayer = contextLayers.length === 1 ? contextLayers[0] : null
         const movableIds = ids.filter(id => layers.find(item => item.id === id)?.layerType !== 'folder')
-        const availableFolders = tableManagerLayers.filter(item => item.layerType === 'folder' && !ids.includes(item.id))
+        const folderScope = firstLayer.onTable ? tableManagerLayers : libraryLayers
+        const availableFolders = folderScope.filter(item => item.layerType === 'folder' && !ids.includes(item.id))
         return (
           <div
             className="layer-context-menu"
@@ -4149,6 +4172,11 @@ export default function VampireTable() {
           cursor: pointer;
         }
 
+        .layer-quick-actions button.danger {
+          color: #ff9c9c;
+          border-color: #5d2929;
+        }
+
         .layer-quick-actions button:hover,
         .folder-toggle:hover,
         .layer-visibility:hover {
@@ -4253,6 +4281,10 @@ export default function VampireTable() {
           grid-template-columns: repeat(2, minmax(0, 1fr));
           align-content: start;
           gap: 10px;
+        }
+
+        .library-list {
+          background: #171717;
         }
 
         .library-card {
