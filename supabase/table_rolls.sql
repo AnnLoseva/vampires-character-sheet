@@ -43,8 +43,9 @@ end $$;
 create table if not exists public.table_images (
   id text primary key,
   room text not null,
-  layer_type text not null default 'image' check (layer_type in ('image', 'video', 'folder')),
+  layer_type text not null default 'image' check (layer_type in ('image', 'video', 'folder', 'text')),
   owner_role text not null default 'player' check (owner_role in ('master', 'player')),
+  owner_id text null,
   parent_id text null,
   name text not null,
   image_data text not null,
@@ -55,12 +56,14 @@ create table if not exists public.table_images (
   z_index integer not null default 1,
   visible boolean not null default true,
   locked boolean not null default false,
+  on_table boolean not null default true,
   created_at timestamptz not null default now()
 );
 
 alter table public.table_images
   add column if not exists layer_type text not null default 'image',
   add column if not exists owner_role text not null default 'player',
+  add column if not exists owner_id text null,
   add column if not exists parent_id text null,
   add column if not exists x integer not null default 80,
   add column if not exists y integer not null default 80,
@@ -68,13 +71,14 @@ alter table public.table_images
   add column if not exists height integer not null default 280,
   add column if not exists z_index integer not null default 1,
   add column if not exists visible boolean not null default true,
-  add column if not exists locked boolean not null default false;
+  add column if not exists locked boolean not null default false,
+  add column if not exists on_table boolean not null default true;
 
 alter table public.table_images
   drop constraint if exists table_images_layer_type_check;
 
 alter table public.table_images
-  add constraint table_images_layer_type_check check (layer_type in ('image', 'video', 'folder'));
+  add constraint table_images_layer_type_check check (layer_type in ('image', 'video', 'folder', 'text'));
 
 alter table public.table_images
   drop constraint if exists table_images_owner_role_check;

@@ -106,8 +106,9 @@ type VoiceSignal = {
 type TableLayer = {
   id: string
   room: string
-  layerType: 'image' | 'video' | 'folder'
+  layerType: 'image' | 'video' | 'folder' | 'text'
   ownerRole: TableRole
+  ownerId: string | null
   parentId: string | null
   name: string
   imageData: string
@@ -118,14 +119,16 @@ type TableLayer = {
   zIndex: number
   visible: boolean
   locked: boolean
+  onTable: boolean
   createdAt: string
 }
 
 type TableLayerRow = {
   id: string
   room: string
-  layer_type: 'image' | 'video' | 'folder' | null
+  layer_type: 'image' | 'video' | 'folder' | 'text' | null
   owner_role: TableRole | null
+  owner_id?: string | null
   parent_id: string | null
   name: string
   image_data: string
@@ -136,12 +139,13 @@ type TableLayerRow = {
   z_index: number | null
   visible: boolean | null
   locked: boolean | null
+  on_table?: boolean | null
   created_at: string
 }
 
 type TableRole = 'master' | 'player'
 
-type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'ownerRole' | 'parentId' | 'name' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked'>>
+type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'ownerRole' | 'ownerId' | 'parentId' | 'name' | 'imageData' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked' | 'onTable'>>
 
 type DragState = {
   id: string
@@ -184,7 +188,7 @@ type LayerDropTarget = {
 } | null
 
 type RightRailTab = 'media' | 'rolls' | 'chat'
-type MediaTab = 'music' | 'layers'
+type MediaTab = 'music' | 'layers' | 'library'
 type ChatPanelTab = 'text' | 'voice'
 type VoiceQuality = 'balanced' | 'clear'
 
@@ -193,6 +197,7 @@ const TABLE_CHAT_MESSAGES = 'table_chat_messages'
 const TABLE_IMAGES = 'table_images'
 const TABLE_IMAGE_BUCKET = 'table-images'
 const ROOT_LAYER_DROP_ID = '__root__'
+const MASTER_PASSWORD_KEY = 'vtm-table-master-password'
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
@@ -269,6 +274,7 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
     room: row.room,
     layerType: row.layer_type ?? 'image',
     ownerRole: row.owner_role ?? 'player',
+    ownerId: row.owner_id ?? null,
     parentId: row.parent_id ?? null,
     name: row.name,
     imageData: row.image_data,
@@ -279,6 +285,7 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
     zIndex: row.z_index ?? 1,
     visible: row.visible ?? true,
     locked: row.locked ?? false,
+    onTable: row.on_table ?? true,
     createdAt: row.created_at,
   }
 }
@@ -287,8 +294,10 @@ function toDbPatch(patch: LayerPatch) {
   const dbPatch: Record<string, unknown> = {}
   if (patch.layerType !== undefined) dbPatch.layer_type = patch.layerType
   if (patch.ownerRole !== undefined) dbPatch.owner_role = patch.ownerRole
+  if (patch.ownerId !== undefined) dbPatch.owner_id = patch.ownerId
   if (patch.parentId !== undefined) dbPatch.parent_id = patch.parentId
   if (patch.name !== undefined) dbPatch.name = patch.name
+  if (patch.imageData !== undefined) dbPatch.image_data = patch.imageData
   if (patch.x !== undefined) dbPatch.x = patch.x
   if (patch.y !== undefined) dbPatch.y = patch.y
   if (patch.width !== undefined) dbPatch.width = patch.width
@@ -296,6 +305,7 @@ function toDbPatch(patch: LayerPatch) {
   if (patch.zIndex !== undefined) dbPatch.z_index = patch.zIndex
   if (patch.visible !== undefined) dbPatch.visible = patch.visible
   if (patch.locked !== undefined) dbPatch.locked = patch.locked
+  if (patch.onTable !== undefined) dbPatch.on_table = patch.onTable
   return dbPatch
 }
 
@@ -508,6 +518,10 @@ export default function VampireTable() {
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [mediaUrlDraft, setMediaUrlDraft] = useState('')
+  const [textMaterialDraft, setTextMaterialDraft] = useState('')
+  const [textMaterialNameDraft, setTextMaterialNameDraft] = useState('')
+  const [masterPasswordDraft, setMasterPasswordDraft] = useState('')
+  const [masterPasswordEdit, setMasterPasswordEdit] = useState('1234')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
@@ -583,11 +597,15 @@ export default function VampireTable() {
   }, [voiceParticipants, voiceMasterVolume])
 
   useEffect(() => {
+    const savedMasterPassword = window.localStorage.getItem(MASTER_PASSWORD_KEY) || '1234'
+    setMasterPasswordEdit(savedMasterPassword)
     const savedRole = window.localStorage.getItem('vtm-table-role')
     const urlRole = getRoleFromLocation()
-    if (urlRole) {
+    if (urlRole === 'player') {
       window.localStorage.setItem('vtm-table-role', urlRole)
       setTableRole(urlRole)
+    } else if (urlRole === 'master') {
+      window.localStorage.removeItem('vtm-table-role')
     } else if (savedRole === 'master' || savedRole === 'player') setTableRole(savedRole)
 
     const savedUser = window.localStorage.getItem('vtm-chat-user')
@@ -664,6 +682,22 @@ export default function VampireTable() {
     setTableRole(role)
   }
 
+  const enterAsMaster = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const currentPassword = window.localStorage.getItem(MASTER_PASSWORD_KEY) || '1234'
+    if (masterPasswordDraft !== currentPassword) {
+      window.alert('Пароль мастера не подошёл.')
+      return
+    }
+    setMasterPasswordDraft('')
+    chooseTableRole('master')
+  }
+
+  const saveMasterPassword = () => {
+    window.localStorage.setItem(MASTER_PASSWORD_KEY, masterPasswordEdit)
+    window.alert('Пароль мастера обновлён.')
+  }
+
   const resetTableRole = () => {
     window.localStorage.removeItem('vtm-table-role')
     setTableRole(null)
@@ -697,7 +731,7 @@ export default function VampireTable() {
 
     supabase
       .from(TABLE_IMAGES)
-      .select('id, room, layer_type, owner_role, parent_id, name, image_data, x, y, width, height, z_index, visible, locked, created_at')
+      .select('id, room, layer_type, owner_role, owner_id, parent_id, name, image_data, x, y, width, height, z_index, visible, locked, on_table, created_at')
       .eq('room', currentRoom)
       .order('z_index', { ascending: true })
       .limit(80)
@@ -894,6 +928,13 @@ export default function VampireTable() {
   const latest = rolls[0]
   const totalDice = useMemo(() => rolls.reduce((sum, roll) => sum + roll.diceCount, 0), [rolls])
   const selectedLayer = layers.find(layer => layer.id === selectedLayerId) || null
+  const currentOwnerId = isMaster ? 'master' : chatUser?.id ?? null
+  const canEditLayer = (layer: TableLayer) => {
+    if (isMaster) return true
+    if (layer.ownerRole === 'master') return false
+    if (!layer.ownerId) return true
+    return Boolean(chatUser?.id && layer.ownerId === chatUser.id)
+  }
   const getDescendantIds = (layerId: string) => {
     const ids = new Set<string>()
     const visit = (parentId: string) => {
@@ -908,6 +949,8 @@ export default function VampireTable() {
   }
 
   const isLayerEffectivelyVisible = (layer: TableLayer) => {
+    if (!layer.onTable) return false
+    if (layer.layerType === 'folder') return false
     if (!layer.visible) return false
     let parentId = layer.parentId
     const visited = new Set<string>()
@@ -922,15 +965,17 @@ export default function VampireTable() {
     return true
   }
 
-  const visibleLayers = useMemo(() => sortLayers(layers).filter(isLayerEffectivelyVisible), [layers])
+  const visibleLayers = useMemo(() => sortLayers(layers).filter(isLayerEffectivelyVisible), [layers, isMaster, chatUser])
   const managerLayers = useMemo(
-    () => (isMaster ? layers : layers.filter(layer => layer.ownerRole !== 'master')),
-    [isMaster, layers]
+    () => (isMaster ? layers : layers.filter(layer => canEditLayer(layer))),
+    [isMaster, layers, chatUser]
   )
+  const tableManagerLayers = useMemo(() => managerLayers.filter(layer => layer.onTable), [managerLayers])
+  const libraryLayers = useMemo(() => managerLayers.filter(layer => !layer.onTable), [managerLayers])
   const selectedManagerLayer = managerLayers.find(layer => layer.id === selectedLayerId) || null
   const layerTree = useMemo<LayerTreeNode[]>(() => {
     const nodeMap = new Map<string, LayerTreeNode>()
-    sortLayers(managerLayers).forEach(layer => nodeMap.set(layer.id, { ...layer, children: [] }))
+    sortLayers(tableManagerLayers).forEach(layer => nodeMap.set(layer.id, { ...layer, children: [] }))
 
     const roots: LayerTreeNode[] = []
     nodeMap.forEach(node => {
@@ -946,7 +991,7 @@ export default function VampireTable() {
     }
 
     return sortNodes(roots)
-  }, [managerLayers])
+  }, [tableManagerLayers])
   const broadcast = (event: string, payload: unknown) => {
     channelRef.current?.send({ type: 'broadcast', event, payload })
   }
@@ -1379,7 +1424,7 @@ export default function VampireTable() {
 
   const patchLayer = async (id: string, patch: LayerPatch, options: { persist?: boolean } = { persist: true }) => {
     const existingLayer = layersRef.current.find(layer => layer.id === id)
-    if (!isMaster && existingLayer?.ownerRole === 'master') return
+    if (existingLayer && !canEditLayer(existingLayer)) return
 
     const nextLayers = sortLayers(layersRef.current.map(layer => (layer.id === id ? { ...layer, ...patch } : layer)))
     layersRef.current = nextLayers
@@ -1399,20 +1444,27 @@ export default function VampireTable() {
     imageData: string,
     name: string,
     natural: { width: number; height: number },
-    layerType: 'image' | 'video' = 'image',
+    layerType: 'image' | 'video' | 'text' = 'image',
     index = 0,
-    point?: { x: number; y: number }
+    point?: { x: number; y: number },
+    onTable = true
   ) => {
+    if (!isMaster && !chatUser) {
+      window.alert('Сначала войди в аккаунт игрока в чате, чтобы материалы получили владельца.')
+      setRightRailTab('chat')
+      return
+    }
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
     const fitWidth = Math.min(760, Math.max(220, natural.width))
     const fitHeight = Math.max(160, Math.round((fitWidth / Math.max(1, natural.width)) * Math.max(1, natural.height)))
     const ownerRole = tableRole ?? 'player'
-    const activeFolder = selectedLayer?.layerType === 'folder' && (isMaster || selectedLayer.ownerRole !== 'master') ? selectedLayer : null
+    const activeFolder = selectedLayer?.layerType === 'folder' && canEditLayer(selectedLayer) ? selectedLayer : null
     const layer: TableLayer = {
       id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
       room,
       layerType,
       ownerRole,
+      ownerId: currentOwnerId,
       parentId: activeFolder?.id || null,
       name,
       imageData,
@@ -1423,6 +1475,7 @@ export default function VampireTable() {
       zIndex: maxZ + 1,
       visible: true,
       locked: false,
+      onTable,
       createdAt: new Date().toISOString(),
     }
 
@@ -1431,6 +1484,7 @@ export default function VampireTable() {
       room: layer.room,
       layer_type: layer.layerType,
       owner_role: layer.ownerRole,
+      owner_id: layer.ownerId,
       parent_id: layer.parentId,
       name: layer.name,
       image_data: layer.imageData,
@@ -1441,6 +1495,7 @@ export default function VampireTable() {
       z_index: layer.zIndex,
       visible: layer.visible,
       locked: layer.locked,
+      on_table: layer.onTable,
       created_at: layer.createdAt,
     })
 
@@ -1457,7 +1512,7 @@ export default function VampireTable() {
     }
   }
 
-  const uploadFiles = async (files: FileList | File[]) => {
+  const uploadFiles = async (files: FileList | File[], onTable = true) => {
     const mediaFiles = Array.from(files).filter(file => file.type.startsWith('image/') || file.type.startsWith('video/'))
     if (mediaFiles.length === 0) {
       window.alert('Можно загрузить только картинки или видео.')
@@ -1491,7 +1546,7 @@ export default function VampireTable() {
         }
 
         const { data: publicUrlData } = supabase.storage.from(TABLE_IMAGE_BUCKET).getPublicUrl(storagePath)
-        await addMediaLayer(publicUrlData.publicUrl, file.name, natural, layerType, index)
+        await addMediaLayer(publicUrlData.publicUrl, file.name, natural, layerType, index, undefined, onTable)
       }
 
       setTableStatus('Сцена онлайн')
@@ -1500,7 +1555,7 @@ export default function VampireTable() {
     }
   }
 
-  const addRemoteMediaUrls = async (items: Array<{ url: string; layerType: 'image' | 'video' }>, point?: { x: number; y: number }) => {
+  const addRemoteMediaUrls = async (items: Array<{ url: string; layerType: 'image' | 'video' }>, point?: { x: number; y: number }, onTable = true) => {
     if (items.length === 0) return false
     setIsUploading(true)
 
@@ -1513,7 +1568,8 @@ export default function VampireTable() {
           natural,
           item.layerType,
           index,
-          point ? { x: point.x + index * 28, y: point.y + index * 24 } : undefined
+          point ? { x: point.x + index * 28, y: point.y + index * 24 } : undefined,
+          onTable
         )
       }
       setTableStatus('Сцена онлайн')
@@ -1525,7 +1581,7 @@ export default function VampireTable() {
 
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      await uploadFiles(event.target.files)
+      await uploadFiles(event.target.files, mediaTab !== 'library')
       event.target.value = ''
     }
   }
@@ -1542,13 +1598,66 @@ export default function VampireTable() {
     if (added) setMediaUrlDraft('')
   }
 
+  const createTextMaterial = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const text = textMaterialDraft.trim()
+    if (!text) return
+    await addMediaLayer(
+      text,
+      textMaterialNameDraft.trim() || 'Текст мастера',
+      { width: 420, height: 260 },
+      'text',
+      0,
+      undefined,
+      false
+    )
+    setTextMaterialDraft('')
+    setTextMaterialNameDraft('')
+  }
+
+  const placeLayerOnTable = async (layerId: string, point?: { x: number; y: number }) => {
+    const layer = layersRef.current.find(item => item.id === layerId)
+    if (!layer || !canEditLayer(layer)) return
+    const maxZ = layersRef.current.reduce((max, item) => Math.max(max, item.zIndex), 0)
+    await patchLayer(layer.id, {
+      onTable: true,
+      visible: true,
+      parentId: null,
+      x: Math.round(point?.x ?? 120),
+      y: Math.round(point?.y ?? 120),
+      zIndex: maxZ + 1,
+    })
+    setLayerSelection([layer.id], layer.id)
+  }
+
+  const moveLayersToFolder = async (ids: string[], folderId: string | null) => {
+    const folder = folderId ? layersRef.current.find(layer => layer.id === folderId) : null
+    const patches = ids
+      .map(id => layersRef.current.find(layer => layer.id === id))
+      .filter((layer): layer is TableLayer => Boolean(layer))
+      .filter(layer => canEditLayer(layer) && layer.layerType !== 'folder' && layer.id !== folderId)
+      .filter(layer => !folder || !getDescendantIds(layer.id).has(folder.id))
+      .map(layer => ({ id: layer.id, patch: { parentId: folderId } }))
+    if (folderId) setExpandedFolders(prev => new Set(prev).add(folderId))
+    await patchLayers(patches)
+  }
+
+  const createFolderForSelection = async (ids: string[]) => {
+    const folderId = await createFolder(null, 'Новая папка', false, true)
+    if (!folderId) return
+    await moveLayersToFolder(ids, folderId)
+  }
+
   const deleteLayer = async (layerId: string) => {
     const layer = layersRef.current.find(item => item.id === layerId) || layers.find(item => item.id === layerId)
     const childIds = getDescendantIds(layerId)
     const requestedDeleteIds = new Set([layerId, ...childIds])
     const deleteIds = isMaster
       ? requestedDeleteIds
-      : new Set([...requestedDeleteIds].filter(id => layersRef.current.find(item => item.id === id)?.ownerRole !== 'master'))
+      : new Set([...requestedDeleteIds].filter(id => {
+        const item = layersRef.current.find(layer => layer.id === id)
+        return item ? canEditLayer(item) : false
+      }))
     if (deleteIds.size === 0) return
 
     const deletedLayers = layersRef.current.filter(item => deleteIds.has(item.id))
@@ -1570,7 +1679,12 @@ export default function VampireTable() {
     }))
   }
 
-  const createFolder = async (parentId: string | null = null) => {
+  const createFolder = async (parentId: string | null = null, name?: string, selectAfterCreate = true, onTable = true) => {
+    if (!isMaster && !chatUser) {
+      window.alert('Сначала войди в аккаунт игрока в чате, чтобы папка получила владельца.')
+      setRightRailTab('chat')
+      return null
+    }
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
     const siblingCount = layersRef.current.filter(layer => layer.layerType === 'folder' && layer.parentId === parentId).length
     const parentFolder = parentId ? layersRef.current.find(layer => layer.id === parentId) : null
@@ -1579,8 +1693,9 @@ export default function VampireTable() {
       room,
       layerType: 'folder',
       ownerRole: tableRole ?? 'player',
+      ownerId: currentOwnerId,
       parentId,
-      name: `Папка ${siblingCount + 1}`,
+      name: name || `Папка ${siblingCount + 1}`,
       imageData: '',
       x: (parentFolder?.x ?? 120) + (siblingCount % 5) * 36,
       y: (parentFolder?.y ?? 120) + (siblingCount % 5) * 28,
@@ -1589,6 +1704,7 @@ export default function VampireTable() {
       zIndex: maxZ + 1,
       visible: true,
       locked: false,
+      onTable,
       createdAt: new Date().toISOString(),
     }
 
@@ -1597,6 +1713,7 @@ export default function VampireTable() {
       room: folder.room,
       layer_type: folder.layerType,
       owner_role: folder.ownerRole,
+      owner_id: folder.ownerId,
       parent_id: folder.parentId,
       name: folder.name,
       image_data: folder.imageData,
@@ -1607,12 +1724,16 @@ export default function VampireTable() {
       z_index: folder.zIndex,
       visible: folder.visible,
       locked: folder.locked,
+      on_table: folder.onTable,
       created_at: folder.createdAt,
     })
 
     layersRef.current = upsertLayer(layersRef.current, folder)
     setLayers(layersRef.current)
-    setSelectedLayerId(folder.id)
+    if (selectAfterCreate) {
+      setSelectedLayerId(folder.id)
+      setSelectedLayerIds(new Set([folder.id]))
+    }
     if (parentId) setExpandedFolders(prev => new Set(prev).add(parentId))
     broadcast('layer', folder)
 
@@ -1620,6 +1741,7 @@ export default function VampireTable() {
       console.error('Не удалось сохранить папку:', error)
       setTableStatus('Папка показана онлайн, но не сохранена')
     }
+    return folder.id
   }
 
   const patchLayers = async (patches: Array<{ id: string; patch: LayerPatch }>) => {
@@ -1663,7 +1785,7 @@ export default function VampireTable() {
     const patches = ids
       .map(id => layersRef.current.find(layer => layer.id === id))
       .filter((layer): layer is TableLayer => Boolean(layer))
-      .filter(layer => isMaster || layer.ownerRole !== 'master')
+      .filter(layer => canEditLayer(layer))
       .map(layer => ({ id: layer.id, patch: patchFor(layer) }))
     await patchLayers(patches)
   }
@@ -1707,7 +1829,7 @@ export default function VampireTable() {
 
   const canMoveLayer = (layer: TableLayer) => {
     if (layer.locked) return false
-    return isMaster || layer.ownerRole !== 'master'
+    return canEditLayer(layer)
   }
 
   const canDropLayerOn = (dragged: TableLayer, target: TableLayer, placement: LayerDropPlacement) => {
@@ -1758,7 +1880,7 @@ export default function VampireTable() {
     const placement = layerDropTarget?.layerId === target.id ? layerDropTarget.placement : 'after'
     if (!canDropLayerOn(dragged, target, placement)) return
     const nextParentId = placement === 'inside' ? target.id : target.parentId
-    const draggableLayers = isMaster ? layersRef.current : layersRef.current.filter(layer => layer.ownerRole !== 'master')
+    const draggableLayers = layersRef.current.filter(layer => isMaster || canEditLayer(layer))
     const siblings = sortLayers(draggableLayers.filter(layer => layer.parentId === nextParentId && layer.id !== dragged.id)).reverse()
     const targetIndex = siblings.findIndex(layer => layer.id === target.id)
     const insertIndex = placement === 'inside' ? 0 : placement === 'before' ? Math.max(0, targetIndex) : Math.max(0, targetIndex + 1)
@@ -1797,7 +1919,7 @@ export default function VampireTable() {
     const dragged = layersRef.current.find(layer => layer.id === draggedId)
     if (!dragged || !canMoveLayer(dragged)) return
 
-    const draggableLayers = isMaster ? layersRef.current : layersRef.current.filter(layer => layer.ownerRole !== 'master')
+    const draggableLayers = layersRef.current.filter(layer => isMaster || canEditLayer(layer))
     const siblings = sortLayers(draggableLayers.filter(layer => layer.parentId === null && layer.id !== dragged.id)).reverse()
     siblings.push({ ...dragged, parentId: null })
 
@@ -1833,7 +1955,7 @@ export default function VampireTable() {
 
   const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize', corner: DragState['corner'] = 'se') => {
     if (event.button !== 0) return
-    if (!isMaster && layer.ownerRole === 'master') return
+    if (!canEditLayer(layer)) return
     if (layer.locked) return
     const target = event.target as HTMLElement
     if (mode === 'move' && layer.layerType === 'video' && target instanceof HTMLVideoElement) {
@@ -2032,6 +2154,11 @@ export default function VampireTable() {
   const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
     event.preventDefault()
     setIsDraggingOver(false)
+    const libraryLayerId = event.dataTransfer.getData('application/x-vtm-library-layer')
+    if (libraryLayerId) {
+      await placeLayerOnTable(libraryLayerId, getScenePointFromClient(event.clientX, event.clientY))
+      return
+    }
     const droppedFiles = Array.from(event.dataTransfer.files || [])
     if (droppedFiles.some(file => file.type.startsWith('image/') || file.type.startsWith('video/'))) {
       await uploadFiles(droppedFiles)
@@ -2112,6 +2239,8 @@ export default function VampireTable() {
                 <span className="folder-thumb" />
               ) : layer.layerType === 'video' ? (
                 <span className="video-thumb">▶</span>
+              ) : layer.layerType === 'text' ? (
+                <span className="text-thumb">T</span>
               ) : (
                 <img
                   src={layer.imageData}
@@ -2164,17 +2293,25 @@ export default function VampireTable() {
       <section className="table-topbar">
         <div>
           <p className="table-kicker">Игровой стол</p>
-          <h1>Стол: {room}</h1>
+          <h1>{room}</h1>
         </div>
         <div className="table-actions">
+          <a href="/" title="Вернуться на главную страницу">Главная</a>
           <button type="button" className="role-pill" onClick={resetTableRole}>
             {isMaster ? 'Мастер' : tableRole === 'player' ? 'Игрок' : 'Выбрать роль'}
           </button>
+          {isMaster ? (
+            <label className="master-password-control">
+              <span>Пароль мастера</span>
+              <input
+                value={masterPasswordEdit}
+                onChange={event => setMasterPasswordEdit(event.target.value)}
+                aria-label="Пароль мастера"
+              />
+              <button type="button" onClick={saveMasterPassword}>Сменить</button>
+            </label>
+          ) : null}
           <a href={`/character-sheet?room=${encodeURIComponent(room)}`} title="Открыть лист персонажа">Лист</a>
-          <button type="button" onClick={() => createFolder()}>Папка</button>
-          <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-            {isUploading ? 'Загрузка...' : 'Добавить слой'}
-          </button>
           <input ref={fileInputRef} type="file" accept="image/*,video/*" multiple onChange={handleImageUpload} />
         </div>
       </section>
@@ -2236,7 +2373,7 @@ export default function VampireTable() {
 
               {visibleLayers.map(layer => (
                 <div
-                  className={`scene-layer ${layer.layerType === 'folder' ? 'folder-layer' : ''} ${layer.layerType === 'video' ? 'video-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || (!isMaster && layer.ownerRole === 'master') ? 'locked' : ''}`}
+                  className={`scene-layer ${layer.layerType === 'video' ? 'video-layer' : ''} ${layer.layerType === 'text' ? 'text-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || !canEditLayer(layer) ? 'locked' : ''}`}
                   key={layer.id}
                   style={{
                     left: layer.x,
@@ -2258,11 +2395,7 @@ export default function VampireTable() {
                     setLayerContextMenu({ layerId: layer.id, x: event.clientX, y: event.clientY })
                   }}
                 >
-                  {layer.layerType === 'folder' ? (
-                    <div className="folder-surface">
-                      <span>{layer.name}</span>
-                    </div>
-                  ) : layer.layerType === 'video' ? (
+                  {layer.layerType === 'video' ? (
                     <>
                       {getEmbeddableVideoUrl(layer.imageData) ? (
                         <>
@@ -2300,6 +2433,11 @@ export default function VampireTable() {
                       )}
                       <span className="broken-image-label">{layer.name}</span>
                     </>
+                  ) : layer.layerType === 'text' ? (
+                    <article className="scene-text-material">
+                      <strong>{layer.name}</strong>
+                      <p>{layer.imageData}</p>
+                    </article>
                   ) : (
                     <>
                       <img
@@ -2314,7 +2452,7 @@ export default function VampireTable() {
                       <span className="broken-image-label">{layer.name}</span>
                     </>
                   )}
-                  {selectedLayerId === layer.id && selectedLayerIds.size <= 1 && !layer.locked && (isMaster || layer.ownerRole !== 'master') ? (
+                  {selectedLayerId === layer.id && selectedLayerIds.size <= 1 && !layer.locked && canEditLayer(layer) ? (
                     <>
                       {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (
                         <button
@@ -2378,7 +2516,10 @@ export default function VampireTable() {
                 Музыка
               </button>
               <button type="button" className={mediaTab === 'layers' ? 'active' : ''} onClick={() => setMediaTab('layers')}>
-                Изображения
+                Стол
+              </button>
+              <button type="button" className={mediaTab === 'library' ? 'active' : ''} onClick={() => setMediaTab('library')}>
+                Мои медиа
               </button>
             </nav>
 
@@ -2386,9 +2527,16 @@ export default function VampireTable() {
 
             <section className={`layer-panel table-right-panel ${mediaTab === 'layers' ? '' : 'table-right-panel-hidden'}`} aria-label="Слои стола">
               <header>
-                <strong>Слои</strong>
-                <span>{selectedManagerLayer?.name || 'ничего не выбрано'}</span>
+                <strong>Изображения и видео</strong>
+                <span>{selectedManagerLayer?.name || 'папки выше перекрывают ниже'}</span>
               </header>
+
+              <div className="media-manager-toolbar">
+                <button type="button" onClick={() => createFolder()}>Папка</button>
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                  {isUploading ? 'Загрузка...' : 'Новый слой'}
+                </button>
+              </div>
 
               <form className="media-url-form" onSubmit={handleMediaUrlSubmit}>
                 <input
@@ -2422,6 +2570,65 @@ export default function VampireTable() {
                 >
                   Перетащи сюда, чтобы вынести в корень
                 </div>
+              </div>
+            </section>
+
+            <section className={`library-panel table-right-panel ${mediaTab === 'library' ? '' : 'table-right-panel-hidden'}`} aria-label="Мои медиа">
+              <header>
+                <strong>{isMaster ? 'Материалы мастера' : 'Мои медиа'}</strong>
+                <span>можно вытащить на стол</span>
+              </header>
+
+              <div className="media-manager-toolbar">
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                  {isUploading ? 'Загрузка...' : 'Загрузить'}
+                </button>
+                <button type="button" onClick={() => createFolder(null, 'Папка материалов', true, false)}>Папка</button>
+              </div>
+
+              {isMaster ? (
+                <form className="text-material-form" onSubmit={createTextMaterial}>
+                  <input
+                    value={textMaterialNameDraft}
+                    onChange={event => setTextMaterialNameDraft(event.target.value)}
+                    placeholder="Название текста"
+                  />
+                  <textarea
+                    value={textMaterialDraft}
+                    onChange={event => setTextMaterialDraft(event.target.value)}
+                    placeholder="Текст, дневник, заметка..."
+                    rows={4}
+                  />
+                  <button type="submit" disabled={!textMaterialDraft.trim()}>Добавить текст</button>
+                </form>
+              ) : null}
+
+              <div className="library-grid">
+                {libraryLayers.length === 0 ? (
+                  <p className="panel-empty">Здесь будут материалы, которые ещё не лежат на столе.</p>
+                ) : (
+                  libraryLayers.map(layer => (
+                    <article
+                      className={`library-card ${selectedLayerId === layer.id ? 'active' : ''}`}
+                      key={layer.id}
+                      draggable={canEditLayer(layer)}
+                      onClick={() => setLayerSelection([layer.id], layer.id)}
+                      onDragStart={event => {
+                        event.dataTransfer.effectAllowed = 'move'
+                        event.dataTransfer.setData('application/x-vtm-library-layer', layer.id)
+                      }}
+                    >
+                      <div className="library-preview" aria-hidden="true">
+                        {layer.layerType === 'video' ? <span className="video-thumb">▶</span> : null}
+                        {layer.layerType === 'text' ? <span className="text-thumb">T</span> : null}
+                        {layer.layerType === 'folder' ? <span className="folder-thumb" /> : null}
+                        {layer.layerType === 'image' ? <img src={layer.imageData} alt="" /> : null}
+                      </div>
+                      <strong>{layer.name}</strong>
+                      <button type="button" onClick={() => placeLayerOnTable(layer.id)}>На стол</button>
+                    </article>
+                  ))
+                )}
               </div>
             </section>
           </section>
@@ -2716,6 +2923,8 @@ export default function VampireTable() {
         const allVisible = contextLayers.every(item => item.visible)
         const allLocked = contextLayers.every(item => item.locked)
         const singleLayer = contextLayers.length === 1 ? contextLayers[0] : null
+        const movableIds = ids.filter(id => layers.find(item => item.id === id)?.layerType !== 'folder')
+        const availableFolders = tableManagerLayers.filter(item => item.layerType === 'folder' && !ids.includes(item.id))
         return (
           <div
             className="layer-context-menu"
@@ -2747,6 +2956,21 @@ export default function VampireTable() {
                 setLayerContextMenu(null)
               }}>Вынести из папки</button>
             ) : null}
+            {movableIds.length > 0 ? (
+              <div className="context-menu-group">
+                <span>Поместить в папку</span>
+                {availableFolders.map(folder => (
+                  <button type="button" key={folder.id} onClick={() => {
+                    moveLayersToFolder(movableIds, folder.id)
+                    setLayerContextMenu(null)
+                  }}>{folder.name}</button>
+                ))}
+                <button type="button" onClick={() => {
+                  createFolderForSelection(movableIds)
+                  setLayerContextMenu(null)
+                }}>Создать новую папку</button>
+              </div>
+            ) : null}
             <button type="button" onClick={() => {
               focusLayersForEveryone(ids.length > 0 ? ids : [firstLayer.id])
               setLayerContextMenu(null)
@@ -2764,10 +2988,16 @@ export default function VampireTable() {
           <section>
             <span>Вход на стол</span>
             <h2>Кто ты в этой сцене?</h2>
+            <form className="master-login-form" onSubmit={enterAsMaster}>
+              <input
+                value={masterPasswordDraft}
+                onChange={event => setMasterPasswordDraft(event.target.value)}
+                placeholder="Пароль мастера"
+                type="password"
+              />
+              <button type="submit">Мастер</button>
+            </form>
             <div>
-              <button type="button" onClick={() => chooseTableRole('master')}>
-                Мастер
-              </button>
               <button type="button" onClick={() => chooseTableRole('player')}>
                 Игрок
               </button>
@@ -2829,7 +3059,7 @@ export default function VampireTable() {
           align-items: center;
         }
 
-        .table-actions input {
+        .table-actions > input[type="file"] {
           display: none;
         }
 
@@ -2853,6 +3083,26 @@ export default function VampireTable() {
         .role-pill {
           border-color: #36d675 !important;
           color: #dfffe9 !important;
+        }
+
+        .master-password-control {
+          display: grid;
+          grid-template-columns: auto minmax(90px, 140px) auto;
+          gap: 6px;
+          align-items: center;
+          color: #a9a9a9;
+          font-size: 11px;
+        }
+
+        .master-password-control input {
+          height: 34px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #0c0c0c;
+          color: #f4f4f4;
+          padding: 0 8px;
+          font: inherit;
+          font-size: 12px;
         }
 
         .table-layout {
@@ -3044,6 +3294,40 @@ export default function VampireTable() {
           border: 0;
         }
 
+        .text-layer {
+          background: #030303;
+          border: 1px solid #ff3131;
+          box-shadow: 0 0 18px rgba(255,49,49,0.55), 0 12px 34px rgba(0,0,0,0.42);
+        }
+
+        .scene-text-material {
+          width: 100%;
+          height: 100%;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          gap: 10px;
+          padding: 18px;
+          box-sizing: border-box;
+          color: #ffffff;
+          overflow: hidden;
+        }
+
+        .scene-text-material strong {
+          color: #ffb3b3;
+          font-size: 15px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .scene-text-material p {
+          margin: 0;
+          white-space: pre-wrap;
+          overflow: auto;
+          line-height: 1.45;
+          font-size: 14px;
+        }
+
         .embedded-video-drag-handle {
           position: absolute;
           left: 8px;
@@ -3189,7 +3473,7 @@ export default function VampireTable() {
 
         .sub-tabs {
           display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 4px;
           padding: 4px;
           border-bottom: 1px solid #2b2b2b;
@@ -3230,9 +3514,14 @@ export default function VampireTable() {
           border-radius: 0;
         }
 
-        .layer-panel {
+        .layer-panel,
+        .library-panel {
           display: grid;
-          grid-template-rows: auto auto minmax(0, 1fr);
+          grid-template-rows: auto auto auto minmax(0, 1fr);
+        }
+
+        .library-panel {
+          grid-template-rows: auto auto auto minmax(0, 1fr);
         }
 
         .table-right-panel {
@@ -3267,6 +3556,35 @@ export default function VampireTable() {
           color: #888;
           text-align: center;
           font-size: 13px;
+          padding: 20px;
+        }
+
+        .media-manager-toolbar {
+          display: flex;
+          gap: 6px;
+          padding: 8px;
+          border-bottom: 1px solid #2b2b2b;
+          background: #171717;
+        }
+
+        .media-manager-toolbar button,
+        .text-material-form button,
+        .library-card button {
+          height: 32px;
+          border: 1px solid #773030;
+          border-radius: 5px;
+          background: #1b1b1b;
+          color: #f4f4f4;
+          padding: 0 10px;
+          font: inherit;
+          font-size: 12px;
+          cursor: pointer;
+        }
+
+        .media-manager-toolbar button:disabled,
+        .text-material-form button:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
         }
 
         .media-url-form {
@@ -3486,6 +3804,18 @@ export default function VampireTable() {
           font-size: 12px;
         }
 
+        .text-thumb {
+          width: 100%;
+          height: 100%;
+          display: grid;
+          place-items: center;
+          background: #070707;
+          color: #ffb3b3;
+          border: 1px solid rgba(255,49,49,0.5);
+          box-shadow: inset 0 0 14px rgba(255,49,49,0.2);
+          font-weight: 700;
+        }
+
         .folder-thumb {
           position: relative;
           width: 24px;
@@ -3617,6 +3947,93 @@ export default function VampireTable() {
           color: #ff8b8b;
         }
 
+        .context-menu-group {
+          display: grid;
+          gap: 2px;
+          border-top: 1px solid #2a2a2a;
+          border-bottom: 1px solid #2a2a2a;
+          padding: 4px 0;
+        }
+
+        .context-menu-group span {
+          color: #8f8f8f;
+          font-size: 10px;
+          padding: 4px 10px 2px;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+        }
+
+        .text-material-form {
+          display: grid;
+          gap: 7px;
+          padding: 8px;
+          border-bottom: 1px solid #2b2b2b;
+          background: #141414;
+        }
+
+        .text-material-form input,
+        .text-material-form textarea {
+          min-width: 0;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #0c0c0c;
+          color: #f4f4f4;
+          padding: 8px 10px;
+          font: inherit;
+          font-size: 12px;
+          resize: vertical;
+        }
+
+        .library-grid {
+          min-height: 0;
+          overflow-y: auto;
+          padding: 10px;
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          align-content: start;
+          gap: 10px;
+        }
+
+        .library-card {
+          min-width: 0;
+          display: grid;
+          gap: 7px;
+          border: 1px solid #303030;
+          border-radius: 7px;
+          background: #171717;
+          padding: 8px;
+          cursor: grab;
+        }
+
+        .library-card.active {
+          border-color: #9ab7ff;
+          box-shadow: 0 0 0 1px rgba(154,183,255,0.35);
+        }
+
+        .library-preview {
+          aspect-ratio: 4 / 3;
+          border: 1px solid #222;
+          background: #0b0b0b;
+          display: grid;
+          place-items: center;
+          overflow: hidden;
+        }
+
+        .library-preview img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .library-card strong {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 12px;
+        }
+
         .role-gate {
           position: fixed;
           inset: 0;
@@ -3654,8 +4071,24 @@ export default function VampireTable() {
 
         .role-gate div {
           display: grid;
-          grid-template-columns: 1fr 1fr;
           gap: 10px;
+        }
+
+        .master-login-form {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 10px;
+          margin-bottom: 10px;
+        }
+
+        .master-login-form input {
+          min-width: 0;
+          border: 1px solid #333;
+          border-radius: 6px;
+          background: #0b0b0b;
+          color: #f4f4f4;
+          padding: 0 12px;
+          font: inherit;
         }
 
         .role-gate button {
