@@ -564,6 +564,7 @@ export default function VampireTable() {
   const [layers, setLayers] = useState<TableLayer[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
   const [selectedLayerIds, setSelectedLayerIds] = useState<Set<string>>(new Set())
+  const [previewLayerId, setPreviewLayerId] = useState<string | null>(null)
   const [connectionText, setConnectionText] = useState('Подключение...')
   const [tableStatus, setTableStatus] = useState('Загрузка стола...')
   const [isUploading, setIsUploading] = useState(false)
@@ -981,6 +982,7 @@ export default function VampireTable() {
   const latest = rolls[0]
   const totalDice = useMemo(() => rolls.reduce((sum, roll) => sum + roll.diceCount, 0), [rolls])
   const selectedLayer = layers.find(layer => layer.id === selectedLayerId) || null
+  const previewLayer = layers.find(layer => layer.id === previewLayerId) || null
   const currentOwnerId = isMaster ? 'master' : chatUser?.id ?? null
   const canEditLayer = (layer: TableLayer) => {
     if (isMaster) return true
@@ -1969,6 +1971,42 @@ export default function VampireTable() {
     })
   }
 
+  const getAncestorIds = (layerId: string) => {
+    const ids: string[] = []
+    const visited = new Set<string>()
+    let parentId = layersRef.current.find(layer => layer.id === layerId)?.parentId || null
+    while (parentId && !visited.has(parentId)) {
+      visited.add(parentId)
+      ids.push(parentId)
+      parentId = layersRef.current.find(layer => layer.id === parentId)?.parentId || null
+    }
+    return ids
+  }
+
+  const revealLayerInTableManager = (layer: TableLayer) => {
+    if (!layer.onTable || !canEditLayer(layer)) return
+    setRightRailTab('media')
+    setMediaTab('layers')
+    setExpandedFolders(prev => {
+      const next = new Set(prev)
+      getAncestorIds(layer.id).forEach(id => next.add(id))
+      return next
+    })
+    setLayerSelection([layer.id], layer.id)
+  }
+
+  const handleManagerDoubleClick = (layer: TableLayer) => {
+    if (!layer.onTable && layer.layerType !== 'folder') {
+      setPreviewLayerId(layer.id)
+      return
+    }
+    if (layer.layerType === 'folder') {
+      toggleFolder(layer.id)
+      return
+    }
+    renameLayer(layer)
+  }
+
   const canMoveLayer = (layer: TableLayer) => {
     if (layer.locked) return false
     return canEditLayer(layer)
@@ -2340,7 +2378,7 @@ export default function VampireTable() {
             setLayerSelection([layer.id], layer.id)
             setLayerContextMenu({ layerId: layer.id, x: event.clientX, y: event.clientY })
           }}
-          onDoubleClick={() => renameLayer(layer)}
+          onDoubleClick={() => handleManagerDoubleClick(layer)}
         >
           <button
             type="button"
@@ -2568,6 +2606,11 @@ export default function VampireTable() {
                     if (!selectedLayerIds.has(layer.id)) setLayerSelection([layer.id], layer.id)
                     else setSelectedLayerId(layer.id)
                     setLayerContextMenu({ layerId: layer.id, x: event.clientX, y: event.clientY })
+                  }}
+                  onDoubleClick={event => {
+                    event.preventDefault()
+                    event.stopPropagation()
+                    revealLayerInTableManager(layer)
                   }}
                 >
                   {layer.layerType === 'video' ? (
@@ -3110,6 +3153,50 @@ export default function VampireTable() {
           </section>
         </aside>
       </section>
+
+      {previewLayer ? (
+        <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label="Предпросмотр медиа" onMouseDown={() => setPreviewLayerId(null)}>
+          <section className="media-preview-modal" onMouseDown={event => event.stopPropagation()}>
+            <header>
+              <div>
+                <span>{previewLayer.ownerRole === 'master' ? 'Мастер' : 'Игрок'}</span>
+                <strong>{previewLayer.name}</strong>
+              </div>
+              <button type="button" onClick={() => setPreviewLayerId(null)} aria-label="Закрыть предпросмотр">×</button>
+            </header>
+            <div className="media-preview-body">
+              {previewLayer.layerType === 'image' ? (
+                <img src={previewLayer.imageData} alt={previewLayer.name} />
+              ) : previewLayer.layerType === 'video' ? (
+                getEmbeddableVideoUrl(previewLayer.imageData) ? (
+                  <iframe
+                    src={getEmbeddableVideoUrl(previewLayer.imageData)}
+                    title={previewLayer.name}
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                  />
+                ) : (
+                  <video src={previewLayer.imageData} controls playsInline />
+                )
+              ) : previewLayer.layerType === 'text' ? (
+                <article className="preview-text-material" dangerouslySetInnerHTML={{ __html: previewLayer.imageData }} />
+              ) : previewLayer.layerType === 'file' ? (() => {
+                const meta = getFileLayerMeta(previewLayer.imageData, previewLayer.name)
+                const embedUrl = getDocumentEmbedUrl(meta)
+                return embedUrl ? (
+                  <iframe src={embedUrl} title={previewLayer.name} />
+                ) : (
+                  <article className="preview-file-card">
+                    <strong>{previewLayer.name}</strong>
+                    <span>{meta.type}</span>
+                    <a href={meta.url} target="_blank" rel="noreferrer">Открыть файл</a>
+                  </article>
+                )
+              })() : null}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       {layerContextMenu ? (() => {
         const layer = layers.find(item => item.id === layerContextMenu.layerId)
@@ -4234,6 +4321,137 @@ export default function VampireTable() {
 
         .layer-context-menu button.danger {
           color: #ff8b8b;
+        }
+
+        .media-preview-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1900;
+          display: grid;
+          place-items: center;
+          padding: 20px;
+          background: rgba(0,0,0,0.78);
+        }
+
+        .media-preview-modal {
+          width: min(980px, 100%);
+          height: min(760px, 90vh);
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          border: 1px solid #3a3a3a;
+          border-radius: 8px;
+          background: #0b0b0b;
+          box-shadow: 0 24px 70px rgba(0,0,0,0.65), 0 0 28px rgba(255,49,49,0.18);
+          overflow: hidden;
+        }
+
+        .media-preview-modal header {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          align-items: center;
+          padding: 12px 14px;
+          border-bottom: 1px solid #2b2b2b;
+          background: #111;
+        }
+
+        .media-preview-modal header div {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .media-preview-modal header span {
+          color: #ff7777;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+        }
+
+        .media-preview-modal header strong {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #fff;
+        }
+
+        .media-preview-modal header button {
+          width: 34px;
+          height: 34px;
+          border: 1px solid #3a3a3a;
+          border-radius: 5px;
+          background: #181818;
+          color: #fff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 22px;
+          line-height: 1;
+        }
+
+        .media-preview-body {
+          min-height: 0;
+          display: grid;
+          place-items: center;
+          padding: 14px;
+          overflow: auto;
+        }
+
+        .media-preview-body img,
+        .media-preview-body video,
+        .media-preview-body iframe {
+          width: 100%;
+          height: 100%;
+          max-height: 100%;
+          object-fit: contain;
+          border: 0;
+          background: #050505;
+        }
+
+        .preview-text-material,
+        .preview-file-card {
+          width: min(720px, 100%);
+          max-height: 100%;
+          overflow: auto;
+          border: 1px solid #ff3131;
+          border-radius: 6px;
+          background: #030303;
+          color: #fff;
+          padding: 18px;
+          box-shadow: 0 0 18px rgba(255,49,49,0.45);
+          line-height: 1.5;
+        }
+
+        .preview-text-material pre {
+          margin: 0;
+          white-space: pre-wrap;
+          font: inherit;
+        }
+
+        .preview-text-material img {
+          max-width: 100%;
+          height: auto;
+        }
+
+        .preview-file-card {
+          display: grid;
+          gap: 10px;
+          align-content: center;
+        }
+
+        .preview-file-card span {
+          color: #aaa;
+          font-size: 12px;
+        }
+
+        .preview-file-card a {
+          width: fit-content;
+          border: 1px solid #773030;
+          border-radius: 5px;
+          background: #171717;
+          color: #fff;
+          padding: 8px 10px;
+          text-decoration: none;
         }
 
         .context-menu-group {
