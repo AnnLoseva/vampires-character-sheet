@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import MusicPanel from './music/MusicPanel'
+import { getMusicProvider, TABLE_MUSIC } from './music/utils'
 
 type Die = {
   value: number
@@ -106,6 +107,7 @@ type VoiceSignal = {
 type TableLayer = {
   id: string
   room: string
+  sceneId: string | null
   layerType: 'image' | 'video' | 'folder' | 'text' | 'file'
   ownerRole: TableRole
   ownerId: string | null
@@ -126,6 +128,7 @@ type TableLayer = {
 type TableLayerRow = {
   id: string
   room: string
+  scene_id?: string | null
   layer_type: 'image' | 'video' | 'folder' | 'text' | 'file' | null
   owner_role: TableRole | null
   owner_id?: string | null
@@ -145,7 +148,57 @@ type TableLayerRow = {
 
 type TableRole = 'master' | 'player'
 
-type LayerPatch = Partial<Pick<TableLayer, 'layerType' | 'ownerRole' | 'ownerId' | 'parentId' | 'name' | 'imageData' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked' | 'onTable'>>
+type LayerPatch = Partial<Pick<TableLayer, 'sceneId' | 'layerType' | 'ownerRole' | 'ownerId' | 'parentId' | 'name' | 'imageData' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked' | 'onTable'>>
+
+type TableScene = {
+  id: string
+  room: string
+  name: string
+  thumbnailUrl: string
+  isActive: boolean
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+type TableSceneRow = {
+  id: string
+  room: string
+  name: string
+  thumbnail_url: string | null
+  is_active: boolean | null
+  created_by: string | null
+  created_at: string
+  updated_at: string
+}
+
+type SceneMusicTrack = {
+  id: string
+  room: string
+  sceneId: string
+  title: string
+  url: string
+  sourceType: string
+  orderIndex: number
+  isDefault: boolean
+  autoplay: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+type SceneMusicRow = {
+  id: string
+  room: string
+  scene_id: string
+  title: string
+  url: string
+  source_type: string | null
+  order_index: number | null
+  is_default: boolean | null
+  autoplay: boolean | null
+  created_at: string
+  updated_at: string
+}
 
 type DragState = {
   id: string
@@ -201,15 +254,19 @@ type LayerDropTarget = {
 
 type RightRailTab = 'media' | 'rolls' | 'chat'
 type MediaTab = 'music' | 'layers' | 'library'
+type LeftToolbarTab = 'scenes' | 'layers' | 'media'
 type ChatPanelTab = 'text' | 'voice'
 type VoiceQuality = 'balanced' | 'clear'
 
 const TABLE_ROLLS = 'table_rolls'
 const TABLE_CHAT_MESSAGES = 'table_chat_messages'
 const TABLE_IMAGES = 'table_images'
+const TABLE_SCENES = 'table_scenes'
+const TABLE_SCENE_MUSIC = 'table_scene_music'
 const TABLE_IMAGE_BUCKET = 'table-images'
 const ROOT_LAYER_DROP_ID = '__root__'
 const MASTER_PASSWORD_KEY = 'vtm-table-master-password'
+const DEFAULT_SCENE_NAME = 'Основная сцена'
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
@@ -284,6 +341,7 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
   return {
     id: row.id,
     room: row.room,
+    sceneId: row.scene_id ?? null,
     layerType: row.layer_type ?? 'image',
     ownerRole: row.owner_role ?? 'player',
     ownerId: row.owner_id ?? null,
@@ -304,6 +362,7 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
 
 function toDbPatch(patch: LayerPatch) {
   const dbPatch: Record<string, unknown> = {}
+  if (patch.sceneId !== undefined) dbPatch.scene_id = patch.sceneId
   if (patch.layerType !== undefined) dbPatch.layer_type = patch.layerType
   if (patch.ownerRole !== undefined) dbPatch.owner_role = patch.ownerRole
   if (patch.ownerId !== undefined) dbPatch.owner_id = patch.ownerId
@@ -319,6 +378,48 @@ function toDbPatch(patch: LayerPatch) {
   if (patch.locked !== undefined) dbPatch.locked = patch.locked
   if (patch.onTable !== undefined) dbPatch.on_table = patch.onTable
   return dbPatch
+}
+
+function mapSceneRow(row: TableSceneRow): TableScene {
+  return {
+    id: row.id,
+    room: row.room,
+    name: row.name,
+    thumbnailUrl: row.thumbnail_url || '',
+    isActive: row.is_active ?? false,
+    createdBy: row.created_by ?? null,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function mapSceneMusicRow(row: SceneMusicRow): SceneMusicTrack {
+  return {
+    id: row.id,
+    room: row.room,
+    sceneId: row.scene_id,
+    title: row.title,
+    url: row.url,
+    sourceType: row.source_type || 'youtube',
+    orderIndex: row.order_index ?? 0,
+    isDefault: row.is_default ?? false,
+    autoplay: row.autoplay ?? false,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+function sortScenes(scenes: TableScene[]) {
+  return [...scenes].sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+}
+
+function upsertScene(scenes: TableScene[], scene: TableScene) {
+  const exists = scenes.some(item => item.id === scene.id)
+  return sortScenes(exists ? scenes.map(item => (item.id === scene.id ? scene : item)) : [...scenes, scene])
+}
+
+function sortSceneMusic(tracks: SceneMusicTrack[]) {
+  return [...tracks].sort((a, b) => a.orderIndex - b.orderIndex || a.createdAt.localeCompare(b.createdAt))
 }
 
 function getImageSize(src: string) {
@@ -573,6 +674,12 @@ export default function VampireTable() {
   const [voiceMasterVolume, setVoiceMasterVolume] = useState(1)
   const [voiceQuality, setVoiceQuality] = useState<VoiceQuality>('clear')
   const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipant[]>([])
+  const [scenes, setScenes] = useState<TableScene[]>([])
+  const [activeSceneId, setActiveSceneId] = useState<string | null>(null)
+  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
+  const [sceneMusic, setSceneMusic] = useState<SceneMusicTrack[]>([])
+  const [sceneMusicDraft, setSceneMusicDraft] = useState('')
+  const [sceneStatus, setSceneStatus] = useState('Сцены загружаются...')
   const [layers, setLayers] = useState<TableLayer[]>([])
   const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
   const [selectedLayerIds, setSelectedLayerIds] = useState<Set<string>>(new Set())
@@ -594,6 +701,7 @@ export default function VampireTable() {
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
   const [rightRailTab, setRightRailTab] = useState<RightRailTab>('media')
   const [mediaTab, setMediaTab] = useState<MediaTab>('layers')
+  const [leftToolbarTab, setLeftToolbarTab] = useState<LeftToolbarTab>('scenes')
   const [chatPanelTab, setChatPanelTab] = useState<ChatPanelTab>('text')
   const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -603,6 +711,9 @@ export default function VampireTable() {
   const dragRef = useRef<DragState | null>(null)
   const touchGestureRef = useRef<TouchGestureState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
+  const scenesRef = useRef<TableScene[]>([])
+  const activeSceneIdRef = useRef<string | null>(null)
+  const sceneMusicRef = useRef<SceneMusicTrack[]>([])
   const panRef = useRef(pan)
   const roomRef = useRef(room)
   const chatUserRef = useRef<ChatUser | null>(null)
@@ -622,6 +733,18 @@ export default function VampireTable() {
   useEffect(() => {
     layersRef.current = layers
   }, [layers])
+
+  useEffect(() => {
+    scenesRef.current = scenes
+  }, [scenes])
+
+  useEffect(() => {
+    activeSceneIdRef.current = activeSceneId
+  }, [activeSceneId])
+
+  useEffect(() => {
+    sceneMusicRef.current = sceneMusic
+  }, [sceneMusic])
 
   useEffect(() => {
     panRef.current = pan
@@ -770,6 +893,375 @@ export default function VampireTable() {
     setTableRole(null)
   }
 
+  const getSelectedSceneId = () => selectedSceneId || activeSceneId || scenes[0]?.id || null
+
+  const loadLayersForScene = async (targetRoom: string, sceneId: string) => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from(TABLE_IMAGES)
+      .select('id, room, scene_id, layer_type, owner_role, owner_id, parent_id, name, image_data, x, y, width, height, z_index, visible, locked, on_table, created_at')
+      .eq('room', targetRoom)
+      .eq('scene_id', sceneId)
+      .order('z_index', { ascending: true })
+      .limit(160)
+
+    if (error) {
+      console.error('Не удалось загрузить слои сцены:', error)
+      setTableStatus('Слои сцены не загрузились')
+      return
+    }
+
+    const next = sortLayers((data || []).map(row => mapLayerRow(row as TableLayerRow)))
+    layersRef.current = next
+    setLayers(next)
+    setSelectedLayerId(null)
+    setSelectedLayerIds(new Set())
+    setTableStatus(next.length ? 'Сцена онлайн' : 'Пустая сцена')
+  }
+
+  const loadSceneMusic = async (targetRoom: string, sceneId: string) => {
+    const { data, error } = await createClient()
+      .from(TABLE_SCENE_MUSIC)
+      .select('id, room, scene_id, title, url, source_type, order_index, is_default, autoplay, created_at, updated_at')
+      .eq('room', targetRoom)
+      .eq('scene_id', sceneId)
+      .order('order_index', { ascending: true })
+
+    if (error) {
+      console.error('Не удалось загрузить музыку сцены:', error)
+      setSceneMusic([])
+      return
+    }
+    setSceneMusic(sortSceneMusic((data || []).map(row => mapSceneMusicRow(row as SceneMusicRow))))
+  }
+
+  const ensureDefaultScene = async (targetRoom: string) => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from(TABLE_SCENES)
+      .select('id, room, name, thumbnail_url, is_active, created_by, created_at, updated_at')
+      .eq('room', targetRoom)
+      .order('created_at', { ascending: true })
+
+    if (error) {
+      console.error('Не удалось загрузить сцены:', error)
+      setSceneStatus('Нужно применить SQL для сцен')
+      return null
+    }
+
+    let nextScenes = sortScenes((data || []).map(row => mapSceneRow(row as TableSceneRow)))
+
+    if (nextScenes.length === 0) {
+      const now = new Date().toISOString()
+      const scene: TableScene = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        room: targetRoom,
+        name: DEFAULT_SCENE_NAME,
+        thumbnailUrl: '',
+        isActive: true,
+        createdBy: 'master',
+        createdAt: now,
+        updatedAt: now,
+      }
+      const { error: insertError } = await supabase.from(TABLE_SCENES).insert({
+        id: scene.id,
+        room: scene.room,
+        name: scene.name,
+        thumbnail_url: scene.thumbnailUrl,
+        is_active: scene.isActive,
+        created_by: scene.createdBy,
+        created_at: scene.createdAt,
+        updated_at: scene.updatedAt,
+      })
+      if (insertError) {
+        console.error('Не удалось создать дефолтную сцену:', insertError)
+        setSceneStatus('Дефолтная сцена не создана')
+        return null
+      }
+      nextScenes = [scene]
+      await supabase.from(TABLE_IMAGES).update({ scene_id: scene.id }).eq('room', targetRoom).is('scene_id', null)
+    }
+
+    const active = nextScenes.find(scene => scene.isActive) || nextScenes[0]
+    await supabase.from(TABLE_IMAGES).update({ scene_id: active.id }).eq('room', targetRoom).is('scene_id', null)
+    setScenes(nextScenes.map(scene => ({ ...scene, isActive: scene.id === active.id })))
+    setActiveSceneId(active.id)
+    activeSceneIdRef.current = active.id
+    setSelectedSceneId(prev => (prev && nextScenes.some(scene => scene.id === prev) ? prev : active.id))
+    setSceneStatus('Сцены онлайн')
+    return active.id
+  }
+
+  const createScene = async () => {
+    if (!isMaster) return
+    const name = window.prompt('Название сцены', 'Новая сцена')?.trim()
+    if (!name) return
+    const now = new Date().toISOString()
+    const scene: TableScene = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      name,
+      thumbnailUrl: '',
+      isActive: scenes.length === 0,
+      createdBy: currentOwnerId,
+      createdAt: now,
+      updatedAt: now,
+    }
+    const { error } = await createClient().from(TABLE_SCENES).insert({
+      id: scene.id,
+      room: scene.room,
+      name: scene.name,
+      thumbnail_url: scene.thumbnailUrl,
+      is_active: scene.isActive,
+      created_by: scene.createdBy,
+      created_at: scene.createdAt,
+      updated_at: scene.updatedAt,
+    })
+    if (error) {
+      console.error('Не удалось создать сцену:', error)
+      setSceneStatus('Сцена не создана')
+      return
+    }
+    setScenes(prev => upsertScene(prev, scene))
+    setSelectedSceneId(scene.id)
+    broadcast('scene', scene)
+  }
+
+  const renameScene = async () => {
+    if (!isMaster || !selectedScene) return
+    const name = window.prompt('Новое название сцены', selectedScene.name)?.trim()
+    if (!name || name === selectedScene.name) return
+    const updatedAt = new Date().toISOString()
+    const next = { ...selectedScene, name, updatedAt }
+    setScenes(prev => upsertScene(prev, next))
+    const { error } = await createClient().from(TABLE_SCENES).update({ name, updated_at: updatedAt }).eq('id', selectedScene.id)
+    if (error) {
+      console.error('Не удалось переименовать сцену:', error)
+      setSceneStatus('Название сцены не сохранилось')
+      return
+    }
+    broadcast('scene', next)
+  }
+
+  const playSceneAutoplayMusic = async (sceneId: string) => {
+    const tracks = sceneId === activeSceneIdRef.current
+      ? sceneMusicRef.current
+      : await createClient()
+        .from(TABLE_SCENE_MUSIC)
+        .select('id, room, scene_id, title, url, source_type, order_index, is_default, autoplay, created_at, updated_at')
+        .eq('room', roomRef.current)
+        .eq('scene_id', sceneId)
+        .then(({ data }) => (data || []).map(row => mapSceneMusicRow(row as SceneMusicRow)))
+    const track = sortSceneMusic(tracks).find(item => item.autoplay && item.isDefault) || sortSceneMusic(tracks).find(item => item.autoplay)
+    if (!track?.url) return
+    const now = new Date().toISOString()
+    const provider = getMusicProvider(track.url)
+    await createClient().from(TABLE_MUSIC).upsert({
+      room: roomRef.current,
+      url: track.url,
+      active_uri: track.url,
+      is_playing: true,
+      position_seconds: 0,
+      updated_at: now,
+      provider,
+      playlist_id: sceneId,
+      playlist_index: track.orderIndex,
+      track_id: track.id,
+      source_type: track.sourceType,
+    })
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'music',
+      payload: {
+        room: roomRef.current,
+        url: track.url,
+        activeUri: track.url,
+        isPlaying: true,
+        positionSeconds: 0,
+        updatedAt: now,
+        provider,
+        playlistId: sceneId,
+        playlistIndex: track.orderIndex,
+        trackId: track.id,
+        sourceType: track.sourceType,
+      },
+    })
+  }
+
+  const activateScene = async (sceneId: string) => {
+    if (!isMaster) return
+    const scene = scenesRef.current.find(item => item.id === sceneId)
+    if (!scene) return
+    const supabase = createClient()
+    await supabase.from(TABLE_SCENES).update({ is_active: false, updated_at: new Date().toISOString() }).eq('room', room).neq('id', sceneId)
+    const { error } = await supabase.from(TABLE_SCENES).update({ is_active: true, updated_at: new Date().toISOString() }).eq('id', sceneId)
+    if (error) {
+      console.error('Не удалось переключить сцену:', error)
+      setSceneStatus('Сцена не переключилась')
+      return
+    }
+    setActiveSceneId(sceneId)
+    activeSceneIdRef.current = sceneId
+    setSelectedSceneId(sceneId)
+    setScenes(prev => prev.map(item => ({ ...item, isActive: item.id === sceneId })))
+    await loadLayersForScene(room, sceneId)
+    await loadSceneMusic(room, sceneId)
+    broadcast('scene-active', { room, sceneId })
+    void playSceneAutoplayMusic(sceneId)
+  }
+
+  const deleteScene = async () => {
+    if (!isMaster || !selectedScene) return
+    if (scenes.length <= 1) {
+      window.alert('Нельзя удалить единственную сцену.')
+      return
+    }
+    const ok = window.confirm(`Удалить сцену "${selectedScene.name}" вместе с её слоями, медиа и музыкой?`)
+    if (!ok) return
+    const nextActive = selectedScene.isActive ? scenes.find(scene => scene.id !== selectedScene.id) : activeScene
+    const supabase = createClient()
+    await supabase.from(TABLE_SCENE_MUSIC).delete().eq('scene_id', selectedScene.id)
+    await supabase.from(TABLE_IMAGES).delete().eq('scene_id', selectedScene.id)
+    const { error } = await supabase.from(TABLE_SCENES).delete().eq('id', selectedScene.id)
+    if (error) {
+      console.error('Не удалось удалить сцену:', error)
+      setSceneStatus('Сцена не удалена')
+      return
+    }
+    setScenes(prev => prev.filter(scene => scene.id !== selectedScene.id))
+    broadcast('scene-delete', { room, id: selectedScene.id, nextActiveSceneId: nextActive?.id })
+    if (nextActive?.id && selectedScene.isActive) await activateScene(nextActive.id)
+    else setSelectedSceneId(nextActive?.id || null)
+  }
+
+  const setSceneThumbnailFromSelection = async () => {
+    if (!isMaster || !selectedScene) return
+    const layer = layers.find(item => selectedLayerIds.has(item.id) && item.layerType === 'image')
+    if (!layer) {
+      window.alert('Выдели картинку на активной сцене, чтобы сделать её preview.')
+      return
+    }
+    const updatedAt = new Date().toISOString()
+    const next = { ...selectedScene, thumbnailUrl: layer.imageData, updatedAt }
+    setScenes(prev => upsertScene(prev, next))
+    await createClient().from(TABLE_SCENES).update({ thumbnail_url: layer.imageData, updated_at: updatedAt }).eq('id', selectedScene.id)
+    broadcast('scene', next)
+  }
+
+  const saveSelectionAsGroup = async () => {
+    if (!isMaster || selectedLayerIds.size === 0) return
+    const name = window.prompt('Название группы', 'Группа сцены')?.trim()
+    if (!name) return
+    const folderId = await createFolder(null, name, true, false)
+    if (!folderId) return
+    const selected = [...selectedLayerIds]
+      .map(id => layersRef.current.find(layer => layer.id === id))
+      .filter((layer): layer is TableLayer => Boolean(layer))
+      .filter(layer => layer.layerType !== 'folder')
+    for (const [index, layer] of selected.entries()) {
+      const createdId = await addMediaLayer(
+        layer.imageData,
+        layer.name,
+        { width: layer.width, height: layer.height },
+        layer.layerType === 'folder' ? 'file' : layer.layerType,
+        index,
+        { x: layer.x, y: layer.y },
+        false
+      )
+      if (createdId) await patchLayer(createdId, { parentId: folderId })
+    }
+    setExpandedFolders(prev => new Set(prev).add(folderId))
+  }
+
+  const addSceneMusic = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!isMaster || !selectedScene) return
+    const urls = sceneMusicDraft.split(/\s+/).map(item => item.trim()).filter(Boolean)
+    if (urls.length === 0) return
+    const supabase = createClient()
+    const baseOrder = selectedSceneMusic.reduce((max, track) => Math.max(max, track.orderIndex), -1)
+    for (const [index, url] of urls.entries()) {
+      const now = new Date().toISOString()
+      const track: SceneMusicTrack = {
+        id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+        room,
+        sceneId: selectedScene.id,
+        title: `Трек ${baseOrder + index + 2}`,
+        url,
+        sourceType: getMusicProvider(url),
+        orderIndex: baseOrder + index + 1,
+        isDefault: selectedSceneMusic.length === 0 && index === 0,
+        autoplay: selectedSceneMusic.length === 0 && index === 0,
+        createdAt: now,
+        updatedAt: now,
+      }
+      const { error } = await supabase.from(TABLE_SCENE_MUSIC).insert({
+        id: track.id,
+        room: track.room,
+        scene_id: track.sceneId,
+        title: track.title,
+        url: track.url,
+        source_type: track.sourceType,
+        order_index: track.orderIndex,
+        is_default: track.isDefault,
+        autoplay: track.autoplay,
+        created_at: track.createdAt,
+        updated_at: track.updatedAt,
+      })
+      if (!error) {
+        setSceneMusic(prev => sortSceneMusic([...prev, track]))
+        broadcast('scene-music', track)
+      }
+    }
+    setSceneMusicDraft('')
+  }
+
+  const patchSceneMusic = async (track: SceneMusicTrack, patch: Partial<SceneMusicTrack>) => {
+    if (!isMaster) return
+    const updatedAt = new Date().toISOString()
+    const next = { ...track, ...patch, updatedAt }
+    let nextTracks = sceneMusicRef.current.map(item => (item.id === track.id ? next : item))
+    if (patch.isDefault) {
+      nextTracks = nextTracks.map(item => item.sceneId === track.sceneId ? { ...item, isDefault: item.id === track.id } : item)
+      await createClient().from(TABLE_SCENE_MUSIC).update({ is_default: false }).eq('scene_id', track.sceneId).neq('id', track.id)
+    }
+    setSceneMusic(sortSceneMusic(nextTracks))
+    const { error } = await createClient().from(TABLE_SCENE_MUSIC).update({
+      title: next.title,
+      url: next.url,
+      source_type: next.sourceType,
+      order_index: next.orderIndex,
+      is_default: next.isDefault,
+      autoplay: next.autoplay,
+      updated_at: updatedAt,
+    }).eq('id', track.id)
+    if (error) console.error('Не удалось обновить музыку сцены:', error)
+    broadcast('scene-music', next)
+  }
+
+  const renameSceneMusic = async (track: SceneMusicTrack) => {
+    const title = window.prompt('Название трека', track.title)?.trim()
+    if (!title || title === track.title) return
+    await patchSceneMusic(track, { title })
+  }
+
+  const deleteSceneMusic = async (track: SceneMusicTrack) => {
+    if (!isMaster) return
+    setSceneMusic(prev => prev.filter(item => item.id !== track.id))
+    await createClient().from(TABLE_SCENE_MUSIC).delete().eq('id', track.id)
+    broadcast('scene-music-delete', { room, sceneId: track.sceneId, id: track.id })
+  }
+
+  const reorderSceneMusic = async (track: SceneMusicTrack, direction: 'up' | 'down') => {
+    const tracks = sortSceneMusic(selectedSceneMusic)
+    const index = tracks.findIndex(item => item.id === track.id)
+    const swapIndex = direction === 'up' ? index - 1 : index + 1
+    const swap = tracks[swapIndex]
+    if (!swap) return
+    await patchSceneMusic(track, { orderIndex: swap.orderIndex })
+    await patchSceneMusic(swap, { orderIndex: track.orderIndex })
+  }
+
   useEffect(() => {
     const currentRoom = getRoomFromLocation()
     const supabase = createClient()
@@ -796,25 +1288,11 @@ export default function VampireTable() {
         setConnectionText('Онлайн')
       })
 
-    supabase
-      .from(TABLE_IMAGES)
-      .select('id, room, layer_type, owner_role, owner_id, parent_id, name, image_data, x, y, width, height, z_index, visible, locked, on_table, created_at')
-      .eq('room', currentRoom)
-      .order('z_index', { ascending: true })
-      .limit(80)
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error('Не удалось загрузить слои стола:', error)
-          setTableStatus('Нет общей сцены')
-          return
-        }
-
-        const next = sortLayers((data || []).map(row => mapLayerRow(row as TableLayerRow)))
-        layersRef.current = next
-        setLayers(next)
-        setTableStatus('Сцена онлайн')
-      })
+    ensureDefaultScene(currentRoom).then(sceneId => {
+      if (cancelled || !sceneId) return
+      void loadLayersForScene(currentRoom, sceneId)
+      void loadSceneMusic(currentRoom, sceneId)
+    })
 
     supabase
       .from(TABLE_CHAT_MESSAGES)
@@ -845,7 +1323,7 @@ export default function VampireTable() {
       })
       .on('broadcast', { event: 'layer' }, payload => {
         const layer = payload.payload as TableLayer
-        if (!layer || layer.room !== currentRoom) return
+        if (!layer || layer.room !== currentRoom || layer.sceneId !== activeSceneIdRef.current) return
         setLayers(prev => {
           const next = upsertLayer(prev, layer)
           layersRef.current = next
@@ -856,6 +1334,7 @@ export default function VampireTable() {
       .on('broadcast', { event: 'layer-update' }, payload => {
         const update = payload.payload as { id?: string; room?: string; patch?: LayerPatch }
         if (!update.id || update.room !== currentRoom || !update.patch) return
+        if (update.patch.sceneId && update.patch.sceneId !== activeSceneIdRef.current) return
         setLayers(prev => {
           const next = sortLayers(prev.map(layer => (layer.id === update.id ? { ...layer, ...update.patch } : layer)))
           layersRef.current = next
@@ -876,6 +1355,41 @@ export default function VampireTable() {
           next.delete(id)
           return next
         })
+      })
+      .on('broadcast', { event: 'scene-active' }, payload => {
+        const scene = payload.payload as { room?: string; sceneId?: string }
+        if (scene.room !== currentRoom || !scene.sceneId) return
+        setActiveSceneId(scene.sceneId)
+        setSelectedSceneId(scene.sceneId)
+        setScenes(prev => prev.map(item => ({ ...item, isActive: item.id === scene.sceneId })))
+        void loadLayersForScene(currentRoom, scene.sceneId)
+        void loadSceneMusic(currentRoom, scene.sceneId)
+      })
+      .on('broadcast', { event: 'scene' }, payload => {
+        const scene = payload.payload as TableScene
+        if (!scene || scene.room !== currentRoom) return
+        setScenes(prev => upsertScene(prev, scene))
+      })
+      .on('broadcast', { event: 'scene-delete' }, payload => {
+        const deleted = payload.payload as { room?: string; id?: string; nextActiveSceneId?: string }
+        if (deleted.room !== currentRoom || !deleted.id) return
+        setScenes(prev => prev.filter(scene => scene.id !== deleted.id))
+        if (deleted.nextActiveSceneId) {
+          setActiveSceneId(deleted.nextActiveSceneId)
+          setSelectedSceneId(deleted.nextActiveSceneId)
+          void loadLayersForScene(currentRoom, deleted.nextActiveSceneId)
+          void loadSceneMusic(currentRoom, deleted.nextActiveSceneId)
+        }
+      })
+      .on('broadcast', { event: 'scene-music' }, payload => {
+        const track = payload.payload as SceneMusicTrack
+        if (!track || track.room !== currentRoom || track.sceneId !== activeSceneIdRef.current) return
+        setSceneMusic(prev => sortSceneMusic([...prev.filter(item => item.id !== track.id), track]))
+      })
+      .on('broadcast', { event: 'scene-music-delete' }, payload => {
+        const deleted = payload.payload as { room?: string; sceneId?: string; id?: string }
+        if (deleted.room !== currentRoom || deleted.sceneId !== activeSceneIdRef.current || !deleted.id) return
+        setSceneMusic(prev => prev.filter(track => track.id !== deleted.id))
       })
       .on('broadcast', { event: 'chat-message' }, payload => {
         const message = payload.payload as ChatMessage
@@ -933,8 +1447,10 @@ export default function VampireTable() {
           filter: `room=eq.${currentRoom}`,
         },
         payload => {
+          const layer = mapLayerRow(payload.new as TableLayerRow)
+          if (layer.sceneId !== activeSceneIdRef.current) return
           setLayers(prev => {
-            const next = upsertLayer(prev, mapLayerRow(payload.new as TableLayerRow))
+            const next = upsertLayer(prev, layer)
             layersRef.current = next
             return next
           })
@@ -950,11 +1466,48 @@ export default function VampireTable() {
           filter: `room=eq.${currentRoom}`,
         },
         payload => {
+          const layer = mapLayerRow(payload.new as TableLayerRow)
+          if (layer.sceneId !== activeSceneIdRef.current) return
           setLayers(prev => {
-            const next = upsertLayer(prev, mapLayerRow(payload.new as TableLayerRow))
+            const next = upsertLayer(prev, layer)
             layersRef.current = next
             return next
           })
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: TABLE_SCENES, filter: `room=eq.${currentRoom}` },
+        payload => {
+          if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as { id?: string }
+            if (!deleted.id) return
+            setScenes(prev => prev.filter(scene => scene.id !== deleted.id))
+            return
+          }
+          const scene = mapSceneRow(payload.new as TableSceneRow)
+          setScenes(prev => upsertScene(prev, scene).map(item => ({ ...item, isActive: item.id === scene.id ? scene.isActive : scene.isActive ? false : item.isActive })))
+          if (scene.isActive && scene.id !== activeSceneIdRef.current) {
+            setActiveSceneId(scene.id)
+            setSelectedSceneId(scene.id)
+            void loadLayersForScene(currentRoom, scene.id)
+            void loadSceneMusic(currentRoom, scene.id)
+          }
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: TABLE_SCENE_MUSIC, filter: `room=eq.${currentRoom}` },
+        payload => {
+          if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as { id?: string; scene_id?: string }
+            if (!deleted.id || deleted.scene_id !== activeSceneIdRef.current) return
+            setSceneMusic(prev => prev.filter(track => track.id !== deleted.id))
+            return
+          }
+          const track = mapSceneMusicRow(payload.new as SceneMusicRow)
+          if (track.sceneId !== activeSceneIdRef.current) return
+          setSceneMusic(prev => sortSceneMusic([...prev.filter(item => item.id !== track.id), track]))
         }
       )
       .on(
@@ -994,9 +1547,14 @@ export default function VampireTable() {
 
   const latest = rolls[0]
   const totalDice = useMemo(() => rolls.reduce((sum, roll) => sum + roll.diceCount, 0), [rolls])
+  const activeScene = scenes.find(scene => scene.id === activeSceneId) || null
+  const selectedScene = scenes.find(scene => scene.id === getSelectedSceneId()) || activeScene
+  const activeSceneMusic = useMemo(() => sortSceneMusic(sceneMusic.filter(track => track.sceneId === activeSceneId)), [sceneMusic, activeSceneId])
+  const selectedSceneMusic = useMemo(() => sortSceneMusic(sceneMusic.filter(track => track.sceneId === selectedScene?.id)), [sceneMusic, selectedScene?.id])
   const selectedLayer = layers.find(layer => layer.id === selectedLayerId) || null
   const previewLayer = layers.find(layer => layer.id === previewLayerId) || null
   const currentOwnerId = isMaster ? 'master' : chatUser?.id ?? null
+  const currentSceneId = activeSceneId || scenes[0]?.id || null
   const canEditLayer = (layer: TableLayer) => {
     if (isMaster) return true
     if (layer.ownerRole === 'master') return false
@@ -1528,6 +2086,10 @@ export default function VampireTable() {
       setRightRailTab('chat')
       return
     }
+    if (!currentSceneId) {
+      window.alert('Сначала нужна активная сцена.')
+      return
+    }
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
     const fitWidth = Math.min(760, Math.max(220, natural.width))
     const fitHeight = Math.max(160, Math.round((fitWidth / Math.max(1, natural.width)) * Math.max(1, natural.height)))
@@ -1536,6 +2098,7 @@ export default function VampireTable() {
     const layer: TableLayer = {
       id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
       room,
+      sceneId: currentSceneId,
       layerType,
       ownerRole,
       ownerId: currentOwnerId,
@@ -1556,6 +2119,7 @@ export default function VampireTable() {
     const { error } = await createClient().from(TABLE_IMAGES).insert({
       id: layer.id,
       room: layer.room,
+      scene_id: layer.sceneId,
       layer_type: layer.layerType,
       owner_role: layer.ownerRole,
       owner_id: layer.ownerId,
@@ -1584,6 +2148,7 @@ export default function VampireTable() {
       setTableStatus('Слой показан онлайн, но не сохранён')
       window.alert('Слой показан онлайн, но не сохранился. Нужно обновить table_images в Supabase.')
     }
+    return layer.id
   }
 
   const uploadFiles = async (files: FileList | File[], onTable = true) => {
@@ -1711,11 +2276,17 @@ export default function VampireTable() {
     const layer = layersRef.current.find(item => item.id === layerId)
     if (!layer || !canEditLayer(layer)) return
     if (!layer.onTable) {
+      if (layer.layerType === 'folder') {
+        const ids = [layer.id, ...getDescendantIds(layer.id)]
+        await patchSelectedLayers(ids, () => ({ onTable: true, visible: true }))
+        setLayerSelection(ids, layer.id)
+        return
+      }
       await addMediaLayer(
         layer.imageData,
         layer.name,
         { width: layer.width, height: layer.height },
-        layer.layerType === 'folder' ? 'file' : layer.layerType,
+        layer.layerType,
         0,
         point,
         true
@@ -1797,12 +2368,17 @@ export default function VampireTable() {
       setRightRailTab('chat')
       return null
     }
+    if (!currentSceneId) {
+      window.alert('Сначала нужна активная сцена.')
+      return null
+    }
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
     const siblingCount = layersRef.current.filter(layer => layer.layerType === 'folder' && layer.parentId === parentId).length
     const parentFolder = parentId ? layersRef.current.find(layer => layer.id === parentId) : null
     const folder: TableLayer = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       room,
+      sceneId: currentSceneId,
       layerType: 'folder',
       ownerRole: tableRole ?? 'player',
       ownerId: currentOwnerId,
@@ -1823,6 +2399,7 @@ export default function VampireTable() {
     const { error } = await createClient().from(TABLE_IMAGES).insert({
       id: folder.id,
       room: folder.room,
+      scene_id: folder.sceneId,
       layer_type: folder.layerType,
       owner_role: folder.ownerRole,
       owner_id: folder.ownerId,
@@ -2630,12 +3207,154 @@ export default function VampireTable() {
         </div>
       </section>
 
-      <section className="table-layout">
+      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''}`}>
+        {isMaster ? (
+          <aside className="left-toolbar" aria-label="Мастерская панель сцен">
+            <nav className="left-tabs" aria-label="Разделы сцен">
+              <button type="button" className={leftToolbarTab === 'scenes' ? 'active' : ''} onClick={() => setLeftToolbarTab('scenes')}>Сцены</button>
+              <button type="button" className={leftToolbarTab === 'layers' ? 'active' : ''} onClick={() => setLeftToolbarTab('layers')}>Слои сцены</button>
+              <button type="button" className={leftToolbarTab === 'media' ? 'active' : ''} onClick={() => setLeftToolbarTab('media')}>Медиа сцены</button>
+            </nav>
+
+            <section className={`scene-control-panel ${leftToolbarTab === 'scenes' ? '' : 'table-right-panel-hidden'}`}>
+              <header>
+                <div>
+                  <span>Активная сцена</span>
+                  <strong>{activeScene?.name || sceneStatus}</strong>
+                </div>
+              </header>
+              <div className="scene-toolbar">
+                <button type="button" onClick={createScene}>Создать</button>
+                <button type="button" onClick={renameScene} disabled={!selectedScene}>Переименовать</button>
+                <button type="button" onClick={deleteScene} disabled={!selectedScene || scenes.length <= 1}>Удалить</button>
+              </div>
+              <div className="scene-list">
+                {scenes.length === 0 ? (
+                  <p className="panel-empty">Сцены пока не загружены.</p>
+                ) : scenes.map(scene => (
+                  <article
+                    className={`scene-list-row ${scene.id === selectedScene?.id ? 'selected' : ''} ${scene.isActive ? 'active' : ''}`}
+                    key={scene.id}
+                    onClick={() => {
+                      setSelectedSceneId(scene.id)
+                      void loadSceneMusic(room, scene.id)
+                    }}
+                  >
+                    <div className="scene-thumb">
+                      {scene.thumbnailUrl ? <img src={scene.thumbnailUrl} alt="" /> : <span>{scene.name.slice(0, 1).toUpperCase()}</span>}
+                    </div>
+                    <div>
+                      <strong>{scene.name}</strong>
+                      <span>{scene.isActive ? 'сейчас на столе' : 'подготовлена'}</span>
+                    </div>
+                    <button type="button" disabled={scene.isActive} onClick={event => {
+                      event.stopPropagation()
+                      activateScene(scene.id)
+                    }}>
+                      {scene.isActive ? 'Активна' : 'Включить'}
+                    </button>
+                  </article>
+                ))}
+              </div>
+              <div className="scene-music-box">
+                <header>
+                  <strong>Музыка сцены</strong>
+                  <span>{selectedSceneMusic.length ? `${selectedSceneMusic.length} треков` : 'мини-плейлист пуст'}</span>
+                </header>
+                <form className="media-url-form" onSubmit={addSceneMusic}>
+                  <input
+                    value={sceneMusicDraft}
+                    onChange={event => setSceneMusicDraft(event.target.value)}
+                    placeholder="YouTube-ссылки через пробел"
+                  />
+                  <button type="submit" disabled={!sceneMusicDraft.trim() || !selectedScene}>Добавить</button>
+                </form>
+                <div className="scene-track-list">
+                  {selectedSceneMusic.map(track => (
+                    <article className="scene-track-row" key={track.id}>
+                      <div>
+                        <strong>{track.title}</strong>
+                        <span>{track.isDefault ? 'по умолчанию' : track.sourceType}{track.autoplay ? ' · автозапуск' : ''}</span>
+                      </div>
+                      <button type="button" onClick={() => reorderSceneMusic(track, 'up')}>↑</button>
+                      <button type="button" onClick={() => reorderSceneMusic(track, 'down')}>↓</button>
+                      <button type="button" onClick={() => patchSceneMusic(track, { isDefault: true })}>★</button>
+                      <button type="button" onClick={() => patchSceneMusic(track, { autoplay: !track.autoplay })}>{track.autoplay ? 'A' : 'a'}</button>
+                      <button type="button" onClick={() => renameSceneMusic(track)}>T</button>
+                      <button type="button" className="danger" onClick={() => deleteSceneMusic(track)}>×</button>
+                    </article>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className={`scene-layer-panel ${leftToolbarTab === 'layers' ? '' : 'table-right-panel-hidden'}`}>
+              <header>
+                <strong>Слои сцены</strong>
+                <span>{activeScene?.name || 'активная сцена'}</span>
+              </header>
+              <div className="scene-layer-groups">
+                {[
+                  ['Фон', tableManagerLayers.filter(layer => layer.onTable && layer.name.toLowerCase().includes('фон'))],
+                  ['Картинки / декорации', tableManagerLayers.filter(layer => layer.onTable && ['image', 'video'].includes(layer.layerType) && !layer.name.toLowerCase().includes('фон'))],
+                  ['Токены', tableManagerLayers.filter(layer => layer.onTable && layer.name.toLowerCase().includes('токен'))],
+                  ['Группы / папки', tableManagerLayers.filter(layer => layer.onTable && layer.layerType === 'folder')],
+                  ['Текст / документы', tableManagerLayers.filter(layer => layer.onTable && ['text', 'file'].includes(layer.layerType))],
+                ].map(([title, items]) => (
+                  <details open key={title as string}>
+                    <summary>{title as string}<span>{(items as TableLayer[]).length}</span></summary>
+                    <div
+                      className={`layer-list ${layerDropTarget?.layerId === ROOT_LAYER_DROP_ID ? 'drop-root' : ''}`}
+                      onDragOver={handleLayerRootDragOver}
+                      onDrop={handleLayerRootDrop}
+                    >
+                      {(items as TableLayer[]).length === 0 ? <p className="panel-empty">Пусто</p> : buildLayerTree(items as TableLayer[]).map(layer => renderLayerNode(layer))}
+                    </div>
+                  </details>
+                ))}
+              </div>
+            </section>
+
+            <section className={`scene-media-panel ${leftToolbarTab === 'media' ? '' : 'table-right-panel-hidden'}`}>
+              <header>
+                <strong>Медиа сцены</strong>
+                <span>{selectedScene?.name || activeScene?.name || 'сцена'}</span>
+              </header>
+              <div className="media-manager-toolbar">
+                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
+                  {isUploading ? 'Загрузка...' : 'Загрузить'}
+                </button>
+                <button type="button" onClick={() => createNamedFolder(null, false)}>Папка</button>
+                <button type="button" onClick={saveSelectionAsGroup} disabled={selectedLayerIds.size === 0}>Группа</button>
+                <button type="button" onClick={setSceneThumbnailFromSelection} disabled={selectedLayerIds.size === 0}>Preview</button>
+              </div>
+              <form className="media-url-form" onSubmit={event => {
+                event.preventDefault()
+                const items = getMediaUrlsFromText(mediaUrlDraft)
+                void addRemoteMediaUrls(items, undefined, false).then(added => {
+                  if (added) setMediaUrlDraft('')
+                })
+              }}>
+                <input
+                  value={mediaUrlDraft}
+                  onChange={event => setMediaUrlDraft(event.target.value)}
+                  placeholder="Ссылка на картинку, видео или YouTube"
+                  disabled={isUploading}
+                />
+                <button type="submit" disabled={isUploading || !mediaUrlDraft.trim()}>В папку</button>
+              </form>
+              <div className="layer-list library-list" onDragOver={handleLayerRootDragOver} onDrop={handleLayerRootDrop}>
+                {libraryTree.length === 0 ? <p className="panel-empty">Подготовленные медиа этой сцены появятся здесь.</p> : libraryTree.map(layer => renderLayerNode(layer))}
+              </div>
+            </section>
+          </aside>
+        ) : null}
+
         <section className="play-surface" aria-label="Игровой стол">
           <header className="surface-head">
             <div>
               <span>{tableStatus}</span>
-              <strong>{layers.length ? `${layers.length} слоёв` : 'Пустая сцена'}</strong>
+              <strong>{activeScene?.name || (layers.length ? `${layers.length} слоёв` : 'Пустая сцена')}</strong>
             </div>
             <div>
               <span>Масштаб</span>
@@ -3367,6 +4086,18 @@ export default function VampireTable() {
                 setLayerContextMenu(null)
               }}>Вынести из папки</button>
             ) : null}
+            {contextLayers.some(item => item.onTable) ? (
+              <button type="button" onClick={() => {
+                patchSelectedLayers(ids, () => ({ onTable: false, parentId: null }))
+                setLayerContextMenu(null)
+              }}>Убрать в медиа сцены</button>
+            ) : null}
+            {contextLayers.some(item => !item.onTable) ? (
+              <button type="button" onClick={() => {
+                patchSelectedLayers(ids, () => ({ onTable: true, visible: true, parentId: null }))
+                setLayerContextMenu(null)
+              }}>Вынести на стол</button>
+            ) : null}
             {movableIds.length > 0 ? (
               <div className="context-menu-group">
                 <span>Поместить в папку</span>
@@ -3524,7 +4255,12 @@ export default function VampireTable() {
           min-height: 560px;
         }
 
+        .table-layout.with-left-toolbar {
+          grid-template-columns: 330px minmax(0, 1fr) 420px;
+        }
+
         .play-surface,
+        .left-toolbar,
         .media-sidebar,
         .layer-panel,
         .roll-sidebar,
@@ -3539,6 +4275,236 @@ export default function VampireTable() {
           min-width: 0;
           display: grid;
           grid-template-rows: auto 1fr;
+        }
+
+        .left-toolbar {
+          min-width: 0;
+          min-height: 0;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+        }
+
+        .left-tabs {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 4px;
+          padding: 4px;
+          border-bottom: 1px solid #2b2b2b;
+          background: #101010;
+        }
+
+        .left-tabs button {
+          min-width: 0;
+          height: 34px;
+          border: 1px solid transparent;
+          border-radius: 5px;
+          background: transparent;
+          color: #a9a9a9;
+          cursor: pointer;
+          font: inherit;
+          font-size: 11px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .left-tabs button.active {
+          border-color: #773030;
+          background: #221414;
+          color: #ffd7d7;
+        }
+
+        .scene-control-panel,
+        .scene-layer-panel,
+        .scene-media-panel {
+          min-height: 0;
+          display: grid;
+          grid-template-rows: auto auto minmax(0, 1fr);
+          background: #101010;
+        }
+
+        .scene-control-panel {
+          grid-template-rows: auto auto minmax(150px, 0.85fr) minmax(210px, 1fr);
+        }
+
+        .scene-media-panel {
+          grid-template-rows: auto auto auto minmax(0, 1fr);
+        }
+
+        .scene-control-panel > header,
+        .scene-layer-panel > header,
+        .scene-media-panel > header,
+        .scene-music-box > header {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+          border-bottom: 1px solid #2b2b2b;
+          background: #111;
+          padding: 10px;
+        }
+
+        .scene-control-panel header div,
+        .scene-music-box header {
+          min-width: 0;
+        }
+
+        .scene-control-panel span,
+        .scene-layer-panel span,
+        .scene-media-panel span,
+        .scene-music-box span {
+          color: #9c9c9c;
+          font-size: 11px;
+        }
+
+        .scene-control-panel strong,
+        .scene-layer-panel strong,
+        .scene-media-panel strong,
+        .scene-music-box strong {
+          min-width: 0;
+          color: #f5f5f5;
+          font-size: 13px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .scene-toolbar {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 6px;
+          padding: 8px;
+          border-bottom: 1px solid #2b2b2b;
+          background: #171717;
+        }
+
+        .scene-toolbar button,
+        .scene-list-row button,
+        .scene-track-row button {
+          min-width: 0;
+          height: 30px;
+          border: 1px solid #773030;
+          border-radius: 5px;
+          background: #1b1b1b;
+          color: #f4f4f4;
+          padding: 0 8px;
+          font: inherit;
+          font-size: 11px;
+          cursor: pointer;
+        }
+
+        .scene-toolbar button:disabled,
+        .scene-list-row button:disabled,
+        .scene-track-row button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+
+        .scene-list,
+        .scene-track-list,
+        .scene-layer-groups {
+          min-height: 0;
+          overflow-y: auto;
+        }
+
+        .scene-list-row {
+          display: grid;
+          grid-template-columns: 44px minmax(0, 1fr) 74px;
+          gap: 8px;
+          align-items: center;
+          min-height: 58px;
+          padding: 7px 8px;
+          border-bottom: 1px solid #292929;
+          background: #161616;
+          cursor: pointer;
+        }
+
+        .scene-list-row:hover,
+        .scene-list-row.selected {
+          background: #242424;
+        }
+
+        .scene-list-row.active {
+          box-shadow: inset 3px 0 0 #36d675;
+        }
+
+        .scene-thumb {
+          width: 44px;
+          height: 38px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #090909;
+          display: grid;
+          place-items: center;
+          overflow: hidden;
+          color: #ffb3b3;
+          font-weight: 700;
+        }
+
+        .scene-thumb img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .scene-list-row div:nth-child(2),
+        .scene-track-row div {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .scene-music-box {
+          min-height: 0;
+          display: grid;
+          grid-template-rows: auto auto minmax(0, 1fr);
+          border-top: 1px solid #2b2b2b;
+        }
+
+        .scene-track-row {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) repeat(6, 24px);
+          gap: 4px;
+          align-items: center;
+          padding: 7px 8px;
+          border-bottom: 1px solid #292929;
+          background: #141414;
+        }
+
+        .scene-track-row button {
+          width: 24px;
+          padding: 0;
+        }
+
+        .scene-track-row button.danger {
+          color: #ff9c9c;
+          border-color: #6a2727;
+        }
+
+        .scene-layer-groups {
+          display: grid;
+          align-content: start;
+          gap: 0;
+        }
+
+        .scene-layer-groups details {
+          border-bottom: 1px solid #2b2b2b;
+          background: #121212;
+        }
+
+        .scene-layer-groups summary {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 9px 10px;
+          cursor: pointer;
+          color: #f1f1f1;
+          font-size: 12px;
+        }
+
+        .scene-layer-groups summary span {
+          color: #36d675;
         }
 
         .surface-head,
