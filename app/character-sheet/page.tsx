@@ -53,16 +53,16 @@ export default function CharacterSheetPage() {
       `}</style>
 
       <nav className="sheet-nav-links" aria-label="Навигация листа персонажа">
-        <a href="/" title="На главный экран">На главный экран</a>
+        <a href="/" title="На главную">На главную</a>
         <a
           href={tableHref}
           onClick={() => {
             window.localStorage.setItem('vtm-table-room', room)
             window.localStorage.setItem('vtm-table-role', role)
           }}
-          title="Вернуться на игровой стол"
+          title="В игровую комнату"
         >
-          На игровой стол
+          В игровую комнату
         </a>
       </nav>
 
@@ -70,12 +70,12 @@ export default function CharacterSheetPage() {
         src={iframeSrc}
         style={{
           position: 'fixed',
-          top: 0,
+          top: 64,
           left: 0,
           width: '100vw',
-          height: '100vh',
+          height: 'calc(100vh - 64px)',
           border: 'none',
-          zIndex: 9999,
+          zIndex: 1,
         }}
         title="VTM V5 Character Sheet"
       />
@@ -83,13 +83,20 @@ export default function CharacterSheetPage() {
       <style jsx>{`
         .sheet-nav-links {
           position: fixed;
-          right: 18px;
-          top: 18px;
-          z-index: 10001;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 2;
+          min-height: 64px;
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
           justify-content: flex-end;
+          align-items: center;
+          padding: 12px 18px;
+          box-sizing: border-box;
+          border-bottom: 1px solid #2d2d2d;
+          background: #0a0a0a;
         }
 
         .sheet-nav-links a {

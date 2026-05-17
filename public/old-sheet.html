@@ -37,37 +37,6 @@
         box-shadow: 0 0 40px rgba(255, 49, 49, 0.1);
     }
 
-    .sheet-nav-bar {
-        position: fixed;
-        top: 14px;
-        left: 14px;
-        z-index: 25000;
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-        max-width: calc(100vw - 28px);
-    }
-
-    .sheet-nav-bar a {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-height: 38px;
-        padding: 0 13px;
-        border: 1px solid #773030;
-        border-radius: 6px;
-        background: rgba(12,12,12,0.94);
-        color: #fff;
-        font-size: 13px;
-        text-decoration: none;
-        box-shadow: 0 10px 28px rgba(0,0,0,0.4);
-    }
-
-    .sheet-nav-bar a:hover {
-        border-color: #ff3131;
-        background: #241111;
-    }
-
     /* ==================== СКРОЛЛБАР ==================== */
     ::-webkit-scrollbar {
         width: 10px;
@@ -156,6 +125,41 @@
         border: 1px solid #333;
         border-radius: 8px;
         padding: 20px;
+    }
+
+    .sheet-tabs {
+        display: grid;
+        gap: 8px;
+        margin: 0 0 16px;
+    }
+
+    .sheet-tabs button {
+        width: 100%;
+        min-height: 42px;
+        border: 1px solid #333;
+        border-radius: 6px;
+        background: #141414;
+        color: #d0d0d0;
+        font: inherit;
+        font-size: 14px;
+        cursor: pointer;
+        text-align: left;
+        padding: 0 12px;
+    }
+
+    .sheet-tabs button.active {
+        border-color: #ff3131;
+        background: #2a1111;
+        color: #fff;
+        box-shadow: inset 3px 0 0 #ff3131;
+    }
+
+    .sheet-section {
+        display: none;
+    }
+
+    .sheet-section.active {
+        display: block;
     }
                /* ==================== ОСТАЛЬНЫЕ ОСНОВНЫЕ СТИЛИ ==================== */
 
@@ -1604,14 +1608,15 @@
 </head>
 
 <body>
-<div class="sheet-nav-bar">
-    <a href="/" title="На главный экран">На главный экран</a>
-    <a id="sheet-table-link" href="/table" title="На игровой стол">На игровой стол</a>
-</div>
     <div class="main-container">
 
         <!-- Левая панель -->
         <div class="guide">
+            <nav class="sheet-tabs" aria-label="Разделы листа персонажа">
+                <button type="button" class="active" data-sheet-tab="social" onclick="switchSheetSection('social')">Социальное</button>
+                <button type="button" data-sheet-tab="mechanics" onclick="switchSheetSection('mechanics')">Броски / механика</button>
+                <button type="button" data-sheet-tab="inventory" onclick="switchSheetSection('inventory')">Инвентарь</button>
+            </nav>
             <button onclick="importFromJSON()" style="width:100%; margin:8px 0 12px 0; padding:10px; background:#222; color:#ffae00; border:1px solid #a14600; border-radius:4px; cursor:pointer; font-size:14px;">
                 Импорт персонажа (JSON)
             </button>
@@ -1672,6 +1677,7 @@
 
         <!-- Основной лист -->
         <div class="sheet" id="capture-area">
+<section class="sheet-section active" data-sheet-section="social">
 <!-- Header -->
 <div class="header-row" style="flex-direction: column; gap: 22px;">
 
@@ -1812,6 +1818,32 @@
     </div>
 
 </div>
+
+<div class="story-section">
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ОПОРЫ И ПРИНЦИПЫ</h2>
+    <div id="touchstones-list"></div>
+    <button type="button" onclick="addTouchstone()" class="merit-add-btn" style="width:100%; padding:12px; background:#222; color:#fff; border:1px solid #ff3131; border-radius:6px; font-size:16px; cursor:pointer;">
+        + Добавить опору
+    </button>
+</div>
+
+<div class="story-section">
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ВНЕШНОСТЬ</h2>
+    <textarea id="appearance-input" placeholder="Описание внешности"></textarea>
+</div>
+
+<div class="story-section">
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ПРЕДЫСТОРИЯ</h2>
+    <textarea id="backstory-input" placeholder="Предыстория персонажа"></textarea>
+</div>
+
+<div class="story-section">
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ЗАМЕТКИ ПЕРСОНАЖА</h2>
+    <textarea id="notes-input" placeholder="Личные заметки, связи, привычки, важные детали"></textarea>
+</div>
+</section>
+
+<section class="sheet-section" data-sheet-section="mechanics">
     <h2>Характеристики</h2>
     <div class="grid" id="attributes-grid"></div>
 
@@ -1895,25 +1927,9 @@
         + Добавить слабокровное преимущество / недостаток
     </button>
 </div>
+</section>
 
-<div class="story-section">
-    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ОПОРЫ И ПРИНЦИПЫ</h2>
-    <div id="touchstones-list"></div>
-    <button type="button" onclick="addTouchstone()" class="merit-add-btn" style="width:100%; padding:12px; background:#222; color:#fff; border:1px solid #ff3131; border-radius:6px; font-size:16px; cursor:pointer;">
-        + Добавить опору
-    </button>
-</div>
-
-<div class="story-section">
-    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ВНЕШНОСТЬ</h2>
-    <textarea id="appearance-input" placeholder="Описание внешности"></textarea>
-</div>
-
-<div class="story-section">
-    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ПРЕДЫСТОРИЯ</h2>
-    <textarea id="backstory-input" placeholder="Предыстория персонажа"></textarea>
-</div>
-
+<section class="sheet-section" data-sheet-section="inventory">
 <div class="story-section inventory-section">
     <div class="inventory-head">
         <div>
@@ -1940,6 +1956,7 @@
     </div>
     <div id="inventory-list" class="inventory-list"></div>
 </div>
+</section>
 
 </div>   <!-- ←←← ЗАКРЫТИЕ .sheet -->
 

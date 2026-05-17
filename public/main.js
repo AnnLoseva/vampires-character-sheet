@@ -151,8 +151,9 @@ async function initializeApp() {
         setupDiceRollsFromLockedSheet();
         setupSheetLockGuards();
         setupExpShopDotEditing();
+        setupSheetTabs();
+        setupInventoryEditor();
         setupCharacterDetails();
-        setupSheetNavigation();
         renderInventory();
 
         // Дополнительные настройки
@@ -2725,15 +2726,22 @@ function renderTouchstones() {
     applySheetLockState();
 }
 
-function setupSheetNavigation() {
-    const tableLink = document.getElementById('sheet-table-link');
-    if (!tableLink) return;
-    const params = new URLSearchParams(window.location.search);
-    const room = params.get('room') || localStorage.getItem('vtm-table-room') || 'campaign-666';
-    const role = localStorage.getItem('vtm-table-role') || 'player';
-    localStorage.setItem('vtm-table-room', room);
-    tableLink.href = `/table?room=${encodeURIComponent(room)}&role=${role === 'master' ? 'master' : 'player'}`;
+function switchSheetSection(sectionName) {
+    document.querySelectorAll('[data-sheet-section]').forEach(section => {
+        section.classList.toggle('active', section.dataset.sheetSection === sectionName);
+    });
+    document.querySelectorAll('[data-sheet-tab]').forEach(button => {
+        button.classList.toggle('active', button.dataset.sheetTab === sectionName);
+    });
+    localStorage.setItem('vtm-sheet-section', sectionName);
 }
+
+function setupSheetTabs() {
+    const saved = localStorage.getItem('vtm-sheet-section');
+    switchSheetSection(['social', 'mechanics', 'inventory'].includes(saved) ? saved : 'social');
+}
+
+window.switchSheetSection = switchSheetSection;
 
 function createInventoryItem(seed = {}) {
     const now = new Date().toISOString();
@@ -2754,12 +2762,25 @@ function normalizeInventory(items) {
     return Array.isArray(items) ? items.map(createInventoryItem) : [];
 }
 
-function updateInventoryItem(id, patch) {
+function updateInventoryCardSummary(id) {
+    const item = inventory.find(entry => entry.id === id);
+    const card = document.querySelector(`[data-inventory-id="${CSS.escape(id)}"]`);
+    if (!item || !card) return;
+    const title = card.querySelector('[data-inventory-title]');
+    const summary = card.querySelector('[data-inventory-summary]');
+    const updated = card.querySelector('[data-inventory-updated]');
+    if (title) title.textContent = item.name || 'Без названия';
+    if (summary) summary.textContent = `${item.category} · ${item.quantity} шт.`;
+    if (updated) updated.textContent = `обновлён: ${new Date(item.updatedAt).toLocaleString('ru-RU')}`;
+}
+
+function updateInventoryItem(id, patch, shouldRender = false) {
     inventory = inventory.map(item => item.id === id
         ? { ...item, ...patch, updatedAt: new Date().toISOString() }
         : item
     );
-    renderInventory();
+    if (shouldRender) renderInventory();
+    else updateInventoryCardSummary(id);
 }
 
 function addInventoryItem() {
@@ -2778,6 +2799,33 @@ function changeInventoryQuantity(id, delta) {
     const item = inventory.find(entry => entry.id === id);
     if (!item) return;
     updateInventoryItem(id, { quantity: Math.max(0, (parseInt(item.quantity, 10) || 0) + delta) });
+    const input = document.querySelector(`[data-inventory-id="${CSS.escape(id)}"] [data-inventory-field="quantity"]`);
+    if (input) input.value = String(inventory.find(entry => entry.id === id)?.quantity ?? 0);
+}
+
+function setupInventoryEditor() {
+    const list = document.getElementById('inventory-list');
+    if (!list || list.dataset.inventoryEditorReady === 'true') return;
+    list.dataset.inventoryEditorReady = 'true';
+    list.addEventListener('input', event => {
+        const target = event.target;
+        const field = target?.dataset?.inventoryField;
+        const card = target?.closest?.('[data-inventory-id]');
+        if (!field || !card) return;
+        const id = card.dataset.inventoryId;
+        if (field === 'quantity') {
+            updateInventoryItem(id, { quantity: Math.max(0, parseInt(target.value || '0', 10) || 0) });
+            return;
+        }
+        updateInventoryItem(id, { [field]: target.value });
+    });
+    list.addEventListener('change', event => {
+        const target = event.target;
+        const field = target?.dataset?.inventoryField;
+        const card = target?.closest?.('[data-inventory-id]');
+        if (!field || !card) return;
+        updateInventoryItem(card.dataset.inventoryId, { [field]: target.value }, field === 'category');
+    });
 }
 
 function renderInventory() {
@@ -2801,37 +2849,37 @@ function renderInventory() {
             <article class="inventory-card" data-inventory-id="${item.id}">
                 <div class="inventory-card-head">
                     <div class="inventory-card-title">
-                        <strong>${escapeHTML(item.name || 'Без названия')}</strong>
-                        <span>${escapeHTML(item.category)} · ${item.quantity} шт.</span>
+                        <strong data-inventory-title>${escapeHTML(item.name || 'Без названия')}</strong>
+                        <span data-inventory-summary>${escapeHTML(item.category)} · ${item.quantity} шт.</span>
                     </div>
                     <div class="inventory-card-meta">
                         <span>создан: ${created}</span>
-                        <span>обновлён: ${updated}</span>
+                        <span data-inventory-updated>обновлён: ${updated}</span>
                     </div>
                 </div>
                 <div class="inventory-card-fields">
                     <label>Название
-                        <input value="${escapeHTML(item.name)}" oninput="updateInventoryItem('${item.id}', { name: this.value })">
+                        <input value="${escapeHTML(item.name)}" data-inventory-field="name">
                     </label>
                     <label>Категория
-                        <select onchange="updateInventoryItem('${item.id}', { category: this.value })">${categoryOptions}</select>
+                        <select data-inventory-field="category">${categoryOptions}</select>
                     </label>
                     <label>Количество
                         <div class="inventory-quantity">
                             <button type="button" onclick="changeInventoryQuantity('${item.id}', -1)">−</button>
-                            <input type="number" min="0" value="${item.quantity}" oninput="updateInventoryItem('${item.id}', { quantity: Math.max(0, parseInt(this.value || '0', 10) || 0) })">
+                            <input type="number" min="0" value="${item.quantity}" data-inventory-field="quantity">
                             <button type="button" onclick="changeInventoryQuantity('${item.id}', 1)">+</button>
                         </div>
                     </label>
                 </div>
                 <div class="inventory-description ${item.collapsed ? 'collapsed' : ''}">
                     <label>Описание
-                        <textarea oninput="updateInventoryItem('${item.id}', { description: this.value })">${escapeHTML(item.description)}</textarea>
+                        <textarea data-inventory-field="description">${escapeHTML(item.description)}</textarea>
                     </label>
                 </div>
                 <div class="inventory-note ${item.collapsed ? 'collapsed' : ''}">
                     <label>Заметка
-                        <textarea oninput="updateInventoryItem('${item.id}', { note: this.value })">${escapeHTML(item.note)}</textarea>
+                        <textarea data-inventory-field="note">${escapeHTML(item.note)}</textarea>
                     </label>
                 </div>
                 <div class="inventory-card-actions">
@@ -2856,7 +2904,7 @@ function autoResizeTextarea(textarea) {
 }
 
 function setupAutoResizeTextareas() {
-    ['backstory-input'].forEach(id => {
+    ['backstory-input', 'appearance-input', 'notes-input'].forEach(id => {
         const textarea = document.getElementById(id);
         if (!textarea || textarea.dataset.autoResizeReady === 'true') return;
         textarea.dataset.autoResizeReady = 'true';
@@ -4241,6 +4289,7 @@ function getFullCharacterData() {
         inventory: normalizeInventory(inventory),
         appearance: getInputValue('appearance-input'),
         backstory: getInputValue('backstory-input'),
+        notes: getInputValue('notes-input'),
         predator: document.getElementById('predator-input').value,
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
@@ -4353,6 +4402,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         inventory = normalizeInventory(d.inventory);
         setInputValue('appearance-input', d.appearance);
         setInputValue('backstory-input', d.backstory);
+        setInputValue('notes-input', d.notes);
         autoResizeTextarea(document.getElementById('backstory-input'));
         renderCharacterImage();
         renderTouchstones();
@@ -5620,8 +5670,10 @@ function captureSheetSnapshot() {
         clanBane: getInputValue('clan-bane-input'),
         characterImage: characterImageData || '',
         touchstones: JSON.parse(JSON.stringify(touchstones || [])),
+        inventory: normalizeInventory(inventory),
         appearance: getInputValue('appearance-input'),
         backstory: getInputValue('backstory-input'),
+        notes: getInputValue('notes-input'),
         predator: document.getElementById('predator-input')?.value || '',
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
