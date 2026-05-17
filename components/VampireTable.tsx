@@ -116,6 +116,30 @@ type JournalEntry = {
   createdAt: string
 }
 
+type MasterReveal = {
+  id: string
+  room: string
+  kind: string
+  title: string
+  body: string
+  meta: string
+  characterName: string
+  userId: string
+  username: string
+  createdAt: string
+}
+
+type MasterWhisper = {
+  id: string
+  room: string
+  fromUserId: string
+  fromUsername: string
+  toUserId: string | null
+  message: string
+  fromMaster: boolean
+  createdAt: string
+}
+
 type ChatMessage = {
   id: string
   room: string
@@ -363,7 +387,7 @@ type LayerDropTarget = {
   placement: LayerDropPlacement
 } | null
 
-type RightRailTab = 'media' | 'rolls' | 'chat' | 'diary'
+type RightRailTab = 'media' | 'rolls' | 'chat' | 'diary' | 'master'
 type MediaTab = 'music' | 'layers' | 'library'
 type LeftToolbarTab = 'scenes' | 'layers' | 'media'
 type ChatPanelTab = 'text' | 'voice'
@@ -909,6 +933,10 @@ export default function VampireTable() {
   const [selectedJournalEntryId, setSelectedJournalEntryId] = useState('')
   const [journalSearch, setJournalSearch] = useState('')
   const [journalSaveStatus, setJournalSaveStatus] = useState('Сохранено')
+  const [masterReveals, setMasterReveals] = useState<MasterReveal[]>([])
+  const [masterWhispers, setMasterWhispers] = useState<MasterWhisper[]>([])
+  const [masterChatDraft, setMasterChatDraft] = useState('')
+  const [selectedMasterChatUserId, setSelectedMasterChatUserId] = useState('')
   const [chatDraft, setChatDraft] = useState('')
   const [chatUsernameDraft, setChatUsernameDraft] = useState('')
   const [chatPasswordDraft, setChatPasswordDraft] = useState('')
@@ -1781,6 +1809,16 @@ export default function VampireTable() {
             : [...prev, participant]
         })
       })
+      .on('broadcast', { event: 'master-reveal' }, payload => {
+        const reveal = payload.payload as MasterReveal
+        if (!reveal || reveal.room !== currentRoom) return
+        setMasterReveals(prev => [{ ...reveal, id: reveal.id || `${Date.now()}-${Math.random().toString(16).slice(2)}` }, ...prev].slice(0, 40))
+      })
+      .on('broadcast', { event: 'master-whisper' }, payload => {
+        const message = payload.payload as MasterWhisper
+        if (!message || message.room !== currentRoom) return
+        setMasterWhispers(prev => [...prev.filter(item => item.id !== message.id), message].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(-160))
+      })
       .on('broadcast', { event: 'voice-signal' }, payload => {
         handleVoiceSignal(payload.payload as VoiceSignal)
       })
@@ -1936,6 +1974,14 @@ export default function VampireTable() {
     const query = journalSearch.trim().toLowerCase()
     if (!query) return true
     return `${entry.title} ${entry.text}`.toLowerCase().includes(query)
+  })
+  const masterChatPlayers = roomParticipants.filter(participant => participant.userId !== chatUser?.id)
+  const visibleMasterWhispers = masterWhispers.filter(message => {
+    if (!chatUser) return false
+    if (isMaster) return !selectedMasterChatUserId
+      ? true
+      : message.fromUserId === selectedMasterChatUserId || message.toUserId === selectedMasterChatUserId
+    return message.fromUserId === chatUser.id || message.toUserId === chatUser.id
   })
 
   const saveJournalEntries = (entries: JournalEntry[], status = 'Сохранено') => {
@@ -2369,6 +2415,30 @@ export default function VampireTable() {
     } else {
       setChatStatus('Чат онлайн')
     }
+  }
+
+  const sendMasterWhisper = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const text = masterChatDraft.trim()
+    if (!chatUser || !text) return
+    const targetId = isMaster ? selectedMasterChatUserId : null
+    if (isMaster && !targetId) {
+      window.alert('Выбери игрока для ответа.')
+      return
+    }
+    const message: MasterWhisper = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      fromUserId: chatUser.id,
+      fromUsername: chatUser.username,
+      toUserId: targetId,
+      message: text,
+      fromMaster: isMaster,
+      createdAt: new Date().toISOString(),
+    }
+    setMasterChatDraft('')
+    setMasterWhispers(prev => [...prev, message].slice(-160))
+    broadcast('master-whisper', message)
   }
 
   const getVoiceIdentity = () => {
@@ -4662,6 +4732,13 @@ export default function VampireTable() {
             >
               Дневник
             </button>
+            <button
+              type="button"
+              className={rightRailTab === 'master' ? 'active' : ''}
+              onClick={() => setRightRailTab('master')}
+            >
+              Мастер
+            </button>
           </nav>
 
           <section className={`media-sidebar table-right-panel ${rightRailTab === 'media' ? '' : 'table-right-panel-hidden'}`} aria-label="Медиа стола">
@@ -5173,6 +5250,78 @@ export default function VampireTable() {
                   )}
                 </section>
               </div>
+            )}
+          </section>
+
+          <section className={`master-sidebar table-right-panel ${rightRailTab === 'master' ? '' : 'table-right-panel-hidden'}`} aria-label="Связь с мастером">
+            <header>
+              <div>
+                <span>{isMaster ? 'Панель мастера' : 'Чат с мастером'}</span>
+                <strong>{isMaster ? masterReveals.length : visibleMasterWhispers.length}</strong>
+              </div>
+              <div>
+                <span>Комната</span>
+                <strong>{room}</strong>
+              </div>
+            </header>
+
+            {!chatUser ? (
+              <p className="panel-empty">Войдите в аккаунт, чтобы писать мастеру.</p>
+            ) : (
+              <>
+                {isMaster ? (
+                  <section className="master-reveal-list">
+                    <strong>Показано мастеру</strong>
+                    {masterReveals.length === 0 ? (
+                      <p className="panel-empty">Игроки пока ничего не показывали.</p>
+                    ) : masterReveals.map(item => (
+                      <article key={item.id}>
+                        <span>{item.kind} · {item.characterName} · {item.username}</span>
+                        <strong>{item.title}</strong>
+                        {item.meta ? <small>{item.meta}</small> : null}
+                        <p>{item.body}</p>
+                        <time dateTime={item.createdAt}>{formatTime(item.createdAt)}</time>
+                      </article>
+                    ))}
+                  </section>
+                ) : null}
+
+                <section className="master-chat-panel">
+                  {isMaster ? (
+                    <label>
+                      <span>Игрок</span>
+                      <select value={selectedMasterChatUserId} onChange={event => setSelectedMasterChatUserId(event.target.value)}>
+                        <option value="">Все сообщения</option>
+                        {masterChatPlayers.map(player => (
+                          <option value={player.userId} key={player.userId}>{player.username} · {player.characterName}</option>
+                        ))}
+                      </select>
+                    </label>
+                  ) : null}
+                  <div className="master-chat-list">
+                    {visibleMasterWhispers.length === 0 ? (
+                      <p className="panel-empty">{isMaster ? 'Выберите игрока или дождитесь сообщения.' : 'Здесь будет приватный диалог с мастером.'}</p>
+                    ) : visibleMasterWhispers.map(message => (
+                      <article className={message.fromUserId === chatUser.id ? 'own' : ''} key={message.id}>
+                        <strong>{message.fromMaster ? 'Мастер' : message.fromUsername}</strong>
+                        <p>{message.message}</p>
+                        <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+                      </article>
+                    ))}
+                  </div>
+                  <form className="master-chat-composer" onSubmit={sendMasterWhisper}>
+                    <textarea
+                      value={masterChatDraft}
+                      onChange={event => setMasterChatDraft(event.target.value)}
+                      placeholder={isMaster ? 'Ответ игроку...' : 'Сообщение мастеру...'}
+                      rows={3}
+                    />
+                    <button type="submit" disabled={!masterChatDraft.trim() || (isMaster && !selectedMasterChatUserId)}>
+                      Отправить
+                    </button>
+                  </form>
+                </section>
+              </>
             )}
           </section>
         </aside>
@@ -6526,7 +6675,7 @@ export default function VampireTable() {
 
         .right-tabs {
           display: grid;
-          grid-template-columns: repeat(4, minmax(0, 1fr));
+          grid-template-columns: repeat(5, minmax(0, 1fr));
           gap: 4px;
           padding: 4px;
           border: 1px solid #2b2b2b;
@@ -8196,13 +8345,15 @@ export default function VampireTable() {
           gap: 3px;
         }
 
-        .diary-sidebar {
+        .diary-sidebar,
+        .master-sidebar {
           display: grid;
           grid-template-rows: auto minmax(0, 1fr);
           overflow: hidden;
         }
 
         .diary-sidebar > header,
+        .master-sidebar > header,
         .character-preview-modal header {
           display: flex;
           justify-content: space-between;
@@ -8214,6 +8365,7 @@ export default function VampireTable() {
         }
 
         .diary-sidebar header span,
+        .master-sidebar header span,
         .character-preview-modal header span,
         .character-preview-modal small {
           color: #9c9c9c;
@@ -8221,6 +8373,7 @@ export default function VampireTable() {
         }
 
         .diary-sidebar header strong,
+        .master-sidebar header strong,
         .character-preview-modal header strong {
           color: #f4f4f4;
           font-size: 13px;
@@ -8337,6 +8490,123 @@ export default function VampireTable() {
         .diary-editor .danger {
           border-color: #703333;
           color: #ffd0d0;
+        }
+
+        .master-sidebar {
+          grid-template-rows: auto minmax(150px, 0.9fr) minmax(0, 1.1fr);
+        }
+
+        .master-reveal-list,
+        .master-chat-panel {
+          min-height: 0;
+          overflow-y: auto;
+          display: grid;
+          align-content: start;
+          gap: 8px;
+          padding: 10px;
+          border-bottom: 1px solid #292929;
+        }
+
+        .master-reveal-list > strong {
+          color: #ffb3b3;
+          font-size: 13px;
+        }
+
+        .master-reveal-list article,
+        .master-chat-list article {
+          border: 1px solid #303030;
+          border-radius: 8px;
+          background: #151515;
+          padding: 10px;
+          display: grid;
+          gap: 5px;
+        }
+
+        .master-reveal-list article span,
+        .master-reveal-list article small,
+        .master-reveal-list article time,
+        .master-chat-list time {
+          color: #9c9c9c;
+          font-size: 11px;
+        }
+
+        .master-reveal-list article strong,
+        .master-chat-list article strong {
+          color: #f4f4f4;
+          font-size: 13px;
+        }
+
+        .master-reveal-list article p,
+        .master-chat-list article p {
+          margin: 0;
+          color: #ddd;
+          font-size: 12px;
+          line-height: 1.45;
+          white-space: pre-wrap;
+        }
+
+        .master-chat-panel {
+          border-bottom: 0;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+        }
+
+        .master-chat-panel label {
+          display: grid;
+          gap: 5px;
+          color: #9c9c9c;
+          font-size: 12px;
+        }
+
+        .master-chat-panel select,
+        .master-chat-composer textarea {
+          width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 8px;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .master-chat-list {
+          min-height: 0;
+          overflow-y: auto;
+          display: grid;
+          align-content: start;
+          gap: 8px;
+        }
+
+        .master-chat-list article.own {
+          border-color: rgba(54, 214, 117, 0.42);
+          background: #142019;
+        }
+
+        .master-chat-composer {
+          display: grid;
+          gap: 8px;
+        }
+
+        .master-chat-composer textarea {
+          resize: vertical;
+        }
+
+        .master-chat-composer button {
+          min-height: 32px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #1d1d1d;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .master-chat-composer button:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
         }
 
         .chat-message-meta strong {

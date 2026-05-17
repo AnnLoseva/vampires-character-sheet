@@ -453,16 +453,24 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
             ${sources.join('<br>')}
         </small>
         <button class="remove-disc-btn" style="background:#222;color:#ff6666;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:20px;">×</button>
+        <button type="button" class="show-master-btn" style="background:#111;color:#ffae00;border:1px solid #553500;border-radius:6px;padding:7px 10px;cursor:pointer;">Показать мастеру</button>
     `;
 
     // Удаление всей дисциплины
     item.querySelector('.remove-disc-btn').addEventListener('click', () => {
+        if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Дисциплины сейчас нельзя менять.");
         delete disciplineSources[name];
         delete selectedPowers[name];        // ← тоже стираем способности
         item.remove();
         updateDisciplineTotal();
         renderDisciplines();
         if (expShopMode) renderExpShopPanel();
+    });
+
+    item.querySelector('.show-master-btn')?.addEventListener('click', (event) => {
+        event.stopImmediatePropagation();
+        const powers = (selectedPowers[name] || []).map(power => typeof power === 'string' ? power : power.name || power.название || '').filter(Boolean);
+        showMasterItem('Дисциплина', name, powers.length ? `Способности: ${powers.join(', ')}` : 'Способности не выбраны', `${dots} точек${sourceText ? ` · ${sourceText}` : ''}`);
     });
 
         // Принудительно обновляем способности при перерисовке строки
@@ -482,6 +490,7 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
 
     addBtn.onclick = (e) => {
         e.stopImmediatePropagation();
+        if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Способности дисциплин сейчас нельзя менять.");
         openPowerSelectionModal(name, dots);   // используем актуальное dots
     };
 
@@ -1953,11 +1962,82 @@ function setupDiceRollsFromLockedSheet() {
         if (startingSheetFixed && !expShopMode) {
             e.preventDefault();
             e.stopImmediatePropagation();
+            if (attrNameEl) {
+                const attrName = attrNameEl.getAttribute('data-attr') || attrNameEl.textContent.trim();
+                openDiceRollModal({ first: makeDicePart('attr', attrName) });
+                return;
+            }
+            if (skillNameEl) {
+                const skillName = skillNameEl.getAttribute('data-skill') || skillNameEl.textContent.trim();
+                openDiceRollModal({ second: makeDicePart('skill', skillName) });
+                return;
+            }
+            if (specLine) {
+                const input = specLine.querySelector('input[type="text"]');
+                const skillName = input?.dataset.skill || findSkillNameForSpecLine(specLine);
+                const specName = input?.value.trim() || 'Специальность';
+                openDiceRollModal({
+                    second: makeDicePart('skill', skillName),
+                    modifier: 1,
+                    modifierLabel: specName
+                });
+                return;
+            }
+            const disciplineName = disciplineItem?.dataset.disciplineName || disciplineItem?.querySelector('div:first-child')?.textContent.trim();
+            if (disciplineName) openDiceRollModal({ first: makeDicePart('discipline', disciplineName) });
             return;
         }
         return;
     }, true);
 }
+
+function getSheetRoom() {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('room') || localStorage.getItem('vtm-table-room') || 'campaign-666';
+}
+
+function getSheetUser() {
+    try {
+        return JSON.parse(localStorage.getItem('vtm-chat-user') || localStorage.getItem('vtm-sheet-user') || 'null');
+    } catch {
+        return null;
+    }
+}
+
+function getSheetRealtimeChannel() {
+    if (window.__sheetRealtimeChannel) return window.__sheetRealtimeChannel;
+    if (!window.supabase) return null;
+    const client = window.supabase.createClient(DICE_SUPABASE_URL, DICE_SUPABASE_ANON_KEY);
+    const channel = client.channel(`table-room:${getSheetRoom()}`);
+    channel.subscribe();
+    window.__sheetRealtimeChannel = channel;
+    return channel;
+}
+
+function showMasterItem(kind, title, body = '', meta = '') {
+    const channel = getSheetRealtimeChannel();
+    if (!channel) return alert('Realtime ещё не готов. Открой игровой стол и попробуй снова.');
+    const user = getSheetUser();
+    const character = getFullCharacterData();
+    channel.send({
+        type: 'broadcast',
+        event: 'master-reveal',
+        payload: {
+            room: getSheetRoom(),
+            kind,
+            title,
+            body,
+            meta,
+            characterName: character.name || 'Безымянный',
+            userId: user?.id || '',
+            username: user?.username || 'Игрок',
+            createdAt: new Date().toISOString()
+        }
+    });
+    alert('Показано мастеру.');
+}
+
+window.showMasterItem = showMasterItem;
 
 function findSkillNameForSpecLine(line) {
     const container = line.closest?.('.skill-specs');
@@ -2804,6 +2884,21 @@ function setupInventoryEditor() {
         if (!field || !card) return;
         updateInventoryItem(card.dataset.inventoryId, { [field]: target.value }, field === 'category');
     });
+    list.addEventListener('click', event => {
+        const target = event.target;
+        const toggle = target?.closest?.('[data-inventory-toggle]');
+        const showMaster = target?.closest?.('[data-inventory-show-master]');
+        if (showMaster) {
+            const id = showMaster.dataset.inventoryShowMaster;
+            const item = inventory.find(entry => entry.id === id);
+            if (!item) return;
+            showMasterItem('Инвентарь', item.name || 'Без названия', item.description || item.note || 'Описание не указано', `${item.category} · ${item.quantity} шт.`);
+            return;
+        }
+        if (toggle && !target.closest('button, input, select, textarea')) {
+            updateInventoryItem(toggle.dataset.inventoryToggle, { collapsed: !inventory.find(entry => entry.id === toggle.dataset.inventoryToggle)?.collapsed }, true);
+        }
+    });
 }
 
 function renderInventory() {
@@ -2825,7 +2920,7 @@ function renderInventory() {
         )).join('');
         return `
             <article class="inventory-card" data-inventory-id="${item.id}">
-                <div class="inventory-card-head">
+                <div class="inventory-card-head" data-inventory-toggle="${item.id}">
                     <div class="inventory-card-title">
                         <strong data-inventory-title>${escapeHTML(item.name || 'Без названия')}</strong>
                         <span data-inventory-summary>${escapeHTML(item.category)} · ${item.quantity} шт.</span>
@@ -2861,7 +2956,8 @@ function renderInventory() {
                     </label>
                 </div>
                 <div class="inventory-card-actions">
-                    <button type="button" onclick="updateInventoryItem('${item.id}', { collapsed: ${!item.collapsed} })">${item.collapsed ? 'Раскрыть описание' : 'Свернуть описание'}</button>
+                    <button type="button" onclick="updateInventoryItem('${item.id}', { collapsed: ${!item.collapsed} }, true)">${item.collapsed ? 'Раскрыть описание' : 'Свернуть описание'}</button>
+                    <button type="button" data-inventory-show-master="${item.id}">Показать мастеру</button>
                     <button type="button" class="danger" onclick="deleteInventoryItem('${item.id}')">Удалить</button>
                 </div>
             </article>
@@ -3520,6 +3616,7 @@ document.addEventListener('change', function(e) {
 // ==================== ПРЕИМУЩЕСТВА И НЕДОСТАТКИ ====================
 
 function openMeritsFlawsModal() {
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Преимущества и недостатки меняются только через расфиксацию или магазин опыта.");
     document.getElementById('merits-flaws-modal').style.display = 'block';
     switchMeritsTab(0); // по умолчанию открываем Преимущества
 }
@@ -3796,6 +3893,7 @@ function createSelectedItem(item, index, isMerit) {
             ${(!isFromPredator || expShopMode) ? `
             <button class="selected-item-remove" onclick="event.stopImmediatePropagation(); ${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
                     style="background:none; border:none; color:#ff3131; font-size:22px; cursor:pointer; padding:0 8px;">×</button>` : ''}
+            <button type="button" class="selected-item-show-master" style="background:#111; color:#ffae00; border:1px solid #553500; border-radius:6px; padding:6px 9px; cursor:pointer;">Показать мастеру</button>
         </div>
         
         <!-- Раскрывающаяся часть -->
@@ -3823,6 +3921,11 @@ function createSelectedItem(item, index, isMerit) {
         if (e.target.tagName === 'BUTTON') return;
         const content = this.querySelector('.detail-content');
         content.style.display = content.style.display === 'none' ? 'block' : 'none';
+    });
+
+    div.querySelector('.selected-item-show-master')?.addEventListener('click', (event) => {
+        event.stopImmediatePropagation();
+        showMasterItem(isMerit ? 'Преимущество' : 'Недостаток', displayName, item.mechanic || item.desc || item.полное_описание || 'Описание не указано', `${item.category || ''}${points ? ` · ${points} точек` : ''}`);
     });
 
     return div;
@@ -3920,6 +4023,7 @@ function validateThinBloodBalance({ silent = false } = {}) {
 
 function openThinBloodTraitsModal(tab = 0) {
     if (!isThinBloodClan()) return alert('Этот раздел доступен только слабокровным.');
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Достоинства и недостатки слабокровных сейчас нельзя менять.");
 
     const html = `
     <div id="thin-blood-traits-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.96); z-index:12000; overflow:auto; padding:20px;">
@@ -4002,6 +4106,7 @@ function renderThinBloodTraitChoices(tab) {
 }
 
 function addThinBloodTrait(index, isMerit) {
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Достоинства и недостатки слабокровных сейчас нельзя менять.");
     const category = getThinBloodCategory(isMerit);
     const raw = category?.варианты?.[index];
     if (!raw) return;
@@ -4020,11 +4125,13 @@ function addThinBloodTrait(index, isMerit) {
 }
 
 window.removeThinBloodMerit = function(index) {
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Достоинства слабокровных сейчас нельзя менять.");
     selectedThinBloodMerits.splice(index, 1);
     renderThinBloodMeritsFlaws();
 };
 
 window.removeThinBloodFlaw = function(index) {
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Недостатки слабокровных сейчас нельзя менять.");
     selectedThinBloodFlaws.splice(index, 1);
     renderThinBloodMeritsFlaws();
 };
@@ -4209,12 +4316,14 @@ function createMeritItem(item, index, isMerit) {
 }
 
 window.removeMerit = function(i) { 
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Преимущества сейчас нельзя менять.");
     selectedMerits.splice(i,1); 
     renderSelectedMeritsFlaws(); 
     if (expShopMode) renderExpShopPanel();
 };
 
 window.removeFlaw = function(i) { 
+    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Недостатки сейчас нельзя менять.");
     selectedFlaws.splice(i,1); 
     renderSelectedMeritsFlaws(); 
     if (expShopMode) renderExpShopPanel();
@@ -5676,7 +5785,7 @@ function applySheetLockState() {
             : "Зафиксировать текущие значения как стартовый лист";
     }
 
-    const lockedControls = document.querySelectorAll('#clan-input, #predator-input, #generation-input, #type-input, .locked-origin-control');
+    const lockedControls = document.querySelectorAll('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, .locked-origin-control');
     lockedControls.forEach(control => {
         const shouldDisable = startingSheetFixed && !expShopMode;
         control.disabled = shouldDisable;
@@ -5694,7 +5803,10 @@ function isSheetLockedTarget(target) {
     if (!startingSheetFixed || isApplyingCharacterData || isExperiencePurchaseInProgress) return false;
     if (expShopMode) return false;
     if (!target || target.closest('#exp-modal')) return false;
-    if (target.closest('#clan-input, #predator-input, #generation-input, #type-input, .locked-origin-control, .attr-name, .skill-name, .skill-spec-line')) return true;
+    if (target.closest('.show-master-btn, .selected-item-show-master, [data-inventory-show-master]')) return false;
+    if (target.closest('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, .locked-origin-control, .dot-label, .dot-input, .disc-dot, .s-badge, .add-power-btn, .remove-disc-btn, .merit-add-btn, .selected-item-remove')) return true;
+    if (target.closest('.skill-spec-line button, .skill-spec-line input')) return true;
+    if (target.closest('.attr-name, .skill-name, .skill-spec-line')) return false;
     const disciplineItem = target.closest('.discipline-item:not(.xp-shop-discipline-option)');
     if (!disciplineItem) return false;
     return !target.closest('button, input, select, textarea');

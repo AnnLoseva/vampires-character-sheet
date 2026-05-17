@@ -357,6 +357,7 @@
         .inventory-card-head {
             justify-content: space-between;
             margin-bottom: 10px;
+            cursor: pointer;
         }
 
         .inventory-card-title {
@@ -1054,7 +1055,19 @@
         body.sheet-fixed #predator-input,
         body.sheet-fixed #generation-input,
         body.sheet-fixed #type-input,
+        body.sheet-fixed #base-humanity,
         body.sheet-fixed .locked-origin-control {
+            opacity: 0.55;
+            cursor: not-allowed !important;
+        }
+
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .dot-label,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .disc-dot,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .s-badge,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .add-power-btn,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .remove-disc-btn,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .merit-add-btn,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .selected-item-remove {
             opacity: 0.55;
             cursor: not-allowed !important;
         }
