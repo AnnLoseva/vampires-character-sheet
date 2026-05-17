@@ -3,7 +3,13 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import MusicPanel from './music/MusicPanel'
-import { getMusicProvider, TABLE_MUSIC } from './music/utils'
+import {
+  getMusicProvider,
+  parseYouTubeUrl,
+  safeStorageName as safeMusicStorageName,
+  TABLE_MUSIC,
+  TABLE_MUSIC_BUCKET,
+} from './music/utils'
 
 type Die = {
   value: number
@@ -702,9 +708,13 @@ export default function VampireTable() {
   const [rightRailTab, setRightRailTab] = useState<RightRailTab>('media')
   const [mediaTab, setMediaTab] = useState<MediaTab>('layers')
   const [leftToolbarTab, setLeftToolbarTab] = useState<LeftToolbarTab>('scenes')
+  const [leftPanelOpen, setLeftPanelOpen] = useState(true)
+  const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [chatPanelTab, setChatPanelTab] = useState<ChatPanelTab>('text')
   const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const backgroundFileInputRef = useRef<HTMLInputElement>(null)
+  const sceneMusicFileInputRef = useRef<HTMLInputElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
   const chatListRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
@@ -1043,6 +1053,44 @@ export default function VampireTable() {
     broadcast('scene', next)
   }
 
+  const publishSceneTrack = async (track: SceneMusicTrack, options: { play?: boolean } = { play: true }) => {
+    const now = new Date().toISOString()
+    const provider = getMusicProvider(track.url)
+    const youtube = provider === 'youtube' ? parseYouTubeUrl(track.url) : { videoId: '', playlistId: undefined }
+    const nextMusic = {
+      room: roomRef.current,
+      url: track.url,
+      active_uri: provider === 'youtube' ? youtube.playlistId || youtube.videoId : track.url,
+      is_playing: Boolean(options.play),
+      position_seconds: 0,
+      updated_at: now,
+      provider,
+      playlist_id: youtube.playlistId || null,
+      playlist_index: youtube.playlistId ? Math.max(0, track.orderIndex) : null,
+      track_id: youtube.videoId || track.id,
+      source_type: track.sourceType,
+    }
+
+    await createClient().from(TABLE_MUSIC).upsert(nextMusic)
+    channelRef.current?.send({
+      type: 'broadcast',
+      event: 'music',
+      payload: {
+        room: nextMusic.room,
+        url: nextMusic.url,
+        activeUri: nextMusic.active_uri,
+        isPlaying: nextMusic.is_playing,
+        positionSeconds: nextMusic.position_seconds,
+        updatedAt: nextMusic.updated_at,
+        provider: nextMusic.provider,
+        playlistId: nextMusic.playlist_id || undefined,
+        playlistIndex: typeof nextMusic.playlist_index === 'number' ? nextMusic.playlist_index : undefined,
+        trackId: nextMusic.track_id,
+        sourceType: nextMusic.source_type,
+      },
+    })
+  }
+
   const playSceneAutoplayMusic = async (sceneId: string) => {
     const tracks = sceneId === activeSceneIdRef.current
       ? sceneMusicRef.current
@@ -1054,38 +1102,7 @@ export default function VampireTable() {
         .then(({ data }) => (data || []).map(row => mapSceneMusicRow(row as SceneMusicRow)))
     const track = sortSceneMusic(tracks).find(item => item.autoplay && item.isDefault) || sortSceneMusic(tracks).find(item => item.autoplay)
     if (!track?.url) return
-    const now = new Date().toISOString()
-    const provider = getMusicProvider(track.url)
-    await createClient().from(TABLE_MUSIC).upsert({
-      room: roomRef.current,
-      url: track.url,
-      active_uri: track.url,
-      is_playing: true,
-      position_seconds: 0,
-      updated_at: now,
-      provider,
-      playlist_id: sceneId,
-      playlist_index: track.orderIndex,
-      track_id: track.id,
-      source_type: track.sourceType,
-    })
-    channelRef.current?.send({
-      type: 'broadcast',
-      event: 'music',
-      payload: {
-        room: roomRef.current,
-        url: track.url,
-        activeUri: track.url,
-        isPlaying: true,
-        positionSeconds: 0,
-        updatedAt: now,
-        provider,
-        playlistId: sceneId,
-        playlistIndex: track.orderIndex,
-        trackId: track.id,
-        sourceType: track.sourceType,
-      },
-    })
+    await publishSceneTrack(track, { play: true })
   }
 
   const activateScene = async (sceneId: string) => {
@@ -1250,6 +1267,80 @@ export default function VampireTable() {
     setSceneMusic(prev => prev.filter(item => item.id !== track.id))
     await createClient().from(TABLE_SCENE_MUSIC).delete().eq('id', track.id)
     broadcast('scene-music-delete', { room, sceneId: track.sceneId, id: track.id })
+  }
+
+  const uploadSceneMusicFiles = async (files: FileList | File[]) => {
+    if (!isMaster || !selectedScene) return
+    const audioFiles = Array.from(files).filter(file => file.type.startsWith('audio/'))
+    if (audioFiles.length === 0) {
+      window.alert('Для музыки сцены можно загрузить только аудиофайлы.')
+      return
+    }
+
+    setIsUploading(true)
+    try {
+      const supabase = createClient()
+      const baseOrder = selectedSceneMusic.reduce((max, track) => Math.max(max, track.orderIndex), -1)
+      for (const [index, file] of audioFiles.entries()) {
+        const id = `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`
+        const storagePath = `${room}/scenes/${selectedScene.id}/${id}-${safeMusicStorageName(file.name)}`
+        const { error: uploadError } = await supabase.storage.from(TABLE_MUSIC_BUCKET).upload(storagePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || 'audio/mpeg',
+        })
+
+        if (uploadError) {
+          console.error('Не удалось загрузить музыку сцены:', uploadError)
+          window.alert('Аудиофайл не загрузился. Проверь bucket table-music и policies из SQL.')
+          continue
+        }
+
+        const { data: publicUrlData } = supabase.storage.from(TABLE_MUSIC_BUCKET).getPublicUrl(storagePath)
+        const now = new Date().toISOString()
+        const track: SceneMusicTrack = {
+          id,
+          room,
+          sceneId: selectedScene.id,
+          title: file.name,
+          url: publicUrlData.publicUrl,
+          sourceType: 'file',
+          orderIndex: baseOrder + index + 1,
+          isDefault: selectedSceneMusic.length === 0 && index === 0,
+          autoplay: selectedSceneMusic.length === 0 && index === 0,
+          createdAt: now,
+          updatedAt: now,
+        }
+
+        const { error } = await supabase.from(TABLE_SCENE_MUSIC).insert({
+          id: track.id,
+          room: track.room,
+          scene_id: track.sceneId,
+          title: track.title,
+          url: track.url,
+          source_type: track.sourceType,
+          order_index: track.orderIndex,
+          is_default: track.isDefault,
+          autoplay: track.autoplay,
+          created_at: track.createdAt,
+          updated_at: track.updatedAt,
+        })
+
+        if (!error) {
+          setSceneMusic(prev => sortSceneMusic([...prev, track]))
+          broadcast('scene-music', track)
+        }
+      }
+    } finally {
+      setIsUploading(false)
+    }
+  }
+
+  const handleSceneMusicUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      await uploadSceneMusicFiles(event.target.files)
+      event.target.value = ''
+    }
   }
 
   const reorderSceneMusic = async (track: SceneMusicTrack, direction: 'up' | 'down') => {
@@ -2079,7 +2170,8 @@ export default function VampireTable() {
     layerType: 'image' | 'video' | 'text' | 'file' = 'image',
     index = 0,
     point?: { x: number; y: number },
-    onTable = true
+    onTable = true,
+    overrides: LayerPatch = {}
   ) => {
     if (!isMaster && !chatUser) {
       window.alert('Сначала войди в аккаунт игрока в чате, чтобы материалы получили владельца.')
@@ -2115,6 +2207,7 @@ export default function VampireTable() {
       onTable,
       createdAt: new Date().toISOString(),
     }
+    Object.assign(layer, overrides)
 
     const { error } = await createClient().from(TABLE_IMAGES).insert({
       id: layer.id,
@@ -2151,7 +2244,11 @@ export default function VampireTable() {
     return layer.id
   }
 
-  const uploadFiles = async (files: FileList | File[], onTable = true) => {
+  const uploadFiles = async (
+    files: FileList | File[],
+    onTable = true,
+    options: { asBackground?: boolean; point?: { x: number; y: number } } = {}
+  ) => {
     const uploadItems = Array.from(files)
     if (uploadItems.length === 0) return
 
@@ -2203,7 +2300,24 @@ export default function VampireTable() {
               name: file.name,
             })
             : publicUrlData.publicUrl
-        await addMediaLayer(layerData, file.name, natural, layerType, index, undefined, onTable)
+        await addMediaLayer(
+          layerData,
+          options.asBackground ? `Фон — ${file.name}` : file.name,
+          natural,
+          layerType,
+          index,
+          options.asBackground ? { x: 0, y: 0 } : options.point,
+          onTable,
+          options.asBackground
+            ? {
+              zIndex: -1000 + index,
+              locked: true,
+              parentId: null,
+              width: Math.max(1600, natural.width),
+              height: Math.max(900, Math.round((Math.max(1600, natural.width) / Math.max(1, natural.width)) * Math.max(1, natural.height))),
+            }
+            : {}
+        )
       }
 
       setTableStatus('Сцена онлайн')
@@ -2239,6 +2353,15 @@ export default function VampireTable() {
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       await uploadFiles(event.target.files, mediaTab !== 'library')
+      event.target.value = ''
+    }
+  }
+
+  const handleBackgroundUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      const imageFiles = Array.from(event.target.files).filter(file => file.type.startsWith('image/'))
+      if (imageFiles.length === 0) window.alert('Для фона выбери картинку.')
+      else await uploadFiles(imageFiles, true, { asBackground: true })
       event.target.value = ''
     }
   }
@@ -3019,7 +3142,7 @@ export default function VampireTable() {
     }
     const droppedFiles = Array.from(event.dataTransfer.files || [])
     if (droppedFiles.some(file => file.type.startsWith('image/') || file.type.startsWith('video/'))) {
-      await uploadFiles(droppedFiles)
+      await uploadFiles(droppedFiles, true, { point: getScenePointFromClient(event.clientX, event.clientY) })
       return
     }
 
@@ -3029,7 +3152,39 @@ export default function VampireTable() {
       return
     }
 
-    if (droppedFiles.length > 0) await uploadFiles(droppedFiles)
+    if (droppedFiles.length > 0) await uploadFiles(droppedFiles, true, { point: getScenePointFromClient(event.clientX, event.clientY) })
+  }
+
+  const handleSceneMediaDrop = async (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const droppedFiles = Array.from(event.dataTransfer.files || [])
+    if (droppedFiles.length > 0) {
+      await uploadFiles(droppedFiles, false)
+      return
+    }
+
+    const mediaUrls = getDroppedMediaUrls(event.dataTransfer)
+    if (mediaUrls.length > 0) await addRemoteMediaUrls(mediaUrls, undefined, false)
+  }
+
+  const handleSceneMusicDrop = async (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const droppedFiles = Array.from(event.dataTransfer.files || [])
+    if (droppedFiles.length > 0) await uploadSceneMusicFiles(droppedFiles)
+  }
+
+  const handleTableLayerPanelDrop = async (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const droppedFiles = Array.from(event.dataTransfer.files || [])
+    if (droppedFiles.length > 0) {
+      await uploadFiles(droppedFiles, true)
+      return
+    }
+    const mediaUrls = getDroppedMediaUrls(event.dataTransfer)
+    if (mediaUrls.length > 0) await addRemoteMediaUrls(mediaUrls, undefined, true)
   }
 
   const renderLayerNode = (layer: LayerTreeNode, depth = 0): React.ReactNode => {
@@ -3202,14 +3357,24 @@ export default function VampireTable() {
               <button type="button" onClick={saveMasterPassword}>Сменить</button>
             </label>
           ) : null}
+          {isMaster ? (
+            <button type="button" onClick={() => setLeftPanelOpen(prev => !prev)}>
+              {leftPanelOpen ? 'Скрыть слева' : 'Сцены'}
+            </button>
+          ) : null}
+          <button type="button" onClick={() => setRightPanelOpen(prev => !prev)}>
+            {rightPanelOpen ? 'Скрыть справа' : 'Панели'}
+          </button>
           <a href={`/character-sheet?room=${encodeURIComponent(room)}`} title="Открыть лист персонажа">Лист</a>
           <input ref={fileInputRef} type="file" multiple onChange={handleImageUpload} />
+          <input ref={backgroundFileInputRef} type="file" accept="image/*" multiple onChange={handleBackgroundUpload} />
+          <input ref={sceneMusicFileInputRef} type="file" accept="audio/*" multiple onChange={handleSceneMusicUpload} />
         </div>
       </section>
 
-      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''}`}>
+      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
         {isMaster ? (
-          <aside className="left-toolbar" aria-label="Мастерская панель сцен">
+          <aside className={`left-toolbar ${leftPanelOpen ? '' : 'panel-collapsed'}`} aria-label="Мастерская панель сцен">
             <nav className="left-tabs" aria-label="Разделы сцен">
               <button type="button" className={leftToolbarTab === 'scenes' ? 'active' : ''} onClick={() => setLeftToolbarTab('scenes')}>Сцены</button>
               <button type="button" className={leftToolbarTab === 'layers' ? 'active' : ''} onClick={() => setLeftToolbarTab('layers')}>Слои сцены</button>
@@ -3261,6 +3426,18 @@ export default function VampireTable() {
                   <strong>Музыка сцены</strong>
                   <span>{selectedSceneMusic.length ? `${selectedSceneMusic.length} треков` : 'мини-плейлист пуст'}</span>
                 </header>
+                <div
+                  className="scene-music-actions"
+                  onDragOver={event => {
+                    if (event.dataTransfer.types.includes('Files')) event.preventDefault()
+                  }}
+                  onDrop={handleSceneMusicDrop}
+                >
+                  <button type="button" onClick={() => sceneMusicFileInputRef.current?.click()} disabled={!selectedScene || isUploading}>
+                    Загрузить песню
+                  </button>
+                  <span>Можно перетащить аудио сюда</span>
+                </div>
                 <form className="media-url-form" onSubmit={addSceneMusic}>
                   <input
                     value={sceneMusicDraft}
@@ -3278,6 +3455,7 @@ export default function VampireTable() {
                       </div>
                       <button type="button" onClick={() => reorderSceneMusic(track, 'up')}>↑</button>
                       <button type="button" onClick={() => reorderSceneMusic(track, 'down')}>↓</button>
+                      <button type="button" onClick={() => publishSceneTrack(track, { play: true })}>▶</button>
                       <button type="button" onClick={() => patchSceneMusic(track, { isDefault: true })}>★</button>
                       <button type="button" onClick={() => patchSceneMusic(track, { autoplay: !track.autoplay })}>{track.autoplay ? 'A' : 'a'}</button>
                       <button type="button" onClick={() => renameSceneMusic(track)}>T</button>
@@ -3295,8 +3473,8 @@ export default function VampireTable() {
               </header>
               <div className="scene-layer-groups">
                 {[
-                  ['Фон', tableManagerLayers.filter(layer => layer.onTable && layer.name.toLowerCase().includes('фон'))],
-                  ['Картинки / декорации', tableManagerLayers.filter(layer => layer.onTable && ['image', 'video'].includes(layer.layerType) && !layer.name.toLowerCase().includes('фон'))],
+                  ['Фон', tableManagerLayers.filter(layer => layer.onTable && (layer.zIndex < 0 || layer.name.toLowerCase().includes('фон')))],
+                  ['Картинки / декорации', tableManagerLayers.filter(layer => layer.onTable && ['image', 'video'].includes(layer.layerType) && layer.zIndex >= 0 && !layer.name.toLowerCase().includes('фон'))],
                   ['Токены', tableManagerLayers.filter(layer => layer.onTable && layer.name.toLowerCase().includes('токен'))],
                   ['Группы / папки', tableManagerLayers.filter(layer => layer.onTable && layer.layerType === 'folder')],
                   ['Текст / документы', tableManagerLayers.filter(layer => layer.onTable && ['text', 'file'].includes(layer.layerType))],
@@ -3315,7 +3493,13 @@ export default function VampireTable() {
               </div>
             </section>
 
-            <section className={`scene-media-panel ${leftToolbarTab === 'media' ? '' : 'table-right-panel-hidden'}`}>
+            <section
+              className={`scene-media-panel ${leftToolbarTab === 'media' ? '' : 'table-right-panel-hidden'}`}
+              onDragOver={event => {
+                if (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/uri-list') || event.dataTransfer.types.includes('text/plain')) event.preventDefault()
+              }}
+              onDrop={handleSceneMediaDrop}
+            >
               <header>
                 <strong>Медиа сцены</strong>
                 <span>{selectedScene?.name || activeScene?.name || 'сцена'}</span>
@@ -3323,6 +3507,9 @@ export default function VampireTable() {
               <div className="media-manager-toolbar">
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
                   {isUploading ? 'Загрузка...' : 'Загрузить'}
+                </button>
+                <button type="button" onClick={() => backgroundFileInputRef.current?.click()} disabled={isUploading}>
+                  Фон
                 </button>
                 <button type="button" onClick={() => createNamedFolder(null, false)}>Папка</button>
                 <button type="button" onClick={saveSelectionAsGroup} disabled={selectedLayerIds.size === 0}>Группа</button>
@@ -3343,7 +3530,20 @@ export default function VampireTable() {
                 />
                 <button type="submit" disabled={isUploading || !mediaUrlDraft.trim()}>В папку</button>
               </form>
-              <div className="layer-list library-list" onDragOver={handleLayerRootDragOver} onDrop={handleLayerRootDrop}>
+              <div
+                className="layer-list library-list scene-media-drop-zone"
+                onDragOver={event => {
+                  event.preventDefault()
+                  if (!event.dataTransfer.types.includes('Files')) handleLayerRootDragOver(event as React.DragEvent<HTMLDivElement>)
+                }}
+                onDrop={async event => {
+                  if (event.dataTransfer.files.length > 0 || getDroppedMediaUrls(event.dataTransfer).length > 0) {
+                    await handleSceneMediaDrop(event)
+                    return
+                  }
+                  await handleLayerRootDrop(event as React.DragEvent<HTMLDivElement>)
+                }}
+              >
                 {libraryTree.length === 0 ? <p className="panel-empty">Подготовленные медиа этой сцены появятся здесь.</p> : libraryTree.map(layer => renderLayerNode(layer))}
               </div>
             </section>
@@ -3543,7 +3743,7 @@ export default function VampireTable() {
           </div>
         </section>
 
-        <aside className="right-rail">
+        <aside className={`right-rail ${rightPanelOpen ? '' : 'panel-collapsed'}`}>
           <nav className="right-tabs" aria-label="Панели стола">
             <button
               type="button"
@@ -3583,7 +3783,14 @@ export default function VampireTable() {
 
             <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} hidden={mediaTab !== 'music'} />
 
-            <section className={`layer-panel table-right-panel ${mediaTab === 'layers' ? '' : 'table-right-panel-hidden'}`} aria-label="Слои стола">
+            <section
+              className={`layer-panel table-right-panel ${mediaTab === 'layers' ? '' : 'table-right-panel-hidden'}`}
+              aria-label="Слои стола"
+              onDragOver={event => {
+                if (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/uri-list') || event.dataTransfer.types.includes('text/plain')) event.preventDefault()
+              }}
+              onDrop={handleTableLayerPanelDrop}
+            >
               <header>
                 <strong>Изображения и видео</strong>
                 <span>{selectedManagerLayer?.name || 'папки выше перекрывают ниже'}</span>
@@ -3591,6 +3798,7 @@ export default function VampireTable() {
 
               <div className="media-manager-toolbar">
                 <button type="button" onClick={() => createNamedFolder()}>Папка</button>
+                <button type="button" onClick={() => backgroundFileInputRef.current?.click()} disabled={isUploading}>Фон</button>
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
                   {isUploading ? 'Загрузка...' : 'Новый слой'}
                 </button>
@@ -3631,7 +3839,14 @@ export default function VampireTable() {
               </div>
             </section>
 
-            <section className={`library-panel table-right-panel ${mediaTab === 'library' ? '' : 'table-right-panel-hidden'}`} aria-label="Мои медиа">
+            <section
+              className={`library-panel table-right-panel ${mediaTab === 'library' ? '' : 'table-right-panel-hidden'}`}
+              aria-label="Мои медиа"
+              onDragOver={event => {
+                if (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/uri-list') || event.dataTransfer.types.includes('text/plain')) event.preventDefault()
+              }}
+              onDrop={handleSceneMediaDrop}
+            >
               <header>
                 <strong>{isMaster ? 'Материалы мастера' : 'Мои медиа'}</strong>
                 <span>можно вытащить на стол</span>
@@ -4259,6 +4474,22 @@ export default function VampireTable() {
           grid-template-columns: 330px minmax(0, 1fr) 420px;
         }
 
+        .table-layout.with-left-toolbar.left-collapsed {
+          grid-template-columns: 0 minmax(0, 1fr) 420px;
+        }
+
+        .table-layout.right-collapsed {
+          grid-template-columns: minmax(0, 1fr) 0;
+        }
+
+        .table-layout.with-left-toolbar.right-collapsed {
+          grid-template-columns: 330px minmax(0, 1fr) 0;
+        }
+
+        .table-layout.with-left-toolbar.left-collapsed.right-collapsed {
+          grid-template-columns: 0 minmax(0, 1fr) 0;
+        }
+
         .play-surface,
         .left-toolbar,
         .media-sidebar,
@@ -4282,6 +4513,13 @@ export default function VampireTable() {
           min-height: 0;
           display: grid;
           grid-template-rows: auto minmax(0, 1fr);
+        }
+
+        .panel-collapsed {
+          opacity: 0;
+          pointer-events: none;
+          border: 0;
+          min-width: 0;
         }
 
         .left-tabs {
@@ -4458,13 +4696,39 @@ export default function VampireTable() {
         .scene-music-box {
           min-height: 0;
           display: grid;
-          grid-template-rows: auto auto minmax(0, 1fr);
+          grid-template-rows: auto auto auto minmax(0, 1fr);
           border-top: 1px solid #2b2b2b;
+        }
+
+        .scene-music-actions {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          align-items: center;
+          padding: 8px;
+          border-bottom: 1px solid #292929;
+          background: #151515;
+        }
+
+        .scene-music-actions button {
+          min-width: 0;
+          height: 30px;
+          border: 1px solid #773030;
+          border-radius: 5px;
+          background: #1b1b1b;
+          color: #f4f4f4;
+          font: inherit;
+          font-size: 11px;
+          cursor: pointer;
+        }
+
+        .scene-music-actions span {
+          text-align: right;
         }
 
         .scene-track-row {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) repeat(6, 24px);
+          grid-template-columns: minmax(0, 1fr) repeat(7, 24px);
           gap: 4px;
           align-items: center;
           padding: 7px 8px;
@@ -4480,6 +4744,11 @@ export default function VampireTable() {
         .scene-track-row button.danger {
           color: #ff9c9c;
           border-color: #6a2727;
+        }
+
+        .scene-media-drop-zone {
+          outline: 1px dashed rgba(255,255,255,0.08);
+          outline-offset: -8px;
         }
 
         .scene-layer-groups {
