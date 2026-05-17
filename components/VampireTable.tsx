@@ -131,6 +131,14 @@ type TableLayer = {
   zIndex: number
   visible: boolean
   locked: boolean
+  opacity: number
+  blendMode: BlendMode
+  rotation: number
+  flipX: boolean
+  flipY: boolean
+  brightness: number
+  contrast: number
+  saturation: number
   onTable: boolean
   createdAt: string
 }
@@ -156,13 +164,48 @@ type TableLayerRow = {
   z_index: number | null
   visible: boolean | null
   locked: boolean | null
+  opacity?: number | null
+  blend_mode?: BlendMode | null
+  rotation?: number | null
+  flip_x?: boolean | null
+  flip_y?: boolean | null
+  brightness?: number | null
+  contrast?: number | null
+  saturation?: number | null
   on_table?: boolean | null
   created_at: string
 }
 
 type TableRole = 'master' | 'player'
+type BlendMode = 'normal' | 'multiply' | 'screen' | 'overlay' | 'darken' | 'lighten' | 'color-dodge' | 'color-burn' | 'hard-light' | 'soft-light' | 'difference' | 'luminosity'
 
-type LayerPatch = Partial<Pick<TableLayer, 'sceneId' | 'layerType' | 'ownerRole' | 'ownerId' | 'parentId' | 'name' | 'imageData' | 'x' | 'y' | 'width' | 'height' | 'cropX' | 'cropY' | 'cropWidth' | 'cropHeight' | 'zIndex' | 'visible' | 'locked' | 'onTable'>>
+type LayerPatch = Partial<Pick<TableLayer, 'sceneId' | 'layerType' | 'ownerRole' | 'ownerId' | 'parentId' | 'name' | 'imageData' | 'x' | 'y' | 'width' | 'height' | 'cropX' | 'cropY' | 'cropWidth' | 'cropHeight' | 'zIndex' | 'visible' | 'locked' | 'opacity' | 'blendMode' | 'rotation' | 'flipX' | 'flipY' | 'brightness' | 'contrast' | 'saturation' | 'onTable'>>
+
+type ImageEditorState = {
+  cropX: number
+  cropY: number
+  cropWidth: number
+  cropHeight: number
+  rotation: number
+  flipX: boolean
+  flipY: boolean
+  brightness: number
+  contrast: number
+  saturation: number
+}
+
+type ImageEditorDraft = {
+  layerId: string
+  state: ImageEditorState
+  history: ImageEditorState[]
+  future: ImageEditorState[]
+  drag: null | {
+    handle: 'nw' | 'ne' | 'sw' | 'se' | 'move'
+    startX: number
+    startY: number
+    initial: ImageEditorState
+  }
+}
 
 type TableScene = {
   id: string
@@ -373,6 +416,14 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
     zIndex: row.z_index ?? 1,
     visible: row.visible ?? true,
     locked: row.locked ?? false,
+    opacity: row.opacity ?? 1,
+    blendMode: row.blend_mode ?? 'normal',
+    rotation: row.rotation ?? 0,
+    flipX: row.flip_x ?? false,
+    flipY: row.flip_y ?? false,
+    brightness: row.brightness ?? 1,
+    contrast: row.contrast ?? 1,
+    saturation: row.saturation ?? 1,
     onTable: row.on_table ?? true,
     createdAt: row.created_at,
   }
@@ -398,6 +449,14 @@ function toDbPatch(patch: LayerPatch) {
   if (patch.zIndex !== undefined) dbPatch.z_index = patch.zIndex
   if (patch.visible !== undefined) dbPatch.visible = patch.visible
   if (patch.locked !== undefined) dbPatch.locked = patch.locked
+  if (patch.opacity !== undefined) dbPatch.opacity = patch.opacity
+  if (patch.blendMode !== undefined) dbPatch.blend_mode = patch.blendMode
+  if (patch.rotation !== undefined) dbPatch.rotation = patch.rotation
+  if (patch.flipX !== undefined) dbPatch.flip_x = patch.flipX
+  if (patch.flipY !== undefined) dbPatch.flip_y = patch.flipY
+  if (patch.brightness !== undefined) dbPatch.brightness = patch.brightness
+  if (patch.contrast !== undefined) dbPatch.contrast = patch.contrast
+  if (patch.saturation !== undefined) dbPatch.saturation = patch.saturation
   if (patch.onTable !== undefined) dbPatch.on_table = patch.onTable
   return dbPatch
 }
@@ -696,6 +755,52 @@ function getCroppedMediaStyle(layer: TableLayer): CSSProperties {
   }
 }
 
+function getLayerMediaStyle(layer: TableLayer): CSSProperties {
+  const cropStyle = getCroppedMediaStyle(layer)
+  return {
+    ...cropStyle,
+    filter: `brightness(${layer.brightness}) contrast(${layer.contrast}) saturate(${layer.saturation})`,
+    transform: [
+      cropStyle.transform,
+      `rotate(${layer.rotation}deg)`,
+      `scale(${layer.flipX ? -1 : 1}, ${layer.flipY ? -1 : 1})`,
+    ].filter(Boolean).join(' '),
+  }
+}
+
+function getSmartFloatingPosition(x: number, y: number, width: number, height: number, margin = 12) {
+  if (typeof window === 'undefined') return { left: x, top: y }
+  const left = x + width + margin > window.innerWidth ? Math.max(margin, x - width - margin) : Math.max(margin, x)
+  const top = y + height + margin > window.innerHeight ? Math.max(margin, y - height - margin) : Math.max(margin, y)
+  return { left, top }
+}
+
+function createEditorState(layer: TableLayer): ImageEditorState {
+  const crop = getLayerCrop(layer)
+  return {
+    cropX: crop.cropX,
+    cropY: crop.cropY,
+    cropWidth: crop.cropWidth,
+    cropHeight: crop.cropHeight,
+    rotation: layer.rotation,
+    flipX: layer.flipX,
+    flipY: layer.flipY,
+    brightness: layer.brightness,
+    contrast: layer.contrast,
+    saturation: layer.saturation,
+  }
+}
+
+function getEditorImageStyle(state: ImageEditorState): CSSProperties {
+  return {
+    width: `${10000 / state.cropWidth}%`,
+    height: `${10000 / state.cropHeight}%`,
+    transform: `translate(${-state.cropX}%, ${-state.cropY}%) rotate(${state.rotation}deg) scale(${state.flipX ? -1 : 1}, ${state.flipY ? -1 : 1})`,
+    transformOrigin: '50% 50%',
+    filter: `brightness(${state.brightness}) contrast(${state.contrast}) saturate(${state.saturation})`,
+  }
+}
+
 export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
@@ -733,12 +838,14 @@ export default function VampireTable() {
   const [pan, setPan] = useState({ x: 0, y: 0 })
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [mediaUrlDraft, setMediaUrlDraft] = useState('')
+  const [mediaSearchDraft, setMediaSearchDraft] = useState('')
   const [textMaterialDraft, setTextMaterialDraft] = useState('')
   const [textMaterialNameDraft, setTextMaterialNameDraft] = useState('')
   const [masterPasswordDraft, setMasterPasswordDraft] = useState('')
   const [masterPasswordEdit, setMasterPasswordEdit] = useState('1234')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
+  const [imageEditor, setImageEditor] = useState<ImageEditorDraft | null>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
   const [rightRailTab, setRightRailTab] = useState<RightRailTab>('media')
@@ -913,6 +1020,26 @@ export default function VampireTable() {
     }
   }, [layerContextMenu])
 
+  useEffect(() => {
+    const handleHotkeys = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault()
+        setRightRailTab('media')
+        setMediaTab('library')
+        window.setTimeout(() => document.querySelector<HTMLInputElement>('[data-media-search]')?.focus(), 0)
+      }
+      if ((event.metaKey || event.ctrlKey) && event.shiftKey && event.key.toLowerCase() === 'i') {
+        event.preventDefault()
+        setRightRailTab('media')
+        setMediaTab('layers')
+        setRightPanelOpen(true)
+      }
+    }
+
+    window.addEventListener('keydown', handleHotkeys)
+    return () => window.removeEventListener('keydown', handleHotkeys)
+  }, [])
+
   const chooseTableRole = (role: TableRole) => {
     window.localStorage.setItem('vtm-table-role', role)
     setTableRole(role)
@@ -945,7 +1072,7 @@ export default function VampireTable() {
     const supabase = createClient()
     const { data, error } = await supabase
       .from(TABLE_IMAGES)
-      .select('id, room, scene_id, layer_type, owner_role, owner_id, parent_id, name, image_data, x, y, width, height, crop_x, crop_y, crop_width, crop_height, z_index, visible, locked, on_table, created_at')
+      .select('id, room, scene_id, layer_type, owner_role, owner_id, parent_id, name, image_data, x, y, width, height, crop_x, crop_y, crop_width, crop_height, z_index, visible, locked, opacity, blend_mode, rotation, flip_x, flip_y, brightness, contrast, saturation, on_table, created_at')
       .eq('room', targetRoom)
       .eq('scene_id', sceneId)
       .order('z_index', { ascending: true })
@@ -1724,7 +1851,10 @@ export default function VampireTable() {
     [isMaster, layers, chatUser]
   )
   const tableManagerLayers = useMemo(() => managerLayers.filter(layer => layer.onTable), [managerLayers])
-  const libraryLayers = useMemo(() => managerLayers.filter(layer => !layer.onTable), [managerLayers])
+  const libraryLayers = useMemo(() => {
+    const query = mediaSearchDraft.trim().toLowerCase()
+    return managerLayers.filter(layer => !layer.onTable && (!query || layer.name.toLowerCase().includes(query) || layer.layerType.includes(query)))
+  }, [managerLayers, mediaSearchDraft])
   const selectedManagerLayer = managerLayers.find(layer => layer.id === selectedLayerId) || null
   const buildLayerTree = (sourceLayers: TableLayer[]) => {
     const nodeMap = new Map<string, LayerTreeNode>()
@@ -2244,6 +2374,14 @@ export default function VampireTable() {
       zIndex: maxZ + 1,
       visible: true,
       locked: false,
+      opacity: 1,
+      blendMode: 'normal',
+      rotation: 0,
+      flipX: false,
+      flipY: false,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
       onTable,
       createdAt: new Date().toISOString(),
     }
@@ -2270,6 +2408,14 @@ export default function VampireTable() {
       z_index: layer.zIndex,
       visible: layer.visible,
       locked: layer.locked,
+      opacity: layer.opacity,
+      blend_mode: layer.blendMode,
+      rotation: layer.rotation,
+      flip_x: layer.flipX,
+      flip_y: layer.flipY,
+      brightness: layer.brightness,
+      contrast: layer.contrast,
+      saturation: layer.saturation,
       on_table: layer.onTable,
       created_at: layer.createdAt,
     })
@@ -2563,6 +2709,14 @@ export default function VampireTable() {
       zIndex: maxZ + 1,
       visible: true,
       locked: false,
+      opacity: 1,
+      blendMode: 'normal',
+      rotation: 0,
+      flipX: false,
+      flipY: false,
+      brightness: 1,
+      contrast: 1,
+      saturation: 1,
       onTable,
       createdAt: new Date().toISOString(),
     }
@@ -2588,6 +2742,14 @@ export default function VampireTable() {
       z_index: folder.zIndex,
       visible: folder.visible,
       locked: folder.locked,
+      opacity: folder.opacity,
+      blend_mode: folder.blendMode,
+      rotation: folder.rotation,
+      flip_x: folder.flipX,
+      flip_y: folder.flipY,
+      brightness: folder.brightness,
+      contrast: folder.contrast,
+      saturation: folder.saturation,
       on_table: folder.onTable,
       created_at: folder.createdAt,
     })
@@ -2634,33 +2796,79 @@ export default function VampireTable() {
     setLayerContextMenu(null)
   }
 
-  const cropLayer = async (layer: TableLayer) => {
+  const openImageEditor = (layer: TableLayer) => {
     if (!canEditLayer(layer) || !['image', 'video'].includes(layer.layerType)) return
-    const current = getLayerCrop(layer)
-    const raw = window.prompt(
-      'Обрезка в процентах: слева, сверху, ширина, высота',
-      `${current.cropX}, ${current.cropY}, ${current.cropWidth}, ${current.cropHeight}`
-    )
-    if (!raw) return
-    const [cropX, cropY, cropWidth, cropHeight] = raw
-      .split(/[,\s]+/)
-      .map(value => Number(value.trim()))
-      .filter(value => Number.isFinite(value))
-    if (![cropX, cropY, cropWidth, cropHeight].every(value => typeof value === 'number')) {
-      window.alert('Введи четыре числа, например: 10, 5, 80, 90')
-      return
-    }
-    const nextCropX = Math.max(0, Math.min(95, cropX))
-    const nextCropY = Math.max(0, Math.min(95, cropY))
-    const nextCropWidth = Math.max(1, Math.min(100 - nextCropX, cropWidth))
-    const nextCropHeight = Math.max(1, Math.min(100 - nextCropY, cropHeight))
-    await patchLayer(layer.id, {
-      cropX: nextCropX,
-      cropY: nextCropY,
-      cropWidth: nextCropWidth,
-      cropHeight: nextCropHeight,
+    setImageEditor({
+      layerId: layer.id,
+      state: createEditorState(layer),
+      history: [],
+      future: [],
+      drag: null,
     })
     setLayerContextMenu(null)
+  }
+
+  const updateImageEditor = (updater: (state: ImageEditorState) => ImageEditorState, commit = true) => {
+    setImageEditor(editor => {
+      if (!editor) return editor
+      const nextState = updater(editor.state)
+      return {
+        ...editor,
+        state: nextState,
+        history: commit ? [...editor.history, editor.state].slice(-40) : editor.history,
+        future: commit ? [] : editor.future,
+      }
+    })
+  }
+
+  const undoImageEditor = () => {
+    setImageEditor(editor => {
+      if (!editor || editor.history.length === 0) return editor
+      const previous = editor.history[editor.history.length - 1]
+      return {
+        ...editor,
+        state: previous,
+        history: editor.history.slice(0, -1),
+        future: [editor.state, ...editor.future].slice(0, 40),
+      }
+    })
+  }
+
+  const redoImageEditor = () => {
+    setImageEditor(editor => {
+      if (!editor || editor.future.length === 0) return editor
+      const next = editor.future[0]
+      return {
+        ...editor,
+        state: next,
+        history: [...editor.history, editor.state].slice(-40),
+        future: editor.future.slice(1),
+      }
+    })
+  }
+
+  const applyImageEditor = async (saveAsNew = false) => {
+    if (!imageEditor) return
+    const layer = layersRef.current.find(item => item.id === imageEditor.layerId)
+    if (!layer) return
+    const patch: LayerPatch = {
+      cropX: imageEditor.state.cropX,
+      cropY: imageEditor.state.cropY,
+      cropWidth: imageEditor.state.cropWidth,
+      cropHeight: imageEditor.state.cropHeight,
+      rotation: imageEditor.state.rotation,
+      flipX: imageEditor.state.flipX,
+      flipY: imageEditor.state.flipY,
+      brightness: imageEditor.state.brightness,
+      contrast: imageEditor.state.contrast,
+      saturation: imageEditor.state.saturation,
+    }
+    if (saveAsNew) {
+      await addMediaLayer(layer.imageData, `${layer.name} copy`, { width: layer.width, height: layer.height }, layer.layerType === 'video' ? 'video' : 'image', 0, { x: layer.x + 32, y: layer.y + 32 }, layer.onTable, patch)
+    } else {
+      await patchLayer(layer.id, patch)
+    }
+    setImageEditor(null)
   }
 
   const resetLayerCrop = async (layer: TableLayer) => {
@@ -3273,6 +3481,62 @@ export default function VampireTable() {
     if (mediaUrls.length > 0) await addRemoteMediaUrls(mediaUrls, undefined, true)
   }
 
+  const startEditorCropDrag = (event: React.PointerEvent<HTMLElement>, handle: NonNullable<ImageEditorDraft['drag']>['handle']) => {
+    if (!imageEditor) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setImageEditor({
+      ...imageEditor,
+      history: [...imageEditor.history, imageEditor.state].slice(-40),
+      future: [],
+      drag: {
+        handle,
+        startX: event.clientX,
+        startY: event.clientY,
+        initial: imageEditor.state,
+      },
+    })
+  }
+
+  const updateEditorCropDrag = (event: React.PointerEvent<HTMLElement>) => {
+    if (!imageEditor?.drag) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const dx = ((event.clientX - imageEditor.drag.startX) / Math.max(1, rect.width)) * 100
+    const dy = ((event.clientY - imageEditor.drag.startY) / Math.max(1, rect.height)) * 100
+    const initial = imageEditor.drag.initial
+    let cropX = initial.cropX
+    let cropY = initial.cropY
+    let cropWidth = initial.cropWidth
+    let cropHeight = initial.cropHeight
+
+    if (imageEditor.drag.handle === 'move') {
+      cropX = initial.cropX + dx
+      cropY = initial.cropY + dy
+    } else {
+      if (imageEditor.drag.handle.includes('w')) {
+        cropX = initial.cropX + dx
+        cropWidth = initial.cropWidth - dx
+      }
+      if (imageEditor.drag.handle.includes('e')) cropWidth = initial.cropWidth + dx
+      if (imageEditor.drag.handle.includes('n')) {
+        cropY = initial.cropY + dy
+        cropHeight = initial.cropHeight - dy
+      }
+      if (imageEditor.drag.handle.includes('s')) cropHeight = initial.cropHeight + dy
+    }
+
+    cropWidth = Math.max(8, Math.min(100, cropWidth))
+    cropHeight = Math.max(8, Math.min(100, cropHeight))
+    cropX = Math.max(0, Math.min(100 - cropWidth, cropX))
+    cropY = Math.max(0, Math.min(100 - cropHeight, cropY))
+    setImageEditor({ ...imageEditor, state: { ...imageEditor.state, cropX, cropY, cropWidth, cropHeight } })
+  }
+
+  const finishEditorCropDrag = () => {
+    setImageEditor(editor => (editor ? { ...editor, drag: null } : editor))
+  }
+
   const renderLayerNode = (layer: LayerTreeNode, depth = 0): React.ReactNode => {
     const isFolder = layer.layerType === 'folder'
     const isExpanded = expandedFolders.has(layer.id)
@@ -3616,6 +3880,13 @@ export default function VampireTable() {
                 />
                 <button type="submit" disabled={isUploading || !mediaUrlDraft.trim()}>В папку</button>
               </form>
+              <input
+                className="media-search-input"
+                data-media-search
+                value={mediaSearchDraft}
+                onChange={event => setMediaSearchDraft(event.target.value)}
+                placeholder="Поиск медиа"
+              />
               <div
                 className="layer-list library-list scene-media-drop-zone"
                 onDragOver={event => {
@@ -3704,6 +3975,8 @@ export default function VampireTable() {
                     width: layer.width,
                     height: layer.height,
                     zIndex: layer.zIndex,
+                    opacity: layer.opacity,
+                    mixBlendMode: layer.blendMode,
                   }}
                   onPointerDown={event => startLayerDrag(event, layer, 'move')}
                   onContextMenu={event => {
@@ -3720,7 +3993,8 @@ export default function VampireTable() {
                   onDoubleClick={event => {
                     event.preventDefault()
                     event.stopPropagation()
-                    revealLayerInTableManager(layer)
+                    if (['image', 'video'].includes(layer.layerType)) openImageEditor(layer)
+                    else revealLayerInTableManager(layer)
                   }}
                 >
                   {layer.layerType === 'video' ? (
@@ -3753,7 +4027,7 @@ export default function VampireTable() {
                           loop
                           playsInline
                           draggable={false}
-                          style={getCroppedMediaStyle(layer)}
+                          style={getLayerMediaStyle(layer)}
                           onError={event => {
                             event.currentTarget.style.display = 'none'
                             event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -3789,7 +4063,7 @@ export default function VampireTable() {
                         src={layer.imageData}
                         alt=""
                         draggable={false}
-                        style={getCroppedMediaStyle(layer)}
+                        style={getLayerMediaStyle(layer)}
                         onError={event => {
                           event.currentTarget.style.display = 'none'
                           event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -3951,6 +4225,13 @@ export default function VampireTable() {
                 </button>
                 <button type="button" onClick={() => createNamedFolder(null, false)}>Папка</button>
               </div>
+              <input
+                className="media-search-input"
+                data-media-search
+                value={mediaSearchDraft}
+                onChange={event => setMediaSearchDraft(event.target.value)}
+                placeholder="Поиск медиа"
+              />
 
               {isMaster ? (
                 <form className="text-material-form" onSubmit={createTextMaterial}>
@@ -4331,6 +4612,99 @@ export default function VampireTable() {
         </div>
       ) : null}
 
+      {imageEditor ? (() => {
+        const layer = layers.find(item => item.id === imageEditor.layerId)
+        if (!layer) return null
+        const cropBoxStyle: CSSProperties = {
+          left: `${imageEditor.state.cropX}%`,
+          top: `${imageEditor.state.cropY}%`,
+          width: `${imageEditor.state.cropWidth}%`,
+          height: `${imageEditor.state.cropHeight}%`,
+        }
+        return (
+          <div className="image-editor-backdrop" role="dialog" aria-modal="true" aria-label="Редактор изображения">
+            <section className="image-editor-modal">
+              <header>
+                <div>
+                  <span>Image Studio</span>
+                  <strong>{layer.name}</strong>
+                </div>
+                <nav aria-label="История редактора">
+                  <button type="button" onClick={undoImageEditor} disabled={imageEditor.history.length === 0}>Undo</button>
+                  <button type="button" onClick={redoImageEditor} disabled={imageEditor.future.length === 0}>Redo</button>
+                  <button type="button" onClick={() => setImageEditor(null)}>Отмена</button>
+                  <button type="button" onClick={() => applyImageEditor(true)}>Сохранить как новое</button>
+                  <button type="button" className="primary" onClick={() => applyImageEditor(false)}>Применить</button>
+                </nav>
+              </header>
+
+              <div className="image-editor-body">
+                <div
+                  className="crop-stage"
+                  onPointerMove={updateEditorCropDrag}
+                  onPointerUp={finishEditorCropDrag}
+                  onPointerCancel={finishEditorCropDrag}
+                  onPointerLeave={finishEditorCropDrag}
+                >
+                  {layer.layerType === 'video' ? (
+                    <video src={layer.imageData} style={getEditorImageStyle(imageEditor.state)} controls playsInline />
+                  ) : (
+                    <img src={layer.imageData} alt="" style={getEditorImageStyle(imageEditor.state)} draggable={false} />
+                  )}
+                  <div className="crop-mask" aria-hidden="true" />
+                  <div
+                    className="crop-box"
+                    style={cropBoxStyle}
+                    onPointerDown={event => startEditorCropDrag(event, 'move')}
+                  >
+                    {(['nw', 'ne', 'sw', 'se'] as const).map(handle => (
+                      <button
+                        type="button"
+                        key={handle}
+                        className={`crop-handle ${handle}`}
+                        onPointerDown={event => startEditorCropDrag(event, handle)}
+                        aria-label="Изменить обрезку"
+                      />
+                    ))}
+                  </div>
+                </div>
+
+                <aside className="image-editor-tools">
+                  <div className="tool-row">
+                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, rotation: (state.rotation - 90) % 360 }))}>Rotate -90</button>
+                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, rotation: (state.rotation + 90) % 360 }))}>Rotate +90</button>
+                  </div>
+                  <div className="tool-row">
+                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, flipX: !state.flipX }))}>Flip X</button>
+                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, flipY: !state.flipY }))}>Flip Y</button>
+                  </div>
+                  <button type="button" onClick={() => updateImageEditor(() => createEditorState({ ...layer, cropX: null, cropY: null, cropWidth: null, cropHeight: null, rotation: 0, flipX: false, flipY: false, brightness: 1, contrast: 1, saturation: 1 }))}>Reset</button>
+                  {[
+                    ['Brightness', 'brightness', 0.35, 1.8, 0.05],
+                    ['Contrast', 'contrast', 0.35, 1.8, 0.05],
+                    ['Saturation', 'saturation', 0, 2.2, 0.05],
+                  ].map(([label, key, min, max, step]) => (
+                    <label className="editor-slider" key={String(key)}>
+                      <span>{label}</span>
+                      <input
+                        type="range"
+                        min={Number(min)}
+                        max={Number(max)}
+                        step={Number(step)}
+                        value={imageEditor.state[key as 'brightness' | 'contrast' | 'saturation']}
+                        onChange={event => updateImageEditor(state => ({ ...state, [key]: Number(event.target.value) }), false)}
+                        onPointerUp={() => updateImageEditor(state => state)}
+                      />
+                      <strong>{Math.round(imageEditor.state[key as 'brightness' | 'contrast' | 'saturation'] * 100)}%</strong>
+                    </label>
+                  ))}
+                </aside>
+              </div>
+            </section>
+          </div>
+        )
+      })() : null}
+
       {layerContextMenu ? (() => {
         const layer = layers.find(item => item.id === layerContextMenu.layerId)
         const ids = getContextLayerIds(layerContextMenu.layerId)
@@ -4348,12 +4722,12 @@ export default function VampireTable() {
         return (
           <div
             className="layer-context-menu"
-            style={{ left: layerContextMenu.x, top: layerContextMenu.y }}
+            style={getSmartFloatingPosition(layerContextMenu.x, layerContextMenu.y, 280, 520)}
             onClick={event => event.stopPropagation()}
           >
             {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>Переименовать</button> : null}
             {singleLayer && ['image', 'video'].includes(singleLayer.layerType) ? (
-              <button type="button" onClick={() => cropLayer(singleLayer)}>Обрезать видимую часть</button>
+              <button type="button" onClick={() => openImageEditor(singleLayer)}>Редактировать изображение</button>
             ) : null}
             {singleLayer && getLayerCrop(singleLayer).cropped ? (
               <button type="button" onClick={() => resetLayerCrop(singleLayer)}>Восстановить обрезанное</button>
@@ -4370,6 +4744,33 @@ export default function VampireTable() {
             }}>
               {allLocked ? 'Разблокировать' : 'Заблокировать'}
             </button>
+            {singleLayer && singleLayer.layerType !== 'folder' ? (
+              <div className="context-menu-group context-menu-controls">
+                <span>Слой</span>
+                <label>
+                  <small>Opacity</small>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={singleLayer.opacity}
+                    onChange={event => patchLayer(singleLayer.id, { opacity: Number(event.target.value) })}
+                  />
+                </label>
+                <label>
+                  <small>Blend</small>
+                  <select
+                    value={singleLayer.blendMode}
+                    onChange={event => patchLayer(singleLayer.id, { blendMode: event.target.value as BlendMode })}
+                  >
+                    {(['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'luminosity'] as BlendMode[]).map(mode => (
+                      <option value={mode} key={mode}>{mode}</option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+            ) : null}
             <div className="context-menu-group">
               <span>Порядок слоя</span>
               <button type="button" onClick={() => {
@@ -4666,7 +5067,7 @@ export default function VampireTable() {
         }
 
         .scene-media-panel {
-          grid-template-rows: auto auto auto minmax(0, 1fr);
+          grid-template-rows: auto auto auto auto minmax(0, 1fr);
         }
 
         .scene-control-panel > header,
@@ -5346,7 +5747,7 @@ export default function VampireTable() {
         }
 
         .library-panel {
-          grid-template-rows: auto auto auto minmax(0, 1fr);
+          grid-template-rows: auto auto auto auto minmax(0, 1fr);
         }
 
         .table-right-panel {
@@ -5452,6 +5853,23 @@ export default function VampireTable() {
         .media-url-form button:disabled {
           opacity: 0.55;
           cursor: not-allowed;
+        }
+
+        .media-search-input {
+          min-width: 0;
+          height: 34px;
+          border: 0;
+          border-bottom: 1px solid #2b2b2b;
+          background: #0c0c0c;
+          color: #f4f4f4;
+          padding: 0 11px;
+          font: inherit;
+          font-size: 12px;
+          outline: none;
+        }
+
+        .media-search-input:focus {
+          box-shadow: inset 3px 0 0 #ff3131;
         }
 
         .layer-row {
@@ -5923,6 +6341,241 @@ export default function VampireTable() {
           padding: 4px 10px 2px;
           text-transform: uppercase;
           letter-spacing: 0.08em;
+        }
+
+        .context-menu-controls label {
+          display: grid;
+          grid-template-columns: 58px minmax(0, 1fr);
+          gap: 8px;
+          align-items: center;
+          padding: 4px 10px;
+        }
+
+        .context-menu-controls small {
+          color: #b8b8b8;
+          font-size: 11px;
+        }
+
+        .context-menu-controls input,
+        .context-menu-controls select {
+          min-width: 0;
+          width: 100%;
+          accent-color: #ff3131;
+          border: 1px solid #333;
+          border-radius: 4px;
+          background: #090909;
+          color: #eee;
+          font: inherit;
+          font-size: 11px;
+        }
+
+        .image-editor-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1950;
+          display: grid;
+          place-items: center;
+          padding: 18px;
+          background: rgba(0,0,0,0.86);
+          backdrop-filter: blur(8px);
+        }
+
+        .image-editor-modal {
+          width: min(1180px, 100%);
+          height: min(820px, 92vh);
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          border: 1px solid #4b1f1f;
+          border-radius: 8px;
+          background: #0b0b0b;
+          box-shadow: 0 28px 80px rgba(0,0,0,0.72), 0 0 38px rgba(255,49,49,0.2);
+          overflow: hidden;
+        }
+
+        .image-editor-modal header {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          align-items: center;
+          border-bottom: 1px solid #2b2b2b;
+          background: linear-gradient(180deg, #151515, #101010);
+          padding: 10px 12px;
+        }
+
+        .image-editor-modal header div {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .image-editor-modal header span {
+          color: #ff5858;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.14em;
+        }
+
+        .image-editor-modal header strong {
+          min-width: 0;
+          color: #fff;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .image-editor-modal header nav {
+          display: flex;
+          gap: 7px;
+          align-items: center;
+          overflow-x: auto;
+        }
+
+        .image-editor-modal button,
+        .image-editor-tools button {
+          min-width: 0;
+          height: 32px;
+          border: 1px solid #3a3a3a;
+          border-radius: 5px;
+          background: #181818;
+          color: #f4f4f4;
+          padding: 0 10px;
+          font: inherit;
+          font-size: 12px;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .image-editor-modal button:disabled {
+          cursor: not-allowed;
+          opacity: 0.48;
+        }
+
+        .image-editor-modal button.primary {
+          border-color: #ff3131;
+          background: #361414;
+          color: #ffe1e1;
+        }
+
+        .image-editor-body {
+          min-height: 0;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 260px;
+          background: #070707;
+        }
+
+        .crop-stage {
+          position: relative;
+          min-height: 0;
+          margin: 16px;
+          border: 1px solid #252525;
+          background:
+            linear-gradient(45deg, #111 25%, transparent 25%),
+            linear-gradient(-45deg, #111 25%, transparent 25%),
+            linear-gradient(45deg, transparent 75%, #111 75%),
+            linear-gradient(-45deg, transparent 75%, #111 75%),
+            #050505;
+          background-size: 20px 20px;
+          background-position: 0 0, 0 10px, 10px -10px, -10px 0;
+          overflow: hidden;
+          touch-action: none;
+        }
+
+        .crop-stage img,
+        .crop-stage video {
+          width: 100%;
+          height: 100%;
+          object-fit: fill;
+          max-width: none;
+          max-height: none;
+          display: block;
+          user-select: none;
+          pointer-events: none;
+        }
+
+        .crop-mask {
+          position: absolute;
+          inset: 0;
+          background: rgba(0,0,0,0.34);
+          pointer-events: none;
+        }
+
+        .crop-box {
+          position: absolute;
+          border: 1px solid #ffffff;
+          box-shadow: 0 0 0 9999px rgba(0,0,0,0.42), 0 0 0 1px rgba(255,49,49,0.8);
+          cursor: move;
+          touch-action: none;
+        }
+
+        .crop-box::before,
+        .crop-box::after {
+          content: "";
+          position: absolute;
+          inset: 33.333% 0 auto;
+          border-top: 1px solid rgba(255,255,255,0.44);
+          pointer-events: none;
+        }
+
+        .crop-box::after {
+          inset: 66.666% 0 auto;
+        }
+
+        .crop-handle {
+          position: absolute;
+          width: 18px;
+          height: 18px;
+          border-radius: 50%;
+          border: 2px solid #050505 !important;
+          background: #ff3131 !important;
+          padding: 0 !important;
+          box-shadow: 0 0 16px rgba(255,49,49,0.48);
+        }
+
+        .crop-handle.nw { left: -10px; top: -10px; cursor: nwse-resize; }
+        .crop-handle.ne { right: -10px; top: -10px; cursor: nesw-resize; }
+        .crop-handle.sw { left: -10px; bottom: -10px; cursor: nesw-resize; }
+        .crop-handle.se { right: -10px; bottom: -10px; cursor: nwse-resize; }
+
+        .image-editor-tools {
+          min-height: 0;
+          display: grid;
+          align-content: start;
+          gap: 10px;
+          padding: 14px;
+          border-left: 1px solid #2b2b2b;
+          background: #111;
+        }
+
+        .tool-row {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 8px;
+        }
+
+        .editor-slider {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 54px;
+          gap: 7px;
+          align-items: center;
+          border-top: 1px solid #252525;
+          padding-top: 10px;
+        }
+
+        .editor-slider span {
+          grid-column: 1 / -1;
+          color: #c8c8c8;
+          font-size: 12px;
+        }
+
+        .editor-slider input {
+          width: 100%;
+          accent-color: #ff3131;
+        }
+
+        .editor-slider strong {
+          color: #fff;
+          font-size: 12px;
+          text-align: right;
         }
 
         .text-material-form {
@@ -6688,6 +7341,33 @@ export default function VampireTable() {
 
           .media-preview-modal {
             height: 88svh;
+          }
+
+          .image-editor-backdrop {
+            padding: 8px;
+          }
+
+          .image-editor-modal {
+            height: 92svh;
+          }
+
+          .image-editor-modal header {
+            display: grid;
+          }
+
+          .image-editor-body {
+            grid-template-columns: 1fr;
+            grid-template-rows: minmax(0, 1fr) auto;
+          }
+
+          .image-editor-tools {
+            border-left: 0;
+            border-top: 1px solid #2b2b2b;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .editor-slider {
+            grid-column: 1 / -1;
           }
         }
       `}</style>
