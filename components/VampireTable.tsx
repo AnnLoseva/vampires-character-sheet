@@ -199,6 +199,7 @@ type ImageEditorDraft = {
   state: ImageEditorState
   history: ImageEditorState[]
   future: ImageEditorState[]
+  aspectLocked: boolean
   drag: null | {
     handle: 'nw' | 'ne' | 'sw' | 'se' | 'move'
     startX: number
@@ -833,6 +834,7 @@ export default function VampireTable() {
   const [previewLayerId, setPreviewLayerId] = useState<string | null>(null)
   const [connectionText, setConnectionText] = useState('Подключение...')
   const [tableStatus, setTableStatus] = useState('Загрузка стола...')
+  const [handNotice, setHandNotice] = useState('')
   const [isUploading, setIsUploading] = useState(false)
   const [zoom, setZoom] = useState(1)
   const [pan, setPan] = useState({ x: 0, y: 0 })
@@ -853,6 +855,7 @@ export default function VampireTable() {
   const [leftToolbarTab, setLeftToolbarTab] = useState<LeftToolbarTab>('scenes')
   const [leftPanelOpen, setLeftPanelOpen] = useState(true)
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
+  const [musicPanelOpen, setMusicPanelOpen] = useState(true)
   const [chatPanelTab, setChatPanelTab] = useState<ChatPanelTab>('text')
   const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1254,6 +1257,15 @@ export default function VampireTable() {
     })
   }
 
+  const raiseHand = () => {
+    const character = chatCharacters.find(item => item.id === selectedChatCharacterId)
+    const name = character?.name || chatUser?.username || (isMaster ? 'Мастер' : 'Игрок')
+    const payload = { room, name, at: new Date().toISOString() }
+    setHandNotice(`${name} поднял руку`)
+    window.setTimeout(() => setHandNotice(''), 5200)
+    broadcast('hand-raise', payload)
+  }
+
   const playSceneAutoplayMusic = async (sceneId: string) => {
     const tracks = sceneId === activeSceneIdRef.current
       ? sceneMusicRef.current
@@ -1650,6 +1662,12 @@ export default function VampireTable() {
         if (!message || message.room !== currentRoom) return
         setChatMessages(prev => mergeChatMessage(prev, message))
         setChatStatus('Чат онлайн')
+      })
+      .on('broadcast', { event: 'hand-raise' }, payload => {
+        const notice = payload.payload as { room?: string; name?: string; at?: string }
+        if (notice.room !== currentRoom || !notice.name) return
+        setHandNotice(`${notice.name} поднял руку`)
+        window.setTimeout(() => setHandNotice(''), 5200)
       })
       .on('broadcast', { event: 'voice-signal' }, payload => {
         handleVoiceSignal(payload.payload as VoiceSignal)
@@ -2441,6 +2459,11 @@ export default function VampireTable() {
   ) => {
     const uploadItems = Array.from(files)
     if (uploadItems.length === 0) return
+    if (!isMaster && !chatUser) {
+      window.alert('Сначала войди в аккаунт игрока, чтобы добавлять медиа в комнату.')
+      setRightRailTab('chat')
+      return
+    }
 
     setIsUploading(true)
 
@@ -2640,6 +2663,7 @@ export default function VampireTable() {
 
   const deleteLayer = async (layerId: string) => {
     const layer = layersRef.current.find(item => item.id === layerId) || layers.find(item => item.id === layerId)
+    if (layer && !window.confirm(`Удалить "${layer.name}"?`)) return
     const childIds = getDescendantIds(layerId)
     const requestedDeleteIds = new Set([layerId, ...childIds])
     const deleteIds = isMaster
@@ -2803,6 +2827,7 @@ export default function VampireTable() {
       state: createEditorState(layer),
       history: [],
       future: [],
+      aspectLocked: false,
       drag: null,
     })
     setLayerContextMenu(null)
@@ -2945,6 +2970,34 @@ export default function VampireTable() {
     for (const id of ids) await deleteLayer(id)
   }
 
+  const duplicateLayer = async (layer: TableLayer) => {
+    if (!canEditLayer(layer) || layer.layerType === 'folder') return
+    await addMediaLayer(
+      layer.imageData,
+      `${layer.name} copy`,
+      { width: layer.width, height: layer.height },
+      layer.layerType === 'video' ? 'video' : layer.layerType === 'text' ? 'text' : layer.layerType === 'file' ? 'file' : 'image',
+      0,
+      { x: layer.x + 28, y: layer.y + 28 },
+      layer.onTable,
+      {
+        parentId: layer.parentId,
+        cropX: layer.cropX,
+        cropY: layer.cropY,
+        cropWidth: layer.cropWidth,
+        cropHeight: layer.cropHeight,
+        opacity: layer.opacity,
+        blendMode: layer.blendMode,
+        rotation: layer.rotation,
+        flipX: layer.flipX,
+        flipY: layer.flipY,
+        brightness: layer.brightness,
+        contrast: layer.contrast,
+        saturation: layer.saturation,
+      }
+    )
+  }
+
   const focusLayersForEveryone = (ids: string[]) => {
     const targets = ids
       .map(id => layersRef.current.find(layer => layer.id === id))
@@ -2958,7 +3011,7 @@ export default function VampireTable() {
     const rect = sceneRef.current.getBoundingClientRect()
     const contentWidth = Math.max(1, maxX - minX)
     const contentHeight = Math.max(1, maxY - minY)
-    const nextZoom = Math.min(3, Math.max(0.25, Math.min((rect.width - 80) / contentWidth, (rect.height - 80) / contentHeight)))
+    const nextZoom = Math.min(5, Math.max(0.2, Math.min((rect.width - 80) / contentWidth, (rect.height - 80) / contentHeight)))
     const nextPan = {
       x: Math.round(rect.width / 2 - (minX + contentWidth / 2) * nextZoom),
       y: Math.round(rect.height / 2 - (minY + contentHeight / 2) * nextZoom),
@@ -3145,6 +3198,10 @@ export default function VampireTable() {
     if (!canEditLayer(layer)) return
     if (layer.locked) return
     const target = event.target as HTMLElement
+    if (layer.layerType === 'text' && target.closest('.scene-text-material')) {
+      setLayerSelection([layer.id], layer.id)
+      return
+    }
     if (mode === 'move' && layer.layerType === 'video' && target instanceof HTMLVideoElement) {
       const rect = target.getBoundingClientRect()
       const controlHeight = Math.min(56, Math.max(36, rect.height * 0.3))
@@ -3326,7 +3383,7 @@ export default function VampireTable() {
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
     event.preventDefault()
     const rect = event.currentTarget.getBoundingClientRect()
-    const nextZoom = Math.min(3, Math.max(0.25, zoom * (event.deltaY > 0 ? 0.9 : 1.1)))
+    const nextZoom = Math.min(5, Math.max(0.2, zoom * (event.deltaY > 0 ? 0.9 : 1.1)))
     const cursorX = event.clientX - rect.left
     const cursorY = event.clientY - rect.top
     const worldX = (cursorX - pan.x) / zoom
@@ -3404,7 +3461,7 @@ export default function VampireTable() {
     event.preventDefault()
     if (gesture.mode === 'pinch' && event.touches.length >= 2) {
       const center = getTouchCenter(event.touches)
-      const nextZoom = Math.min(3, Math.max(0.25, gesture.startZoom * (getTouchDistance(event.touches) / gesture.startDistance)))
+      const nextZoom = Math.min(5, Math.max(0.2, gesture.startZoom * (getTouchDistance(event.touches) / gesture.startDistance)))
       setZoom(nextZoom)
       setPan({
         x: Math.round(center.x - rect.left - gesture.worldCenterX * nextZoom),
@@ -3514,6 +3571,7 @@ export default function VampireTable() {
       cropX = initial.cropX + dx
       cropY = initial.cropY + dy
     } else {
+      const ratio = Math.max(0.05, initial.cropWidth / Math.max(1, initial.cropHeight))
       if (imageEditor.drag.handle.includes('w')) {
         cropX = initial.cropX + dx
         cropWidth = initial.cropWidth - dx
@@ -3524,6 +3582,10 @@ export default function VampireTable() {
         cropHeight = initial.cropHeight - dy
       }
       if (imageEditor.drag.handle.includes('s')) cropHeight = initial.cropHeight + dy
+      if (imageEditor.aspectLocked) {
+        if (Math.abs(dx) >= Math.abs(dy)) cropHeight = cropWidth / ratio
+        else cropWidth = cropHeight * ratio
+      }
     }
 
     cropWidth = Math.max(8, Math.min(100, cropWidth))
@@ -3707,14 +3769,6 @@ export default function VampireTable() {
               <button type="button" onClick={saveMasterPassword}>Сменить</button>
             </label>
           ) : null}
-          {isMaster ? (
-            <button type="button" onClick={() => setLeftPanelOpen(prev => !prev)}>
-              {leftPanelOpen ? 'Скрыть слева' : 'Сцены'}
-            </button>
-          ) : null}
-          <button type="button" onClick={() => setRightPanelOpen(prev => !prev)}>
-            {rightPanelOpen ? 'Скрыть справа' : 'Панели'}
-          </button>
           <a href={`/character-sheet?room=${encodeURIComponent(room)}`} title="Открыть лист персонажа">Лист</a>
           <input ref={fileInputRef} type="file" multiple onChange={handleImageUpload} />
           <input ref={backgroundFileInputRef} type="file" accept="image/*" multiple onChange={handleBackgroundUpload} />
@@ -3722,7 +3776,34 @@ export default function VampireTable() {
         </div>
       </section>
 
-      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
+      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''} ${!musicPanelOpen ? 'music-collapsed' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
+        <aside className={`music-dock ${musicPanelOpen ? '' : 'panel-collapsed'}`} aria-label="Музыка комнаты">
+          <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} />
+        </aside>
+        <button
+          type="button"
+          className="column-edge-toggle music-toggle"
+          onClick={() => setMusicPanelOpen(prev => !prev)}
+          aria-label={musicPanelOpen ? 'Скрыть музыку' : 'Показать музыку'}
+          title={musicPanelOpen ? 'Скрыть музыку' : 'Показать музыку'}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
+        {isMaster ? (
+          <button
+            type="button"
+            className="column-edge-toggle master-toggle"
+            onClick={() => setLeftPanelOpen(prev => !prev)}
+            aria-label={leftPanelOpen ? 'Скрыть сцены' : 'Показать сцены'}
+            title={leftPanelOpen ? 'Скрыть сцены' : 'Показать сцены'}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        ) : null}
         {isMaster ? (
           <aside className={`left-toolbar ${leftPanelOpen ? '' : 'panel-collapsed'}`} aria-label="Мастерская панель сцен">
             <nav className="left-tabs" aria-label="Разделы сцен">
@@ -3918,11 +3999,13 @@ export default function VampireTable() {
               <strong>{Math.round(zoom * 100)}%</strong>
             </div>
             <div className="zoom-tools">
-              <button type="button" onClick={() => setZoom(prev => Math.max(0.25, prev - 0.1))}>−</button>
+              <button type="button" onClick={raiseHand} title="Поднять руку">!</button>
+              <button type="button" onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}>−</button>
               <button type="button" onClick={() => setZoom(1)}>100</button>
-              <button type="button" onClick={() => setZoom(prev => Math.min(3, prev + 0.1))}>+</button>
+              <button type="button" onClick={() => setZoom(prev => Math.min(5, prev + 0.1))}>+</button>
             </div>
           </header>
+          {handNotice ? <div className="hand-notice" role="status">{handNotice}</div> : null}
 
           <div
             ref={sceneRef}
@@ -3996,6 +4079,11 @@ export default function VampireTable() {
                     if (['image', 'video'].includes(layer.layerType)) openImageEditor(layer)
                     else revealLayerInTableManager(layer)
                   }}
+                  onClick={event => {
+                    event.stopPropagation()
+                    if (!['image', 'video'].includes(layer.layerType) || !canEditLayer(layer) || layer.locked) return
+                    if (selectedLayerId === layer.id && imageEditor?.layerId !== layer.id) openImageEditor(layer)
+                  }}
                 >
                   {layer.layerType === 'video' ? (
                     <>
@@ -4027,7 +4115,7 @@ export default function VampireTable() {
                           loop
                           playsInline
                           draggable={false}
-                          style={getLayerMediaStyle(layer)}
+                          style={imageEditor?.layerId === layer.id ? getEditorImageStyle(imageEditor.state) : getLayerMediaStyle(layer)}
                           onError={event => {
                             event.currentTarget.style.display = 'none'
                             event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -4063,7 +4151,7 @@ export default function VampireTable() {
                         src={layer.imageData}
                         alt=""
                         draggable={false}
-                        style={getLayerMediaStyle(layer)}
+                        style={imageEditor?.layerId === layer.id ? getEditorImageStyle(imageEditor.state) : getLayerMediaStyle(layer)}
                         onError={event => {
                           event.currentTarget.style.display = 'none'
                           event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -4072,7 +4160,60 @@ export default function VampireTable() {
                       <span className="broken-image-label">{layer.name}</span>
                     </>
                   )}
-                  {selectedLayerId === layer.id && selectedLayerIds.size <= 1 && !layer.locked && canEditLayer(layer) ? (
+                  {imageEditor?.layerId === layer.id ? (
+                    <div
+                      className="inline-crop-surface"
+                      onPointerMove={updateEditorCropDrag}
+                      onPointerUp={finishEditorCropDrag}
+                      onPointerCancel={finishEditorCropDrag}
+                      onPointerLeave={finishEditorCropDrag}
+                    >
+                      <div
+                        className="inline-crop-box"
+                        style={{
+                          left: `${imageEditor.state.cropX}%`,
+                          top: `${imageEditor.state.cropY}%`,
+                          width: `${imageEditor.state.cropWidth}%`,
+                          height: `${imageEditor.state.cropHeight}%`,
+                        }}
+                        onPointerDown={event => startEditorCropDrag(event, 'move')}
+                      >
+                        {(['nw', 'ne', 'sw', 'se'] as const).map(handle => (
+                          <button
+                            type="button"
+                            key={handle}
+                            className={`crop-handle ${handle}`}
+                            onPointerDown={event => startEditorCropDrag(event, handle)}
+                            aria-label="Изменить обрезку"
+                          />
+                        ))}
+                      </div>
+                      <div className="inline-crop-toolbar" onPointerDown={event => event.stopPropagation()}>
+                        <button type="button" onClick={() => applyImageEditor(false)}>Применить</button>
+                        <button type="button" onClick={() => setImageEditor(null)}>Отменить</button>
+                        <button type="button" onClick={() => updateImageEditor(() => createEditorState({ ...layer, cropX: null, cropY: null, cropWidth: null, cropHeight: null, rotation: 0, flipX: false, flipY: false, brightness: 1, contrast: 1, saturation: 1 }))}>Сбросить</button>
+                        <button type="button" onClick={undoImageEditor} disabled={imageEditor.history.length === 0}>Undo</button>
+                        <button type="button" onClick={redoImageEditor} disabled={imageEditor.future.length === 0}>Redo</button>
+                        <button type="button" className={imageEditor.aspectLocked ? 'active' : ''} onClick={() => setImageEditor(editor => editor ? { ...editor, aspectLocked: !editor.aspectLocked } : editor)}>Lock</button>
+                        <button type="button" onClick={() => updateImageEditor(state => ({ ...state, rotation: (state.rotation + 90) % 360 }))}>↻</button>
+                        <button type="button" onClick={() => updateImageEditor(state => ({ ...state, flipX: !state.flipX }))}>⇋</button>
+                      </div>
+                    </div>
+                  ) : null}
+                  {selectedLayerId === layer.id && ['image', 'video'].includes(layer.layerType) && canEditLayer(layer) && imageEditor?.layerId !== layer.id ? (
+                    <label className="inline-opacity-control" onPointerDown={event => event.stopPropagation()}>
+                      <span>Opacity</span>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={layer.opacity}
+                        onChange={event => patchLayer(layer.id, { opacity: Number(event.target.value) })}
+                      />
+                    </label>
+                  ) : null}
+                  {selectedLayerId === layer.id && selectedLayerIds.size <= 1 && !layer.locked && canEditLayer(layer) && imageEditor?.layerId !== layer.id ? (
                     <>
                       {(['nw', 'ne', 'sw', 'se'] as const).map(corner => (
                         <button
@@ -4105,6 +4246,17 @@ export default function VampireTable() {
           </div>
         </section>
 
+        <button
+          type="button"
+          className="column-edge-toggle right-toggle"
+          onClick={() => setRightPanelOpen(prev => !prev)}
+          aria-label={rightPanelOpen ? 'Скрыть правую панель' : 'Показать правую панель'}
+          title={rightPanelOpen ? 'Скрыть правую панель' : 'Показать правую панель'}
+        >
+          <span />
+          <span />
+          <span />
+        </button>
         <aside className={`right-rail ${rightPanelOpen ? '' : 'panel-collapsed'}`}>
           <nav className="right-tabs" aria-label="Панели стола">
             <button
@@ -4133,9 +4285,6 @@ export default function VampireTable() {
           <section className={`media-sidebar table-right-panel ${rightRailTab === 'media' ? '' : 'table-right-panel-hidden'}`} aria-label="Медиа стола">
             {!isMaster ? (
               <nav className="sub-tabs" aria-label="Медиа панели">
-                <button type="button" className={mediaTab === 'music' ? 'active' : ''} onClick={() => setMediaTab('music')}>
-                  Музыка
-                </button>
                 <button type="button" className={mediaTab === 'layers' ? 'active' : ''} onClick={() => setMediaTab('layers')}>
                   Стол
                 </button>
@@ -4144,8 +4293,6 @@ export default function VampireTable() {
                 </button>
               </nav>
             ) : null}
-
-            <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} hidden={!isMaster && mediaTab !== 'music'} />
 
             {!isMaster ? (
             <section
@@ -4612,99 +4759,6 @@ export default function VampireTable() {
         </div>
       ) : null}
 
-      {imageEditor ? (() => {
-        const layer = layers.find(item => item.id === imageEditor.layerId)
-        if (!layer) return null
-        const cropBoxStyle: CSSProperties = {
-          left: `${imageEditor.state.cropX}%`,
-          top: `${imageEditor.state.cropY}%`,
-          width: `${imageEditor.state.cropWidth}%`,
-          height: `${imageEditor.state.cropHeight}%`,
-        }
-        return (
-          <div className="image-editor-backdrop" role="dialog" aria-modal="true" aria-label="Редактор изображения">
-            <section className="image-editor-modal">
-              <header>
-                <div>
-                  <span>Image Studio</span>
-                  <strong>{layer.name}</strong>
-                </div>
-                <nav aria-label="История редактора">
-                  <button type="button" onClick={undoImageEditor} disabled={imageEditor.history.length === 0}>Undo</button>
-                  <button type="button" onClick={redoImageEditor} disabled={imageEditor.future.length === 0}>Redo</button>
-                  <button type="button" onClick={() => setImageEditor(null)}>Отмена</button>
-                  <button type="button" onClick={() => applyImageEditor(true)}>Сохранить как новое</button>
-                  <button type="button" className="primary" onClick={() => applyImageEditor(false)}>Применить</button>
-                </nav>
-              </header>
-
-              <div className="image-editor-body">
-                <div
-                  className="crop-stage"
-                  onPointerMove={updateEditorCropDrag}
-                  onPointerUp={finishEditorCropDrag}
-                  onPointerCancel={finishEditorCropDrag}
-                  onPointerLeave={finishEditorCropDrag}
-                >
-                  {layer.layerType === 'video' ? (
-                    <video src={layer.imageData} style={getEditorImageStyle(imageEditor.state)} controls playsInline />
-                  ) : (
-                    <img src={layer.imageData} alt="" style={getEditorImageStyle(imageEditor.state)} draggable={false} />
-                  )}
-                  <div className="crop-mask" aria-hidden="true" />
-                  <div
-                    className="crop-box"
-                    style={cropBoxStyle}
-                    onPointerDown={event => startEditorCropDrag(event, 'move')}
-                  >
-                    {(['nw', 'ne', 'sw', 'se'] as const).map(handle => (
-                      <button
-                        type="button"
-                        key={handle}
-                        className={`crop-handle ${handle}`}
-                        onPointerDown={event => startEditorCropDrag(event, handle)}
-                        aria-label="Изменить обрезку"
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <aside className="image-editor-tools">
-                  <div className="tool-row">
-                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, rotation: (state.rotation - 90) % 360 }))}>Rotate -90</button>
-                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, rotation: (state.rotation + 90) % 360 }))}>Rotate +90</button>
-                  </div>
-                  <div className="tool-row">
-                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, flipX: !state.flipX }))}>Flip X</button>
-                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, flipY: !state.flipY }))}>Flip Y</button>
-                  </div>
-                  <button type="button" onClick={() => updateImageEditor(() => createEditorState({ ...layer, cropX: null, cropY: null, cropWidth: null, cropHeight: null, rotation: 0, flipX: false, flipY: false, brightness: 1, contrast: 1, saturation: 1 }))}>Reset</button>
-                  {[
-                    ['Brightness', 'brightness', 0.35, 1.8, 0.05],
-                    ['Contrast', 'contrast', 0.35, 1.8, 0.05],
-                    ['Saturation', 'saturation', 0, 2.2, 0.05],
-                  ].map(([label, key, min, max, step]) => (
-                    <label className="editor-slider" key={String(key)}>
-                      <span>{label}</span>
-                      <input
-                        type="range"
-                        min={Number(min)}
-                        max={Number(max)}
-                        step={Number(step)}
-                        value={imageEditor.state[key as 'brightness' | 'contrast' | 'saturation']}
-                        onChange={event => updateImageEditor(state => ({ ...state, [key]: Number(event.target.value) }), false)}
-                        onPointerUp={() => updateImageEditor(state => state)}
-                      />
-                      <strong>{Math.round(imageEditor.state[key as 'brightness' | 'contrast' | 'saturation'] * 100)}%</strong>
-                    </label>
-                  ))}
-                </aside>
-              </div>
-            </section>
-          </div>
-        )
-      })() : null}
-
       {layerContextMenu ? (() => {
         const layer = layers.find(item => item.id === layerContextMenu.layerId)
         const ids = getContextLayerIds(layerContextMenu.layerId)
@@ -4727,7 +4781,12 @@ export default function VampireTable() {
           >
             {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>Переименовать</button> : null}
             {singleLayer && ['image', 'video'].includes(singleLayer.layerType) ? (
-              <button type="button" onClick={() => openImageEditor(singleLayer)}>Редактировать изображение</button>
+              <div className="context-menu-group">
+                <span>Изображение</span>
+                <button type="button" onClick={() => openImageEditor(singleLayer)}>Обрезать</button>
+                <button type="button" onClick={() => patchLayer(singleLayer.id, { rotation: (singleLayer.rotation + 90) % 360 })}>Повернуть</button>
+                <button type="button" onClick={() => duplicateLayer(singleLayer)}>Дублировать</button>
+              </div>
             ) : null}
             {singleLayer && getLayerCrop(singleLayer).cropped ? (
               <button type="button" onClick={() => resetLayerCrop(singleLayer)}>Восстановить обрезанное</button>
@@ -4964,34 +5023,56 @@ export default function VampireTable() {
         }
 
         .table-layout {
+          position: relative;
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 420px;
+          grid-template-columns: 320px minmax(0, 1fr) 420px;
           gap: 12px;
           height: calc(100vh - 106px);
           min-height: 560px;
         }
 
         .table-layout.with-left-toolbar {
-          grid-template-columns: 330px minmax(0, 1fr) 420px;
+          grid-template-columns: 320px 330px minmax(0, 1fr) 420px;
         }
 
-        .table-layout.with-left-toolbar.left-collapsed {
+        .table-layout.music-collapsed {
           grid-template-columns: 0 minmax(0, 1fr) 420px;
         }
 
+        .table-layout.with-left-toolbar.music-collapsed {
+          grid-template-columns: 0 330px minmax(0, 1fr) 420px;
+        }
+
+        .table-layout.with-left-toolbar.left-collapsed {
+          grid-template-columns: 320px 0 minmax(0, 1fr) 420px;
+        }
+
+        .table-layout.with-left-toolbar.music-collapsed.left-collapsed {
+          grid-template-columns: 0 0 minmax(0, 1fr) 420px;
+        }
+
         .table-layout.right-collapsed {
-          grid-template-columns: minmax(0, 1fr) 0;
+          grid-template-columns: 320px minmax(0, 1fr) 0;
         }
 
         .table-layout.with-left-toolbar.right-collapsed {
-          grid-template-columns: 330px minmax(0, 1fr) 0;
+          grid-template-columns: 320px 330px minmax(0, 1fr) 0;
         }
 
         .table-layout.with-left-toolbar.left-collapsed.right-collapsed {
+          grid-template-columns: 320px 0 minmax(0, 1fr) 0;
+        }
+
+        .table-layout.music-collapsed.right-collapsed {
           grid-template-columns: 0 minmax(0, 1fr) 0;
         }
 
+        .table-layout.with-left-toolbar.music-collapsed.left-collapsed.right-collapsed {
+          grid-template-columns: 0 0 minmax(0, 1fr) 0;
+        }
+
         .play-surface,
+        .music-dock,
         .left-toolbar,
         .media-sidebar,
         .layer-panel,
@@ -5004,9 +5085,81 @@ export default function VampireTable() {
         }
 
         .play-surface {
+          position: relative;
           min-width: 0;
           display: grid;
           grid-template-rows: auto 1fr;
+        }
+
+        .music-dock {
+          min-width: 0;
+          min-height: 0;
+        }
+
+        .column-edge-toggle {
+          position: absolute;
+          z-index: 60;
+          width: 24px;
+          height: 44px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: rgba(14,14,14,0.92);
+          display: grid;
+          place-content: center;
+          gap: 3px;
+          padding: 0;
+          cursor: pointer;
+          box-shadow: 0 10px 24px rgba(0,0,0,0.36);
+        }
+
+        .column-edge-toggle span {
+          display: block;
+          width: 13px;
+          height: 2px;
+          border-radius: 2px;
+          background: #bdbdbd;
+        }
+
+        .column-edge-toggle:hover {
+          border-color: #ff3131;
+        }
+
+        .music-toggle {
+          left: 306px;
+          top: 50%;
+          transform: translateY(-50%);
+        }
+
+        .music-collapsed .music-toggle {
+          left: 0;
+        }
+
+        .master-toggle {
+          left: 648px;
+          top: 50%;
+          transform: translateY(-50%);
+        }
+
+        .left-collapsed .master-toggle {
+          left: 330px;
+        }
+
+        .music-collapsed .master-toggle {
+          left: 328px;
+        }
+
+        .music-collapsed.left-collapsed .master-toggle {
+          left: 22px;
+        }
+
+        .right-toggle {
+          right: 406px;
+          top: 50%;
+          transform: translateY(-50%);
+        }
+
+        .right-collapsed .right-toggle {
+          right: 0;
         }
 
         .left-toolbar {
@@ -5331,6 +5484,22 @@ export default function VampireTable() {
           font: inherit;
         }
 
+        .hand-notice {
+          position: absolute;
+          left: 50%;
+          top: 74px;
+          z-index: 80;
+          transform: translateX(-50%);
+          border: 1px solid #ff3131;
+          border-radius: 6px;
+          background: rgba(18, 6, 6, 0.94);
+          color: #ffe2e2;
+          padding: 9px 14px;
+          font-size: 13px;
+          box-shadow: 0 16px 38px rgba(0,0,0,0.42), 0 0 26px rgba(255,49,49,0.22);
+          pointer-events: none;
+        }
+
         .scene {
           position: relative;
           min-height: 0;
@@ -5456,6 +5625,100 @@ export default function VampireTable() {
           border: 0;
         }
 
+        .inline-crop-surface {
+          position: absolute;
+          inset: 0;
+          z-index: 8;
+          box-shadow: inset 0 0 0 9999px rgba(0,0,0,0.18);
+          touch-action: none;
+        }
+
+        .inline-crop-box {
+          position: absolute;
+          border: 1px solid #fff;
+          box-shadow: 0 0 0 9999px rgba(0,0,0,0.42), 0 0 0 1px rgba(255,49,49,0.85);
+          cursor: move;
+          touch-action: none;
+        }
+
+        .inline-crop-box::before,
+        .inline-crop-box::after {
+          content: "";
+          position: absolute;
+          left: 0;
+          right: 0;
+          border-top: 1px solid rgba(255,255,255,0.38);
+          pointer-events: none;
+        }
+
+        .inline-crop-box::before {
+          top: 33.333%;
+        }
+
+        .inline-crop-box::after {
+          top: 66.666%;
+        }
+
+        .inline-crop-toolbar,
+        .inline-opacity-control {
+          position: absolute;
+          left: 50%;
+          bottom: calc(100% + 10px);
+          transform: translateX(-50%);
+          z-index: 12;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          max-width: min(560px, 92vw);
+          padding: 6px;
+          border: 1px solid #3a3a3a;
+          border-radius: 6px;
+          background: rgba(12,12,12,0.96);
+          box-shadow: 0 14px 32px rgba(0,0,0,0.46);
+        }
+
+        .inline-crop-toolbar button {
+          height: 28px;
+          border: 1px solid #333;
+          border-radius: 4px;
+          background: #191919;
+          color: #f4f4f4;
+          padding: 0 8px;
+          font: inherit;
+          font-size: 11px;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .inline-crop-toolbar button.active,
+        .inline-crop-toolbar button:hover {
+          border-color: #ff3131;
+          background: #2a1111;
+        }
+
+        .inline-crop-toolbar button:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+
+        .inline-opacity-control {
+          width: 220px;
+          bottom: auto;
+          top: calc(100% + 10px);
+          display: grid;
+          grid-template-columns: auto minmax(0, 1fr);
+        }
+
+        .inline-opacity-control span {
+          color: #cfcfcf;
+          font-size: 11px;
+        }
+
+        .inline-opacity-control input {
+          width: 100%;
+          accent-color: #ff3131;
+        }
+
         .text-layer {
           background: #030303;
           border: 1px solid #ff3131;
@@ -5487,6 +5750,8 @@ export default function VampireTable() {
           overflow: auto;
           line-height: 1.45;
           font-size: 14px;
+          user-select: text;
+          cursor: text;
         }
 
         .scene-text-material pre {
@@ -5699,7 +5964,7 @@ export default function VampireTable() {
 
         .sub-tabs {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
           gap: 4px;
           padding: 4px;
           border-bottom: 1px solid #2b2b2b;

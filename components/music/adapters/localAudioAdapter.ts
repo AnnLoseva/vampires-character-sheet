@@ -30,7 +30,9 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
   load(state: MusicState) {
     this.state = state
     if (!this.audio || !state.url) return
-    const positionSeconds = Math.max(0, Math.floor(getEffectiveMusicPosition(state)))
+    const duration = Number.isFinite(this.audio.duration) ? Math.max(0, this.audio.duration) : 0
+    const rawPosition = Math.max(0, Math.floor(getEffectiveMusicPosition(state)))
+    const positionSeconds = duration > 0 ? Math.min(rawPosition, Math.max(0, duration - 0.25)) : rawPosition
     if (this.audio.src !== state.url) this.audio.src = state.url
     this.audio.volume = this.options.volume / 100
     const seekThreshold = this.options.isMaster ? 3.5 : 1.8
@@ -56,7 +58,8 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
 
   seek(seconds: number) {
     if (!this.audio) return
-    this.audio.currentTime = Math.max(0, Math.floor(seconds))
+    const duration = Number.isFinite(this.audio.duration) ? Math.max(0, this.audio.duration) : 0
+    this.audio.currentTime = duration > 0 ? Math.min(Math.max(0, Math.floor(seconds)), Math.max(0, duration - 0.25)) : Math.max(0, Math.floor(seconds))
     if (this.state?.isPlaying) void this.audio.play()
   }
 
@@ -80,6 +83,8 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
 
   private publishElementState(isPlaying: boolean) {
     if (!this.options.isMaster || !this.audio || !this.options.canPublish()) return
-    this.callback?.({ isPlaying, positionSeconds: Math.max(0, Math.floor(this.audio.currentTime || 0)) })
+    const duration = Number.isFinite(this.audio.duration) ? Math.max(0, this.audio.duration) : 0
+    const positionSeconds = Math.max(0, Math.floor(this.audio.currentTime || 0))
+    this.callback?.({ isPlaying, positionSeconds: duration > 0 ? Math.min(positionSeconds, Math.floor(duration)) : positionSeconds })
   }
 }
