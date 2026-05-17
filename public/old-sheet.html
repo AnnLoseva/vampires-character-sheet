@@ -1050,17 +1050,12 @@
         }
 
         /* ==================== ЗАФИКСИРОВАННЫЙ ЛИСТ ==================== */
-        body.sheet-fixed #capture-area input,
-        body.sheet-fixed #capture-area select,
-        body.sheet-fixed #capture-area textarea,
-        body.sheet-fixed #capture-area button,
-        body.sheet-fixed #skill-package {
+        body.sheet-fixed #clan-input,
+        body.sheet-fixed #predator-input,
+        body.sheet-fixed #generation-input,
+        body.sheet-fixed #type-input,
+        body.sheet-fixed .locked-origin-control {
             opacity: 0.55;
-            cursor: not-allowed !important;
-        }
-
-        body.sheet-fixed #capture-area .dot-label,
-        body.sheet-fixed #capture-area .s-badge {
             cursor: not-allowed !important;
         }
 
@@ -1069,16 +1064,16 @@
         body.sheet-fixed:not(.xp-shop-active) #capture-area .discipline-item,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-spec-line,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .dice-roll-specialty-input {
-            cursor: pointer !important;
-            opacity: 1 !important;
+            cursor: not-allowed !important;
+            opacity: 0.7 !important;
         }
 
         body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-name,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .attr-name,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .discipline-item > div:first-child {
-            color: #f5f5f5;
-            text-decoration: underline;
-            text-decoration-color: rgba(255,49,49,0.5);
+            color: #aaa;
+            text-decoration: line-through;
+            text-decoration-color: rgba(255,49,49,0.55);
             text-underline-offset: 3px;
         }
 
@@ -1087,17 +1082,9 @@
             caret-color: transparent;
         }
 
-        body.sheet-fixed:not(.xp-shop-active) #capture-area button {
-            display: none !important;
-        }
-
         body.sheet-fixed:not(.xp-shop-active) #capture-area .selected-item {
             opacity: 1 !important;
-            cursor: pointer !important;
-        }
-
-        body.sheet-fixed:not(.xp-shop-active) #capture-area .selected-item button {
-            display: none !important;
+            cursor: default !important;
         }
 
         body.xp-shop-active #capture-area .dot-label {
@@ -1670,7 +1657,7 @@
     Зафиксировать стартовый лист
 </button>
     <div class="sheet-lock-note">
-        Лист зафиксирован. Изменения доступны только через магазин опыта или после расфиксации.
+        Лист зафиксирован. Заблокированы броски, клан, стиль охоты, поколение и тип. Остальное можно редактировать.
     </div>
         </div>
 
@@ -1741,7 +1728,7 @@
 
         <!-- Клан -->
         <div style="flex: 1.3; display: flex; align-items: center; gap: 8px;">
-            <button onclick="resetAndOpenClanGallery()" 
+            <button class="locked-origin-control" onclick="resetAndOpenClanGallery()" 
                     title="Открыть галерею кланов"
                     style="background:#111; border:1px solid #333; width:36px; height:32px; 
                            border-radius:4px; cursor:pointer; flex-shrink:0; 
@@ -1760,7 +1747,7 @@
 
         <!-- Стиль Охоты -->
         <div style="flex: 1.2; display: flex; align-items: center; gap: 8px;">
-            <button onclick="resetAndOpenPredatorGallery()" 
+            <button class="locked-origin-control" onclick="resetAndOpenPredatorGallery()" 
                     title="Открыть галерею стилей охоты"
                     style="background:#111; border:1px solid #333; width:36px; height:32px; 
                            border-radius:4px; cursor:pointer; flex-shrink:0; 

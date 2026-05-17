@@ -1210,6 +1210,7 @@ async function renderClanIcon(clanName) {
 
 // Открытие галереи кланов
 function openClanGallery() {
+    if (startingSheetFixed && !expShopMode) return;
     const modal = document.getElementById('clan-modal');
     const gallery = document.getElementById('clan-gallery');
     if (!modal || !gallery) return;
@@ -1252,11 +1253,13 @@ function openClanGallery() {
 // ==================== КНОПКИ ГАЛЕРЕЙ ====================
 
 function resetAndOpenClanGallery() {
+    if (startingSheetFixed && !expShopMode) return;
     resetClanDisciplines();        // очищаем старые дисциплины клана
     openClanGallery();
 }
 
 function resetAndOpenPredatorGallery() {
+    if (startingSheetFixed && !expShopMode) return;
     resetPredatorDisciplines();    // очищаем старые дисциплины охоты
     openPredatorGallery();
 }
@@ -1354,6 +1357,7 @@ async function showSingleClan(clan) {
 
 // Открытие галереи стилей охоты
 function openPredatorGallery() {
+    if (startingSheetFixed && !expShopMode) return;
     const modal = document.getElementById('predator-modal');
     const gallery = document.getElementById('predator-gallery');
     gallery.innerHTML = '';
@@ -1942,40 +1946,16 @@ function setupDiceRollsFromLockedSheet() {
         const skillNameEl = target.closest?.('.skill-name');
         const specLine = target.closest?.('.skill-spec-line');
         const disciplineItem = target.closest?.('.discipline-item:not(.xp-shop-discipline-option)');
+        const editableInsideDiscipline = disciplineItem && target.closest?.('button, input, select, textarea');
 
         if (!attrNameEl && !skillNameEl && !specLine && !disciplineItem) return;
-        if (!startingSheetFixed || expShopMode) return;
-
-        e.preventDefault();
-        e.stopImmediatePropagation();
-
-        if (attrNameEl) {
-            const attrName = attrNameEl.getAttribute('data-attr') || attrNameEl.textContent.trim();
-            openDiceRollModal({ first: makeDicePart('attr', attrName) });
+        if (editableInsideDiscipline) return;
+        if (startingSheetFixed && !expShopMode) {
+            e.preventDefault();
+            e.stopImmediatePropagation();
             return;
         }
-
-        if (skillNameEl) {
-            const skillName = skillNameEl.getAttribute('data-skill') || skillNameEl.textContent.trim();
-            openDiceRollModal({ second: makeDicePart('skill', skillName) });
-            return;
-        }
-
-        if (specLine) {
-            const input = specLine.querySelector('input[type="text"]');
-            const skillName = input?.dataset.skill || findSkillNameForSpecLine(specLine);
-            const specName = input?.value.trim() || 'Специальность';
-
-            openDiceRollModal({
-                second: makeDicePart('skill', skillName),
-                modifier: 1,
-                modifierLabel: specName
-            });
-            return;
-        }
-
-        const disciplineName = disciplineItem?.dataset.disciplineName || disciplineItem?.querySelector('div:first-child')?.textContent.trim();
-        if (disciplineName) openDiceRollModal({ first: makeDicePart('discipline', disciplineName) });
+        return;
     }, true);
 }
 
@@ -2636,7 +2616,6 @@ function readImageAsCompressedDataURL(file, maxSize = 900, quality = 0.82) {
 }
 
 async function uploadCharacterImage(event) {
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
     const file = event.target.files?.[0];
     if (!file) return;
 
@@ -2651,7 +2630,6 @@ async function uploadCharacterImage(event) {
 }
 
 function deleteCharacterImage() {
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
     characterImageData = '';
     renderCharacterImage();
 }
@@ -2993,7 +2971,6 @@ function stabilizeImagesForCapture(area) {
 }
 
 function addTouchstone() {
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
     touchstones.push({ text: '', image: '' });
     renderTouchstones();
 }
@@ -3543,10 +3520,6 @@ document.addEventListener('change', function(e) {
 // ==================== ПРЕИМУЩЕСТВА И НЕДОСТАТКИ ====================
 
 function openMeritsFlawsModal() {
-    if (startingSheetFixed && !expShopMode) {
-        alert("Лист зафиксирован. Покупай преимущества и недостатки через магазин опыта.");
-        return;
-    }
     document.getElementById('merits-flaws-modal').style.display = 'block';
     switchMeritsTab(0); // по умолчанию открываем Преимущества
 }
@@ -3947,7 +3920,6 @@ function validateThinBloodBalance({ silent = false } = {}) {
 
 function openThinBloodTraitsModal(tab = 0) {
     if (!isThinBloodClan()) return alert('Этот раздел доступен только слабокровным.');
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Сначала расфиксируй лист.");
 
     const html = `
     <div id="thin-blood-traits-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.96); z-index:12000; overflow:auto; padding:20px;">
@@ -4237,17 +4209,12 @@ function createMeritItem(item, index, isMerit) {
 }
 
 window.removeMerit = function(i) { 
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Продавай преимущества через магазин опыта.");
-   
-    
     selectedMerits.splice(i,1); 
     renderSelectedMeritsFlaws(); 
     if (expShopMode) renderExpShopPanel();
 };
 
 window.removeFlaw = function(i) { 
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Меняй недостатки через магазин опыта.");
-    
     selectedFlaws.splice(i,1); 
     renderSelectedMeritsFlaws(); 
     if (expShopMode) renderExpShopPanel();
@@ -5709,9 +5676,7 @@ function applySheetLockState() {
             : "Зафиксировать текущие значения как стартовый лист";
     }
 
-    const lockedControls = document.querySelectorAll(
-        '#capture-area input:not(.dice-roll-specialty-input), #capture-area select, #capture-area textarea, #capture-area button, #skill-package'
-    );
+    const lockedControls = document.querySelectorAll('#clan-input, #predator-input, #generation-input, #type-input, .locked-origin-control');
     lockedControls.forEach(control => {
         const shouldDisable = startingSheetFixed && !expShopMode;
         control.disabled = shouldDisable;
@@ -5729,8 +5694,10 @@ function isSheetLockedTarget(target) {
     if (!startingSheetFixed || isApplyingCharacterData || isExperiencePurchaseInProgress) return false;
     if (expShopMode) return false;
     if (!target || target.closest('#exp-modal')) return false;
-    if (target.closest('.selected-item') && !target.closest('button')) return false;
-    return Boolean(target.closest('#capture-area') || target.closest('#skill-package'));
+    if (target.closest('#clan-input, #predator-input, #generation-input, #type-input, .locked-origin-control, .attr-name, .skill-name, .skill-spec-line')) return true;
+    const disciplineItem = target.closest('.discipline-item:not(.xp-shop-discipline-option)');
+    if (!disciplineItem) return false;
+    return !target.closest('button, input, select, textarea');
 }
 
 function setupSheetLockGuards() {
