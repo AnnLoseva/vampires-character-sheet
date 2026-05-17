@@ -46,7 +46,11 @@ create policy "Anyone can delete table scenes"
 alter table public.table_scenes replica identity full;
 
 alter table public.table_images
-  add column if not exists scene_id text;
+  add column if not exists scene_id text,
+  add column if not exists crop_x numeric null,
+  add column if not exists crop_y numeric null,
+  add column if not exists crop_width numeric null,
+  add column if not exists crop_height numeric null;
 
 create index if not exists table_images_room_scene_z_idx
   on public.table_images (room, scene_id, z_index asc);

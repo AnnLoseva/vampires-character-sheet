@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, CSSProperties, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import MusicPanel from './music/MusicPanel'
 import {
@@ -124,6 +124,10 @@ type TableLayer = {
   y: number
   width: number
   height: number
+  cropX: number | null
+  cropY: number | null
+  cropWidth: number | null
+  cropHeight: number | null
   zIndex: number
   visible: boolean
   locked: boolean
@@ -145,6 +149,10 @@ type TableLayerRow = {
   y: number | null
   width: number | null
   height: number | null
+  crop_x?: number | null
+  crop_y?: number | null
+  crop_width?: number | null
+  crop_height?: number | null
   z_index: number | null
   visible: boolean | null
   locked: boolean | null
@@ -154,7 +162,7 @@ type TableLayerRow = {
 
 type TableRole = 'master' | 'player'
 
-type LayerPatch = Partial<Pick<TableLayer, 'sceneId' | 'layerType' | 'ownerRole' | 'ownerId' | 'parentId' | 'name' | 'imageData' | 'x' | 'y' | 'width' | 'height' | 'zIndex' | 'visible' | 'locked' | 'onTable'>>
+type LayerPatch = Partial<Pick<TableLayer, 'sceneId' | 'layerType' | 'ownerRole' | 'ownerId' | 'parentId' | 'name' | 'imageData' | 'x' | 'y' | 'width' | 'height' | 'cropX' | 'cropY' | 'cropWidth' | 'cropHeight' | 'zIndex' | 'visible' | 'locked' | 'onTable'>>
 
 type TableScene = {
   id: string
@@ -358,6 +366,10 @@ function mapLayerRow(row: TableLayerRow): TableLayer {
     y: row.y ?? 80,
     width: row.width ?? 420,
     height: row.height ?? 280,
+    cropX: row.crop_x ?? null,
+    cropY: row.crop_y ?? null,
+    cropWidth: row.crop_width ?? null,
+    cropHeight: row.crop_height ?? null,
     zIndex: row.z_index ?? 1,
     visible: row.visible ?? true,
     locked: row.locked ?? false,
@@ -379,6 +391,10 @@ function toDbPatch(patch: LayerPatch) {
   if (patch.y !== undefined) dbPatch.y = patch.y
   if (patch.width !== undefined) dbPatch.width = patch.width
   if (patch.height !== undefined) dbPatch.height = patch.height
+  if (patch.cropX !== undefined) dbPatch.crop_x = patch.cropX
+  if (patch.cropY !== undefined) dbPatch.crop_y = patch.cropY
+  if (patch.cropWidth !== undefined) dbPatch.crop_width = patch.cropWidth
+  if (patch.cropHeight !== undefined) dbPatch.crop_height = patch.cropHeight
   if (patch.zIndex !== undefined) dbPatch.z_index = patch.zIndex
   if (patch.visible !== undefined) dbPatch.visible = patch.visible
   if (patch.locked !== undefined) dbPatch.locked = patch.locked
@@ -660,6 +676,26 @@ function getDocumentEmbedUrl(meta: ReturnType<typeof getFileLayerMeta>) {
   return ''
 }
 
+function getLayerCrop(layer: TableLayer) {
+  const cropX = Math.max(0, Math.min(95, layer.cropX ?? 0))
+  const cropY = Math.max(0, Math.min(95, layer.cropY ?? 0))
+  const cropWidth = Math.max(1, Math.min(100 - cropX, layer.cropWidth ?? 100))
+  const cropHeight = Math.max(1, Math.min(100 - cropY, layer.cropHeight ?? 100))
+  const cropped = cropX > 0 || cropY > 0 || cropWidth < 100 || cropHeight < 100
+  return { cropX, cropY, cropWidth, cropHeight, cropped }
+}
+
+function getCroppedMediaStyle(layer: TableLayer): CSSProperties {
+  const crop = getLayerCrop(layer)
+  if (!crop.cropped) return {}
+  return {
+    width: `${10000 / crop.cropWidth}%`,
+    height: `${10000 / crop.cropHeight}%`,
+    transform: `translate(${-crop.cropX}%, ${-crop.cropY}%)`,
+    transformOrigin: '0 0',
+  }
+}
+
 export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
@@ -909,7 +945,7 @@ export default function VampireTable() {
     const supabase = createClient()
     const { data, error } = await supabase
       .from(TABLE_IMAGES)
-      .select('id, room, scene_id, layer_type, owner_role, owner_id, parent_id, name, image_data, x, y, width, height, z_index, visible, locked, on_table, created_at')
+      .select('id, room, scene_id, layer_type, owner_role, owner_id, parent_id, name, image_data, x, y, width, height, crop_x, crop_y, crop_width, crop_height, z_index, visible, locked, on_table, created_at')
       .eq('room', targetRoom)
       .eq('scene_id', sceneId)
       .order('z_index', { ascending: true })
@@ -2201,6 +2237,10 @@ export default function VampireTable() {
       y: Math.round(point?.y ?? (activeFolder?.y ?? 70) + ((layersRef.current.length + index) % 6) * 24),
       width: fitWidth,
       height: fitHeight,
+      cropX: null,
+      cropY: null,
+      cropWidth: null,
+      cropHeight: null,
       zIndex: maxZ + 1,
       visible: true,
       locked: false,
@@ -2223,6 +2263,10 @@ export default function VampireTable() {
       y: layer.y,
       width: layer.width,
       height: layer.height,
+      crop_x: layer.cropX,
+      crop_y: layer.cropY,
+      crop_width: layer.cropWidth,
+      crop_height: layer.cropHeight,
       z_index: layer.zIndex,
       visible: layer.visible,
       locked: layer.locked,
@@ -2512,6 +2556,10 @@ export default function VampireTable() {
       y: (parentFolder?.y ?? 120) + (siblingCount % 5) * 28,
       width: 520,
       height: 320,
+      cropX: null,
+      cropY: null,
+      cropWidth: null,
+      cropHeight: null,
       zIndex: maxZ + 1,
       visible: true,
       locked: false,
@@ -2533,6 +2581,10 @@ export default function VampireTable() {
       y: folder.y,
       width: folder.width,
       height: folder.height,
+      crop_x: folder.cropX,
+      crop_y: folder.cropY,
+      crop_width: folder.cropWidth,
+      crop_height: folder.cropHeight,
       z_index: folder.zIndex,
       visible: folder.visible,
       locked: folder.locked,
@@ -2579,6 +2631,40 @@ export default function VampireTable() {
     const nextName = window.prompt('Новое имя слоя', layer.name)?.trim()
     if (!nextName || nextName === layer.name) return
     await patchLayer(layer.id, { name: nextName })
+    setLayerContextMenu(null)
+  }
+
+  const cropLayer = async (layer: TableLayer) => {
+    if (!canEditLayer(layer) || !['image', 'video'].includes(layer.layerType)) return
+    const current = getLayerCrop(layer)
+    const raw = window.prompt(
+      'Обрезка в процентах: слева, сверху, ширина, высота',
+      `${current.cropX}, ${current.cropY}, ${current.cropWidth}, ${current.cropHeight}`
+    )
+    if (!raw) return
+    const [cropX, cropY, cropWidth, cropHeight] = raw
+      .split(/[,\s]+/)
+      .map(value => Number(value.trim()))
+      .filter(value => Number.isFinite(value))
+    if (![cropX, cropY, cropWidth, cropHeight].every(value => typeof value === 'number')) {
+      window.alert('Введи четыре числа, например: 10, 5, 80, 90')
+      return
+    }
+    const nextCropX = Math.max(0, Math.min(95, cropX))
+    const nextCropY = Math.max(0, Math.min(95, cropY))
+    const nextCropWidth = Math.max(1, Math.min(100 - nextCropX, cropWidth))
+    const nextCropHeight = Math.max(1, Math.min(100 - nextCropY, cropHeight))
+    await patchLayer(layer.id, {
+      cropX: nextCropX,
+      cropY: nextCropY,
+      cropWidth: nextCropWidth,
+      cropHeight: nextCropHeight,
+    })
+    setLayerContextMenu(null)
+  }
+
+  const resetLayerCrop = async (layer: TableLayer) => {
+    await patchLayer(layer.id, { cropX: null, cropY: null, cropWidth: null, cropHeight: null })
     setLayerContextMenu(null)
   }
 
@@ -3610,7 +3696,7 @@ export default function VampireTable() {
 
               {visibleLayers.map(layer => (
                 <div
-                  className={`scene-layer ${layer.layerType === 'video' ? 'video-layer' : ''} ${layer.layerType === 'text' ? 'text-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || !canEditLayer(layer) ? 'locked' : ''}`}
+                  className={`scene-layer ${layer.layerType === 'image' ? 'image-layer' : ''} ${layer.layerType === 'video' ? 'video-layer' : ''} ${layer.layerType === 'text' ? 'text-layer' : ''} ${getLayerCrop(layer).cropped ? 'cropped-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || !canEditLayer(layer) ? 'locked' : ''}`}
                   key={layer.id}
                   style={{
                     left: layer.x,
@@ -3667,6 +3753,7 @@ export default function VampireTable() {
                           loop
                           playsInline
                           draggable={false}
+                          style={getCroppedMediaStyle(layer)}
                           onError={event => {
                             event.currentTarget.style.display = 'none'
                             event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -3702,6 +3789,7 @@ export default function VampireTable() {
                         src={layer.imageData}
                         alt=""
                         draggable={false}
+                        style={getCroppedMediaStyle(layer)}
                         onError={event => {
                           event.currentTarget.style.display = 'none'
                           event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -3769,20 +3857,23 @@ export default function VampireTable() {
           </nav>
 
           <section className={`media-sidebar table-right-panel ${rightRailTab === 'media' ? '' : 'table-right-panel-hidden'}`} aria-label="Медиа стола">
-            <nav className="sub-tabs" aria-label="Медиа панели">
-              <button type="button" className={mediaTab === 'music' ? 'active' : ''} onClick={() => setMediaTab('music')}>
-                Музыка
-              </button>
-              <button type="button" className={mediaTab === 'layers' ? 'active' : ''} onClick={() => setMediaTab('layers')}>
-                Стол
-              </button>
-              <button type="button" className={mediaTab === 'library' ? 'active' : ''} onClick={() => setMediaTab('library')}>
-                Мои медиа
-              </button>
-            </nav>
+            {!isMaster ? (
+              <nav className="sub-tabs" aria-label="Медиа панели">
+                <button type="button" className={mediaTab === 'music' ? 'active' : ''} onClick={() => setMediaTab('music')}>
+                  Музыка
+                </button>
+                <button type="button" className={mediaTab === 'layers' ? 'active' : ''} onClick={() => setMediaTab('layers')}>
+                  Стол
+                </button>
+                <button type="button" className={mediaTab === 'library' ? 'active' : ''} onClick={() => setMediaTab('library')}>
+                  Мои медиа
+                </button>
+              </nav>
+            ) : null}
 
-            <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} hidden={mediaTab !== 'music'} />
+            <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} hidden={!isMaster && mediaTab !== 'music'} />
 
+            {!isMaster ? (
             <section
               className={`layer-panel table-right-panel ${mediaTab === 'layers' ? '' : 'table-right-panel-hidden'}`}
               aria-label="Слои стола"
@@ -3838,7 +3929,9 @@ export default function VampireTable() {
                 </div>
               </div>
             </section>
+            ) : null}
 
+            {!isMaster ? (
             <section
               className={`library-panel table-right-panel ${mediaTab === 'library' ? '' : 'table-right-panel-hidden'}`}
               aria-label="Мои медиа"
@@ -3912,6 +4005,7 @@ export default function VampireTable() {
                 </div>
               </div>
             </section>
+            ) : null}
           </section>
 
           <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label="История бросков">
@@ -4258,6 +4352,12 @@ export default function VampireTable() {
             onClick={event => event.stopPropagation()}
           >
             {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>Переименовать</button> : null}
+            {singleLayer && ['image', 'video'].includes(singleLayer.layerType) ? (
+              <button type="button" onClick={() => cropLayer(singleLayer)}>Обрезать видимую часть</button>
+            ) : null}
+            {singleLayer && getLayerCrop(singleLayer).cropped ? (
+              <button type="button" onClick={() => resetLayerCrop(singleLayer)}>Восстановить обрезанное</button>
+            ) : null}
             <button type="button" onClick={() => {
               patchSelectedLayers(ids, () => ({ visible: !allVisible }))
               setLayerContextMenu(null)
@@ -4890,11 +4990,17 @@ export default function VampireTable() {
         .scene-layer {
           position: absolute;
           border: 1px solid transparent;
-          background: #050505;
+          background: transparent;
           user-select: none;
           touch-action: none;
           cursor: move;
           box-shadow: 0 10px 30px rgba(0,0,0,0.28);
+          overflow: hidden;
+        }
+
+        .image-layer {
+          background: transparent;
+          box-shadow: none;
         }
 
         .scene-layer.selected {
@@ -4936,6 +5042,13 @@ export default function VampireTable() {
         .scene-layer iframe,
         .video-layer {
           background: #050505;
+        }
+
+        .cropped-layer img,
+        .cropped-layer video {
+          max-width: none;
+          max-height: none;
+          object-fit: fill;
         }
 
         .scene-layer iframe {
