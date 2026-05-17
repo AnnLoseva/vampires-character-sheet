@@ -37,6 +37,37 @@
         box-shadow: 0 0 40px rgba(255, 49, 49, 0.1);
     }
 
+    .sheet-nav-bar {
+        position: fixed;
+        top: 14px;
+        left: 14px;
+        z-index: 25000;
+        display: flex;
+        gap: 8px;
+        flex-wrap: wrap;
+        max-width: calc(100vw - 28px);
+    }
+
+    .sheet-nav-bar a {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 38px;
+        padding: 0 13px;
+        border: 1px solid #773030;
+        border-radius: 6px;
+        background: rgba(12,12,12,0.94);
+        color: #fff;
+        font-size: 13px;
+        text-decoration: none;
+        box-shadow: 0 10px 28px rgba(0,0,0,0.4);
+    }
+
+    .sheet-nav-bar a:hover {
+        border-color: #ff3131;
+        background: #241111;
+    }
+
     /* ==================== СКРОЛЛБАР ==================== */
     ::-webkit-scrollbar {
         width: 10px;
@@ -248,6 +279,159 @@
             background: #080808;
             border: 1px solid #333;
             border-radius: 8px;
+        }
+
+        .inventory-section h2 {
+            margin: 0;
+            border: 0;
+            padding: 0;
+            text-align: left;
+            color: #ff3131;
+        }
+
+        .inventory-head,
+        .inventory-toolbar,
+        .inventory-card-head,
+        .inventory-card-actions,
+        .inventory-card-meta {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .inventory-head {
+            justify-content: space-between;
+            border-bottom: 1px solid #222;
+            padding-bottom: 14px;
+            margin-bottom: 14px;
+        }
+
+        .inventory-head p,
+        .inventory-card-meta,
+        .inventory-empty {
+            color: #888;
+            font-size: 13px;
+        }
+
+        .inventory-head button,
+        .inventory-card button,
+        .inventory-toolbar select {
+            border: 1px solid #773030;
+            border-radius: 6px;
+            background: #151515;
+            color: #eee;
+            padding: 9px 11px;
+            font: inherit;
+            cursor: pointer;
+        }
+
+        .inventory-toolbar {
+            justify-content: space-between;
+            margin-bottom: 14px;
+        }
+
+        .inventory-toolbar label {
+            display: grid;
+            gap: 4px;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .inventory-list {
+            display: grid;
+            gap: 12px;
+        }
+
+        .inventory-card {
+            border: 1px solid #292929;
+            border-radius: 8px;
+            background: #050505;
+            padding: 14px;
+        }
+
+        .inventory-card-head {
+            justify-content: space-between;
+            margin-bottom: 10px;
+        }
+
+        .inventory-card-title {
+            display: grid;
+            gap: 4px;
+            min-width: 220px;
+        }
+
+        .inventory-card-title strong {
+            color: #fff;
+            font-size: 17px;
+        }
+
+        .inventory-card-title span {
+            color: #ffb3b3;
+            font-size: 12px;
+        }
+
+        .inventory-card-fields {
+            display: grid;
+            grid-template-columns: 1.2fr 0.7fr 0.5fr;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .inventory-card-fields label,
+        .inventory-description label,
+        .inventory-note label {
+            display: grid;
+            gap: 5px;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .inventory-card input,
+        .inventory-card select,
+        .inventory-card textarea {
+            width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: #101010;
+            color: #eee;
+            padding: 9px;
+            font: inherit;
+        }
+
+        .inventory-card textarea {
+            resize: vertical;
+            min-height: 70px;
+        }
+
+        .inventory-description.collapsed,
+        .inventory-note.collapsed {
+            display: none;
+        }
+
+        .inventory-card-actions {
+            justify-content: space-between;
+            margin-top: 10px;
+        }
+
+        .inventory-card-actions .danger {
+            border-color: #7a2222;
+            color: #ff8080;
+        }
+
+        .inventory-quantity {
+            display: grid;
+            grid-template-columns: 34px minmax(52px, 1fr) 34px;
+            gap: 5px;
+            align-items: end;
+        }
+
+        @media (max-width: 760px) {
+            .inventory-card-fields {
+                grid-template-columns: 1fr;
+            }
         }
 
         .touchstone-item {
@@ -1420,6 +1604,10 @@
 </head>
 
 <body>
+<div class="sheet-nav-bar">
+    <a href="/" title="На главный экран">На главный экран</a>
+    <a id="sheet-table-link" href="/table" title="На игровой стол">На игровой стол</a>
+</div>
     <div class="main-container">
 
         <!-- Левая панель -->
@@ -1724,6 +1912,33 @@
 <div class="story-section">
     <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ПРЕДЫСТОРИЯ</h2>
     <textarea id="backstory-input" placeholder="Предыстория персонажа"></textarea>
+</div>
+
+<div class="story-section inventory-section">
+    <div class="inventory-head">
+        <div>
+            <h2>ИНВЕНТАРЬ</h2>
+            <p>Предметы сохраняются вместе с персонажем.</p>
+        </div>
+        <button type="button" onclick="addInventoryItem()">+ Предмет</button>
+    </div>
+    <div class="inventory-toolbar">
+        <label>
+            <span>Категория</span>
+            <select id="inventory-filter" onchange="renderInventory()">
+                <option value="Все">Все</option>
+                <option value="Оружие">Оружие</option>
+                <option value="Одежда">Одежда</option>
+                <option value="Документы">Документы</option>
+                <option value="Деньги">Деньги</option>
+                <option value="Артефакты">Артефакты</option>
+                <option value="Расходники">Расходники</option>
+                <option value="Другое">Другое</option>
+            </select>
+        </label>
+        <span id="inventory-count">0 предметов</span>
+    </div>
+    <div id="inventory-list" class="inventory-list"></div>
 </div>
 
 </div>   <!-- ←←← ЗАКРЫТИЕ .sheet -->

@@ -50,17 +50,70 @@ type CharacterOption = {
   name: string
   clan: string | null
   image: string
+  username?: string
+  userId?: string
+  concept?: string
+  predator?: string
+  generation?: string
+  type?: string
+  notes?: string
+  appearance?: string
+  backstory?: string
+  freeExp?: number
+  inventory: InventoryItem[]
 }
 
 type CharacterRow = {
   id: string
+  user_id?: string | null
+  users?: { username?: string | null } | null
   name: string
   clan: string | null
   data: {
     characterImage?: string
     image?: string
     portrait?: string
+    concept?: string
+    predator?: string
+    generation?: string
+    type?: string
+    notes?: string
+    appearance?: string
+    backstory?: string
+    freeExp?: number
+    experience?: number
+    inventory?: InventoryItem[]
   } | null
+}
+
+type InventoryItem = {
+  id: string
+  name: string
+  description: string
+  quantity: number
+  category: string
+  note: string
+  createdAt: string
+  updatedAt: string
+  collapsed?: boolean
+}
+
+type ActiveParticipant = {
+  userId: string
+  username: string
+  characterId: string | null
+  characterName: string
+  characterClan: string | null
+  characterImage: string
+  updatedAt: string
+}
+
+type JournalEntry = {
+  id: string
+  title: string
+  text: string
+  updatedAt: string
+  createdAt: string
 }
 
 type ChatMessage = {
@@ -310,7 +363,7 @@ type LayerDropTarget = {
   placement: LayerDropPlacement
 } | null
 
-type RightRailTab = 'media' | 'rolls' | 'chat'
+type RightRailTab = 'media' | 'rolls' | 'chat' | 'diary'
 type MediaTab = 'music' | 'layers' | 'library'
 type LeftToolbarTab = 'scenes' | 'layers' | 'media'
 type ChatPanelTab = 'text' | 'voice'
@@ -392,6 +445,46 @@ function mapChatRow(row: ChatMessageRow): ChatMessage {
     characterImage: row.character_image || '',
     message: row.message,
     createdAt: row.created_at,
+  }
+}
+
+function normalizeInventory(items: unknown): InventoryItem[] {
+  if (!Array.isArray(items)) return []
+  return items.map((item, index) => {
+    const source = item && typeof item === 'object' ? item as Partial<InventoryItem> : {}
+    const now = new Date().toISOString()
+    return {
+      id: source.id || `inventory-${index}`,
+      name: source.name || 'Без названия',
+      description: source.description || '',
+      quantity: Math.max(0, Number(source.quantity ?? 1) || 0),
+      category: source.category || 'Другое',
+      note: source.note || '',
+      createdAt: source.createdAt || now,
+      updatedAt: source.updatedAt || source.createdAt || now,
+      collapsed: source.collapsed,
+    }
+  })
+}
+
+function mapCharacterRow(row: CharacterRow): CharacterOption {
+  const data = row.data || {}
+  return {
+    id: row.id,
+    userId: row.user_id || undefined,
+    username: row.users?.username || undefined,
+    name: row.name,
+    clan: row.clan,
+    image: data.characterImage || data.image || data.portrait || '',
+    concept: data.concept || '',
+    predator: data.predator || '',
+    generation: data.generation || '',
+    type: data.type || '',
+    notes: data.notes || data.backstory || '',
+    appearance: data.appearance || '',
+    backstory: data.backstory || '',
+    freeExp: Number(data.freeExp ?? data.experience ?? 0) || 0,
+    inventory: normalizeInventory(data.inventory),
   }
 }
 
@@ -810,6 +903,12 @@ export default function VampireTable() {
   const [chatUser, setChatUser] = useState<ChatUser | null>(null)
   const [chatCharacters, setChatCharacters] = useState<CharacterOption[]>([])
   const [selectedChatCharacterId, setSelectedChatCharacterId] = useState('')
+  const [roomParticipants, setRoomParticipants] = useState<ActiveParticipant[]>([])
+  const [previewCharacter, setPreviewCharacter] = useState<CharacterOption | null>(null)
+  const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
+  const [selectedJournalEntryId, setSelectedJournalEntryId] = useState('')
+  const [journalSearch, setJournalSearch] = useState('')
+  const [journalSaveStatus, setJournalSaveStatus] = useState('Сохранено')
   const [chatDraft, setChatDraft] = useState('')
   const [chatUsernameDraft, setChatUsernameDraft] = useState('')
   const [chatPasswordDraft, setChatPasswordDraft] = useState('')
@@ -875,6 +974,7 @@ export default function VampireTable() {
   const chatUserRef = useRef<ChatUser | null>(null)
   const chatCharactersRef = useRef<CharacterOption[]>([])
   const selectedChatCharacterIdRef = useRef('')
+  const journalEntriesRef = useRef<JournalEntry[]>([])
   const voiceEnabledRef = useRef(false)
   const voiceMutedRef = useRef(false)
   const voiceQualityRef = useRef<VoiceQuality>('clear')
@@ -921,6 +1021,10 @@ export default function VampireTable() {
   useEffect(() => {
     selectedChatCharacterIdRef.current = selectedChatCharacterId
   }, [selectedChatCharacterId])
+
+  useEffect(() => {
+    journalEntriesRef.current = journalEntries
+  }, [journalEntries])
 
   useEffect(() => {
     voiceEnabledRef.current = voiceEnabled
@@ -990,21 +1094,18 @@ export default function VampireTable() {
           return
         }
 
-        const characters = (data || []).map(row => {
-          const character = row as CharacterRow
-          return {
-            id: character.id,
-            name: character.name,
-            clan: character.clan,
-            image: character.data?.characterImage || character.data?.image || character.data?.portrait || '',
-          }
-        })
+        const characters = (data || []).map(row => mapCharacterRow(row as CharacterRow))
         setChatCharacters(characters)
-        const savedId = window.localStorage.getItem(`vtm-chat-character:${chatUser.id}`)
+        const savedId = window.localStorage.getItem(`vtm-chat-character:${chatUser.id}:${roomRef.current}`)
+          || window.localStorage.getItem(`vtm-chat-character:${chatUser.id}`)
         const nextId = savedId && characters.some(character => character.id === savedId)
           ? savedId
           : characters[0]?.id || ''
         setSelectedChatCharacterId(nextId)
+        if (nextId) {
+          window.localStorage.setItem(`vtm-chat-character:${chatUser.id}:${roomRef.current}`, nextId)
+          window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, nextId)
+        }
       })
 
     return () => {
@@ -1669,6 +1770,17 @@ export default function VampireTable() {
         setHandNotice(`${notice.name} поднял руку`)
         window.setTimeout(() => setHandNotice(''), 5200)
       })
+      .on('broadcast', { event: 'active-character' }, payload => {
+        const update = payload.payload as { room?: string; participant?: ActiveParticipant }
+        if (update.room !== currentRoom || !update.participant?.userId) return
+        setRoomParticipants(prev => {
+          const participant = update.participant as ActiveParticipant
+          const exists = prev.some(item => item.userId === participant.userId)
+          return exists
+            ? prev.map(item => item.userId === participant.userId ? participant : item)
+            : [...prev, participant]
+        })
+      })
       .on('broadcast', { event: 'voice-signal' }, payload => {
         handleVoiceSignal(payload.payload as VoiceSignal)
       })
@@ -1816,6 +1928,230 @@ export default function VampireTable() {
       supabase.removeChannel(channel)
     }
   }, [])
+
+  const selectedActiveCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId) || null
+  const journalStorageKey = chatUser ? `vtm-journal:${chatUser.id}:${room}` : ''
+  const selectedJournalEntry = journalEntries.find(entry => entry.id === selectedJournalEntryId) || journalEntries[0] || null
+  const filteredJournalEntries = journalEntries.filter(entry => {
+    const query = journalSearch.trim().toLowerCase()
+    if (!query) return true
+    return `${entry.title} ${entry.text}`.toLowerCase().includes(query)
+  })
+
+  const saveJournalEntries = (entries: JournalEntry[], status = 'Сохранено') => {
+    setJournalEntries(entries)
+    if (journalStorageKey) window.localStorage.setItem(journalStorageKey, JSON.stringify(entries))
+    setJournalSaveStatus(status)
+  }
+
+  const createJournalEntry = () => {
+    const now = new Date().toISOString()
+    const entry: JournalEntry = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      title: 'Новая запись',
+      text: '',
+      createdAt: now,
+      updatedAt: now,
+    }
+    saveJournalEntries([entry, ...journalEntries], 'Сохранено')
+    setSelectedJournalEntryId(entry.id)
+  }
+
+  const updateJournalEntry = (patch: Partial<Pick<JournalEntry, 'title' | 'text'>>) => {
+    if (!selectedJournalEntry) return
+    const now = new Date().toISOString()
+    const next = journalEntries.map(entry => entry.id === selectedJournalEntry.id ? { ...entry, ...patch, updatedAt: now } : entry)
+    setJournalEntries(next)
+    setJournalSaveStatus('Есть несохранённые изменения')
+  }
+
+  const persistCurrentJournal = () => {
+    if (!journalStorageKey) return
+    window.localStorage.setItem(journalStorageKey, JSON.stringify(journalEntries))
+    setJournalSaveStatus('Сохранено')
+  }
+
+  const deleteJournalEntry = () => {
+    if (!selectedJournalEntry) return
+    if (!window.confirm(`Удалить запись "${selectedJournalEntry.title || 'Без названия'}"?`)) return
+    const next = journalEntries.filter(entry => entry.id !== selectedJournalEntry.id)
+    saveJournalEntries(next, 'Сохранено')
+    setSelectedJournalEntryId(next[0]?.id || '')
+  }
+
+  const chooseActiveCharacter = (characterId: string) => {
+    setSelectedChatCharacterId(characterId)
+    if (!chatUser) return
+    window.localStorage.setItem(`vtm-chat-character:${chatUser.id}:${room}`, characterId)
+    window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, characterId)
+    window.localStorage.setItem(`vtm-home-character:${chatUser.id}`, characterId)
+  }
+
+  const openParticipantPreview = async (participant: ActiveParticipant) => {
+    const local = chatCharacters.find(character => character.id === participant.characterId)
+    if (local) {
+      setPreviewCharacter({ ...local, username: participant.username })
+      return
+    }
+    if (!participant.characterId) {
+      setPreviewCharacter({
+        id: '',
+        name: 'Без персонажа',
+        clan: null,
+        image: '',
+        username: participant.username,
+        inventory: [],
+      })
+      return
+    }
+    const { data, error } = await createClient()
+      .from('characters')
+      .select('id, user_id, name, clan, data')
+      .eq('id', participant.characterId)
+      .single()
+    if (error || !data) {
+      setPreviewCharacter({
+        id: participant.characterId,
+        name: participant.characterName,
+        clan: participant.characterClan,
+        image: participant.characterImage,
+        username: participant.username,
+        inventory: [],
+      })
+      return
+    }
+    setPreviewCharacter({ ...mapCharacterRow(data as CharacterRow), username: participant.username })
+  }
+
+  const rollQuickDice = async (diceCount = 1, poolName = 'Быстрый бросок') => {
+    const character = selectedActiveCharacter
+    if (!character) {
+      window.alert('Сначала выбери активного персонажа.')
+      return
+    }
+    const dice = Array.from({ length: Math.max(1, Math.min(20, diceCount)) }, () => {
+      const value = Math.floor(Math.random() * 10) + 1
+      return {
+        value,
+        kind: value === 1 ? 'botch' : value === 10 ? 'critical' : value >= 6 ? 'success' : 'fail',
+      } as Die
+    })
+    const criticals = dice.filter(die => die.value === 10).length
+    const successes = dice.filter(die => die.value >= 6).length + Math.floor(criticals / 2) * 2
+    const roll: RollMessage = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      characterName: character.name,
+      poolName,
+      poolType: 'quick',
+      diceCount: dice.length,
+      dice,
+      successes,
+      createdAt: new Date().toISOString(),
+    }
+    setRolls(prev => mergeRoll(prev, roll))
+    broadcast('roll', roll)
+    const { error } = await createClient().from(TABLE_ROLLS).insert({
+      id: roll.id,
+      room: roll.room,
+      character_name: roll.characterName,
+      pool_name: roll.poolName,
+      pool_type: roll.poolType,
+      dice_count: roll.diceCount,
+      dice: roll.dice,
+      successes: roll.successes,
+      created_at: roll.createdAt,
+    })
+    if (error) setConnectionText('Бросок отправлен онлайн, но не сохранился')
+    else setConnectionText('Онлайн')
+  }
+
+  const addExperienceToActiveCharacter = async () => {
+    if (!chatUser || !previewCharacter?.id || previewCharacter.id !== selectedActiveCharacter?.id) return
+    const amount = Number(window.prompt('Сколько опыта добавить?', '1'))
+    if (!Number.isFinite(amount) || amount <= 0) return
+    const { data, error } = await createClient()
+      .from('characters')
+      .select('data')
+      .eq('id', previewCharacter.id)
+      .eq('user_id', chatUser.id)
+      .single()
+    if (error || !data?.data) {
+      window.alert('Не удалось загрузить персонажа для добавления опыта.')
+      return
+    }
+    const characterData = data.data as Record<string, unknown>
+    const current = Number(characterData.freeExp ?? characterData.experience ?? 0) || 0
+    const nextData = {
+      ...characterData,
+      freeExp: current + amount,
+      timestamp: new Date().toISOString(),
+    }
+    const { error: updateError } = await createClient()
+      .from('characters')
+      .update({ data: nextData })
+      .eq('id', previewCharacter.id)
+      .eq('user_id', chatUser.id)
+    if (updateError) {
+      window.alert('Опыт не сохранился.')
+      return
+    }
+    const nextFreeExp = current + amount
+    setPreviewCharacter(prev => prev ? { ...prev, freeExp: nextFreeExp } : prev)
+    setChatCharacters(prev => prev.map(character => character.id === previewCharacter.id ? { ...character, freeExp: nextFreeExp } : character))
+  }
+
+  useEffect(() => {
+    if (!chatUser || !journalStorageKey) {
+      setJournalEntries([])
+      setSelectedJournalEntryId('')
+      return
+    }
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(journalStorageKey) || '[]') as JournalEntry[]
+      const entries = Array.isArray(parsed) ? parsed : []
+      setJournalEntries(entries)
+      setSelectedJournalEntryId(entries[0]?.id || '')
+      setJournalSaveStatus('Сохранено')
+    } catch {
+      setJournalEntries([])
+      setSelectedJournalEntryId('')
+    }
+  }, [chatUser, journalStorageKey])
+
+  useEffect(() => {
+    if (!chatUser || journalSaveStatus !== 'Есть несохранённые изменения') return
+    const timeout = window.setTimeout(() => persistCurrentJournal(), 800)
+    return () => window.clearTimeout(timeout)
+  }, [journalEntries, journalSaveStatus, chatUser])
+
+  useEffect(() => {
+    if (!chatUser || !journalStorageKey) return
+    const interval = window.setInterval(() => {
+      window.localStorage.setItem(journalStorageKey, JSON.stringify(journalEntriesRef.current))
+      setJournalSaveStatus('Сохранено')
+    }, 5 * 60 * 1000)
+    return () => window.clearInterval(interval)
+  }, [chatUser, journalStorageKey])
+
+  useEffect(() => {
+    if (!chatUser) return
+    const character = selectedActiveCharacter
+    const participant: ActiveParticipant = {
+      userId: chatUser.id,
+      username: chatUser.username,
+      characterId: character?.id || null,
+      characterName: character?.name || 'без персонажа',
+      characterClan: character?.clan || null,
+      characterImage: character?.image || '',
+      updatedAt: new Date().toISOString(),
+    }
+    setRoomParticipants(prev => {
+      const exists = prev.some(item => item.userId === participant.userId)
+      return exists ? prev.map(item => item.userId === participant.userId ? participant : item) : [participant, ...prev]
+    })
+    broadcast('active-character', { room, participant })
+  }, [chatUser, selectedChatCharacterId, chatCharacters, room])
 
   const latest = rolls[0]
   const totalDice = useMemo(() => rolls.reduce((sum, roll) => sum + roll.diceCount, 0), [rolls])
@@ -3776,6 +4112,45 @@ export default function VampireTable() {
         </div>
       </section>
 
+      <section className="active-character-strip" aria-label="Активный персонаж">
+        <div className="active-character-card">
+          <div className="chat-avatar large" aria-hidden="true">
+            {selectedActiveCharacter?.image ? (
+              <img src={selectedActiveCharacter.image} alt="" />
+            ) : (
+              <span>{(selectedActiveCharacter?.name || '?').slice(0, 1).toUpperCase()}</span>
+            )}
+          </div>
+          <div>
+            <span>Активный персонаж</span>
+            <strong>{selectedActiveCharacter?.name || 'Персонаж не выбран'}</strong>
+            <small>{selectedActiveCharacter?.clan || (chatUser ? 'без клана' : 'войдите в аккаунт')}</small>
+          </div>
+          <button type="button" onClick={() => selectedActiveCharacter ? setPreviewCharacter(selectedActiveCharacter) : setRightRailTab('chat')} disabled={!selectedActiveCharacter}>
+            Быстрый просмотр
+          </button>
+          <a href={`/character-sheet?room=${encodeURIComponent(room)}`}>Открыть полный лист</a>
+        </div>
+        <div className="active-character-picker">
+          <label>
+            <span>Смена персонажа</span>
+            <select
+              value={selectedChatCharacterId}
+              onChange={event => chooseActiveCharacter(event.target.value)}
+              disabled={!chatUser || chatCharacters.length === 0}
+            >
+              {chatCharacters.length === 0 ? <option value="">Нет сохранённых персонажей</option> : null}
+              {chatCharacters.map(character => (
+                <option value={character.id} key={character.id}>
+                  {character.name}{character.clan ? `, ${character.clan}` : ''}
+                </option>
+              ))}
+            </select>
+          </label>
+          {!selectedActiveCharacter ? <button type="button" onClick={() => setRightRailTab('chat')}>Выбрать персонажа</button> : null}
+        </div>
+      </section>
+
       <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''} ${!musicPanelOpen ? 'music-collapsed' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
         <aside className={`music-dock ${musicPanelOpen ? '' : 'panel-collapsed'}`} aria-label="Музыка комнаты">
           <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} />
@@ -4280,6 +4655,13 @@ export default function VampireTable() {
             >
               Чат
             </button>
+            <button
+              type="button"
+              className={rightRailTab === 'diary' ? 'active' : ''}
+              onClick={() => setRightRailTab('diary')}
+            >
+              Дневник
+            </button>
           </nav>
 
           <section className={`media-sidebar table-right-panel ${rightRailTab === 'media' ? '' : 'table-right-panel-hidden'}`} aria-label="Медиа стола">
@@ -4497,6 +4879,27 @@ export default function VampireTable() {
             <div className="chat-login">
               {chatUser ? (
                 <>
+                  <section className="room-participants-panel" aria-label="Участники комнаты">
+                    <header>
+                      <strong>Участники</strong>
+                      <span>{roomParticipants.length || 1}</span>
+                    </header>
+                    <div>
+                      {roomParticipants.length === 0 ? (
+                        <p className="panel-empty">Пока виден только ваш вход.</p>
+                      ) : roomParticipants.map(participant => (
+                        <button type="button" className="participant-row" key={participant.userId} onClick={() => openParticipantPreview(participant)}>
+                          <span className="chat-avatar" aria-hidden="true">
+                            {participant.characterImage ? <img src={participant.characterImage} alt="" /> : <span>{participant.characterName.slice(0, 1).toUpperCase()}</span>}
+                          </span>
+                          <span>
+                            <strong>{participant.username}</strong>
+                            <small>{participant.characterName || 'без персонажа'}{participant.characterClan ? ` · ${participant.characterClan}` : ''}</small>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                   <div className="chat-user-row">
                     <span>{chatUser.username}</span>
                     <button type="button" onClick={logoutChat}>Выйти</button>
@@ -4506,8 +4909,7 @@ export default function VampireTable() {
                     <select
                       value={selectedChatCharacterId}
                       onChange={event => {
-                        setSelectedChatCharacterId(event.target.value)
-                        window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, event.target.value)
+                        chooseActiveCharacter(event.target.value)
                       }}
                     >
                       {chatCharacters.length === 0 ? <option value="">Нет сохранённых персонажей</option> : null}
@@ -4712,8 +5114,126 @@ export default function VampireTable() {
               </button>
             </form>
           </section>
+
+          <section className={`diary-sidebar table-right-panel ${rightRailTab === 'diary' ? '' : 'table-right-panel-hidden'}`} aria-label="Дневник игрока">
+            <header>
+              <div>
+                <span>Дневник</span>
+                <strong>{journalEntries.length}</strong>
+              </div>
+              <div>
+                <span>Статус</span>
+                <strong>{journalSaveStatus}</strong>
+              </div>
+            </header>
+            {!chatUser ? (
+              <p className="panel-empty">Войдите в аккаунт, чтобы вести личный дневник комнаты.</p>
+            ) : (
+              <div className="diary-layout">
+                <aside className="diary-list">
+                  <input value={journalSearch} onChange={event => setJournalSearch(event.target.value)} placeholder="Поиск в дневнике" />
+                  <button type="button" onClick={createJournalEntry}>Новая запись</button>
+                  <div>
+                    {filteredJournalEntries.length === 0 ? (
+                      <p className="panel-empty">Записей не найдено.</p>
+                    ) : filteredJournalEntries.map(entry => (
+                      <button
+                        type="button"
+                        className={entry.id === selectedJournalEntry?.id ? 'active' : ''}
+                        key={entry.id}
+                        onClick={() => setSelectedJournalEntryId(entry.id)}
+                      >
+                        <strong>{entry.title || 'Без названия'}</strong>
+                        <span>{new Date(entry.updatedAt).toLocaleString('ru-RU')}</span>
+                      </button>
+                    ))}
+                  </div>
+                </aside>
+                <section className="diary-editor">
+                  {selectedJournalEntry ? (
+                    <>
+                      <input
+                        value={selectedJournalEntry.title}
+                        onChange={event => updateJournalEntry({ title: event.target.value })}
+                        placeholder="Заголовок"
+                      />
+                      <textarea
+                        value={selectedJournalEntry.text}
+                        onChange={event => updateJournalEntry({ text: event.target.value })}
+                        placeholder="Текст записи"
+                      />
+                      <footer>
+                        <span>Обновлено: {new Date(selectedJournalEntry.updatedAt).toLocaleString('ru-RU')}</span>
+                        <button type="button" onClick={persistCurrentJournal}>Сохранить</button>
+                        <button type="button" className="danger" onClick={deleteJournalEntry}>Удалить</button>
+                      </footer>
+                    </>
+                  ) : (
+                    <p className="panel-empty">Создайте первую запись.</p>
+                  )}
+                </section>
+              </div>
+            )}
+          </section>
         </aside>
       </section>
+
+      {previewCharacter ? (
+        <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label="Быстрый просмотр персонажа" onMouseDown={() => setPreviewCharacter(null)}>
+          <section className="character-preview-modal" onMouseDown={event => event.stopPropagation()}>
+            <header>
+              <div className="character-preview-identity">
+                <div className="chat-avatar large" aria-hidden="true">
+                  {previewCharacter.image ? <img src={previewCharacter.image} alt="" /> : <span>{previewCharacter.name.slice(0, 1).toUpperCase()}</span>}
+                </div>
+                <div>
+                  <span>{previewCharacter.username || chatUser?.username || 'Игрок'}</span>
+                  <strong>{previewCharacter.name}</strong>
+                  <small>{previewCharacter.clan || 'Клан не указан'}</small>
+                </div>
+              </div>
+              <button type="button" onClick={() => setPreviewCharacter(null)} aria-label="Закрыть предпросмотр">×</button>
+            </header>
+            <div className="character-preview-grid">
+              <section>
+                <h3>Основное</h3>
+                <p><b>Концепция:</b> {previewCharacter.concept || '—'}</p>
+                <p><b>Поколение:</b> {previewCharacter.generation || '—'}</p>
+                <p><b>Тип:</b> {previewCharacter.type || '—'}</p>
+                <p><b>Стиль охоты:</b> {previewCharacter.predator || '—'}</p>
+                <p><b>Свободный опыт:</b> {previewCharacter.freeExp ?? 0}</p>
+              </section>
+              <section>
+                <h3>Заметки</h3>
+                <p>{previewCharacter.notes || previewCharacter.appearance || 'Заметок нет.'}</p>
+              </section>
+              <section>
+                <h3>Инвентарь</h3>
+                {previewCharacter.inventory.length === 0 ? (
+                  <p>Инвентарь пуст.</p>
+                ) : (
+                  <ul>
+                    {previewCharacter.inventory.slice(0, 8).map(item => (
+                      <li key={item.id}>
+                        <strong>{item.name}</strong>
+                        <span>{item.quantity} · {item.category}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+            <footer className="character-preview-actions">
+              <button type="button" onClick={() => rollQuickDice(1, 'Быстрый бросок')}>Бросить 1к10</button>
+              {previewCharacter.id && previewCharacter.id === selectedActiveCharacter?.id ? (
+                <button type="button" onClick={addExperienceToActiveCharacter}>Добавить опыт</button>
+              ) : null}
+              <a href={`/character-sheet?room=${encodeURIComponent(room)}`}>Открыть полный лист</a>
+              <button type="button" onClick={() => setPreviewCharacter(null)}>Закрыть</button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
 
       {previewLayer ? (
         <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label="Предпросмотр медиа" onMouseDown={() => setPreviewLayerId(null)}>
@@ -5022,12 +5542,85 @@ export default function VampireTable() {
           font-size: 12px;
         }
 
+        .active-character-strip {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) 320px;
+          gap: 12px;
+          margin: 0 auto 12px;
+        }
+
+        .active-character-card,
+        .active-character-picker {
+          border: 1px solid #2b2b2b;
+          border-radius: 8px;
+          background: #101010;
+          padding: 10px;
+        }
+
+        .active-character-card {
+          display: grid;
+          grid-template-columns: 52px minmax(0, 1fr) auto auto;
+          gap: 10px;
+          align-items: center;
+        }
+
+        .active-character-card div:nth-child(2),
+        .active-character-picker label {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .active-character-card span,
+        .active-character-picker span,
+        .active-character-card small {
+          color: #9c9c9c;
+          font-size: 12px;
+        }
+
+        .active-character-card strong {
+          color: #f4f4f4;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .active-character-card a,
+        .active-character-card button,
+        .active-character-picker button,
+        .active-character-picker select {
+          min-width: 0;
+          min-height: 34px;
+          border: 1px solid #773030;
+          border-radius: 6px;
+          background: #171717;
+          color: #f4f4f4;
+          padding: 8px 10px;
+          font: inherit;
+          font-size: 12px;
+          text-decoration: none;
+          cursor: pointer;
+        }
+
+        .active-character-card button:disabled,
+        .active-character-picker select:disabled {
+          opacity: 0.55;
+          cursor: not-allowed;
+        }
+
+        .active-character-picker {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          align-items: end;
+        }
+
         .table-layout {
           position: relative;
           display: grid;
           grid-template-columns: 320px minmax(0, 1fr) 420px;
           gap: 12px;
-          height: calc(100vh - 106px);
+          height: calc(100vh - 182px);
           min-height: 560px;
         }
 
@@ -5933,7 +6526,7 @@ export default function VampireTable() {
 
         .right-tabs {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 4px;
           padding: 4px;
           border: 1px solid #2b2b2b;
@@ -6481,6 +7074,111 @@ export default function VampireTable() {
           background: #0b0b0b;
           box-shadow: 0 24px 70px rgba(0,0,0,0.65), 0 0 28px rgba(255,49,49,0.18);
           overflow: hidden;
+        }
+
+        .character-preview-modal {
+          width: min(760px, 100%);
+          max-height: min(760px, 90vh);
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          border: 1px solid #3a3a3a;
+          border-radius: 8px;
+          background: #0b0b0b;
+          box-shadow: 0 24px 70px rgba(0,0,0,0.65), 0 0 28px rgba(255,49,49,0.18);
+          overflow: hidden;
+        }
+
+        .character-preview-modal header {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          align-items: center;
+          padding: 12px 14px;
+          border-bottom: 1px solid #2b2b2b;
+          background: #111;
+        }
+
+        .character-preview-modal header button {
+          width: 34px;
+          height: 34px;
+          border: 1px solid #3a3a3a;
+          border-radius: 5px;
+          background: #181818;
+          color: #fff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 22px;
+          line-height: 1;
+        }
+
+        .character-preview-identity {
+          min-width: 0;
+          display: grid;
+          grid-template-columns: 52px minmax(0, 1fr);
+          gap: 10px;
+          align-items: center;
+        }
+
+        .character-preview-identity > div:last-child {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .character-preview-grid {
+          min-height: 0;
+          overflow-y: auto;
+          display: grid;
+          gap: 12px;
+          padding: 14px;
+        }
+
+        .character-preview-grid section {
+          border: 1px solid #292929;
+          border-radius: 8px;
+          background: #141414;
+          padding: 12px;
+        }
+
+        .character-preview-grid h3 {
+          margin: 0 0 8px;
+          color: #ffb3b3;
+          font-size: 13px;
+        }
+
+        .character-preview-grid p {
+          margin: 0 0 6px;
+          color: #d7d7d7;
+          font-size: 13px;
+          line-height: 1.45;
+        }
+
+        .character-preview-grid ul {
+          list-style: none;
+          margin: 0;
+          padding: 0;
+          display: grid;
+          gap: 6px;
+        }
+
+        .character-preview-grid li {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          border-bottom: 1px solid #252525;
+          padding-bottom: 6px;
+          color: #ddd;
+          font-size: 12px;
+        }
+
+        .character-preview-grid li span {
+          color: #9c9c9c;
+        }
+
+        .character-preview-actions {
+          border-top: 1px solid #292929;
+          background: #111;
+          padding: 10px;
         }
 
         .media-preview-modal header {
@@ -7222,6 +7920,76 @@ export default function VampireTable() {
           line-height: 1.35;
         }
 
+        .room-participants-panel {
+          display: grid;
+          gap: 7px;
+          border: 1px solid #292929;
+          border-radius: 7px;
+          background: #0b0b0b;
+          padding: 8px;
+        }
+
+        .room-participants-panel header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          border: 0;
+          background: transparent;
+          padding: 0;
+        }
+
+        .room-participants-panel header strong {
+          color: #f4f4f4;
+          font-size: 12px;
+        }
+
+        .room-participants-panel header span {
+          color: #9c9c9c;
+          font-size: 11px;
+        }
+
+        .room-participants-panel > div {
+          display: grid;
+          gap: 6px;
+          max-height: 168px;
+          overflow-y: auto;
+        }
+
+        .participant-row {
+          width: 100%;
+          height: auto !important;
+          display: grid;
+          grid-template-columns: 38px minmax(0, 1fr);
+          gap: 8px;
+          align-items: center;
+          text-align: left;
+          padding: 7px !important;
+        }
+
+        .participant-row > span:last-child {
+          min-width: 0;
+          display: grid;
+          gap: 2px;
+        }
+
+        .participant-row strong,
+        .participant-row small {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .participant-row strong {
+          color: #f2f2f2;
+          font-size: 12px;
+        }
+
+        .participant-row small {
+          color: #9c9c9c;
+          font-size: 11px;
+        }
+
         .voice-panel {
           border-bottom: 1px solid #292929;
           background: #0f0f0f;
@@ -7409,6 +8177,12 @@ export default function VampireTable() {
           text-transform: uppercase;
         }
 
+        .chat-avatar.large {
+          width: 52px;
+          height: 52px;
+          font-size: 20px;
+        }
+
         .chat-avatar img {
           width: 100%;
           height: 100%;
@@ -7420,6 +8194,149 @@ export default function VampireTable() {
           min-width: 0;
           display: grid;
           gap: 3px;
+        }
+
+        .diary-sidebar {
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          overflow: hidden;
+        }
+
+        .diary-sidebar > header,
+        .character-preview-modal header {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+          border-bottom: 1px solid #2b2b2b;
+          background: #111;
+          padding: 10px;
+        }
+
+        .diary-sidebar header span,
+        .character-preview-modal header span,
+        .character-preview-modal small {
+          color: #9c9c9c;
+          font-size: 12px;
+        }
+
+        .diary-sidebar header strong,
+        .character-preview-modal header strong {
+          color: #f4f4f4;
+          font-size: 13px;
+        }
+
+        .diary-layout {
+          min-height: 0;
+          display: grid;
+          grid-template-columns: 145px minmax(0, 1fr);
+          overflow: hidden;
+        }
+
+        .diary-list {
+          min-height: 0;
+          border-right: 1px solid #292929;
+          background: #111;
+          padding: 8px;
+          display: grid;
+          grid-template-rows: auto auto minmax(0, 1fr);
+          gap: 8px;
+        }
+
+        .diary-list input,
+        .diary-editor input,
+        .diary-editor textarea {
+          width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 8px;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .diary-list button,
+        .diary-editor button,
+        .character-preview-actions button,
+        .character-preview-actions a {
+          min-width: 0;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #1d1d1d;
+          color: #f4f4f4;
+          padding: 8px 10px;
+          font: inherit;
+          font-size: 12px;
+          text-decoration: none;
+          cursor: pointer;
+        }
+
+        .diary-list > div {
+          min-height: 0;
+          overflow-y: auto;
+          display: grid;
+          align-content: start;
+          gap: 6px;
+        }
+
+        .diary-list > div button {
+          display: grid;
+          gap: 3px;
+          text-align: left;
+        }
+
+        .diary-list > div button.active {
+          border-color: #773030;
+          background: #241414;
+        }
+
+        .diary-list strong,
+        .diary-list span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .diary-list span {
+          color: #9c9c9c;
+          font-size: 10px;
+        }
+
+        .diary-editor {
+          min-height: 0;
+          padding: 10px;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          gap: 8px;
+        }
+
+        .diary-editor textarea {
+          resize: none;
+          line-height: 1.45;
+        }
+
+        .diary-editor footer,
+        .character-preview-actions {
+          display: flex;
+          gap: 8px;
+          justify-content: flex-end;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+
+        .diary-editor footer span {
+          margin-right: auto;
+          color: #9c9c9c;
+          font-size: 11px;
+        }
+
+        .diary-editor .danger {
+          border-color: #703333;
+          color: #ffd0d0;
         }
 
         .chat-message-meta strong {

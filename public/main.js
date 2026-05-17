@@ -33,9 +33,11 @@ let expHistory = [];
 let lastAutoExperienceBonus = null;
 let characterImageData = '';
 let touchstones = [];
+let inventory = [];
 const THIN_BLOOD_CLAN = 'Слабокровные';
 const CAITIFF_CLAN = 'Каитиф';
 const THIN_BLOOD_ALCHEMY = 'Алхимия слабокровных';
+const INVENTORY_CATEGORIES = ['Оружие', 'Одежда', 'Документы', 'Деньги', 'Артефакты', 'Расходники', 'Другое'];
 
 
 
@@ -150,6 +152,8 @@ async function initializeApp() {
         setupSheetLockGuards();
         setupExpShopDotEditing();
         setupCharacterDetails();
+        setupSheetNavigation();
+        renderInventory();
 
         // Дополнительные настройки
         setupGenerationHint();
@@ -2721,6 +2725,130 @@ function renderTouchstones() {
     applySheetLockState();
 }
 
+function setupSheetNavigation() {
+    const tableLink = document.getElementById('sheet-table-link');
+    if (!tableLink) return;
+    const params = new URLSearchParams(window.location.search);
+    const room = params.get('room') || localStorage.getItem('vtm-table-room') || 'campaign-666';
+    const role = localStorage.getItem('vtm-table-role') || 'player';
+    localStorage.setItem('vtm-table-room', room);
+    tableLink.href = `/table?room=${encodeURIComponent(room)}&role=${role === 'master' ? 'master' : 'player'}`;
+}
+
+function createInventoryItem(seed = {}) {
+    const now = new Date().toISOString();
+    return {
+        id: seed.id || `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        name: seed.name || '',
+        description: seed.description || '',
+        quantity: Math.max(0, parseInt(seed.quantity ?? 1, 10) || 0),
+        category: INVENTORY_CATEGORIES.includes(seed.category) ? seed.category : 'Другое',
+        note: seed.note || '',
+        createdAt: seed.createdAt || seed.created_at || now,
+        updatedAt: seed.updatedAt || seed.updated_at || now,
+        collapsed: Boolean(seed.collapsed)
+    };
+}
+
+function normalizeInventory(items) {
+    return Array.isArray(items) ? items.map(createInventoryItem) : [];
+}
+
+function updateInventoryItem(id, patch) {
+    inventory = inventory.map(item => item.id === id
+        ? { ...item, ...patch, updatedAt: new Date().toISOString() }
+        : item
+    );
+    renderInventory();
+}
+
+function addInventoryItem() {
+    inventory = [createInventoryItem({ name: 'Новый предмет' }), ...inventory];
+    renderInventory();
+}
+
+function deleteInventoryItem(id) {
+    const item = inventory.find(entry => entry.id === id);
+    if (!confirm(`Удалить «${item?.name || 'предмет'}»?`)) return;
+    inventory = inventory.filter(entry => entry.id !== id);
+    renderInventory();
+}
+
+function changeInventoryQuantity(id, delta) {
+    const item = inventory.find(entry => entry.id === id);
+    if (!item) return;
+    updateInventoryItem(id, { quantity: Math.max(0, (parseInt(item.quantity, 10) || 0) + delta) });
+}
+
+function renderInventory() {
+    const list = document.getElementById('inventory-list');
+    const count = document.getElementById('inventory-count');
+    if (!list) return;
+    const filter = document.getElementById('inventory-filter')?.value || 'Все';
+    const visible = filter === 'Все' ? inventory : inventory.filter(item => item.category === filter);
+    if (count) count.textContent = `${visible.length} из ${inventory.length} предметов`;
+    if (!visible.length) {
+        list.innerHTML = `<p class="inventory-empty">Инвентарь пуст. Добавь первый предмет кнопкой выше.</p>`;
+        return;
+    }
+    list.innerHTML = visible.map(item => {
+        const updated = item.updatedAt ? new Date(item.updatedAt).toLocaleString('ru-RU') : '—';
+        const created = item.createdAt ? new Date(item.createdAt).toLocaleString('ru-RU') : '—';
+        const categoryOptions = INVENTORY_CATEGORIES.map(category => (
+            `<option value="${category}" ${item.category === category ? 'selected' : ''}>${category}</option>`
+        )).join('');
+        return `
+            <article class="inventory-card" data-inventory-id="${item.id}">
+                <div class="inventory-card-head">
+                    <div class="inventory-card-title">
+                        <strong>${escapeHTML(item.name || 'Без названия')}</strong>
+                        <span>${escapeHTML(item.category)} · ${item.quantity} шт.</span>
+                    </div>
+                    <div class="inventory-card-meta">
+                        <span>создан: ${created}</span>
+                        <span>обновлён: ${updated}</span>
+                    </div>
+                </div>
+                <div class="inventory-card-fields">
+                    <label>Название
+                        <input value="${escapeHTML(item.name)}" oninput="updateInventoryItem('${item.id}', { name: this.value })">
+                    </label>
+                    <label>Категория
+                        <select onchange="updateInventoryItem('${item.id}', { category: this.value })">${categoryOptions}</select>
+                    </label>
+                    <label>Количество
+                        <div class="inventory-quantity">
+                            <button type="button" onclick="changeInventoryQuantity('${item.id}', -1)">−</button>
+                            <input type="number" min="0" value="${item.quantity}" oninput="updateInventoryItem('${item.id}', { quantity: Math.max(0, parseInt(this.value || '0', 10) || 0) })">
+                            <button type="button" onclick="changeInventoryQuantity('${item.id}', 1)">+</button>
+                        </div>
+                    </label>
+                </div>
+                <div class="inventory-description ${item.collapsed ? 'collapsed' : ''}">
+                    <label>Описание
+                        <textarea oninput="updateInventoryItem('${item.id}', { description: this.value })">${escapeHTML(item.description)}</textarea>
+                    </label>
+                </div>
+                <div class="inventory-note ${item.collapsed ? 'collapsed' : ''}">
+                    <label>Заметка
+                        <textarea oninput="updateInventoryItem('${item.id}', { note: this.value })">${escapeHTML(item.note)}</textarea>
+                    </label>
+                </div>
+                <div class="inventory-card-actions">
+                    <button type="button" onclick="updateInventoryItem('${item.id}', { collapsed: ${!item.collapsed} })">${item.collapsed ? 'Раскрыть описание' : 'Свернуть описание'}</button>
+                    <button type="button" class="danger" onclick="deleteInventoryItem('${item.id}')">Удалить</button>
+                </div>
+            </article>
+        `;
+    }).join('');
+}
+
+window.addInventoryItem = addInventoryItem;
+window.updateInventoryItem = updateInventoryItem;
+window.deleteInventoryItem = deleteInventoryItem;
+window.changeInventoryQuantity = changeInventoryQuantity;
+window.renderInventory = renderInventory;
+
 function autoResizeTextarea(textarea) {
     if (!textarea) return;
     textarea.style.height = 'auto';
@@ -4110,6 +4238,7 @@ function getFullCharacterData() {
         clanBane: getInputValue('clan-bane-input'),
         characterImage: characterImageData || '',
         touchstones: JSON.parse(JSON.stringify(touchstones || [])),
+        inventory: normalizeInventory(inventory),
         appearance: getInputValue('appearance-input'),
         backstory: getInputValue('backstory-input'),
         predator: document.getElementById('predator-input').value,
@@ -4187,6 +4316,7 @@ function resetCharacterSheetForLoad() {
     currentPredatorSpecialty = null;
     characterImageData = '';
     touchstones = [];
+    inventory = [];
     expShopMode = false;
     expShopSnapshot = null;
     expShopStartLevels = {};
@@ -4195,6 +4325,7 @@ function resetCharacterSheetForLoad() {
     if (list) list.innerHTML = '';
     renderCharacterImage();
     renderTouchstones();
+    renderInventory();
 }
 
 function applyCharacterData(d, sourceName = 'JSON') {
@@ -4219,11 +4350,13 @@ function applyCharacterData(d, sourceName = 'JSON') {
         touchstones = Array.isArray(d.touchstones)
             ? JSON.parse(JSON.stringify(d.touchstones))
             : [];
+        inventory = normalizeInventory(d.inventory);
         setInputValue('appearance-input', d.appearance);
         setInputValue('backstory-input', d.backstory);
         autoResizeTextarea(document.getElementById('backstory-input'));
         renderCharacterImage();
         renderTouchstones();
+        renderInventory();
         document.getElementById('predator-input').value = d.predator || '';
         if (document.getElementById('generation-input')) document.getElementById('generation-input').value = d.generation || '';
         if (document.getElementById('type-input')) document.getElementById('type-input').value = d.type || '';

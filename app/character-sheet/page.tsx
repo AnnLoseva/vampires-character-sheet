@@ -52,17 +52,19 @@ export default function CharacterSheetPage() {
         }
       `}</style>
 
-      <a
-        href={tableHref}
-        onClick={() => {
-          window.localStorage.setItem('vtm-table-room', room)
-          window.localStorage.setItem('vtm-table-role', role)
-        }}
-        className="table-return-link"
-        title="Вернуться на игровой стол"
-      >
-        На стол
-      </a>
+      <nav className="sheet-nav-links" aria-label="Навигация листа персонажа">
+        <a href="/" title="На главный экран">На главный экран</a>
+        <a
+          href={tableHref}
+          onClick={() => {
+            window.localStorage.setItem('vtm-table-room', room)
+            window.localStorage.setItem('vtm-table-role', role)
+          }}
+          title="Вернуться на игровой стол"
+        >
+          На игровой стол
+        </a>
+      </nav>
 
       <iframe
         src={iframeSrc}
@@ -79,14 +81,21 @@ export default function CharacterSheetPage() {
       />
 
       <style jsx>{`
-        .table-return-link {
+        .sheet-nav-links {
           position: fixed;
           right: 18px;
           top: 18px;
           z-index: 10001;
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          justify-content: flex-end;
+        }
+
+        .sheet-nav-links a {
           min-width: 92px;
-          height: 38px;
-          display: grid;
+          min-height: 38px;
+          display: inline-grid;
           place-items: center;
           border: 1px solid #773030;
           border-radius: 6px;
@@ -98,7 +107,7 @@ export default function CharacterSheetPage() {
           box-shadow: 0 10px 30px rgba(0,0,0,0.35);
         }
 
-        .table-return-link:hover {
+        .sheet-nav-links a:hover {
           background: #2a1111;
           border-color: #ff3131;
         }

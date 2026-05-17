@@ -100,6 +100,7 @@ export default function CharacterSheet() {
   const [passwordDraft, setPasswordDraft] = useState('')
   const [authStatus, setAuthStatus] = useState('Private archive access')
   const [isAuthBusy, setIsAuthBusy] = useState(false)
+  const [libraryOpen, setLibraryOpen] = useState(false)
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
   const smoothX = useSpring(mouseX, { stiffness: 45, damping: 22 })
@@ -285,6 +286,9 @@ export default function CharacterSheet() {
   }
 
   const selectedCharacter = characters.find(character => character.id === selectedCharacterId) || characters[0] || null
+  const journalKeys = typeof window === 'undefined'
+    ? []
+    : Object.keys(window.localStorage).filter(key => key.startsWith('vtm-journal:')).sort()
 
   return (
     <main
@@ -435,18 +439,59 @@ export default function CharacterSheet() {
 
           <EntryCard
             accent="cyan"
-            title="Редактор персонажей"
-            description="Создавайте, изменяйте и храните персонажей V5 с интерактивными системами и подсказками."
+            title="Библиотека"
+            description="Открывайте листы персонажей и личные дневники, сохранённые во время игры."
             button={
-              <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
-                Открыть редактор
-              </Link>
+              <div className="library-actions">
+                <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
+                  Открыть редактор
+                </Link>
+                <button type="button" className="ghost-action" onClick={() => setLibraryOpen(true)}>
+                  Дневник
+                </button>
+              </div>
             }
           >
             <Sigil>✦</Sigil>
           </EntryCard>
         </section>
       </section>
+
+      {libraryOpen ? (
+        <div className="library-modal-backdrop" role="dialog" aria-modal="true" aria-label="Библиотека дневников" onMouseDown={() => setLibraryOpen(false)}>
+          <section className="library-modal" onMouseDown={event => event.stopPropagation()}>
+            <header>
+              <div>
+                <span>Библиотека</span>
+                <strong>Дневники комнат</strong>
+              </div>
+              <button type="button" onClick={() => setLibraryOpen(false)}>×</button>
+            </header>
+            <div className="library-journal-list">
+              {journalKeys.length === 0 ? (
+                <p>Сохранённых дневников пока нет.</p>
+              ) : journalKeys.map(key => {
+                const [, userId, roomName] = key.split(':')
+                let entries = 0
+                try {
+                  entries = JSON.parse(window.localStorage.getItem(key) || '[]')?.length || 0
+                } catch {
+                  entries = 0
+                }
+                return (
+                  <a href={`/table?room=${encodeURIComponent(roomName || DEFAULT_ROOM)}&role=${role}`} key={key} onClick={() => {
+                    window.localStorage.setItem('vtm-table-room', roomName || DEFAULT_ROOM)
+                    window.localStorage.setItem('vtm-table-role', role)
+                  }}>
+                    <strong>{roomName || DEFAULT_ROOM}</strong>
+                    <span>{entries} записей · {userId === chatUser?.id ? chatUser.username : 'локальный пользователь'}</span>
+                  </a>
+                )
+              })}
+            </div>
+          </section>
+        </div>
+      ) : null}
 
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
@@ -882,6 +927,16 @@ export default function CharacterSheet() {
           align-items: center;
         }
 
+        .library-actions {
+          position: relative;
+          z-index: 1;
+          width: 100%;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          align-items: center;
+        }
+
         .ghost-action {
           min-width: 76px;
           height: 42px;
@@ -891,6 +946,86 @@ export default function CharacterSheet() {
         .ghost-action:hover {
           border-color: rgba(215, 174, 104, 0.48);
           color: #f4dfb7;
+        }
+
+        .library-modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 20;
+          display: grid;
+          place-items: center;
+          padding: 20px;
+          background: rgba(0,0,0,0.72);
+        }
+
+        .library-modal {
+          width: min(620px, 100%);
+          max-height: min(620px, 90vh);
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          border: 1px solid rgba(178, 126, 71, 0.38);
+          border-radius: 8px;
+          background: #101010;
+          color: #eee8df;
+          box-shadow: 0 28px 80px rgba(0,0,0,0.56);
+          overflow: hidden;
+        }
+
+        .library-modal header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 14px;
+          padding: 14px;
+          border-bottom: 1px solid rgba(255,255,255,0.09);
+          background: #15110d;
+        }
+
+        .library-modal header div {
+          display: grid;
+          gap: 3px;
+        }
+
+        .library-modal header span,
+        .library-journal-list span,
+        .library-journal-list p {
+          color: #b8aa98;
+          font-size: 13px;
+        }
+
+        .library-modal header strong {
+          color: #fff;
+        }
+
+        .library-modal header button {
+          width: 34px;
+          height: 34px;
+          border: 1px solid rgba(255,255,255,0.16);
+          border-radius: 6px;
+          background: rgba(255,255,255,0.06);
+          color: #fff;
+          font: inherit;
+          cursor: pointer;
+        }
+
+        .library-journal-list {
+          min-height: 0;
+          overflow-y: auto;
+          display: grid;
+          align-content: start;
+          gap: 8px;
+          padding: 14px;
+        }
+
+        .library-journal-list a {
+          display: grid;
+          gap: 4px;
+          border: 1px solid rgba(255,255,255,0.1);
+          border-radius: 7px;
+          background: rgba(255,255,255,0.045);
+          color: #fff;
+          padding: 12px;
+          text-decoration: none;
         }
 
         .room-line {
