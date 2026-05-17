@@ -5,13 +5,42 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 let supabaseClient = null;
 let currentUser = null;
+let currentCharacterRecordId = null;
+let charactersListCache = null;
 
 function initSupabase() {
-    if (supabaseClient) return;
+    if (supabaseClient) return supabaseClient;
     
     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     console.log("✅ Supabase подключён (простая авторизация)");
     checkUserSession();
+    return supabaseClient;
+}
+
+function ensureSupabase() {
+    if (supabaseClient) return supabaseClient;
+    if (!window.supabase) {
+        alert('Supabase ещё загружается. Подождите секунду и попробуйте снова.');
+        return null;
+    }
+    return initSupabase();
+}
+
+function setButtonBusy(selector, busy, text) {
+    const button = typeof selector === 'string' ? document.querySelector(selector) : selector;
+    if (!button) return;
+    if (busy) {
+        button.dataset.originalText = button.innerHTML;
+        button.innerHTML = text || 'Загрузка...';
+        button.disabled = true;
+        button.style.opacity = '0.65';
+        button.style.cursor = 'wait';
+    } else {
+        if (button.dataset.originalText) button.innerHTML = button.dataset.originalText;
+        button.disabled = false;
+        button.style.opacity = '';
+        button.style.cursor = '';
+    }
 }
 
 async function checkUserSession() {
@@ -34,6 +63,7 @@ function rememberUserSession(user) {
         id: user.id,
         username: user.username,
     }));
+    charactersListCache = null;
 }
 
 // ==================== UI КНОПКИ ====================
@@ -61,8 +91,8 @@ function showAuthModal() {
         <input id="auth-username" type="text" placeholder="Имя пользователя" style="width:100%; padding:14px; margin:10px 0; background:#222; border:none; color:white; border-radius:6px;"><br>
         <input id="auth-password" type="password" placeholder="Пароль" style="width:100%; padding:14px; margin:10px 0; background:#222; border:none; color:white; border-radius:6px;"><br>
         
-        <button onclick="handleLogin()" style="width:100%; padding:15px; margin:12px 0 8px 0; background:#ff3131; color:white; border:none; border-radius:8px; font-size:16px;">Войти</button>
-        <button onclick="handleRegister()" style="width:100%; padding:15px; background:#444; color:white; border:none; border-radius:8px; font-size:16px;">Создать аккаунт</button>
+        <button onclick="handleLogin(this)" style="width:100%; padding:15px; margin:12px 0 8px 0; background:#ff3131; color:white; border:none; border-radius:8px; font-size:16px;">Войти</button>
+        <button onclick="handleRegister(this)" style="width:100%; padding:15px; background:#444; color:white; border:none; border-radius:8px; font-size:16px;">Создать аккаунт</button>
         
         <button onclick="closeModal()" style="width:100%; margin-top:20px; padding:12px; background:transparent; color:#888; border:none;">Закрыть</button>
     </div>`;
@@ -71,7 +101,9 @@ function showAuthModal() {
 }
 
 // ==================== РЕГИСТРАЦИЯ ====================
-window.handleRegister = async () => {
+window.handleRegister = async (button) => {
+    const client = ensureSupabase();
+    if (!client) return;
     const username = document.getElementById('auth-username').value.trim();
     const password = document.getElementById('auth-password').value.trim();
 
@@ -81,21 +113,28 @@ window.handleRegister = async () => {
     // Простой hash (для теста)
     const passwordHash = btoa(password); // временно, потом заменим на нормальный
 
-    const { error } = await supabaseClient
+    setButtonBusy(button, true, 'Создаю...');
+    const { data, error } = await client
         .from('users')
-        .insert({ username, password_hash: passwordHash });
+        .insert({ username, password_hash: passwordHash })
+        .select('id, username')
+        .single();
 
     if (error) {
         if (error.code === '23505') alert("Пользователь с таким именем уже существует");
         else alert("Ошибка регистрации: " + error.message);
     } else {
-        alert(`✅ Аккаунт создан!\nЛогин: ${username}`);
+        rememberUserSession(data);
+        updateAuthButton();
         closeModal();
     }
+    setButtonBusy(button, false);
 };
 
 // ==================== ВХОД ====================
-window.handleLogin = async () => {
+window.handleLogin = async (button) => {
+    const client = ensureSupabase();
+    if (!client) return;
     const username = document.getElementById('auth-username').value.trim();
     const password = document.getElementById('auth-password').value.trim();
 
@@ -103,9 +142,10 @@ window.handleLogin = async () => {
 
     const passwordHash = btoa(password);
 
-    const { data, error } = await supabaseClient
+    setButtonBusy(button, true, 'Вхожу...');
+    const { data, error } = await client
         .from('users')
-        .select('*')
+        .select('id, username')
         .eq('username', username)
         .eq('password_hash', passwordHash)
         .single();
@@ -116,12 +156,14 @@ window.handleLogin = async () => {
         rememberUserSession(data);
         updateAuthButton();
         closeModal();
-        alert(`✅ Добро пожаловать, ${username}!`);
     }
+    setButtonBusy(button, false);
 };
 
 async function logout() {
     currentUser = null;
+    currentCharacterRecordId = null;
+    charactersListCache = null;
     localStorage.removeItem('vtm-sheet-user');
     localStorage.removeItem('vtm-chat-user');
     updateAuthButton();
@@ -147,19 +189,18 @@ window.closeModal = () => {
 };
 
 // Автозапуск
-window.addEventListener('load', () => setTimeout(initSupabase, 600)
-
-
-
-
-
-
-);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initSupabase);
+} else {
+    initSupabase();
+}
 
 
 // ==================== СОХРАНЕНИЕ ПЕРСОНАЖЕЙ ====================
 
 async function saveCharacter() {
+    const client = ensureSupabase();
+    if (!client) return;
     if (!currentUser) {
         alert("❌ Войдите в аккаунт, чтобы сохранить персонажа!");
         showAuthModal();
@@ -172,51 +213,75 @@ async function saveCharacter() {
 
     if (!characterData.name) characterData.name = "Без имени";
 
-    const { error: deleteError } = await supabaseClient
-        .from('characters')
-        .delete()
-        .eq('user_id', currentUser.id)
-        .eq('name', characterData.name);
+    setButtonBusy('[onclick="saveCharacter()"]', true, 'Сохраняю...');
 
-    if (deleteError) {
-        console.error(deleteError);
-        return alert("❌ Ошибка перезаписи старого персонажа:\n" + deleteError.message);
+    let existingId = currentCharacterRecordId;
+    if (!existingId) {
+        const { data: existing } = await client
+            .from('characters')
+            .select('id')
+            .eq('user_id', currentUser.id)
+            .eq('name', characterData.name)
+            .limit(1)
+            .maybeSingle();
+        existingId = existing?.id || null;
     }
 
-    const { error } = await supabaseClient
-        .from('characters')
-        .insert({
-            user_id: currentUser.id,
-            name: characterData.name,
-            clan: characterData.clan || null,
-            data: characterData
-        });
+    const payload = {
+        user_id: currentUser.id,
+        name: characterData.name,
+        clan: characterData.clan || null,
+        data: characterData
+    };
+
+    const request = existingId
+        ? client.from('characters').update(payload).eq('id', existingId).eq('user_id', currentUser.id).select('id').single()
+        : client.from('characters').insert(payload).select('id').single();
+
+    const { data, error } = await request;
+
+    setButtonBusy('[onclick="saveCharacter()"]', false);
 
     if (error) {
         console.error(error);
         alert("❌ Ошибка сохранения:\n" + error.message);
     } else {
-        alert(`✅ Персонаж "${characterData.name}" сохранён. Если такое имя уже было, старая запись перезаписана.`);
+        currentCharacterRecordId = data?.id || existingId;
+        charactersListCache = null;
+        alert(`✅ Персонаж "${characterData.name}" сохранён.`);
     }
 }
 
+async function fetchMyCharacters({ force = false } = {}) {
+    const client = ensureSupabase();
+    if (!client || !currentUser) return [];
+    if (!force && charactersListCache) return charactersListCache;
+
+    const { data, error } = await client
+        .from('characters')
+        .select('id, name, clan, created_at, data')
+        .eq('user_id', currentUser.id)
+        .order('created_at', { ascending: false });
+    if (error) {
+        console.error(error);
+        alert("Ошибка загрузки списка");
+        return [];
+    }
+    charactersListCache = data || [];
+    return charactersListCache;
+}
+
 async function showMyCharacters() {
+    const client = ensureSupabase();
+    if (!client) return;
     if (!currentUser) {
         alert("❌ Войдите в аккаунт!");
         showAuthModal();
         return;
     }
 
-    const { data, error } = await supabaseClient
-        .from('characters')
-        .select('id, name, clan, created_at, data')
-        .eq('user_id', currentUser.id)
-        .order('created_at', { ascending: false });
-
-    if (error) {
-        console.error(error);
-        return alert("Ошибка загрузки списка");
-    }
+    showModal(`<div style="padding:28px; width:min(420px,92vw); background:#111; border:2px solid #ff3131; border-radius:10px; color:#eee; text-align:center;">Загружаю персонажей...</div>`);
+    const data = await fetchMyCharacters({ force: true });
 
     if (!data || data.length === 0) {
         return alert("У вас пока нет сохранённых персонажей.");
@@ -246,7 +311,7 @@ async function showMyCharacters() {
                 <td style="padding:12px; text-align:center; color:#aaa;">${char.clan || '—'}</td>
                 <td style="padding:12px; text-align:center; color:#aaa;">${date}</td>
                 <td style="padding:12px; text-align:center; white-space:nowrap;">
-                    <button onclick="loadCharacter('${char.id}')" style="background:#ff3131; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; margin-right:8px;">Загрузить</button>
+                    <button onclick="loadCharacter('${char.id}', this)" style="background:#ff3131; color:white; border:none; padding:8px 14px; border-radius:6px; cursor:pointer; margin-right:8px;">Загрузить</button>
                     <button onclick="deleteCharacter('${char.id}', '${String(char.name).replace(/'/g, "\\'")}')" style="background:#330000; color:#ff6666; border:1px solid #7a2222; padding:8px 14px; border-radius:6px; cursor:pointer;">Удалить</button>
                 </td>
             </tr>`;
@@ -256,22 +321,26 @@ async function showMyCharacters() {
     showModal(html);
 }
 
-async function loadCharacter(id) {
+async function loadCharacter(id, button = null) {
+    const client = ensureSupabase();
+    if (!client) return;
     if (!currentUser) {
         alert("❌ Войдите в аккаунт!");
         showAuthModal();
         return;
     }
 
-    const { data, error } = await supabaseClient
+    setButtonBusy(button, true, 'Загружаю...');
+    const { data, error } = await client
         .from('characters')
-        .select('data')
+        .select('id, data')
         .eq('id', id)
         .eq('user_id', currentUser.id)
         .single();
 
     if (error || !data?.data) {
         console.error(error);
+        setButtonBusy(button, false);
         return alert("Ошибка загрузки персонажа");
     }
 
@@ -279,12 +348,15 @@ async function loadCharacter(id) {
         return alert("Лист ещё не готов к загрузке персонажа. Обновите страницу и попробуйте снова.");
     }
 
+    currentCharacterRecordId = data.id;
     window.applyCharacterData(data.data, 'личного кабинета');
     closeModal();
-    alert(`✅ Персонаж «${data.data.name || 'Без имени'}» загружен!`);
+    setButtonBusy(button, false);
 }
 
 async function deleteCharacter(id, name = 'персонажа') {
+    const client = ensureSupabase();
+    if (!client) return;
     if (!currentUser) {
         alert("❌ Войдите в аккаунт!");
         showAuthModal();
@@ -293,7 +365,7 @@ async function deleteCharacter(id, name = 'персонажа') {
 
     if (!confirm(`Удалить «${name}»?`)) return;
 
-    const { error } = await supabaseClient
+    const { error } = await client
         .from('characters')
         .delete()
         .eq('id', id)
@@ -304,6 +376,8 @@ async function deleteCharacter(id, name = 'персонажа') {
         return alert("Ошибка удаления персонажа:\n" + error.message);
     }
 
+    if (currentCharacterRecordId === id) currentCharacterRecordId = null;
+    charactersListCache = null;
     await showMyCharacters();
 }
 

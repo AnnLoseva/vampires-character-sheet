@@ -354,10 +354,33 @@
             padding: 14px;
         }
 
+        .inventory-card.dragging {
+            opacity: 0.5;
+        }
+
+        .inventory-card.drag-over {
+            border-color: #ff3131;
+            box-shadow: 0 0 0 1px rgba(255,49,49,0.35), 0 0 18px rgba(255,49,49,0.18);
+        }
+
         .inventory-card-head {
             justify-content: space-between;
             margin-bottom: 10px;
             cursor: pointer;
+        }
+
+        .inventory-drag-handle {
+            width: 34px;
+            height: 34px;
+            flex: 0 0 auto;
+            display: inline-grid;
+            place-items: center;
+            padding: 0 !important;
+            cursor: grab !important;
+        }
+
+        .inventory-drag-handle:active {
+            cursor: grabbing !important;
         }
 
         .inventory-card-title {

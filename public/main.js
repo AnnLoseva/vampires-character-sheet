@@ -2821,12 +2821,15 @@ function createInventoryItem(seed = {}) {
         note: seed.note || '',
         createdAt: seed.createdAt || seed.created_at || now,
         updatedAt: seed.updatedAt || seed.updated_at || now,
+        order: Number.isFinite(Number(seed.order)) ? Number(seed.order) : 0,
         collapsed: Boolean(seed.collapsed)
     };
 }
 
 function normalizeInventory(items) {
-    return Array.isArray(items) ? items.map(createInventoryItem) : [];
+    return Array.isArray(items)
+        ? items.map((item, index) => createInventoryItem({ ...item, order: item?.order ?? index })).sort((a, b) => a.order - b.order)
+        : [];
 }
 
 function updateInventoryCardSummary(id) {
@@ -2868,6 +2871,18 @@ function changeInventoryQuantity(id, delta) {
     if (input) input.value = String(inventory.find(entry => entry.id === id)?.quantity ?? 0);
 }
 
+function moveInventoryItem(sourceId, targetId) {
+    if (!sourceId || !targetId || sourceId === targetId) return;
+    const sourceIndex = inventory.findIndex(item => item.id === sourceId);
+    const targetIndex = inventory.findIndex(item => item.id === targetId);
+    if (sourceIndex === -1 || targetIndex === -1) return;
+    const next = [...inventory];
+    const [moved] = next.splice(sourceIndex, 1);
+    next.splice(targetIndex, 0, moved);
+    inventory = next.map((item, index) => ({ ...item, order: index, updatedAt: new Date().toISOString() }));
+    renderInventory();
+}
+
 function setupInventoryEditor() {
     const list = document.getElementById('inventory-list');
     if (!list || list.dataset.inventoryEditorReady === 'true') return;
@@ -2906,6 +2921,39 @@ function setupInventoryEditor() {
             updateInventoryItem(toggle.dataset.inventoryToggle, { collapsed: !inventory.find(entry => entry.id === toggle.dataset.inventoryToggle)?.collapsed }, true);
         }
     });
+    list.addEventListener('dragstart', event => {
+        const handle = event.target?.closest?.('[data-inventory-drag-handle]');
+        const card = event.target?.closest?.('[data-inventory-id]');
+        if (!handle || !card) {
+            event.preventDefault();
+            return;
+        }
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData('text/plain', card.dataset.inventoryId);
+        card.classList.add('dragging');
+    });
+    list.addEventListener('dragend', event => {
+        event.target?.closest?.('[data-inventory-id]')?.classList.remove('dragging');
+        list.querySelectorAll('.drag-over').forEach(item => item.classList.remove('drag-over'));
+    });
+    list.addEventListener('dragover', event => {
+        const card = event.target?.closest?.('[data-inventory-id]');
+        if (!card) return;
+        event.preventDefault();
+        list.querySelectorAll('.drag-over').forEach(item => {
+            if (item !== card) item.classList.remove('drag-over');
+        });
+        card.classList.add('drag-over');
+        event.dataTransfer.dropEffect = 'move';
+    });
+    list.addEventListener('drop', event => {
+        const card = event.target?.closest?.('[data-inventory-id]');
+        if (!card) return;
+        event.preventDefault();
+        const sourceId = event.dataTransfer.getData('text/plain');
+        card.classList.remove('drag-over');
+        moveInventoryItem(sourceId, card.dataset.inventoryId);
+    });
 }
 
 function renderInventory() {
@@ -2924,8 +2972,9 @@ function renderInventory() {
             `<option value="${category}" ${item.category === category ? 'selected' : ''}>${category}</option>`
         )).join('');
         return `
-            <article class="inventory-card" data-inventory-id="${item.id}">
+            <article class="inventory-card" data-inventory-id="${item.id}" draggable="true">
                 <div class="inventory-card-head" data-inventory-toggle="${item.id}">
+                    <button type="button" class="inventory-drag-handle" data-inventory-drag-handle title="Перетащить предмет">☰</button>
                     <div class="inventory-card-title">
                         <strong data-inventory-title>${escapeHTML(item.name || 'Без названия')}</strong>
                         <span data-inventory-summary>${escapeHTML(item.category)} · ${item.quantity} шт.</span>

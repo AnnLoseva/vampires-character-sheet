@@ -61,6 +61,10 @@ type CharacterOption = {
   backstory?: string
   freeExp?: number
   inventory: InventoryItem[]
+  attributes: Record<string, number>
+  skills: Record<string, number | { dots?: number; specs?: string[] }>
+  disciplines: Record<string, Record<string, number>>
+  selectedPowers: Record<string, unknown>
 }
 
 type CharacterRow = {
@@ -83,6 +87,10 @@ type CharacterRow = {
     freeExp?: number
     experience?: number
     inventory?: InventoryItem[]
+    attributes?: Record<string, number>
+    skills?: Record<string, number | { dots?: number; specs?: string[] }>
+    disciplines?: Record<string, Record<string, number>>
+    selectedPowers?: Record<string, unknown>
   } | null
 }
 
@@ -509,6 +517,10 @@ function mapCharacterRow(row: CharacterRow): CharacterOption {
     backstory: data.backstory || '',
     freeExp: Number(data.freeExp ?? data.experience ?? 0) || 0,
     inventory: normalizeInventory(data.inventory),
+    attributes: data.attributes || {},
+    skills: data.skills || {},
+    disciplines: data.disciplines || {},
+    selectedPowers: data.selectedPowers || {},
   }
 }
 
@@ -1983,6 +1995,9 @@ export default function VampireTable() {
       : message.fromUserId === selectedMasterChatUserId || message.toUserId === selectedMasterChatUserId
     return message.fromUserId === chatUser.id || message.toUserId === chatUser.id
   })
+  const getSkillDots = (value: number | { dots?: number }) => typeof value === 'number' ? value : Number(value?.dots || 0)
+  const getSkillSpecs = (value: number | { specs?: string[] }) => typeof value === 'object' && Array.isArray(value.specs) ? value.specs : []
+  const getDisciplineDots = (sources: Record<string, number>) => Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
 
   const saveJournalEntries = (entries: JournalEntry[], status = 'Сохранено') => {
     setJournalEntries(entries)
@@ -2047,6 +2062,10 @@ export default function VampireTable() {
         image: '',
         username: participant.username,
         inventory: [],
+        attributes: {},
+        skills: {},
+        disciplines: {},
+        selectedPowers: {},
       })
       return
     }
@@ -2063,6 +2082,10 @@ export default function VampireTable() {
         image: participant.characterImage,
         username: participant.username,
         inventory: [],
+        attributes: {},
+        skills: {},
+        disciplines: {},
+        selectedPowers: {},
       })
       return
     }
@@ -5353,6 +5376,48 @@ export default function VampireTable() {
                 <p><b>Свободный опыт:</b> {previewCharacter.freeExp ?? 0}</p>
               </section>
               <section>
+                <h3>Характеристики</h3>
+                {Object.keys(previewCharacter.attributes).length === 0 ? (
+                  <p>Характеристики не сохранены.</p>
+                ) : (
+                  <div className="mechanics-list">
+                    {Object.entries(previewCharacter.attributes).map(([name, dots]) => (
+                      <span key={name}><b>{name}</b><i>{'●'.repeat(Number(dots) || 0)}</i></span>
+                    ))}
+                  </div>
+                )}
+              </section>
+              <section>
+                <h3>Навыки</h3>
+                {Object.keys(previewCharacter.skills).length === 0 ? (
+                  <p>Навыки не сохранены.</p>
+                ) : (
+                  <div className="mechanics-list">
+                    {Object.entries(previewCharacter.skills).map(([name, value]) => {
+                      const specs = getSkillSpecs(value)
+                      return (
+                        <span key={name}>
+                          <b>{name}</b>
+                          <i>{'●'.repeat(getSkillDots(value))}{specs.length ? ` · ${specs.join(', ')}` : ''}</i>
+                        </span>
+                      )
+                    })}
+                  </div>
+                )}
+              </section>
+              <section>
+                <h3>Дисциплины</h3>
+                {Object.keys(previewCharacter.disciplines).length === 0 ? (
+                  <p>Дисциплины не сохранены.</p>
+                ) : (
+                  <div className="mechanics-list">
+                    {Object.entries(previewCharacter.disciplines).map(([name, sources]) => (
+                      <span key={name}><b>{name}</b><i>{'●'.repeat(getDisciplineDots(sources))}</i></span>
+                    ))}
+                  </div>
+                )}
+              </section>
+              <section>
                 <h3>Быстрые броски</h3>
                 <div className="quick-roll-grid">
                   <button type="button" onClick={() => rollQuickDice(1, '1к10')}>1к10</button>
@@ -7328,6 +7393,35 @@ export default function VampireTable() {
 
         .character-preview-grid li span {
           color: #9c9c9c;
+        }
+
+        .mechanics-list {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 7px;
+        }
+
+        .mechanics-list span {
+          min-width: 0;
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          border-bottom: 1px solid #252525;
+          padding-bottom: 5px;
+          color: #ddd;
+          font-size: 12px;
+        }
+
+        .mechanics-list b {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .mechanics-list i {
+          color: #ffb3b3;
+          font-style: normal;
+          text-align: right;
         }
 
         .quick-roll-grid {
