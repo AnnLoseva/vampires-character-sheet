@@ -5345,16 +5345,22 @@ export default function VampireTable() {
             </header>
             <div className="character-preview-grid">
               <section>
-                <h3>Основное</h3>
-                <p><b>Концепция:</b> {previewCharacter.concept || '—'}</p>
+                <h3>Броски / механика</h3>
+                <p><b>Клан:</b> {previewCharacter.clan || '—'}</p>
                 <p><b>Поколение:</b> {previewCharacter.generation || '—'}</p>
                 <p><b>Тип:</b> {previewCharacter.type || '—'}</p>
                 <p><b>Стиль охоты:</b> {previewCharacter.predator || '—'}</p>
                 <p><b>Свободный опыт:</b> {previewCharacter.freeExp ?? 0}</p>
               </section>
               <section>
-                <h3>Заметки</h3>
-                <p>{previewCharacter.notes || previewCharacter.appearance || 'Заметок нет.'}</p>
+                <h3>Быстрые броски</h3>
+                <div className="quick-roll-grid">
+                  <button type="button" onClick={() => rollQuickDice(1, '1к10')}>1к10</button>
+                  <button type="button" onClick={() => rollQuickDice(3, '3к10')}>3к10</button>
+                  <button type="button" onClick={() => rollQuickDice(5, '5к10')}>5к10</button>
+                  <button type="button" onClick={() => rollQuickDice(7, '7к10')}>7к10</button>
+                </div>
+                <p>Полные пулы характеристик, навыков и дисциплин доступны в листе персонажа во вкладке “Броски / механика”.</p>
               </section>
               <section>
                 <h3>Инвентарь</h3>
@@ -7322,6 +7328,24 @@ export default function VampireTable() {
 
         .character-preview-grid li span {
           color: #9c9c9c;
+        }
+
+        .quick-roll-grid {
+          display: grid;
+          grid-template-columns: repeat(4, minmax(0, 1fr));
+          gap: 8px;
+          margin-bottom: 10px;
+        }
+
+        .quick-roll-grid button {
+          min-height: 34px;
+          border: 1px solid #773030;
+          border-radius: 6px;
+          background: #1d1d1d;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
         }
 
         .character-preview-actions {

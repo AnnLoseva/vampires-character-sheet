@@ -1955,20 +1955,29 @@ function setupDiceRollsFromLockedSheet() {
         const skillNameEl = target.closest?.('.skill-name');
         const specLine = target.closest?.('.skill-spec-line');
         const disciplineItem = target.closest?.('.discipline-item:not(.xp-shop-discipline-option)');
+        const dotLabel = target.closest?.('.dot-label');
+        const dotRow = dotLabel?.closest?.('.row');
+        const attrDot = dotLabel && dotRow?.querySelector('.attr-name') ? dotLabel : null;
+        const skillDot = dotLabel && dotRow?.querySelector('.skill-name') ? dotLabel : null;
+        const disciplineDot = target.closest?.('.discipline-item:not(.xp-shop-discipline-option) .disc-dot');
         const editableInsideDiscipline = disciplineItem && target.closest?.('button, input, select, textarea');
 
-        if (!attrNameEl && !skillNameEl && !specLine && !disciplineItem) return;
+        if (!attrNameEl && !skillNameEl && !specLine && !disciplineItem && !attrDot && !skillDot && !disciplineDot) return;
         if (editableInsideDiscipline) return;
         if (startingSheetFixed && !expShopMode) {
             e.preventDefault();
             e.stopImmediatePropagation();
-            if (attrNameEl) {
-                const attrName = attrNameEl.getAttribute('data-attr') || attrNameEl.textContent.trim();
+            const attrRow = attrDot?.closest('.row');
+            const skillRow = skillDot?.closest('.row');
+            if (attrNameEl || attrDot) {
+                const attrEl = attrNameEl || attrRow?.querySelector('.attr-name');
+                const attrName = attrEl?.getAttribute('data-attr') || attrEl?.textContent.trim();
                 openDiceRollModal({ first: makeDicePart('attr', attrName) });
                 return;
             }
-            if (skillNameEl) {
-                const skillName = skillNameEl.getAttribute('data-skill') || skillNameEl.textContent.trim();
+            if (skillNameEl || skillDot) {
+                const skillEl = skillNameEl || skillRow?.querySelector('.skill-name');
+                const skillName = skillEl?.getAttribute('data-skill') || skillEl?.textContent.trim();
                 openDiceRollModal({ second: makeDicePart('skill', skillName) });
                 return;
             }
@@ -1983,7 +1992,7 @@ function setupDiceRollsFromLockedSheet() {
                 });
                 return;
             }
-            const disciplineName = disciplineItem?.dataset.disciplineName || disciplineItem?.querySelector('div:first-child')?.textContent.trim();
+            const disciplineName = disciplineItem?.dataset.disciplineName || disciplineDot?.closest('.discipline-item')?.dataset.disciplineName || disciplineItem?.querySelector('div:first-child')?.textContent.trim();
             if (disciplineName) openDiceRollModal({ first: makeDicePart('discipline', disciplineName) });
             return;
         }
@@ -2826,10 +2835,8 @@ function updateInventoryCardSummary(id) {
     if (!item || !card) return;
     const title = card.querySelector('[data-inventory-title]');
     const summary = card.querySelector('[data-inventory-summary]');
-    const updated = card.querySelector('[data-inventory-updated]');
     if (title) title.textContent = item.name || 'Без названия';
     if (summary) summary.textContent = `${item.category} · ${item.quantity} шт.`;
-    if (updated) updated.textContent = `обновлён: ${new Date(item.updatedAt).toLocaleString('ru-RU')}`;
 }
 
 function updateInventoryItem(id, patch, shouldRender = false) {
@@ -2913,8 +2920,6 @@ function renderInventory() {
         return;
     }
     list.innerHTML = visible.map(item => {
-        const updated = item.updatedAt ? new Date(item.updatedAt).toLocaleString('ru-RU') : '—';
-        const created = item.createdAt ? new Date(item.createdAt).toLocaleString('ru-RU') : '—';
         const categoryOptions = INVENTORY_CATEGORIES.map(category => (
             `<option value="${category}" ${item.category === category ? 'selected' : ''}>${category}</option>`
         )).join('');
@@ -2924,10 +2929,6 @@ function renderInventory() {
                     <div class="inventory-card-title">
                         <strong data-inventory-title>${escapeHTML(item.name || 'Без названия')}</strong>
                         <span data-inventory-summary>${escapeHTML(item.category)} · ${item.quantity} шт.</span>
-                    </div>
-                    <div class="inventory-card-meta">
-                        <span>создан: ${created}</span>
-                        <span data-inventory-updated>обновлён: ${updated}</span>
                     </div>
                 </div>
                 <div class="inventory-card-fields">
@@ -5804,6 +5805,9 @@ function isSheetLockedTarget(target) {
     if (expShopMode) return false;
     if (!target || target.closest('#exp-modal')) return false;
     if (target.closest('.show-master-btn, .selected-item-show-master, [data-inventory-show-master]')) return false;
+    const dotLabel = target.closest('.dot-label');
+    const dotRow = dotLabel?.closest('.row');
+    if ((dotLabel && (dotRow?.querySelector('.attr-name') || dotRow?.querySelector('.skill-name'))) || target.closest('.discipline-item:not(.xp-shop-discipline-option) .disc-dot')) return false;
     if (target.closest('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, .locked-origin-control, .dot-label, .dot-input, .disc-dot, .s-badge, .add-power-btn, .remove-disc-btn, .merit-add-btn, .selected-item-remove')) return true;
     if (target.closest('.skill-spec-line button, .skill-spec-line input')) return true;
     if (target.closest('.attr-name, .skill-name, .skill-spec-line')) return false;

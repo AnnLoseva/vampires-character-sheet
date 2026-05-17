@@ -1063,7 +1063,11 @@
 
         body.sheet-fixed:not(.xp-shop-active) #capture-area .dot-label,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .disc-dot,
-        body.sheet-fixed:not(.xp-shop-active) #capture-area .s-badge,
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .s-badge {
+            opacity: 1;
+            cursor: pointer !important;
+        }
+
         body.sheet-fixed:not(.xp-shop-active) #capture-area .add-power-btn,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .remove-disc-btn,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .merit-add-btn,
@@ -1077,16 +1081,16 @@
         body.sheet-fixed:not(.xp-shop-active) #capture-area .discipline-item,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-spec-line,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .dice-roll-specialty-input {
-            cursor: not-allowed !important;
-            opacity: 0.7 !important;
+            cursor: pointer !important;
+            opacity: 1 !important;
         }
 
         body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-name,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .attr-name,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .discipline-item > div:first-child {
-            color: #aaa;
-            text-decoration: line-through;
-            text-decoration-color: rgba(255,49,49,0.55);
+            color: #f5f5f5;
+            text-decoration: underline;
+            text-decoration-color: rgba(255,49,49,0.45);
             text-underline-offset: 3px;
         }
 
