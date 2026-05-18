@@ -14,7 +14,7 @@ export default function GameTableStyles() {
           overflow: hidden !important;
         }
       `}</style>
-      <style jsx>{`
+      <style jsx global>{`
         .table-page-shell {
           min-height: 100vh;
           padding: 18px;
