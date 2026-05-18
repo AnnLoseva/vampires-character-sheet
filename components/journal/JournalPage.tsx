@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
-import type { ChatUser, JournalAttachment, JournalEntry } from '@/lib/table/types'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { ChatUser, JournalEntry } from '@/lib/table/types'
 import { extractImageUrlsFromHtml } from '@/lib/table/media-utils'
 import JournalEditor, { type JournalEditorHandle } from './JournalEditor'
 
@@ -180,10 +180,6 @@ export default function JournalPage() {
   const [query, setQuery] = useState('')
   const [roomDraft, setRoomDraft] = useState(DEFAULT_ROOM)
   const [status, setStatus] = useState('Дневники загружаются...')
-  const [imageUrlDraft, setImageUrlDraft] = useState('')
-  const [imageTitleDraft, setImageTitleDraft] = useState('')
-  const [linkUrlDraft, setLinkUrlDraft] = useState('')
-  const [linkTitleDraft, setLinkTitleDraft] = useState('')
   const [dragOverJournal, setDragOverJournal] = useState(false)
 
   const editorRef = useRef<JournalEditorHandle>(null)
@@ -273,28 +269,6 @@ export default function JournalPage() {
     setStatus('Изображение вставлено')
   }
 
-  const handleAddImage = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!imageUrlDraft.trim() || !selectedEntry) return
-    await insertImageIntoEditor(imageUrlDraft.trim(), imageTitleDraft.trim() || 'Изображение')
-    setImageUrlDraft('')
-    setImageTitleDraft('')
-  }
-
-  const handleAddLink = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!linkUrlDraft.trim() || !selectedEntry) return
-    const url = linkUrlDraft.trim()
-    const title = linkTitleDraft.trim() || getLinkTitle(url)
-    const linkHtml = `<a href="${url}" target="_blank" rel="noreferrer">${title}</a>`
-    editorRef.current?.focus()
-    // Insert as raw HTML via execCommand (simple approach for links)
-    document.execCommand('insertHTML', false, ` ${linkHtml} `)
-    setLinkUrlDraft('')
-    setLinkTitleDraft('')
-    setStatus('Ссылка вставлена')
-  }
-
   const handleJournalDrop = async (event: React.DragEvent<HTMLElement>) => {
     // Let the editor handle drops when focus is inside it.
     // This handler only fires on the outer wrapper — pass images dropped on the panel chrome.
@@ -371,7 +345,6 @@ export default function JournalPage() {
           <span>Комната</span>
           <input value={roomDraft} onChange={event => setRoomDraft(event.target.value)} />
         </label>
-        <button type="button" onClick={createArchive}>Открыть комнату</button>
         <button type="button" onClick={createEntry}>Новая запись</button>
       </section>
 
@@ -441,42 +414,6 @@ export default function JournalPage() {
                   placeholder="Текст записи…"
                 />
               </div>
-
-              {/* Media tools */}
-              <section className="journal-media-tools" aria-label="Вставка медиа в дневник">
-                <div className="journal-drop-hint">
-                  Перетащите картинку прямо в текст — или вставьте через форму ниже.
-                  Кликните на вставленную картинку, чтобы изменить её размер.
-                </div>
-                <form onSubmit={handleAddImage}>
-                  <strong>Изображение</strong>
-                  <input
-                    value={imageUrlDraft}
-                    onChange={event => setImageUrlDraft(event.target.value)}
-                    placeholder="Ссылка на изображение"
-                  />
-                  <input
-                    value={imageTitleDraft}
-                    onChange={event => setImageTitleDraft(event.target.value)}
-                    placeholder="Название"
-                  />
-                  <button type="submit">Вставить</button>
-                </form>
-                <form onSubmit={handleAddLink}>
-                  <strong>Ссылка</strong>
-                  <input
-                    value={linkUrlDraft}
-                    onChange={event => setLinkUrlDraft(event.target.value)}
-                    placeholder="Адрес ссылки"
-                  />
-                  <input
-                    value={linkTitleDraft}
-                    onChange={event => setLinkTitleDraft(event.target.value)}
-                    placeholder="Текст ссылки"
-                  />
-                  <button type="submit">Вставить</button>
-                </form>
-              </section>
 
               <footer>
                 <span>Обновлено: {formatDate(selectedEntry.updatedAt)}</span>
@@ -693,7 +630,7 @@ export default function JournalPage() {
 
         .journal-editor {
           display: grid;
-          grid-template-rows: auto 1fr auto auto;
+          grid-template-rows: auto 1fr auto;
           gap: 0;
           min-height: 0;
           overflow: auto;
@@ -737,45 +674,6 @@ export default function JournalPage() {
         .journal-editor footer button.danger {
           color: #ffb8b8;
           border-color: #7d2626;
-        }
-
-        .journal-media-tools {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 10px;
-          margin-bottom: 10px;
-        }
-
-        .journal-drop-hint {
-          grid-column: 1 / -1;
-          border: 1px dashed rgba(214, 170, 101, 0.44);
-          border-radius: 7px;
-          background: rgba(82, 12, 18, 0.18);
-          color: #d8c3aa;
-          padding: 10px 12px;
-          font-size: 13px;
-          line-height: 1.45;
-        }
-
-        .journal-media-tools form {
-          display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr) auto;
-          gap: 8px;
-          align-items: end;
-          border: 1px solid rgba(151, 44, 44, 0.26);
-          border-radius: 7px;
-          background: rgba(18, 14, 13, 0.76);
-          padding: 10px;
-        }
-
-        .journal-media-tools strong {
-          grid-column: 1 / -1;
-          color: #ffd89a;
-          font-size: 14px;
-        }
-
-        .journal-media-tools input {
-          min-width: 0;
         }
 
         .journal-empty {

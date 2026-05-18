@@ -20,17 +20,14 @@ function readFileAsDataUrl(file: File): Promise<string> {
 
 function extractImageUrlsFromTransfer(dt: DataTransfer): string[] {
   const urls: string[] = []
-  // text/html — look for <img src="...">
   const html = dt.getData('text/html')
   if (html) {
     const m = [...html.matchAll(/src="([^"]+)"/gi)]
     urls.push(...m.map(r => r[1]))
   }
-  // uri-list
   dt.getData('text/uri-list').split(/\r?\n/).forEach(l => {
     if (l && !l.startsWith('#') && /\.(jpg|jpeg|png|gif|webp|svg|avif)/i.test(l)) urls.push(l)
   })
-  // plain text URL
   const plain = dt.getData('text/plain').trim()
   if (/^(https?:|data:image\/|blob:)/i.test(plain)) urls.push(plain)
   return [...new Set(urls.map(s => s.trim()).filter(Boolean))]
@@ -50,30 +47,32 @@ function Btn({
   title,
   onClick,
   children,
+  compact,
 }: {
   active?: boolean
   title?: string
   onClick: () => void
   children: React.ReactNode
+  compact?: boolean
 }) {
   return (
     <button
       type="button"
       title={title}
       onMouseDown={e => {
-        e.preventDefault() // keep editor focus
+        e.preventDefault()
         onClick()
       }}
       style={{
-        padding: '3px 8px',
-        minWidth: 32,
+        padding: compact ? '2px 6px' : '3px 8px',
+        minWidth: compact ? 26 : 32,
         border: `1px solid ${active ? '#d6aa65' : 'rgba(151,44,44,0.5)'}`,
         borderRadius: 5,
         background: active ? 'rgba(214,170,101,0.18)' : 'rgba(20,14,12,0.7)',
         color: active ? '#ffd89a' : '#e8d8c4',
         cursor: 'pointer',
         font: 'inherit',
-        fontSize: 13,
+        fontSize: compact ? 11 : 13,
         lineHeight: '1.3',
         transition: 'border-color 120ms, background 120ms',
       }}
@@ -89,10 +88,12 @@ interface JournalEditorProps {
   value: string
   onChange: (html: string) => void
   placeholder?: string
+  /** Compact mode for use inside panels (smaller toolbar, tighter padding) */
+  compact?: boolean
 }
 
 const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
-  function JournalEditor({ value, onChange, placeholder = 'Текст записи…' }, ref) {
+  function JournalEditor({ value, onChange, placeholder = 'Текст записи…', compact = false }, ref) {
     const editor = useEditor({
       extensions: [
         StarterKit,
@@ -105,52 +106,41 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
         onChange(ed.getHTML())
       },
       editorProps: {
-        // ── Drag & drop images ──────────────────────────────────────────────
         handleDrop(view, event) {
           if (!event.dataTransfer) return false
           const files = Array.from(event.dataTransfer.files ?? []).filter(f =>
             f.type.startsWith('image/'),
           )
           const urls = extractImageUrlsFromTransfer(event.dataTransfer)
-
           if (files.length === 0 && urls.length === 0) return false
           event.preventDefault()
 
           const coords = view.posAtCoords({ left: event.clientX, top: event.clientY })
           const insertPos = coords?.pos ?? view.state.doc.content.size
 
-          // Insert image files
           files.forEach(async file => {
             const src = await readFileAsDataUrl(file)
             const node = view.state.schema.nodes.image.create({ src, alt: file.name })
-            const tr = view.state.tr.insert(insertPos, node)
-            view.dispatch(tr)
+            view.dispatch(view.state.tr.insert(insertPos, node))
           })
-
-          // Insert image URLs
           urls.forEach(src => {
             const node = view.state.schema.nodes.image.create({ src })
-            const tr = view.state.tr.insert(insertPos, node)
-            view.dispatch(tr)
+            view.dispatch(view.state.tr.insert(insertPos, node))
           })
-
           return true
         },
 
-        // ── Paste images from clipboard ─────────────────────────────────────
         handlePaste(view, event) {
           const items = Array.from(event.clipboardData?.items ?? [])
           const imageItems = items.filter(i => i.type.startsWith('image/'))
           if (imageItems.length === 0) return false
-
           event.preventDefault()
           imageItems.forEach(item => {
             const file = item.getAsFile()
             if (!file) return
             readFileAsDataUrl(file).then(src => {
               const node = view.state.schema.nodes.image.create({ src })
-              const tr = view.state.tr.replaceSelectionWith(node)
-              view.dispatch(tr)
+              view.dispatch(view.state.tr.replaceSelectionWith(node))
             })
           })
           return true
@@ -158,17 +148,14 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
       },
     })
 
-    // Sync content when entry changes from outside
     useEffect(() => {
       if (!editor) return
-      const current = editor.getHTML()
-      if (current !== value) {
+      if (editor.getHTML() !== value) {
         editor.commands.setContent(value ?? '', { emitUpdate: false })
       }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [value])
 
-    // Expose handle
     useImperativeHandle(ref, () => ({
       insertImage(src: string, alt = 'Изображение') {
         if (!editor) return
@@ -181,64 +168,39 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
 
     if (!editor) return null
 
-    const isBold      = editor.isActive('bold')
-    const isItalic    = editor.isActive('italic')
-    const isStrike    = editor.isActive('strike')
-    const isH1        = editor.isActive('heading', { level: 1 })
-    const isH2        = editor.isActive('heading', { level: 2 })
-    const isBullet    = editor.isActive('bulletList')
-    const isOrdered   = editor.isActive('orderedList')
+    const c = compact  // shorthand
+
+    const isBold       = editor.isActive('bold')
+    const isItalic     = editor.isActive('italic')
+    const isStrike     = editor.isActive('strike')
+    const isH1         = editor.isActive('heading', { level: 1 })
+    const isH2         = editor.isActive('heading', { level: 2 })
+    const isBullet     = editor.isActive('bulletList')
+    const isOrdered    = editor.isActive('orderedList')
     const isBlockquote = editor.isActive('blockquote')
 
     return (
-      <div className="je-root">
-        {/* ── Toolbar ──────────────────────────────────────────────────── */}
+      <div className={`je-root${c ? ' je-compact' : ''}`}>
+        {/* ── Toolbar ── */}
         <div className="je-toolbar">
-          <Btn active={isBold}   title="Жирный (Ctrl+B)"  onClick={() => editor.chain().focus().toggleBold().run()}>
-            <b>B</b>
-          </Btn>
-          <Btn active={isItalic} title="Курсив (Ctrl+I)"  onClick={() => editor.chain().focus().toggleItalic().run()}>
-            <i>I</i>
-          </Btn>
-          <Btn active={isStrike} title="Зачёркнутый"      onClick={() => editor.chain().focus().toggleStrike().run()}>
-            <s>S</s>
-          </Btn>
-
+          <Btn compact={c} active={isBold}       title="Жирный (Ctrl+B)"        onClick={() => editor.chain().focus().toggleBold().run()}><b>B</b></Btn>
+          <Btn compact={c} active={isItalic}     title="Курсив (Ctrl+I)"         onClick={() => editor.chain().focus().toggleItalic().run()}><i>I</i></Btn>
+          <Btn compact={c} active={isStrike}     title="Зачёркнутый"             onClick={() => editor.chain().focus().toggleStrike().run()}><s>S</s></Btn>
           <span className="je-sep" />
-
-          <Btn active={isH1} title="Заголовок 1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>
-            H1
-          </Btn>
-          <Btn active={isH2} title="Заголовок 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>
-            H2
-          </Btn>
-
+          <Btn compact={c} active={isH1}         title="Заголовок 1"             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>H1</Btn>
+          <Btn compact={c} active={isH2}         title="Заголовок 2"             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>H2</Btn>
           <span className="je-sep" />
-
-          <Btn active={isBullet}  title="Маркированный список" onClick={() => editor.chain().focus().toggleBulletList().run()}>
-            ☰
-          </Btn>
-          <Btn active={isOrdered} title="Нумерованный список"  onClick={() => editor.chain().focus().toggleOrderedList().run()}>
-            №
-          </Btn>
-          <Btn active={isBlockquote} title="Цитата"            onClick={() => editor.chain().focus().toggleBlockquote().run()}>
-            "
-          </Btn>
-
+          <Btn compact={c} active={isBullet}     title="Маркированный список"    onClick={() => editor.chain().focus().toggleBulletList().run()}>☰</Btn>
+          <Btn compact={c} active={isOrdered}    title="Нумерованный список"     onClick={() => editor.chain().focus().toggleOrderedList().run()}>№</Btn>
+          <Btn compact={c} active={isBlockquote} title="Цитата"                  onClick={() => editor.chain().focus().toggleBlockquote().run()}>"</Btn>
           <span className="je-sep" />
-
-          <Btn title="Горизонтальная линия" onClick={() => editor.chain().focus().setHorizontalRule().run()}>
-            ─
-          </Btn>
-          <Btn title="Убрать форматирование" onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>
-            ✕
-          </Btn>
+          <Btn compact={c}                       title="Горизонтальная линия"    onClick={() => editor.chain().focus().setHorizontalRule().run()}>─</Btn>
+          <Btn compact={c}                       title="Убрать форматирование"   onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>✕</Btn>
         </div>
 
-        {/* ── Editor area ──────────────────────────────────────────────── */}
+        {/* ── Editor area ── */}
         <EditorContent editor={editor} className="je-content" />
 
-        {/* ── Styles ───────────────────────────────────────────────────── */}
         <style>{`
           .je-root {
             display: grid;
@@ -256,6 +218,11 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
             background: rgba(10,7,8,0.6);
           }
 
+          .je-compact .je-toolbar {
+            gap: 3px;
+            padding: 5px 8px;
+          }
+
           .je-sep {
             width: 1px;
             align-self: stretch;
@@ -264,15 +231,18 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
           }
 
           .je-content {
-            flex: 1;
             overflow: auto;
             padding: 14px 16px;
             cursor: text;
           }
 
+          .je-compact .je-content {
+            padding: 8px 10px;
+          }
+
           .je-content .tiptap {
             outline: none;
-            min-height: 280px;
+            min-height: 200px;
             color: #fff8ef;
             font-family: "Courier New", Courier, monospace;
             font-size: 15px;
@@ -280,9 +250,14 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
             caret-color: #d6aa65;
           }
 
-          .je-content .tiptap p {
-            margin: 0 0 0.75em;
+          .je-compact .je-content .tiptap {
+            font-size: 13px;
+            line-height: 1.6;
+            min-height: 100px;
           }
+
+          .je-content .tiptap p { margin: 0 0 0.75em; }
+          .je-compact .je-content .tiptap p { margin: 0 0 0.5em; }
 
           .je-content .tiptap h1 {
             margin: 0.9em 0 0.45em;
@@ -291,11 +266,15 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
             letter-spacing: 0.02em;
           }
 
+          .je-compact .je-content .tiptap h1 { font-size: 1.3em; margin: 0.6em 0 0.3em; }
+
           .je-content .tiptap h2 {
             margin: 0.7em 0 0.35em;
             font-size: 1.25em;
             color: #fff7ed;
           }
+
+          .je-compact .je-content .tiptap h2 { font-size: 1.1em; margin: 0.5em 0 0.25em; }
 
           .je-content .tiptap strong { color: #ffd89a; }
           .je-content .tiptap em     { color: #e8cfa6; font-style: italic; }
@@ -307,9 +286,7 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
             padding: 0;
           }
 
-          .je-content .tiptap li {
-            margin-bottom: 0.3em;
-          }
+          .je-content .tiptap li { margin-bottom: 0.3em; }
 
           .je-content .tiptap blockquote {
             margin: 0.6em 0;
@@ -354,7 +331,6 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
             padding: 0;
           }
 
-          /* Placeholder */
           .je-content .tiptap p.is-editor-empty:first-child::before {
             content: attr(data-placeholder);
             float: left;
@@ -363,8 +339,6 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
             height: 0;
           }
 
-          /* Image selection ring handled in ResizableImageExtension,
-             but make sure cursor is pointer over images */
           .je-content .tiptap img {
             cursor: pointer;
           }

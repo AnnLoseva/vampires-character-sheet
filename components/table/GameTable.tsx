@@ -2660,6 +2660,33 @@ export default function VampireTable() {
     setLayerContextMenu(null)
   }
 
+  const addLayerToJournal = (imageUrl: string, name: string) => {
+    if (!chatUser) return
+    const imgHtml = `<p><img src="${imageUrl}" alt="${name}"></p>`
+    if (selectedJournalEntry) {
+      const newText = (selectedJournalEntry.text || '') + imgHtml
+      const now = new Date().toISOString()
+      const next = journalEntries.map(entry =>
+        entry.id === selectedJournalEntry.id ? { ...entry, text: newText, updatedAt: now } : entry
+      )
+      saveJournalEntries(next, 'Есть несохранённые изменения')
+    } else {
+      const now = new Date().toISOString()
+      const entry: JournalEntry = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        title: name || 'Изображение со стола',
+        text: imgHtml,
+        createdAt: now,
+        updatedAt: now,
+      }
+      saveJournalEntries([entry, ...journalEntries], 'Сохранено')
+      setSelectedJournalEntryId(entry.id)
+    }
+    setRightRailTab('diary')
+    setLayerContextMenu(null)
+    setTableStatus('Добавлено в дневник')
+  }
+
   const copyLayerUrl = async (layer: TableLayer) => {
     const url = getLayerShareUrl(layer)
     await copyTextToClipboard(url || getLayerClipboardText(layer))
@@ -3849,6 +3876,7 @@ export default function VampireTable() {
             updateJournalEntry={updateJournalEntry}
             persistCurrentJournal={persistCurrentJournal}
             deleteJournalEntry={deleteJournalEntry}
+            addLayerToJournal={addLayerToJournal}
           />
 
           <MasterPanel
@@ -4041,12 +4069,24 @@ export default function VampireTable() {
             onClick={event => event.stopPropagation()}
           >
             {singleLayer && singleLayer.layerType !== 'folder' ? (
-              <div className="context-menu-group">
-                <span>Копировать</span>
-                <button type="button" onClick={() => copyLayerForDiary(singleLayer)}>Для дневника</button>
-                <button type="button" onClick={() => copyLayerUrl(singleLayer)}>Ссылку</button>
-                <button type="button" onClick={() => copyLayerToPersonalMedia(singleLayer)}>В мои медиа</button>
-              </div>
+              <>
+                {/* Add to journal — available to all players for any visible layer */}
+                {chatUser && singleLayer.layerType === 'image' ? (
+                  <button
+                    type="button"
+                    style={{ fontWeight: 600, color: '#ffd89a', borderColor: 'rgba(214,170,101,0.5)' }}
+                    onClick={() => addLayerToJournal(singleLayer.imageData, singleLayer.name)}
+                  >
+                    📖 Добавить в дневник
+                  </button>
+                ) : null}
+                <div className="context-menu-group">
+                  <span>Копировать</span>
+                  <button type="button" onClick={() => copyLayerForDiary(singleLayer)}>Для дневника</button>
+                  <button type="button" onClick={() => copyLayerUrl(singleLayer)}>Ссылку</button>
+                  <button type="button" onClick={() => copyLayerToPersonalMedia(singleLayer)}>В мои медиа</button>
+                </div>
+              </>
             ) : null}
             {canManageContext ? (
               <>
