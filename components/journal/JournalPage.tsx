@@ -1,8 +1,8 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useMemo, useState } from 'react'
-import type { ChatUser, JournalEntry } from '@/lib/table/types'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import type { ChatUser, JournalAttachment, JournalEntry } from '@/lib/table/types'
 
 type JournalArchive = {
   key: string
@@ -47,6 +47,18 @@ function formatDate(value: string) {
   return new Date(value).toLocaleString('ru-RU')
 }
 
+function getEntryAttachments(entry: JournalEntry | null | undefined) {
+  return Array.isArray(entry?.attachments) ? entry.attachments : []
+}
+
+function getLinkTitle(url: string) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '') || 'Ссылка'
+  } catch {
+    return 'Ссылка'
+  }
+}
+
 export default function JournalPage() {
   const [chatUser, setChatUser] = useState<ChatUser | null>(null)
   const [archives, setArchives] = useState<JournalArchive[]>([])
@@ -55,6 +67,10 @@ export default function JournalPage() {
   const [query, setQuery] = useState('')
   const [roomDraft, setRoomDraft] = useState(DEFAULT_ROOM)
   const [status, setStatus] = useState('Дневники загружаются...')
+  const [imageUrlDraft, setImageUrlDraft] = useState('')
+  const [imageTitleDraft, setImageTitleDraft] = useState('')
+  const [linkUrlDraft, setLinkUrlDraft] = useState('')
+  const [linkTitleDraft, setLinkTitleDraft] = useState('')
 
   const reloadArchives = () => {
     const next = readJournalArchives()
@@ -75,7 +91,10 @@ export default function JournalPage() {
   const filteredEntries = useMemo(() => {
     const needle = query.trim().toLowerCase()
     if (!needle) return entries
-    return entries.filter(entry => `${entry.title} ${entry.text}`.toLowerCase().includes(needle))
+    return entries.filter(entry => {
+      const attachments = getEntryAttachments(entry).map(item => `${item.title} ${item.url}`).join(' ')
+      return `${entry.title} ${entry.text} ${attachments}`.toLowerCase().includes(needle)
+    })
   }, [entries, query])
   const selectedEntry = entries.find(entry => entry.id === selectedEntryId)
     || filteredEntries[0]
@@ -115,11 +134,59 @@ export default function JournalPage() {
     setSelectedEntryId(entry.id)
   }
 
-  const updateEntry = (patch: Partial<Pick<JournalEntry, 'title' | 'text'>>) => {
+  const updateEntry = (patch: Partial<Pick<JournalEntry, 'title' | 'text' | 'attachments'>>) => {
     if (!selectedArchive || !selectedEntry) return
     const now = new Date().toISOString()
     const next = selectedArchive.entries.map(entry => entry.id === selectedEntry.id ? { ...entry, ...patch, updatedAt: now } : entry)
     saveArchive(selectedArchive, next, 'Сохранено')
+  }
+
+  const addAttachment = (kind: JournalAttachment['kind'], url: string, title: string) => {
+    if (!selectedEntry) return false
+    const cleanUrl = url.trim()
+    if (!cleanUrl) return false
+
+    const cleanTitle = title.trim() || (kind === 'image' ? 'Изображение' : getLinkTitle(cleanUrl))
+    const attachment: JournalAttachment = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      kind,
+      url: cleanUrl,
+      title: cleanTitle,
+      createdAt: new Date().toISOString(),
+    }
+    const markdown = kind === 'image'
+      ? `![${cleanTitle}](${cleanUrl})`
+      : `[${cleanTitle}](${cleanUrl})`
+    const nextText = selectedEntry.text.trim()
+      ? `${selectedEntry.text}\n\n${markdown}`
+      : markdown
+
+    updateEntry({
+      text: nextText,
+      attachments: [...getEntryAttachments(selectedEntry), attachment],
+    })
+    return true
+  }
+
+  const handleAddImage = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!addAttachment('image', imageUrlDraft, imageTitleDraft)) return
+    setImageUrlDraft('')
+    setImageTitleDraft('')
+  }
+
+  const handleAddLink = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    if (!addAttachment('link', linkUrlDraft, linkTitleDraft)) return
+    setLinkUrlDraft('')
+    setLinkTitleDraft('')
+  }
+
+  const removeAttachment = (attachmentId: string) => {
+    if (!selectedEntry) return
+    updateEntry({
+      attachments: getEntryAttachments(selectedEntry).filter(item => item.id !== attachmentId),
+    })
   }
 
   const deleteEntry = () => {
@@ -209,6 +276,54 @@ export default function JournalPage() {
                 onChange={event => updateEntry({ text: event.target.value })}
                 placeholder="Текст записи"
               />
+              <section className="journal-media-tools" aria-label="Вставка медиа в дневник">
+                <form onSubmit={handleAddImage}>
+                  <strong>Изображение</strong>
+                  <input
+                    value={imageUrlDraft}
+                    onChange={event => setImageUrlDraft(event.target.value)}
+                    placeholder="Ссылка на изображение"
+                  />
+                  <input
+                    value={imageTitleDraft}
+                    onChange={event => setImageTitleDraft(event.target.value)}
+                    placeholder="Название"
+                  />
+                  <button type="submit">Вставить изображение</button>
+                </form>
+                <form onSubmit={handleAddLink}>
+                  <strong>Ссылка</strong>
+                  <input
+                    value={linkUrlDraft}
+                    onChange={event => setLinkUrlDraft(event.target.value)}
+                    placeholder="Адрес ссылки"
+                  />
+                  <input
+                    value={linkTitleDraft}
+                    onChange={event => setLinkTitleDraft(event.target.value)}
+                    placeholder="Текст ссылки"
+                  />
+                  <button type="submit">Вставить ссылку</button>
+                </form>
+              </section>
+              {getEntryAttachments(selectedEntry).length > 0 && (
+                <section className="journal-attachment-grid" aria-label="Вложения записи">
+                  {getEntryAttachments(selectedEntry).map(attachment => (
+                    <article className="journal-attachment-card" key={attachment.id}>
+                      {attachment.kind === 'image' ? (
+                        <img src={attachment.url} alt={attachment.title} />
+                      ) : (
+                        <a href={attachment.url} target="_blank" rel="noreferrer">{attachment.title}</a>
+                      )}
+                      <div>
+                        <strong>{attachment.title}</strong>
+                        <span>{attachment.kind === 'image' ? 'Изображение' : 'Ссылка'}</span>
+                      </div>
+                      <button type="button" onClick={() => removeAttachment(attachment.id)}>Убрать</button>
+                    </article>
+                  ))}
+                </section>
+              )}
               <footer>
                 <span>Обновлено: {formatDate(selectedEntry.updatedAt)}</span>
                 <button type="button" className="danger" onClick={deleteEntry}>Удалить</button>
@@ -277,7 +392,9 @@ export default function JournalPage() {
 
         nav a,
         .journal-toolbar button,
-        .journal-editor footer button {
+        .journal-editor footer button,
+        .journal-media-tools button,
+        .journal-attachment-card button {
           border: 1px solid #773030;
           border-radius: 6px;
           color: #f5f5f5;
@@ -292,7 +409,9 @@ export default function JournalPage() {
 
         nav a:hover,
         .journal-toolbar button:hover,
-        .journal-editor footer button:hover {
+        .journal-editor footer button:hover,
+        .journal-media-tools button:hover,
+        .journal-attachment-card button:hover {
           border-color: #ff3131;
           background: #221111;
           color: #fff3e2;
@@ -345,9 +464,10 @@ export default function JournalPage() {
         }
 
         textarea {
-          min-height: 52vh;
+          min-height: 0;
+          height: 100%;
           padding: 14px;
-          resize: vertical;
+          resize: none;
           line-height: 1.65;
         }
 
@@ -361,7 +481,8 @@ export default function JournalPage() {
           display: grid;
           grid-template-columns: 340px minmax(0, 1fr);
           gap: 16px;
-          min-height: calc(100vh - 190px);
+          height: calc(100vh - 186px);
+          min-height: 680px;
         }
 
         .journal-sidebar,
@@ -376,6 +497,7 @@ export default function JournalPage() {
           display: grid;
           grid-template-rows: auto auto minmax(0, 1fr);
           gap: 10px;
+          min-height: 0;
           padding: 12px;
         }
 
@@ -432,8 +554,10 @@ export default function JournalPage() {
 
         .journal-editor {
           display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
+          grid-template-rows: auto minmax(320px, 1fr) auto auto auto;
           gap: 10px;
+          min-height: 0;
+          overflow: auto;
           padding: 14px;
         }
 
@@ -453,6 +577,89 @@ export default function JournalPage() {
         .journal-editor footer button.danger {
           color: #ffb8b8;
           border-color: #7d2626;
+        }
+
+        .journal-media-tools {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .journal-media-tools form {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 0.72fr) auto;
+          gap: 8px;
+          align-items: end;
+          border: 1px solid rgba(151, 44, 44, 0.26);
+          border-radius: 7px;
+          background: rgba(18, 14, 13, 0.76);
+          padding: 10px;
+        }
+
+        .journal-media-tools strong {
+          grid-column: 1 / -1;
+          color: #ffd89a;
+          font-size: 14px;
+        }
+
+        .journal-media-tools input {
+          min-width: 0;
+        }
+
+        .journal-attachment-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+          gap: 10px;
+          max-height: 260px;
+          overflow: auto;
+          padding-right: 2px;
+        }
+
+        .journal-attachment-card {
+          display: grid;
+          grid-template-columns: 82px minmax(0, 1fr) auto;
+          gap: 10px;
+          align-items: center;
+          border: 1px solid rgba(151, 44, 44, 0.26);
+          border-radius: 7px;
+          background: rgba(18, 14, 13, 0.76);
+          padding: 9px;
+        }
+
+        .journal-attachment-card img {
+          width: 82px;
+          height: 58px;
+          object-fit: cover;
+          border-radius: 5px;
+          border: 1px solid rgba(214, 170, 101, 0.24);
+          background: #050505;
+        }
+
+        .journal-attachment-card a {
+          grid-column: 1 / -1;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #ffd89a;
+        }
+
+        .journal-attachment-card div {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .journal-attachment-card strong {
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #fff7ed;
+        }
+
+        .journal-attachment-card span {
+          color: #b8a89a;
+          font-size: 12px;
         }
 
         .journal-empty {
@@ -476,7 +683,16 @@ export default function JournalPage() {
           }
 
           .journal-layout {
+            height: auto;
             min-height: 0;
+          }
+
+          .journal-media-tools {
+            grid-template-columns: 1fr;
+          }
+
+          .journal-media-tools form {
+            grid-template-columns: 1fr;
           }
         }
 
@@ -500,6 +716,14 @@ export default function JournalPage() {
 
           .journal-editor footer {
             display: grid;
+          }
+
+          .journal-attachment-card {
+            grid-template-columns: 70px minmax(0, 1fr);
+          }
+
+          .journal-attachment-card button {
+            grid-column: 1 / -1;
           }
         }
       `}</style>

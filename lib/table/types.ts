@@ -109,6 +109,15 @@ export type JournalEntry = {
   text: string
   updatedAt: string
   createdAt: string
+  attachments?: JournalAttachment[]
+}
+
+export type JournalAttachment = {
+  id: string
+  kind: 'image' | 'link'
+  url: string
+  title: string
+  createdAt: string
 }
 
 export type MasterReveal = {
