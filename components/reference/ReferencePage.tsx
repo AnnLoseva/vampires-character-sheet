@@ -154,6 +154,8 @@ export default function ReferencePage() {
   const [markdown, setMarkdown] = useState('')
   const [status, setStatus] = useState('Загружаю архив...')
   const [query, setQuery] = useState('')
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0)
+  const [matchCount, setMatchCount] = useState(0)
 
   useEffect(() => {
     let cancelled = false
@@ -178,8 +180,46 @@ export default function ReferencePage() {
   }, [])
 
   const searchState = useMemo(() => filterMarkdown(markdown, query), [markdown, query])
+  const searchTerms = useMemo(() => getSearchTerms(query), [query])
   const headings = useMemo(() => collectHeadings(searchState.markdown), [searchState.markdown])
-  const isSearching = getSearchTerms(query).length > 0
+  const isSearching = searchTerms.length > 0
+
+  useEffect(() => {
+    setActiveMatchIndex(0)
+  }, [query, searchState.markdown])
+
+  useEffect(() => {
+    if (!isSearching) {
+      setMatchCount(0)
+      return
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      const matches = Array.from(document.querySelectorAll<HTMLElement>('.reference-search-hit'))
+      setMatchCount(matches.length)
+      if (matches.length === 0) return
+
+      const nextIndex = Math.min(activeMatchIndex, matches.length - 1)
+      if (nextIndex !== activeMatchIndex) {
+        setActiveMatchIndex(nextIndex)
+        return
+      }
+
+      matches[nextIndex]?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+
+    return () => window.cancelAnimationFrame(frame)
+  }, [activeMatchIndex, isSearching, searchState.markdown])
+
+  const goToPreviousMatch = () => {
+    if (matchCount === 0) return
+    setActiveMatchIndex(current => (current - 1 + matchCount) % matchCount)
+  }
+
+  const goToNextMatch = () => {
+    if (matchCount === 0) return
+    setActiveMatchIndex(current => (current + 1) % matchCount)
+  }
 
   return (
     <main className="reference-shell">
@@ -213,6 +253,11 @@ export default function ReferencePage() {
           {isSearching ? (
             <>
               <strong>Найдено разделов: {searchState.results.length}</strong>
+              <span>{matchCount ? `Совпадение ${activeMatchIndex + 1} из ${matchCount}` : 'Совпадений нет'}</span>
+              <div className="reference-match-controls" aria-label="Переход по совпадениям">
+                <button type="button" onClick={goToPreviousMatch} disabled={matchCount === 0}>Назад</button>
+                <button type="button" onClick={goToNextMatch} disabled={matchCount === 0}>Вперёд</button>
+              </div>
               <button type="button" onClick={() => setQuery('')}>Сбросить</button>
             </>
           ) : (
@@ -235,7 +280,11 @@ export default function ReferencePage() {
 
       <section className="reference-layout">
         <ReferenceSidebar headings={headings} />
-        <MarkdownRenderer markdown={searchState.markdown || '# Справочник загружается...'} />
+        <MarkdownRenderer
+          activeMatchIndex={activeMatchIndex}
+          markdown={searchState.markdown || '# Справочник загружается...'}
+          searchTerms={isSearching ? searchTerms : []}
+        />
       </section>
 
       <style jsx global>{`
@@ -296,7 +345,8 @@ export default function ReferencePage() {
         }
 
         .reference-topbar a,
-        .reference-search-status button {
+        .reference-search-status button,
+        .reference-match-controls button {
           border: 1px solid #773030;
           border-radius: 6px;
           color: #f5f5f5;
@@ -311,11 +361,19 @@ export default function ReferencePage() {
         }
 
         .reference-topbar a:hover,
-        .reference-search-status button:hover {
+        .reference-search-status button:hover,
+        .reference-match-controls button:hover:not(:disabled) {
           border-color: #ff3131;
           background: #221111;
           color: #fff3e2;
           transform: translateY(-1px);
+        }
+
+        .reference-search-status button:disabled,
+        .reference-match-controls button:disabled {
+          opacity: 0.45;
+          cursor: default;
+          transform: none;
         }
 
         .reference-topbar a:nth-child(2) {
@@ -407,6 +465,11 @@ export default function ReferencePage() {
         .reference-search-status strong {
           color: #ffd89a;
           font-size: 14px;
+        }
+
+        .reference-match-controls {
+          display: flex;
+          gap: 8px;
         }
 
         .reference-results {
@@ -557,6 +620,26 @@ export default function ReferencePage() {
           color: #ffb36b;
           text-decoration-thickness: 1px;
           text-underline-offset: 4px;
+        }
+
+        :global(.reference-highlight-fragment) {
+          display: contents;
+        }
+
+        :global(.reference-search-hit) {
+          border-radius: 4px;
+          background: rgba(255, 49, 49, 0.22);
+          color: #fff6ee;
+          padding: 0 3px;
+          box-shadow: 0 0 12px rgba(255, 49, 49, 0.28);
+        }
+
+        :global(.reference-search-hit.active) {
+          background: rgba(255, 49, 49, 0.5);
+          color: #ffffff;
+          box-shadow:
+            0 0 0 1px rgba(255, 210, 150, 0.52),
+            0 0 18px rgba(255, 49, 49, 0.68);
         }
 
         :global(.reference-markdown blockquote) {
