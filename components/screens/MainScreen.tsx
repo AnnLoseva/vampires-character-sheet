@@ -6,7 +6,7 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 
 type TableRole = 'master' | 'player'
-type Accent = 'gold' | 'red' | 'cyan'
+type Accent = 'gold' | 'red' | 'cyan' | 'blood'
 type AuthMode = 'login' | 'register'
 
 type ChatUser = {
@@ -89,7 +89,7 @@ function EntryCard({
   )
 }
 
-export default function CharacterSheet() {
+export default function MainScreen() {
   const [roomDraft, setRoomDraft] = useState(DEFAULT_ROOM)
   const [role, setRole] = useState<TableRole>('player')
   const [chatUser, setChatUser] = useState<ChatUser | null>(null)
@@ -454,6 +454,19 @@ export default function CharacterSheet() {
           >
             <Sigil>✦</Sigil>
           </EntryCard>
+
+          <EntryCard
+            accent="blood"
+            title="Справочник"
+            description="Правила, кланы, дисциплины, создание персонажа и материалы для мастера."
+            button={
+              <Link href="/reference" className="card-action">
+                Открыть справочник
+              </Link>
+            }
+          >
+            <Sigil>☽</Sigil>
+          </EntryCard>
         </section>
       </section>
 
@@ -661,7 +674,7 @@ export default function CharacterSheet() {
 
         .card-grid {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
           gap: 22px;
         }
 
@@ -732,6 +745,11 @@ export default function CharacterSheet() {
         .elysium-card.cyan {
           --accent: #8bd5d7;
           --card-image: url('/card-character-sheet.png');
+        }
+
+        .elysium-card.blood {
+          --accent: #c92d2d;
+          --card-image: url('/landing-background.png');
         }
 
         .card-corners {
