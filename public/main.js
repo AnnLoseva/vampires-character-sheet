@@ -165,6 +165,23 @@ async function initializeApp() {
         renderThinBloodMeritsFlaws();
         updateExpPurchasedStyles();
 
+        // Инициализация типа персонажа
+        const savedType = localStorage.getItem('vtm-char-type') || 'vampire';
+        const savedMortalTpl = localStorage.getItem('vtm-mortal-template');
+        if (savedMortalTpl) currentMortalTemplate = savedMortalTpl;
+        setCharacterType(savedType);
+
+        // Обновлять морталь-трекер при смене характеристик/навыков
+        document.addEventListener('change', function(e) {
+            if (
+                (currentCharType === 'mortal' || currentCharType === 'npc-mortal') &&
+                currentMortalTemplate &&
+                (e.target.closest('#attributes-grid') || e.target.closest('#skills-grid'))
+            ) {
+                renderMortalAttrTracker();
+            }
+        });
+
         console.log("✅ Приложение полностью инициализировано");
     } catch (err) {
         console.error("❌ Ошибка инициализации:", err);
@@ -1773,6 +1790,179 @@ function closeGenerationModal() {
     const modal = document.getElementById('generation-modal');
     if (modal) modal.style.display = 'none';
 }
+
+// ==================== ТИП ПЕРСОНАЖА ====================
+
+const MORTAL_TEMPLATES = [
+    {
+        id: 'weak',
+        name: 'Слабый смертный',
+        short: 'Рядовой обыватель без особых способностей',
+        detail:
+`Характеристики: две по 2 пункта, остальные по 1 пункту.
+Навыки: три по 2 пункта, пять по 1 пункту.
+Преимущества: нет.`,
+        attrs: { total: 11, budget: [{v:2,n:2},{v:1,n:'все остальные'}] },
+        skills: { total: 11, budget: [{v:2,n:3},{v:1,n:5}] },
+        merits: 0, maxFlaws: 0, specs: 0,
+    },
+    {
+        id: 'average',
+        name: 'Обычный смертный',
+        short: 'Среднестатистический человек',
+        detail:
+`Характеристики: две по 3 пункта, три по 2 пункта, остальные по 1 пункту.
+Навыки: три по 3 пункта, четыре по 2 пункта, пять по 1 пункту.
+Преимущества: до 3 пунктов (недостатков не больше чем на 2 пункта).`,
+        attrs: { total: 18, budget: [{v:3,n:2},{v:2,n:3},{v:1,n:'остальные'}] },
+        skills: { total: 21, budget: [{v:3,n:3},{v:2,n:4},{v:1,n:5}] },
+        merits: 3, maxFlaws: 2, specs: 0,
+    },
+    {
+        id: 'gifted',
+        name: 'Одарённый смертный',
+        short: 'Человек с выдающимися талантами',
+        detail:
+`Характеристики: одна — 4 пункта, две по 3 пункта, две по 2 пункта, остальные по 1 пункту.
+Навыки: два по 4 пункта (одна специализация на любой из них), четыре по 3 пункта, четыре по 2 пункта, четыре по 1 пункту.
+Преимущества: до 10 пунктов (недостатков не больше чем на 4 пункта).`,
+        attrs: { total: 23, budget: [{v:4,n:1},{v:3,n:2},{v:2,n:2},{v:1,n:'остальные'}] },
+        skills: { total: 30, budget: [{v:4,n:2},{v:3,n:4},{v:2,n:4},{v:1,n:4}] },
+        merits: 10, maxFlaws: 4, specs: 1,
+    },
+    {
+        id: 'formidable',
+        name: 'Отчаянный смертный',
+        short: 'Исключительный человек, опасный противник',
+        detail:
+`Характеристики: две по 5 пунктов, две по 4 пункта, две по 3 пункта, остальные по 2 пункта.
+Навыки: один — 5 пунктов, три по 4 пункта, пять по 3 пункта, шесть по 2 пункта; три специализации.
+Преимущества: до 15 пунктов (нет недостатков).`,
+        attrs: { total: 39, budget: [{v:5,n:2},{v:4,n:2},{v:3,n:2},{v:2,n:'остальные'}] },
+        skills: { total: 44, budget: [{v:5,n:1},{v:4,n:3},{v:3,n:5},{v:2,n:6}] },
+        merits: 15, maxFlaws: 0, specs: 3,
+    },
+];
+
+let currentCharType = 'vampire';
+let currentMortalTemplate = null;
+
+function setCharacterType(type) {
+    currentCharType = type;
+    localStorage.setItem('vtm-char-type', type);
+
+    // Сбрасываем все классы char-type-*
+    document.body.classList.forEach(cls => {
+        if (cls.startsWith('char-type-')) document.body.classList.remove(cls);
+    });
+    document.body.classList.add('char-type-' + type);
+
+    // Обновляем активную кнопку переключателя
+    document.querySelectorAll('.char-type-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('onclick') === `setCharacterType('${type}')`);
+    });
+
+    // Рендерим нужный трекер
+    if (type === 'mortal' || type === 'npc-mortal') {
+        renderMortalTemplates();
+    }
+
+    // Обновляем label у поля Сира для смертных
+    updateSireLabel(type);
+}
+
+function updateSireLabel(type) {
+    const label = document.querySelector('[for="sire-input"], label[data-for="sire-input"]');
+    // Ищем span с "Сир" в header-label
+    document.querySelectorAll('.header-label').forEach(el => {
+        if (el.textContent.includes('Сир')) {
+            // Меняем placeholder инпута
+            const input = document.getElementById('sire-input');
+            if (!input) return;
+            if (type === 'mortal' || type === 'npc-mortal' || type === 'npc-ghost') {
+                input.placeholder = 'Связи / Наставник';
+            } else {
+                input.placeholder = 'Сир';
+            }
+        }
+    });
+}
+
+function renderMortalTemplates() {
+    const list = document.getElementById('mortal-template-list');
+    if (!list) return;
+
+    list.innerHTML = MORTAL_TEMPLATES.map(tpl => `
+        <div class="mortal-template-card ${currentMortalTemplate === tpl.id ? 'active' : ''}"
+             onclick="selectMortalTemplate('${tpl.id}')">
+            <div class="tpl-name">${tpl.name}</div>
+            <div class="tpl-short">${tpl.short}</div>
+        </div>
+    `).join('');
+
+    renderMortalTemplateDetail();
+    renderMortalAttrTracker();
+}
+
+function selectMortalTemplate(id) {
+    currentMortalTemplate = id;
+    localStorage.setItem('vtm-mortal-template', id);
+    renderMortalTemplates();
+}
+
+function renderMortalTemplateDetail() {
+    const detail = document.getElementById('mortal-template-detail');
+    if (!detail) return;
+    if (!currentMortalTemplate) { detail.style.display = 'none'; return; }
+    const tpl = MORTAL_TEMPLATES.find(t => t.id === currentMortalTemplate);
+    if (!tpl) { detail.style.display = 'none'; return; }
+    detail.style.display = 'block';
+    detail.textContent = tpl.detail;
+}
+
+function renderMortalAttrTracker() {
+    const container = document.getElementById('mortal-attr-tracker');
+    if (!container) return;
+    if (!currentMortalTemplate) { container.innerHTML = ''; return; }
+    const tpl = MORTAL_TEMPLATES.find(t => t.id === currentMortalTemplate);
+    if (!tpl) { container.innerHTML = ''; return; }
+
+    // Считаем потраченные атрибуты и навыки
+    let attrSpent = 0;
+    document.querySelectorAll('#attributes-grid input[type="radio"]:checked').forEach(r => {
+        attrSpent += parseInt(r.value) || 0;
+    });
+    let skillSpent = 0;
+    document.querySelectorAll('#skills-grid input[type="radio"]:checked').forEach(r => {
+        skillSpent += parseInt(r.value) || 0;
+    });
+
+    const attrOk = attrSpent <= tpl.attrs.total;
+    const skillOk = skillSpent <= tpl.skills.total;
+
+    const meritsEl = tpl.merits > 0
+        ? `<div class="mortal-tracker-row"><span>Преимущества</span><span>до ${tpl.merits} пт${tpl.maxFlaws ? ` (недост. ≤ ${tpl.maxFlaws})` : ''}</span></div>`
+        : '';
+    const specsEl = tpl.specs > 0
+        ? `<div class="mortal-tracker-row"><span>Специализации</span><span>${tpl.specs}</span></div>`
+        : '';
+
+    container.innerHTML = `
+        <div class="mortal-tracker-row">
+            <span>Характеристики</span>
+            <span class="${attrOk ? 'ok' : 'bad'}">${attrSpent} / ${tpl.attrs.total}</span>
+        </div>
+        <div class="mortal-tracker-row">
+            <span>Навыки</span>
+            <span class="${skillOk ? 'ok' : 'bad'}">${skillSpent} / ${tpl.skills.total}</span>
+        </div>
+        ${meritsEl}
+        ${specsEl}
+    `;
+}
+
+window.setCharacterType = setCharacterType;
+window.selectMortalTemplate = selectMortalTemplate;
 
 // ==================== МОДАЛЬНОЕ ОКНО АРХЕТИПОВ ====================
 let _archetypeTargetFieldId = null;

@@ -1662,6 +1662,105 @@
             }
         }
   </style>
+
+  <style>
+    /* ==================== ПЕРЕКЛЮЧАТЕЛЬ ТИПА ПЕРСОНАЖА ==================== */
+    .char-type-switcher {
+        margin-bottom: 12px;
+        padding-bottom: 12px;
+        border-bottom: 1px solid #2a2a2a;
+    }
+    .char-type-group-label {
+        font-size: 10px;
+        color: #555;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        display: block;
+        margin: 8px 0 4px;
+    }
+    .char-type-group-label:first-child { margin-top: 0; }
+    .char-type-btn {
+        display: block;
+        width: 100%;
+        padding: 7px 10px;
+        background: #141414;
+        border: 1px solid #2a2a2a;
+        border-radius: 5px;
+        color: #888;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 12px;
+        cursor: pointer;
+        text-align: left;
+        margin-bottom: 3px;
+        transition: border-color 0.15s, color 0.15s, background 0.15s;
+    }
+    .char-type-btn:hover { border-color: #773030; color: #ccc; background: #1a0d0d; }
+    .char-type-btn.active { border-color: #ff3131; background: #220c0c; color: #fff7ed; font-weight: bold; }
+
+    /* ==================== ВИДИМОСТЬ ПО ТИПУ ==================== */
+    /* По умолчанию показываем вампирские, скрываем смертные */
+    .mortal-only { display: none !important; }
+    .ghost-only  { display: none !important; }
+    /* creation-only: скрываем для НПС */
+    .npc-hide    { /* видимо по умолчанию */ }
+
+    /* Смертный игрок / НПС смертный / НПС призрак — скрываем вампирские */
+    body.char-type-mortal     .vampire-only,
+    body.char-type-npc-mortal .vampire-only,
+    body.char-type-npc-ghost  .vampire-only { display: none !important; }
+
+    /* Показываем смертные элементы */
+    body.char-type-mortal     .mortal-only,
+    body.char-type-npc-mortal .mortal-only  { display: block !important; }
+
+    /* НПС призрак */
+    body.char-type-npc-ghost  .ghost-only   { display: block !important; }
+
+    /* НПС — скрываем элементы создания */
+    body.char-type-npc-vampire .npc-hide,
+    body.char-type-npc-ghost   .npc-hide,
+    body.char-type-npc-mortal  .npc-hide  { display: none !important; }
+
+    /* Шаблоны смертных */
+    .mortal-template-card {
+        background: #141414;
+        border: 1px solid #2a2a2a;
+        border-radius: 6px;
+        padding: 9px 11px;
+        cursor: pointer;
+        margin-bottom: 5px;
+        transition: border-color 0.15s, background 0.15s;
+    }
+    .mortal-template-card:hover { border-color: #773030; background: #1a0d0d; }
+    .mortal-template-card.active { border-color: #ff3131; background: #220c0c; }
+    .mortal-template-card .tpl-name {
+        font-size: 12px; font-weight: bold; color: #fff7ed; margin-bottom: 3px;
+    }
+    .mortal-template-card .tpl-short {
+        font-size: 11px; color: #888; line-height: 1.4;
+    }
+    .mortal-tpl-detail {
+        background: #0e0e0e;
+        border: 1px solid #333;
+        border-radius: 6px;
+        padding: 10px 12px;
+        font-size: 11.5px;
+        color: #b0a090;
+        line-height: 1.6;
+        white-space: pre-line;
+        margin-top: 8px;
+    }
+    .mortal-tracker-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 12px;
+        padding: 3px 0;
+        border-bottom: 1px solid #1e1e1e;
+        color: #aaa;
+    }
+    .mortal-tracker-row .ok  { color: #4caf50; }
+    .mortal-tracker-row .bad { color: #ff5555; }
+  </style>
 </head>
 
 <body>
@@ -1669,6 +1768,17 @@
 
         <!-- Левая панель -->
         <div class="guide">
+            <!-- Тип персонажа -->
+            <div class="char-type-switcher">
+                <span class="char-type-group-label">Игровой персонаж</span>
+                <button class="char-type-btn active" onclick="setCharacterType('vampire')">🧛 Создать вампира</button>
+                <button class="char-type-btn" onclick="setCharacterType('mortal')">👤 Создать человека</button>
+                <span class="char-type-group-label">НПС</span>
+                <button class="char-type-btn" onclick="setCharacterType('npc-vampire')">🧛 НПС Вампир</button>
+                <button class="char-type-btn" onclick="setCharacterType('npc-ghost')">👻 НПС Призрак</button>
+                <button class="char-type-btn" onclick="setCharacterType('npc-mortal')">👥 НПС Человек</button>
+            </div>
+
             <nav class="sheet-tabs" aria-label="Разделы листа персонажа">
                 <button type="button" class="active" data-sheet-tab="social" onclick="switchSheetSection('social')">Социальное</button>
                 <button type="button" data-sheet-tab="mechanics" onclick="switchSheetSection('mechanics')">Броски / механика</button>
@@ -1679,20 +1789,34 @@
             </button>
             <div id="startup-trackers">
             <div id="attr-tracker"></div>
-            <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
-            <p style="font-size:12px;">Набор навыков:</p>
-            <select id="skill-package" onchange="updateTrackers()" style="width:100%; background:#000; color:white; border:1px solid #444; padding:5px; margin-bottom:10px;">
-                <option value="" selected disabled>— Выберите способ развития —</option>
-                <option value="specialist">Специалист</option>
-                <option value="balanced">Сбалансированный</option>
-                <option value="versatile">Универсал</option>
-            </select>
-            <div id="skill-tracker"></div>
-            <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
-            <div id="spec-tracker">Специализации (S): 0 / 1</div>
-            <p id="global-warning" style="color:#ffae00; display:none;">Внимание! Проверьте лимиты.</p>
 
- <hr style="border:0; border-top:1px solid #333; margin: 18px 0;">
+            <!-- Вампирский трекер навыков -->
+            <div class="vampire-only" id="vampire-skill-tracker-block">
+                <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
+                <p style="font-size:12px;">Набор навыков:</p>
+                <select id="skill-package" onchange="updateTrackers()" style="width:100%; background:#000; color:white; border:1px solid #444; padding:5px; margin-bottom:10px;">
+                    <option value="" selected disabled>— Выберите способ развития —</option>
+                    <option value="specialist">Специалист</option>
+                    <option value="balanced">Сбалансированный</option>
+                    <option value="versatile">Универсал</option>
+                </select>
+                <div id="skill-tracker"></div>
+                <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
+                <div id="spec-tracker">Специализации (S): 0 / 1</div>
+                <p id="global-warning" style="color:#ffae00; display:none;">Внимание! Проверьте лимиты.</p>
+            </div>
+
+            <!-- Шаблоны смертных -->
+            <div class="mortal-only" id="mortal-templates-panel">
+                <hr style="border:0; border-top:1px solid #333; margin:12px 0;">
+                <p style="font-size:12px; color:#888; margin-bottom:8px;">Шаблон смертного:</p>
+                <div id="mortal-template-list"></div>
+                <div id="mortal-template-detail" class="mortal-tpl-detail" style="display:none;"></div>
+                <hr style="border:0; border-top:1px solid #333; margin:12px 0;">
+                <div id="mortal-attr-tracker"></div>
+            </div>
+
+            <hr style="border:0; border-top:1px solid #333; margin: 18px 0;" class="vampire-only">
             </div>
 
     <!-- Окно опыта -->
@@ -1721,8 +1845,9 @@
  
     </div>
 
-    <button onclick="fixStartingSheet()" 
+    <button onclick="fixStartingSheet()"
         id="fix-start-btn"
+        class="vampire-only npc-hide"
         style="width:100%; padding:14px; margin:15px 0; background:#ff3131; color:white; border:none; border-radius:8px; font-size:16px; font-weight:bold;">
     Зафиксировать стартовый лист
 </button>
@@ -1800,7 +1925,7 @@
     </div>
 
     <!-- Первая строка: Клан, Стиль Охоты -->
-    <div style="display: flex; gap: 20px; align-items: flex-end;">
+    <div class="vampire-only" style="display: flex; gap: 20px; align-items: flex-end;">
 
         <!-- Клан -->
         <div style="flex: 1.3; display: flex; align-items: center; gap: 8px;">
@@ -1841,7 +1966,7 @@
     </div>
 
     <!-- Вторая строка: Поколение + Тип -->
-    <div style="display: flex; gap: 20px;">
+    <div class="vampire-only" style="display: flex; gap: 20px;">
 
         <!-- Поколение -->
         <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
@@ -1932,7 +2057,7 @@
         <span>Сила воли</span>
         <div id="val-wp" style="color:white" data-tooltip="Сила воли = Самообладание + Упорство">2</div>
     </div>
-    <div class="vital-item">
+    <div class="vital-item vampire-only">
         <span>Человечность</span>
         <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
             <div id="val-humanity" style="color:white" data-tooltip="Базовая Человечность = старт (7 или 8) + модификатор от типа и стиля охоты">7</div>
@@ -1942,16 +2067,15 @@
             </select>
         </div>
     </div>
-    <div class="vital-item">
+    <div class="vital-item vampire-only">
         <span>Сила крови</span>
         <div id="val-blood-potency" class="blood-potency" data-tooltip="Сила крови = от поколения + тип + стиль охоты">0</div>
     </div>
 </div>
 
-    <div style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333;">
+    <div class="vampire-only" style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333;">
         <h2 style="text-align:center; margin-bottom:15px;">Дисциплины</h2>
         <div id="disciplines-list"></div>
-    
     </div>
 
 
@@ -1985,7 +2109,7 @@
 
 </div>
 
-<div id="thin-blood-traits-section" style="display:none; margin-top:24px; padding:20px; background:#080808; border:1px solid #553300; border-radius:8px;">
+<div id="thin-blood-traits-section" class="vampire-only" style="display:none; margin-top:24px; padding:20px; background:#080808; border:1px solid #553300; border-radius:8px;">
     <h2 style="margin:0 0 12px 0; color:#ffae00; text-align:center;">ПРЕИМУЩЕСТВА И НЕДОСТАТКИ СЛАБОКРОВНЫХ</h2>
     <div id="thin-blood-balance" style="text-align:center; color:#aaa; margin-bottom:18px; font-size:14px;"></div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
@@ -2078,7 +2202,7 @@
             </button>
 
     <!-- Подсказка Клана -->
-    <div id="clan-hint-box" class="hint-box">
+    <div id="clan-hint-box" class="hint-box vampire-only">
         <div class="hint-header" onclick="toggleHint('clan-hint-box')">
             <strong>Клан</strong>
             <span class="toggle-btn">▼</span>
@@ -2087,7 +2211,7 @@
     </div>
 
     <!-- Подсказка Стиля Охоты -->
-    <div id="predator-hint-box" class="hint-box">
+    <div id="predator-hint-box" class="hint-box vampire-only">
         <div class="hint-header" onclick="toggleHint('predator-hint-box')">
             <strong>Стиль Охоты</strong>
             <span class="toggle-btn">▼</span>
@@ -2096,7 +2220,7 @@
     </div>
 
     <!-- Подсказка Поколения -->
-    <div id="generation-hint-box" class="hint-box">
+    <div id="generation-hint-box" class="hint-box vampire-only">
         <div class="hint-header" onclick="toggleHint('generation-hint-box')">
             <strong>Поколение / Тип</strong>
             <span class="toggle-btn">▼</span>
