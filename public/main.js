@@ -2390,10 +2390,9 @@ function renderTracker(type, limits, trackerId) {
         const count = counts[type][v] || 0;
         
         let color = '';
-        if (v === 5 && count > 0) color = 'color:#ff3131;';           // превышение 5-й
-        else if (count > limit) color = 'color:#ff3131;';             // превышение
-        else if (count < limit) color = 'color:#ffae00;';             // мало (оранжевый)
-        // иначе — белый (ровно)
+        if (count > limit) color = 'color:#ff3131;';      // превышение (в т.ч. 5-й при лимите 0)
+        else if (count < limit) color = 'color:#ffae00;'; // недобор
+        // иначе — белый (ровно в лимит)
 
         html += `<span style="${color}">На ${v}: ${count} / ${limit}</span><br>`;
     }
@@ -2427,18 +2426,13 @@ function checkLimits() {
             }
         }
     } else {
-        // Проверка обычных лимитов вампира
+        // Проверка обычных лимитов вампира (5-й уровень запрещён: ATTR_LIMITS[5] = undefined → 0)
         Object.keys(counts.attr).forEach(v => {
-            if (counts.attr[v] > ATTR_LIMITS[v]) hasOver = true;
+            if (counts.attr[v] > (ATTR_LIMITS[v] ?? 0)) hasOver = true;
         });
         Object.keys(counts.skill).forEach(v => {
-            if (counts.skill[v] > SKILL_PACKAGES[currentPackage][v]) hasOver = true;
+            if (counts.skill[v] > (SKILL_PACKAGES[currentPackage]?.[v] ?? 0)) hasOver = true;
         });
-
-        // Специальное правило для вампиров: любая 5-я точка = красный
-        if (counts.attr[5] > 0 || counts.skill[5] > 0) {
-            hasOver = true;
-        }
     }
 
     if (hasOver) {
@@ -3016,6 +3010,7 @@ async function publishDiceRoll(roll) {
     broadcastDiceRoll(roll);
 }
 
+window.openDiceRollModal = openDiceRollModal;
 window.closeDiceRollModal = closeDiceRollModal;
 window.confirmDiceRoll = confirmDiceRoll;
 window.updateDiceRollPoolPreview = updateDiceRollPoolPreview;
