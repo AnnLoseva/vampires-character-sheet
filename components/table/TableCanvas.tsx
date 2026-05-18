@@ -193,6 +193,11 @@ export default function TableCanvas({
               }}
               onClick={event => {
                 event.stopPropagation()
+                // Always select on single click — even locked/non-editable layers
+                // so right-click "Добавить в дневник" is reachable without drag-selection
+                if (!selectedLayerIds.has(layer.id)) {
+                  setLayerSelection([layer.id], layer.id)
+                }
                 if (!['image', 'video'].includes(layer.layerType) || !canEditLayer(layer) || layer.locked) return
                 if (selectedLayerId === layer.id && imageEditor?.layerId !== layer.id) openImageEditor(layer)
               }}

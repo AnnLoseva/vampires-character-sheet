@@ -216,9 +216,11 @@ export default function JournalPage() {
   // Text for the editor: convert legacy markdown to HTML on the fly
   const editorValue = useMemo(
     () => markdownToHtml(selectedEntry?.text ?? ''),
-    // We intentionally only recompute when entry ID changes (not on every keystroke)
+    // Include text so external changes (e.g. pasted image) are reflected immediately.
+    // JournalEditor's useEffect won't reset the cursor while typing because
+    // editor.getHTML() === value when the user themselves made the change.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedEntry?.id],
+    [selectedEntry?.id, selectedEntry?.text],
   )
 
   const saveArchive = (archive: JournalArchive, nextEntries: JournalEntry[], nextStatus = 'Сохранено') => {
@@ -433,15 +435,23 @@ export default function JournalPage() {
         html,
         body {
           margin: 0;
+          padding: 0;
+          height: 100%;
+          overflow: hidden;
           background: #080506;
           color: #f4eadf;
         }
       `}</style>
 
       <style jsx>{`
+        /* ── Full-viewport shell ── */
         .journal-shell {
-          min-height: 100vh;
-          padding: 18px clamp(14px, 2.4vw, 34px) 34px;
+          height: 100vh;
+          overflow: hidden;
+          display: grid;
+          /* topbar / toolbar / editor layout */
+          grid-template-rows: auto auto 1fr;
+          padding: 18px clamp(14px, 2.4vw, 34px) 0;
           font-family: "Courier New", Courier, monospace;
           background:
             radial-gradient(circle at 18% 0%, rgba(125, 19, 25, 0.28), transparent 34rem),
@@ -449,6 +459,7 @@ export default function JournalPage() {
             #080506;
         }
 
+        /* ── Top bar ── */
         .journal-topbar {
           display: flex;
           align-items: center;
@@ -470,7 +481,7 @@ export default function JournalPage() {
         h1 {
           margin: 0;
           color: #fff7ed;
-          font-size: clamp(34px, 5vw, 58px);
+          font-size: clamp(28px, 4vw, 48px);
           letter-spacing: 0;
         }
 
@@ -483,36 +494,35 @@ export default function JournalPage() {
 
         nav a,
         .journal-toolbar button,
-        .journal-editor footer button,
-        .journal-media-tools button {
+        .journal-editor footer button {
           border: 1px solid #773030;
           border-radius: 6px;
           color: #f5f5f5;
           text-decoration: none;
-          padding: 10px 14px;
+          padding: 9px 14px;
           background: #141414;
           font: inherit;
           font-size: 14px;
           cursor: pointer;
-          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+          box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
         }
 
         nav a:hover,
         .journal-toolbar button:hover,
-        .journal-editor footer button:hover,
-        .journal-media-tools button:hover {
+        .journal-editor footer button:hover {
           border-color: #ff3131;
           background: #221111;
           color: #fff3e2;
         }
 
+        /* ── Toolbar row ── */
         .journal-toolbar {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) minmax(220px, 320px) auto auto;
+          grid-template-columns: minmax(0, 1fr) minmax(200px, 300px) auto;
           gap: 10px;
           align-items: end;
-          margin-bottom: 14px;
-          padding: 12px;
+          margin-bottom: 12px;
+          padding: 10px 12px;
           border: 1px solid rgba(151, 44, 44, 0.42);
           border-radius: 8px;
           background: rgba(10, 7, 8, 0.9);
@@ -521,7 +531,7 @@ export default function JournalPage() {
         .journal-toolbar div,
         .journal-toolbar label {
           display: grid;
-          gap: 6px;
+          gap: 5px;
         }
 
         .journal-toolbar span,
@@ -533,7 +543,7 @@ export default function JournalPage() {
 
         .journal-toolbar strong {
           color: #ffd89a;
-          font-size: 15px;
+          font-size: 14px;
         }
 
         input {
@@ -545,7 +555,7 @@ export default function JournalPage() {
           padding: 0 13px;
           font: inherit;
           outline: none;
-          min-height: 44px;
+          min-height: 40px;
         }
 
         input:focus {
@@ -553,27 +563,30 @@ export default function JournalPage() {
           box-shadow: 0 0 0 3px rgba(214, 170, 101, 0.14);
         }
 
+        /* ── Main layout — fills the remaining 1fr row ── */
         .journal-layout {
           display: grid;
-          grid-template-columns: 340px minmax(0, 1fr);
-          gap: 16px;
-          height: calc(100vh - 186px);
-          min-height: 680px;
+          grid-template-columns: 300px minmax(0, 1fr);
+          gap: 14px;
+          min-height: 0;          /* critical: grid child must shrink */
+          padding-bottom: 16px;
         }
 
+        /* ── Sidebar & editor shared border ── */
         .journal-sidebar,
         .journal-editor {
           border: 1px solid rgba(151, 44, 44, 0.38);
           border-radius: 8px;
           background: rgba(13, 10, 10, 0.84);
           overflow: hidden;
+          min-height: 0;
         }
 
+        /* ── Sidebar ── */
         .journal-sidebar {
           display: grid;
           grid-template-rows: auto auto minmax(0, 1fr);
           gap: 10px;
-          min-height: 0;
           padding: 12px;
         }
 
@@ -586,7 +599,7 @@ export default function JournalPage() {
         }
 
         .archive-list {
-          max-height: 180px;
+          max-height: 160px;
           border-bottom: 1px solid rgba(151, 44, 44, 0.26);
           padding-bottom: 10px;
         }
@@ -628,12 +641,10 @@ export default function JournalPage() {
           line-height: 1.55;
         }
 
+        /* ── Editor column ── */
         .journal-editor {
           display: grid;
-          grid-template-rows: auto 1fr auto;
-          gap: 0;
-          min-height: 0;
-          overflow: auto;
+          grid-template-rows: auto minmax(0, 1fr) auto;
           padding: 14px;
           outline: 1px solid transparent;
           transition: border-color 160ms ease, outline-color 160ms ease, box-shadow 160ms ease;
@@ -647,12 +658,12 @@ export default function JournalPage() {
 
         .journal-editor > input {
           color: #fff7ed;
-          font-size: clamp(22px, 3vw, 34px);
+          font-size: clamp(20px, 2.6vw, 32px);
           font-weight: 700;
           margin-bottom: 10px;
         }
 
-        /* Rich text editor wrapper */
+        /* Rich text editor wrapper — grows to fill the 1fr row */
         .je-wrapper {
           min-height: 0;
           overflow: hidden;
@@ -687,32 +698,38 @@ export default function JournalPage() {
         .journal-empty h2 {
           margin: 0 0 10px;
           color: #fff7ed;
-          font-size: clamp(28px, 4vw, 46px);
+          font-size: clamp(24px, 3.5vw, 42px);
         }
 
+        /* ── Responsive ── */
         @media (max-width: 980px) {
-          .journal-toolbar,
-          .journal-layout {
-            grid-template-columns: 1fr;
-          }
-
-          .journal-layout {
+          .journal-shell {
             height: auto;
-            min-height: 0;
+            min-height: 100vh;
+            overflow: auto;
           }
 
-          .journal-media-tools {
-            grid-template-columns: 1fr;
+          .journal-toolbar {
+            grid-template-columns: 1fr 1fr;
           }
 
-          .journal-media-tools form {
+          .journal-layout {
             grid-template-columns: 1fr;
+            padding-bottom: 24px;
+          }
+
+          .journal-sidebar {
+            max-height: 320px;
+          }
+
+          .journal-editor {
+            min-height: 70vh;
           }
         }
 
         @media (max-width: 620px) {
           .journal-shell {
-            padding: 12px 10px 32px;
+            padding: 12px 10px 0;
           }
 
           .journal-topbar {
@@ -726,6 +743,10 @@ export default function JournalPage() {
           nav a {
             flex: 1 1 auto;
             text-align: center;
+          }
+
+          .journal-toolbar {
+            grid-template-columns: 1fr;
           }
 
           .journal-editor footer {

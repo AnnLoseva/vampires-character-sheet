@@ -89,11 +89,15 @@ export default function JournalPanel({
 }: JournalPanelProps) {
   const editorRef = useRef<JournalEditorHandle>(null)
 
-  // Convert legacy markdown to HTML when entry changes
+  // Convert legacy markdown to HTML.
+  // Depends on BOTH id AND text so external changes (e.g. addLayerToJournal)
+  // are picked up immediately without needing to switch entries.
+  // JournalEditor's useEffect won't reset the cursor during normal typing
+  // because editor.getHTML() === value when the user is the source of the change.
   const editorValue = useMemo(
     () => markdownToHtml(selectedJournalEntry?.text ?? ''),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selectedJournalEntry?.id],
+    [selectedJournalEntry?.id, selectedJournalEntry?.text],
   )
 
   return (
