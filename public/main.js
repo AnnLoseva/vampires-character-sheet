@@ -1528,6 +1528,242 @@ function closePredatorModal() {
 }
 
 
+// ==================== ГАЛЕРЕЯ ПОКОЛЕНИЙ ====================
+
+const GENERATION_GROUPS = [
+    {
+        key: 'ancilla',
+        title: 'АНЦИЛЛЫ',
+        subtitle: 'Старшая Кровь',
+        motto: 'Они пережили тех, кто считал себя бессмертными',
+        accent: '#c9a84c',
+        icon: '♛',
+        age: '1780–1940 гг.',
+        potency: 'Сила Крови 2',
+        gens: '10–11 поколение',
+        traits: ['Опытные манипуляторы', 'Политическое влияние', 'Контроль Голода', 'Посредники между старейшинами и молодыми'],
+        philosophy: ['власть требует терпения', 'контроль важнее эмоций', 'влияние сильнее силы'],
+        archetypes: ['Княжеский советник', 'Древний манипулятор', 'Хозяин домена', 'Хранитель традиций'],
+        options: [
+            { value: '11', label: '11 — Анцилла (Сила Крови 2)' },
+            { value: '10', label: '10 — Анцилла (Сила Крови 2)' },
+            { value: '9',  label: '9 — Анцилла (Сила Крови 2)' },
+            { value: '8',  label: '8 — Анцилла (Сила Крови 2)' },
+        ]
+    },
+    {
+        key: 'childe',
+        title: 'ПТЕНЦЫ',
+        subtitle: 'Первые Ночи',
+        motto: 'Они ещё помнят, как были людьми',
+        accent: '#7a7aaa',
+        icon: '◈',
+        age: 'менее 15 лет назад',
+        potency: 'Сила Крови 0–1',
+        gens: '12–16 поколение',
+        traits: ['Мало опыта', 'Слабый контроль Голода', 'Современные взгляды', 'Высокая адаптивность'],
+        philosophy: ['страх неизвестного', 'поиск себя', 'борьба с голодом', 'сохранить человечность'],
+        archetypes: ['Случайная жертва', 'Потерянный студент', 'Молодой анарх', 'Новообращённый хищник'],
+        options: [
+            { value: '12', label: '12 — Птенец / Неонат (Сила Крови 1)' },
+            { value: '13', label: '13 — Птенец / Неонат (Сила Крови 1)' },
+            { value: '14', label: '14 — Птенец Слабокровный (Сила Крови 0)' },
+            { value: '15', label: '15 — Птенец Слабокровный (Сила Крови 0)' },
+            { value: '16', label: '16 — Птенец Слабокровный (Сила Крови 0)' },
+        ]
+    },
+    {
+        key: 'neonate',
+        title: 'НЕОНАТЫ',
+        subtitle: 'Молодая Кровь',
+        motto: 'Они уже поняли, что мир принадлежит хищникам',
+        accent: '#cc3333',
+        icon: '✦',
+        age: 'после 1940 года',
+        potency: 'Сила Крови 1',
+        gens: '12–13 поколение',
+        traits: ['Понимают современный мир', 'Умеют скрываться среди людей', 'Практический опыт', 'Ещё не настоящая элита'],
+        philosophy: ['свобода', 'адаптация', 'амбиции', 'выживание'],
+        archetypes: ['Городской хищник', 'Молодой манипулятор', 'Неоновый анарх', 'Восходящий каннит'],
+        options: [
+            { value: '12', label: '12 — Неонат (Сила Крови 1)' },
+            { value: '13', label: '13 — Неонат (Сила Крови 1)' },
+        ]
+    }
+];
+
+function openGenerationGallery() {
+    if (startingSheetFixed && !expShopMode) return;
+    const modal = document.getElementById('generation-modal');
+    const gallery = document.getElementById('generation-gallery');
+    if (!modal || !gallery) return;
+
+    // Треугольная раскладка: Анциллы сверху по центру, Птенцы и Неонаты снизу
+    let html = `<div style="
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 24px;
+        max-width: 900px;
+        margin: 0 auto;
+    ">`;
+
+    // Верхняя строка — Анциллы (по центру)
+    html += `<div style="width: 100%; max-width: 420px;">`;
+    html += buildGenerationCard(GENERATION_GROUPS[0]);
+    html += `</div>`;
+
+    // Нижняя строка — Птенцы и Неонаты
+    html += `<div style="display: flex; gap: 24px; width: 100%; justify-content: center; flex-wrap: wrap;">`;
+    html += `<div style="flex: 1; min-width: 260px; max-width: 420px;">`;
+    html += buildGenerationCard(GENERATION_GROUPS[1]);
+    html += `</div>`;
+    html += `<div style="flex: 1; min-width: 260px; max-width: 420px;">`;
+    html += buildGenerationCard(GENERATION_GROUPS[2]);
+    html += `</div>`;
+    html += `</div>`;
+
+    html += `</div>`;
+    gallery.innerHTML = html;
+    modal.style.display = 'block';
+}
+
+function buildGenerationCard(g) {
+    return `
+    <div onclick="showSingleGeneration('${g.key}')" style="
+        cursor: pointer;
+        background: linear-gradient(135deg, #0d0d0d 60%, #1a1010 100%);
+        border: 2px solid ${g.accent}44;
+        border-radius: 12px;
+        padding: 28px 22px 22px;
+        text-align: center;
+        transition: border-color 0.2s, box-shadow 0.2s;
+        box-shadow: 0 4px 24px rgba(0,0,0,0.5);
+        position: relative;
+        overflow: hidden;
+    "
+    onmouseover="this.style.borderColor='${g.accent}'; this.style.boxShadow='0 0 30px ${g.accent}44';"
+    onmouseout="this.style.borderColor='${g.accent}44'; this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5)';">
+
+        <div style="font-size: 48px; color: ${g.accent}; margin-bottom: 10px; opacity: 0.85;">${g.icon}</div>
+        <h2 style="color: ${g.accent}; margin: 0 0 4px; font-family: 'Courier New', monospace; letter-spacing: 4px; font-size: 22px;">${g.title}</h2>
+        <div style="color: #888; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 16px;">${g.subtitle}</div>
+
+        <div style="display: flex; justify-content: center; gap: 20px; margin-bottom: 16px; flex-wrap: wrap;">
+            <div style="background:#111; border:1px solid #222; border-radius:6px; padding:8px 14px; font-size:13px;">
+                <div style="color:#555; font-size:10px; letter-spacing:1px; margin-bottom:3px;">ПОКОЛЕНИЕ</div>
+                <div style="color:#ddd;">${g.gens}</div>
+            </div>
+            <div style="background:#111; border:1px solid #222; border-radius:6px; padding:8px 14px; font-size:13px;">
+                <div style="color:#555; font-size:10px; letter-spacing:1px; margin-bottom:3px;">КРОВЬ</div>
+                <div style="color:${g.accent};">${g.potency}</div>
+            </div>
+        </div>
+
+        <div style="color:#aaa; font-size:13px; font-style:italic; border-top:1px solid #222; padding-top:14px; line-height:1.5;">
+            «${g.motto}»
+        </div>
+
+        <div style="position:absolute; bottom:10px; right:14px; color:${g.accent}; font-size:18px; opacity:0.4;">▶</div>
+    </div>`;
+}
+
+function showSingleGeneration(key) {
+    const g = GENERATION_GROUPS.find(x => x.key === key);
+    if (!g) return;
+    const gallery = document.getElementById('generation-gallery');
+
+    const optionButtons = g.options.map(o => `
+        <button onclick="selectThisGeneration('${o.value}')" style="
+            display: block; width: 100%;
+            background: #141414; border: 1px solid ${g.accent}55;
+            color: #eee; padding: 14px 20px; border-radius: 6px;
+            font-family: 'Courier New', monospace; font-size: 15px;
+            cursor: pointer; text-align: left; margin-bottom: 10px;
+            transition: all 0.15s;
+        "
+        onmouseover="this.style.background='#2a1a1a'; this.style.borderColor='${g.accent}';"
+        onmouseout="this.style.background='#141414'; this.style.borderColor='${g.accent}55';">
+            ${o.label}
+        </button>
+    `).join('');
+
+    const traits = g.traits.map(t => `<li style="color:#ccc; margin-bottom:6px;">${t}</li>`).join('');
+    const philosophy = g.philosophy.map(p => `
+        <div style="background:#111; border:1px solid #222; border-radius:6px; padding:8px 12px; font-size:13px; color:#aaa; text-align:center;">${p}</div>
+    `).join('');
+    const archetypes = g.archetypes.map(a => `<li style="color:#aaa; margin-bottom:4px;">${a}</li>`).join('');
+
+    gallery.innerHTML = `
+    <div style="max-width: 820px; margin: 0 auto; text-align: center; padding: 10px 0 30px;">
+
+        <div style="font-size: 56px; color: ${g.accent}; margin-bottom: 8px;">${g.icon}</div>
+        <h2 style="color: ${g.accent}; font-family: 'Courier New', monospace; letter-spacing: 5px; font-size: 28px; margin: 0 0 4px;">${g.title}</h2>
+        <div style="color: #666; font-size: 11px; letter-spacing: 4px; margin-bottom: 24px;">${g.subtitle.toUpperCase()}</div>
+
+        <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 28px;">
+            <div style="background:#0d0d0d; border:1px solid ${g.accent}33; border-radius:8px; padding:12px 20px;">
+                <div style="color:#555; font-size:10px; letter-spacing:2px; margin-bottom:4px;">ПОКОЛЕНИЕ</div>
+                <div style="color:#ddd; font-size:15px;">${g.gens}</div>
+            </div>
+            <div style="background:#0d0d0d; border:1px solid ${g.accent}33; border-radius:8px; padding:12px 20px;">
+                <div style="color:#555; font-size:10px; letter-spacing:2px; margin-bottom:4px;">СТАНОВЛЕНИЕ</div>
+                <div style="color:#ddd; font-size:15px;">${g.age}</div>
+            </div>
+            <div style="background:#0d0d0d; border:1px solid ${g.accent}55; border-radius:8px; padding:12px 20px;">
+                <div style="color:#555; font-size:10px; letter-spacing:2px; margin-bottom:4px;">СИЛА КРОВИ</div>
+                <div style="color:${g.accent}; font-size:15px; font-weight:bold;">${g.potency}</div>
+            </div>
+        </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; text-align: left;">
+            <div style="background:#0d0d0d; border:1px solid #1e1e1e; border-radius:8px; padding:18px 20px;">
+                <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:12px;">ОСОБЕННОСТИ</div>
+                <ul style="list-style:disc; padding-left:18px; margin:0;">${traits}</ul>
+            </div>
+            <div style="background:#0d0d0d; border:1px solid #1e1e1e; border-radius:8px; padding:18px 20px;">
+                <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:12px;">ТИПАЖИ</div>
+                <ul style="list-style:disc; padding-left:18px; margin:0;">${archetypes}</ul>
+            </div>
+        </div>
+
+        <div style="background:#0d0d0d; border:1px solid #1e1e1e; border-radius:8px; padding:18px 20px; margin-bottom:28px; text-align:left;">
+            <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:12px;">ФИЛОСОФИЯ</div>
+            <div style="display:flex; gap:10px; flex-wrap:wrap;">${philosophy}</div>
+        </div>
+
+        <div style="background:#0d0d0d; border:1px solid ${g.accent}33; border-radius:8px; padding:20px 24px; margin-bottom:28px; text-align:left;">
+            <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:16px;">ВЫБЕРИТЕ ПОКОЛЕНИЕ</div>
+            ${optionButtons}
+        </div>
+
+        <div style="color:#555; font-size:13px; font-style:italic; margin-bottom:24px; border-top:1px solid #1e1e1e; padding-top:20px;">
+            «${g.motto}»
+        </div>
+
+        <button onclick="openGenerationGallery()" style="
+            background: transparent; color: ${g.accent}; border: 2px solid ${g.accent};
+            padding: 14px 36px; font-size: 16px; border-radius: 6px;
+            cursor: pointer; font-family: 'Courier New', monospace; letter-spacing: 2px;
+        ">← Назад к списку</button>
+    </div>`;
+}
+
+function selectThisGeneration(value) {
+    const sel = document.getElementById('generation-input');
+    if (sel) {
+        sel.value = value;
+        updateGenerationHint();
+    }
+    closeGenerationModal();
+}
+
+function closeGenerationModal() {
+    const modal = document.getElementById('generation-modal');
+    if (modal) modal.style.display = 'none';
+}
+
+
 // ==================== ПОДТВЕРЖДЕНИЕ И ДОБАВЛЕНИЕ ====================
 // ==================== ПОДТВЕРЖДЕНИЕ КЛАНА ====================
 function confirmClanDisciplines(clanName) {
@@ -5869,6 +6105,7 @@ function applySheetLockState() {
         closeMeritsFlawsModal();
         document.getElementById('clan-modal')?.style.setProperty('display', 'none');
         document.getElementById('predator-modal')?.style.setProperty('display', 'none');
+        document.getElementById('generation-modal')?.style.setProperty('display', 'none');
     }
 }
 

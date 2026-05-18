@@ -1813,24 +1813,34 @@
     <div style="display: flex; gap: 20px;">
 
         <!-- Поколение -->
-        <div style="flex: 1;">
-            <span class="header-label">Поколение</span>
-            <select id="generation-input" onchange="updateGenerationHint()">
-                <option value=""selected>—</option>
-                <option value="16">16 — Птенец Слабокровный</option>
-                <option value="15">15 — Птенец Слабокровный</option>
-                <option value="14">14 — Птенец Слабокровный</option>
-                <option value="13">13 — Птенец/Неонат</option>
-                <option value="12">12 — Птенец/Неонат</option>
-                <option value="11">11 — Анцилла</option>
-                <option value="10">10 — Анцилла</option>
-                <option value="9">9 — Анцилла</option>
-                <option value="8">8 — Анцилла</option>
-                <option value="7">7 — Старейшина</option>
-                <option value="6">6 — Старейшина</option>
-                <option value="5">5 — Старейшина</option>
-                <option value="4">4 — Старейшина</option>
-            </select>
+        <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
+            <button class="locked-origin-control" onclick="openGenerationGallery()"
+                    title="Открыть галерею поколений"
+                    style="background:#111; border:1px solid #333; width:36px; height:32px;
+                           border-radius:4px; cursor:pointer; flex-shrink:0;
+                           display:flex; align-items:center; justify-content:center;
+                           font-size:24px; color:#ff3131;">
+                ▿
+            </button>
+            <div style="flex:1;">
+                <span class="header-label">Поколение</span>
+                <select id="generation-input" onchange="updateGenerationHint()">
+                    <option value=""selected>—</option>
+                    <option value="16">16 — Птенец Слабокровный</option>
+                    <option value="15">15 — Птенец Слабокровный</option>
+                    <option value="14">14 — Птенец Слабокровный</option>
+                    <option value="13">13 — Птенец/Неонат</option>
+                    <option value="12">12 — Птенец/Неонат</option>
+                    <option value="11">11 — Анцилла</option>
+                    <option value="10">10 — Анцилла</option>
+                    <option value="9">9 — Анцилла</option>
+                    <option value="8">8 — Анцилла</option>
+                    <option value="7">7 — Старейшина</option>
+                    <option value="6">6 — Старейшина</option>
+                    <option value="5">5 — Старейшина</option>
+                    <option value="4">4 — Старейшина</option>
+                </select>
+            </div>
         </div>
 
         <!-- Тип вампира -->
@@ -2098,6 +2108,14 @@
         <button onclick="closePredatorModal()" style="position: absolute; top: 15px; right: 20px; background: transparent; color: #ff3131; border: none; font-size: 28px; cursor: pointer;">×</button>
         <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px;">Выбор Стиля Охоты</h2>
         <div id="predator-gallery" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px;"></div>
+    </div>
+</div>
+
+<div id="generation-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 10000; overflow: auto; padding: 20px;">
+    <div style="max-width: 1100px; margin: 40px auto; background: #111; padding: 30px; border-radius: 8px; border: 1px solid #ff3131; position: relative;">
+        <button onclick="closeGenerationModal()" style="position: absolute; top: 15px; right: 20px; background: transparent; color: #ff3131; border: none; font-size: 28px; cursor: pointer;">×</button>
+        <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px; font-family: 'Courier New', monospace; letter-spacing: 3px;">ВЫБОР ПОКОЛЕНИЯ</h2>
+        <div id="generation-gallery"></div>
     </div>
 </div>
 
