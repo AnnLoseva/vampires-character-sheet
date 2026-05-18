@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { type DragEvent, type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type FormEvent, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatUser, JournalAttachment, JournalEntry } from '@/lib/table/types'
 import { extractImageUrlsFromHtml } from '@/lib/table/media-utils'
+import JournalEditor, { type JournalEditorHandle } from './JournalEditor'
 
 type JournalArchive = {
   key: string
@@ -13,6 +14,80 @@ type JournalArchive = {
 }
 
 const DEFAULT_ROOM = 'campaign-666'
+
+// ─── markdown → HTML converter (for legacy entries) ──────────────────────────
+
+function markdownToHtml(text: string): string {
+  if (!text) return ''
+  // Already HTML? Pass through.
+  if (text.trim().startsWith('<')) return text
+
+  const lines = text.split('\n')
+  const htmlLines: string[] = []
+  let i = 0
+
+  while (i < lines.length) {
+    const line = lines[i]
+    // blank line → paragraph break
+    if (!line.trim()) {
+      htmlLines.push('')
+      i++
+      continue
+    }
+    // heading
+    if (/^#{1,3}\s/.test(line)) {
+      const level = (line.match(/^(#+)/)?.[1] ?? '#').length
+      const content = convertInline(line.replace(/^#+\s*/, ''))
+      htmlLines.push(`<h${level}>${content}</h${level}>`)
+      i++
+      continue
+    }
+    // horizontal rule
+    if (/^---+$/.test(line.trim())) {
+      htmlLines.push('<hr>')
+      i++
+      continue
+    }
+    // Otherwise plain paragraph line
+    htmlLines.push(convertInline(line))
+    i++
+  }
+
+  // Group non-empty lines into paragraphs
+  const chunks: string[] = []
+  let buf: string[] = []
+  for (const l of htmlLines) {
+    if (l === '') {
+      if (buf.length) { chunks.push(`<p>${buf.join('<br>')}</p>`); buf = [] }
+    } else if (l.startsWith('<h') || l.startsWith('<hr')) {
+      if (buf.length) { chunks.push(`<p>${buf.join('<br>')}</p>`); buf = [] }
+      chunks.push(l)
+    } else {
+      buf.push(l)
+    }
+  }
+  if (buf.length) chunks.push(`<p>${buf.join('<br>')}</p>`)
+
+  return chunks.join('') || `<p>${text}</p>`
+}
+
+function convertInline(text: string): string {
+  return text
+    // images first (before links)
+    .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">')
+    // links
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noreferrer">$1</a>')
+    // bold
+    .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+    .replace(/__([^_]+)__/g, '<strong>$1</strong>')
+    // italic
+    .replace(/\*([^*]+)\*/g, '<em>$1</em>')
+    .replace(/_([^_]+)_/g, '<em>$1</em>')
+    // inline code
+    .replace(/`([^`]+)`/g, '<code>$1</code>')
+}
+
+// ─── local storage helpers ────────────────────────────────────────────────────
 
 function readStoredUser() {
   try {
@@ -78,10 +153,8 @@ function getDroppedImageUrls(dataTransfer: DataTransfer) {
       .split(/\r?\n/)
       .filter(line => line && !line.startsWith('#'))
   )
-
   const plain = dataTransfer.getData('text/plain').trim()
   if (/^(https?:|data:image\/|blob:)/i.test(plain)) urls.push(plain)
-
   return [...new Set(urls.map(url => url.trim()).filter(Boolean))]
 }
 
@@ -97,6 +170,8 @@ function getDroppedTableLayer(dataTransfer: DataTransfer) {
   }
 }
 
+// ─── component ────────────────────────────────────────────────────────────────
+
 export default function JournalPage() {
   const [chatUser, setChatUser] = useState<ChatUser | null>(null)
   const [archives, setArchives] = useState<JournalArchive[]>([])
@@ -110,6 +185,8 @@ export default function JournalPage() {
   const [linkUrlDraft, setLinkUrlDraft] = useState('')
   const [linkTitleDraft, setLinkTitleDraft] = useState('')
   const [dragOverJournal, setDragOverJournal] = useState(false)
+
+  const editorRef = useRef<JournalEditorHandle>(null)
 
   const reloadArchives = () => {
     const next = readJournalArchives()
@@ -139,6 +216,14 @@ export default function JournalPage() {
     || filteredEntries[0]
     || entries[0]
     || null
+
+  // Text for the editor: convert legacy markdown to HTML on the fly
+  const editorValue = useMemo(
+    () => markdownToHtml(selectedEntry?.text ?? ''),
+    // We intentionally only recompute when entry ID changes (not on every keystroke)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedEntry?.id],
+  )
 
   const saveArchive = (archive: JournalArchive, nextEntries: JournalEntry[], nextStatus = 'Сохранено') => {
     window.localStorage.setItem(archive.key, JSON.stringify(nextEntries))
@@ -176,61 +261,46 @@ export default function JournalPage() {
   const updateEntry = (patch: Partial<Pick<JournalEntry, 'title' | 'text' | 'attachments'>>) => {
     if (!selectedArchive || !selectedEntry) return
     const now = new Date().toISOString()
-    const next = selectedArchive.entries.map(entry => entry.id === selectedEntry.id ? { ...entry, ...patch, updatedAt: now } : entry)
+    const next = selectedArchive.entries.map(entry =>
+      entry.id === selectedEntry.id ? { ...entry, ...patch, updatedAt: now } : entry
+    )
     saveArchive(selectedArchive, next, 'Сохранено')
   }
 
-  const appendAttachments = (items: Array<{ kind: JournalAttachment['kind']; url: string; title: string }>) => {
-    if (!selectedEntry) return false
-    const cleanItems = items
-      .map(item => ({ ...item, url: item.url.trim(), title: item.title.trim() }))
-      .filter(item => item.url)
-    if (cleanItems.length === 0) return false
-
-    const attachments: JournalAttachment[] = cleanItems.map(item => ({
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      kind: item.kind,
-      url: item.url,
-      title: item.title || (item.kind === 'image' ? 'Изображение' : getLinkTitle(item.url)),
-      createdAt: new Date().toISOString(),
-    }))
-    const markdown = attachments.map(attachment => attachment.kind === 'image'
-      ? `![${attachment.title}](${attachment.url})`
-      : `[${attachment.title}](${attachment.url})`
-    )
-    const nextText = [selectedEntry.text.trim(), ...markdown].filter(Boolean).join('\n\n')
-
-    updateEntry({
-      text: nextText,
-      attachments: [...getEntryAttachments(selectedEntry), ...attachments],
-    })
-    return true
+  // Insert image directly into the editor via ref
+  const insertImageIntoEditor = async (src: string, alt = 'Изображение') => {
+    editorRef.current?.insertImage(src, alt)
+    setStatus('Изображение вставлено')
   }
 
-  const addAttachment = (kind: JournalAttachment['kind'], url: string, title: string) => appendAttachments([{ kind, url, title }])
-
-  const handleAddImage = (event: FormEvent<HTMLFormElement>) => {
+  const handleAddImage = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!addAttachment('image', imageUrlDraft, imageTitleDraft)) return
+    if (!imageUrlDraft.trim() || !selectedEntry) return
+    await insertImageIntoEditor(imageUrlDraft.trim(), imageTitleDraft.trim() || 'Изображение')
     setImageUrlDraft('')
     setImageTitleDraft('')
   }
 
   const handleAddLink = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    if (!addAttachment('link', linkUrlDraft, linkTitleDraft)) return
+    if (!linkUrlDraft.trim() || !selectedEntry) return
+    const url = linkUrlDraft.trim()
+    const title = linkTitleDraft.trim() || getLinkTitle(url)
+    const linkHtml = `<a href="${url}" target="_blank" rel="noreferrer">${title}</a>`
+    editorRef.current?.focus()
+    // Insert as raw HTML via execCommand (simple approach for links)
+    document.execCommand('insertHTML', false, ` ${linkHtml} `)
     setLinkUrlDraft('')
     setLinkTitleDraft('')
+    setStatus('Ссылка вставлена')
   }
 
-  const removeAttachment = (attachmentId: string) => {
-    if (!selectedEntry) return
-    updateEntry({
-      attachments: getEntryAttachments(selectedEntry).filter(item => item.id !== attachmentId),
-    })
-  }
+  const handleJournalDrop = async (event: React.DragEvent<HTMLElement>) => {
+    // Let the editor handle drops when focus is inside it.
+    // This handler only fires on the outer wrapper — pass images dropped on the panel chrome.
+    const target = event.target as HTMLElement
+    if (target.closest('.je-content')) return // editor handles it
 
-  const handleJournalDrop = async (event: DragEvent<HTMLElement>) => {
     event.preventDefault()
     setDragOverJournal(false)
     if (!selectedEntry) {
@@ -238,39 +308,35 @@ export default function JournalPage() {
       return
     }
 
-    const items: Array<{ kind: JournalAttachment['kind']; url: string; title: string }> = []
+    const items: string[] = []
+
     const droppedLayer = getDroppedTableLayer(event.dataTransfer)
-    if (droppedLayer?.url) {
-      items.push({
-        kind: droppedLayer.layerType === 'image' ? 'image' : 'link',
-        url: droppedLayer.url,
-        title: droppedLayer.title || getLinkTitle(droppedLayer.url),
-      })
+    if (droppedLayer?.url && (droppedLayer.layerType === 'image' || droppedLayer.url.match(/\.(jpg|jpeg|png|gif|webp|svg)/i))) {
+      await insertImageIntoEditor(droppedLayer.url, droppedLayer.title || 'Изображение')
+      items.push(droppedLayer.url)
     }
 
     for (const file of Array.from(event.dataTransfer.files || [])) {
       if (!file.type.startsWith('image/')) continue
       try {
-        items.push({
-          kind: 'image',
-          url: await readImageFileAsDataUrl(file),
-          title: file.name || 'Изображение',
-        })
+        const src = await readImageFileAsDataUrl(file)
+        await insertImageIntoEditor(src, file.name)
+        items.push(src)
       } catch {
         setStatus('Одно из изображений не прочиталось')
       }
     }
 
-    getDroppedImageUrls(event.dataTransfer).forEach(url => {
-      items.push({ kind: 'image', url, title: getLinkTitle(url) || 'Изображение' })
+    getDroppedImageUrls(event.dataTransfer).forEach(async url => {
+      await insertImageIntoEditor(url, getLinkTitle(url))
+      items.push(url)
     })
 
-    const uniqueItems = items.filter((item, index, source) => source.findIndex(other => other.url === item.url) === index)
-    if (!appendAttachments(uniqueItems)) {
+    if (items.length === 0) {
       setStatus('Перетащите изображение, ссылку на изображение или медиа со стола')
-      return
+    } else {
+      setStatus(`Вставлено изображений: ${items.length}`)
     }
-    setStatus(`Добавлено вложений: ${uniqueItems.length}`)
   }
 
   const deleteEntry = () => {
@@ -350,15 +416,8 @@ export default function JournalPage() {
         <section
           className={`journal-editor ${dragOverJournal ? 'drag-over' : ''}`}
           aria-label="Запись дневника"
-          onDragEnter={event => {
-            event.preventDefault()
-            setDragOverJournal(true)
-          }}
-          onDragOver={event => {
-            event.preventDefault()
-            event.dataTransfer.dropEffect = 'copy'
-            setDragOverJournal(true)
-          }}
+          onDragEnter={event => { event.preventDefault(); setDragOverJournal(true) }}
+          onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDragOverJournal(true) }}
           onDragLeave={event => {
             if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOverJournal(false)
           }}
@@ -366,19 +425,28 @@ export default function JournalPage() {
         >
           {selectedEntry ? (
             <>
+              {/* Title */}
               <input
                 value={selectedEntry.title}
                 onChange={event => updateEntry({ title: event.target.value })}
                 placeholder="Заголовок"
               />
-              <textarea
-                value={selectedEntry.text}
-                onChange={event => updateEntry({ text: event.target.value })}
-                placeholder="Текст записи"
-              />
+
+              {/* Rich text editor */}
+              <div className="je-wrapper">
+                <JournalEditor
+                  ref={editorRef}
+                  value={editorValue}
+                  onChange={html => updateEntry({ text: html })}
+                  placeholder="Текст записи…"
+                />
+              </div>
+
+              {/* Media tools */}
               <section className="journal-media-tools" aria-label="Вставка медиа в дневник">
                 <div className="journal-drop-hint">
-                  Перетащите сюда изображение с компьютера, из браузера или медиа со стола.
+                  Перетащите картинку прямо в текст — или вставьте через форму ниже.
+                  Кликните на вставленную картинку, чтобы изменить её размер.
                 </div>
                 <form onSubmit={handleAddImage}>
                   <strong>Изображение</strong>
@@ -392,7 +460,7 @@ export default function JournalPage() {
                     onChange={event => setImageTitleDraft(event.target.value)}
                     placeholder="Название"
                   />
-                  <button type="submit">Вставить изображение</button>
+                  <button type="submit">Вставить</button>
                 </form>
                 <form onSubmit={handleAddLink}>
                   <strong>Ссылка</strong>
@@ -406,27 +474,10 @@ export default function JournalPage() {
                     onChange={event => setLinkTitleDraft(event.target.value)}
                     placeholder="Текст ссылки"
                   />
-                  <button type="submit">Вставить ссылку</button>
+                  <button type="submit">Вставить</button>
                 </form>
               </section>
-              {getEntryAttachments(selectedEntry).length > 0 && (
-                <section className="journal-attachment-grid" aria-label="Вложения записи">
-                  {getEntryAttachments(selectedEntry).map(attachment => (
-                    <article className="journal-attachment-card" key={attachment.id}>
-                      {attachment.kind === 'image' ? (
-                        <img src={attachment.url} alt={attachment.title} />
-                      ) : (
-                        <a href={attachment.url} target="_blank" rel="noreferrer">{attachment.title}</a>
-                      )}
-                      <div>
-                        <strong>{attachment.title}</strong>
-                        <span>{attachment.kind === 'image' ? 'Изображение' : 'Ссылка'}</span>
-                      </div>
-                      <button type="button" onClick={() => removeAttachment(attachment.id)}>Убрать</button>
-                    </article>
-                  ))}
-                </section>
-              )}
+
               <footer>
                 <span>Обновлено: {formatDate(selectedEntry.updatedAt)}</span>
                 <button type="button" className="danger" onClick={deleteEntry}>Удалить</button>
@@ -496,8 +547,7 @@ export default function JournalPage() {
         nav a,
         .journal-toolbar button,
         .journal-editor footer button,
-        .journal-media-tools button,
-        .journal-attachment-card button {
+        .journal-media-tools button {
           border: 1px solid #773030;
           border-radius: 6px;
           color: #f5f5f5;
@@ -513,8 +563,7 @@ export default function JournalPage() {
         nav a:hover,
         .journal-toolbar button:hover,
         .journal-editor footer button:hover,
-        .journal-media-tools button:hover,
-        .journal-attachment-card button:hover {
+        .journal-media-tools button:hover {
           border-color: #ff3131;
           background: #221111;
           color: #fff3e2;
@@ -550,8 +599,7 @@ export default function JournalPage() {
           font-size: 15px;
         }
 
-        input,
-        textarea {
+        input {
           box-sizing: border-box;
           border: 1px solid rgba(151, 44, 44, 0.78);
           border-radius: 7px;
@@ -560,22 +608,10 @@ export default function JournalPage() {
           padding: 0 13px;
           font: inherit;
           outline: none;
-        }
-
-        input {
           min-height: 44px;
         }
 
-        textarea {
-          min-height: 0;
-          height: 100%;
-          padding: 14px;
-          resize: none;
-          line-height: 1.65;
-        }
-
-        input:focus,
-        textarea:focus {
+        input:focus {
           border-color: #d6aa65;
           box-shadow: 0 0 0 3px rgba(214, 170, 101, 0.14);
         }
@@ -657,8 +693,8 @@ export default function JournalPage() {
 
         .journal-editor {
           display: grid;
-          grid-template-rows: auto minmax(320px, 1fr) auto auto auto;
-          gap: 10px;
+          grid-template-rows: auto 1fr auto auto;
+          gap: 0;
           min-height: 0;
           overflow: auto;
           padding: 14px;
@@ -676,6 +712,18 @@ export default function JournalPage() {
           color: #fff7ed;
           font-size: clamp(22px, 3vw, 34px);
           font-weight: 700;
+          margin-bottom: 10px;
+        }
+
+        /* Rich text editor wrapper */
+        .je-wrapper {
+          min-height: 0;
+          overflow: hidden;
+          border: 1px solid rgba(151, 44, 44, 0.5);
+          border-radius: 8px;
+          background: rgba(10, 7, 8, 0.7);
+          display: grid;
+          margin-bottom: 10px;
         }
 
         .journal-editor footer {
@@ -683,6 +731,7 @@ export default function JournalPage() {
           justify-content: space-between;
           gap: 12px;
           align-items: center;
+          padding-top: 4px;
         }
 
         .journal-editor footer button.danger {
@@ -694,6 +743,7 @@ export default function JournalPage() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
+          margin-bottom: 10px;
         }
 
         .journal-drop-hint {
@@ -726,62 +776,6 @@ export default function JournalPage() {
 
         .journal-media-tools input {
           min-width: 0;
-        }
-
-        .journal-attachment-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
-          gap: 10px;
-          max-height: 260px;
-          overflow: auto;
-          padding-right: 2px;
-        }
-
-        .journal-attachment-card {
-          display: grid;
-          grid-template-columns: 82px minmax(0, 1fr) auto;
-          gap: 10px;
-          align-items: center;
-          border: 1px solid rgba(151, 44, 44, 0.26);
-          border-radius: 7px;
-          background: rgba(18, 14, 13, 0.76);
-          padding: 9px;
-        }
-
-        .journal-attachment-card img {
-          width: 82px;
-          height: 58px;
-          object-fit: cover;
-          border-radius: 5px;
-          border: 1px solid rgba(214, 170, 101, 0.24);
-          background: #050505;
-        }
-
-        .journal-attachment-card a {
-          grid-column: 1 / -1;
-          min-width: 0;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: #ffd89a;
-        }
-
-        .journal-attachment-card div {
-          display: grid;
-          gap: 3px;
-          min-width: 0;
-        }
-
-        .journal-attachment-card strong {
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: #fff7ed;
-        }
-
-        .journal-attachment-card span {
-          color: #b8a89a;
-          font-size: 12px;
         }
 
         .journal-empty {
@@ -838,14 +832,6 @@ export default function JournalPage() {
 
           .journal-editor footer {
             display: grid;
-          }
-
-          .journal-attachment-card {
-            grid-template-columns: 70px minmax(0, 1fr);
-          }
-
-          .journal-attachment-card button {
-            grid-column: 1 / -1;
           }
         }
       `}</style>
