@@ -100,7 +100,6 @@ export default function MainScreen() {
   const [passwordDraft, setPasswordDraft] = useState('')
   const [authStatus, setAuthStatus] = useState('Private archive access')
   const [isAuthBusy, setIsAuthBusy] = useState(false)
-  const [libraryOpen, setLibraryOpen] = useState(false)
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
   const smoothX = useSpring(mouseX, { stiffness: 45, damping: 22 })
@@ -286,10 +285,6 @@ export default function MainScreen() {
   }
 
   const selectedCharacter = characters.find(character => character.id === selectedCharacterId) || characters[0] || null
-  const journalKeys = typeof window === 'undefined'
-    ? []
-    : Object.keys(window.localStorage).filter(key => key.startsWith('vtm-journal:')).sort()
-
   return (
     <main
       className="salon-shell"
@@ -446,9 +441,9 @@ export default function MainScreen() {
                 <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
                   Открыть редактор
                 </Link>
-                <button type="button" className="ghost-action" onClick={() => setLibraryOpen(true)}>
+                <Link href="/journal" className="ghost-action">
                   Дневник
-                </button>
+                </Link>
                 <Link href="/reference" className="ghost-action">
                   Справочник
                 </Link>
@@ -459,42 +454,6 @@ export default function MainScreen() {
           </EntryCard>
         </section>
       </section>
-
-      {libraryOpen ? (
-        <div className="library-modal-backdrop" role="dialog" aria-modal="true" aria-label="Библиотека дневников" onMouseDown={() => setLibraryOpen(false)}>
-          <section className="library-modal" onMouseDown={event => event.stopPropagation()}>
-            <header>
-              <div>
-                <span>Библиотека</span>
-                <strong>Дневники комнат</strong>
-              </div>
-              <button type="button" onClick={() => setLibraryOpen(false)}>×</button>
-            </header>
-            <div className="library-journal-list">
-              {journalKeys.length === 0 ? (
-                <p>Сохранённых дневников пока нет.</p>
-              ) : journalKeys.map(key => {
-                const [, userId, roomName] = key.split(':')
-                let entries = 0
-                try {
-                  entries = JSON.parse(window.localStorage.getItem(key) || '[]')?.length || 0
-                } catch {
-                  entries = 0
-                }
-                return (
-                  <a href={`/table?room=${encodeURIComponent(roomName || DEFAULT_ROOM)}&role=${role}`} key={key} onClick={() => {
-                    window.localStorage.setItem('vtm-table-room', roomName || DEFAULT_ROOM)
-                    window.localStorage.setItem('vtm-table-role', role)
-                  }}>
-                    <strong>{roomName || DEFAULT_ROOM}</strong>
-                    <span>{entries} записей · {userId === chatUser?.id ? chatUser.username : 'локальный пользователь'}</span>
-                  </a>
-                )
-              })}
-            </div>
-          </section>
-        </div>
-      ) : null}
 
       <style jsx global>{`
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap');
