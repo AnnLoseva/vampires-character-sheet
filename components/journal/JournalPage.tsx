@@ -434,12 +434,15 @@ export default function JournalPage() {
       <style jsx global>{`
         html,
         body {
-          margin: 0;
-          padding: 0;
-          height: 100%;
-          overflow: hidden;
-          background: #080506;
-          color: #f4eadf;
+          margin: 0 !important;
+          padding: 0 !important;
+          height: 100% !important;
+          min-height: unset !important;
+          overflow: hidden !important;
+          display: block !important;
+          background: #080506 !important;
+          color: #f4eadf !important;
+          gap: unset !important;
         }
       `}</style>
 
