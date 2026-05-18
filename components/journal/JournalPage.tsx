@@ -1,8 +1,9 @@
 'use client'
 
 import Link from 'next/link'
-import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { type DragEvent, type FormEvent, useEffect, useMemo, useState } from 'react'
 import type { ChatUser, JournalAttachment, JournalEntry } from '@/lib/table/types'
+import { extractImageUrlsFromHtml } from '@/lib/table/media-utils'
 
 type JournalArchive = {
   key: string
@@ -59,6 +60,43 @@ function getLinkTitle(url: string) {
   }
 }
 
+function readImageFileAsDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(String(reader.result || ''))
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
+}
+
+function getDroppedImageUrls(dataTransfer: DataTransfer) {
+  const urls: string[] = []
+  urls.push(...extractImageUrlsFromHtml(dataTransfer.getData('text/html')))
+  urls.push(
+    ...dataTransfer
+      .getData('text/uri-list')
+      .split(/\r?\n/)
+      .filter(line => line && !line.startsWith('#'))
+  )
+
+  const plain = dataTransfer.getData('text/plain').trim()
+  if (/^(https?:|data:image\/|blob:)/i.test(plain)) urls.push(plain)
+
+  return [...new Set(urls.map(url => url.trim()).filter(Boolean))]
+}
+
+function getDroppedTableLayer(dataTransfer: DataTransfer) {
+  try {
+    const raw = dataTransfer.getData('application/x-vtm-layer')
+    if (!raw) return null
+    const parsed = JSON.parse(raw) as { url?: string; title?: string; layerType?: string }
+    if (!parsed.url) return null
+    return parsed
+  } catch {
+    return null
+  }
+}
+
 export default function JournalPage() {
   const [chatUser, setChatUser] = useState<ChatUser | null>(null)
   const [archives, setArchives] = useState<JournalArchive[]>([])
@@ -71,6 +109,7 @@ export default function JournalPage() {
   const [imageTitleDraft, setImageTitleDraft] = useState('')
   const [linkUrlDraft, setLinkUrlDraft] = useState('')
   const [linkTitleDraft, setLinkTitleDraft] = useState('')
+  const [dragOverJournal, setDragOverJournal] = useState(false)
 
   const reloadArchives = () => {
     const next = readJournalArchives()
@@ -141,32 +180,34 @@ export default function JournalPage() {
     saveArchive(selectedArchive, next, 'Сохранено')
   }
 
-  const addAttachment = (kind: JournalAttachment['kind'], url: string, title: string) => {
+  const appendAttachments = (items: Array<{ kind: JournalAttachment['kind']; url: string; title: string }>) => {
     if (!selectedEntry) return false
-    const cleanUrl = url.trim()
-    if (!cleanUrl) return false
+    const cleanItems = items
+      .map(item => ({ ...item, url: item.url.trim(), title: item.title.trim() }))
+      .filter(item => item.url)
+    if (cleanItems.length === 0) return false
 
-    const cleanTitle = title.trim() || (kind === 'image' ? 'Изображение' : getLinkTitle(cleanUrl))
-    const attachment: JournalAttachment = {
+    const attachments: JournalAttachment[] = cleanItems.map(item => ({
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      kind,
-      url: cleanUrl,
-      title: cleanTitle,
+      kind: item.kind,
+      url: item.url,
+      title: item.title || (item.kind === 'image' ? 'Изображение' : getLinkTitle(item.url)),
       createdAt: new Date().toISOString(),
-    }
-    const markdown = kind === 'image'
-      ? `![${cleanTitle}](${cleanUrl})`
-      : `[${cleanTitle}](${cleanUrl})`
-    const nextText = selectedEntry.text.trim()
-      ? `${selectedEntry.text}\n\n${markdown}`
-      : markdown
+    }))
+    const markdown = attachments.map(attachment => attachment.kind === 'image'
+      ? `![${attachment.title}](${attachment.url})`
+      : `[${attachment.title}](${attachment.url})`
+    )
+    const nextText = [selectedEntry.text.trim(), ...markdown].filter(Boolean).join('\n\n')
 
     updateEntry({
       text: nextText,
-      attachments: [...getEntryAttachments(selectedEntry), attachment],
+      attachments: [...getEntryAttachments(selectedEntry), ...attachments],
     })
     return true
   }
+
+  const addAttachment = (kind: JournalAttachment['kind'], url: string, title: string) => appendAttachments([{ kind, url, title }])
 
   const handleAddImage = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -187,6 +228,49 @@ export default function JournalPage() {
     updateEntry({
       attachments: getEntryAttachments(selectedEntry).filter(item => item.id !== attachmentId),
     })
+  }
+
+  const handleJournalDrop = async (event: DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    setDragOverJournal(false)
+    if (!selectedEntry) {
+      setStatus('Сначала создайте запись дневника')
+      return
+    }
+
+    const items: Array<{ kind: JournalAttachment['kind']; url: string; title: string }> = []
+    const droppedLayer = getDroppedTableLayer(event.dataTransfer)
+    if (droppedLayer?.url) {
+      items.push({
+        kind: droppedLayer.layerType === 'image' ? 'image' : 'link',
+        url: droppedLayer.url,
+        title: droppedLayer.title || getLinkTitle(droppedLayer.url),
+      })
+    }
+
+    for (const file of Array.from(event.dataTransfer.files || [])) {
+      if (!file.type.startsWith('image/')) continue
+      try {
+        items.push({
+          kind: 'image',
+          url: await readImageFileAsDataUrl(file),
+          title: file.name || 'Изображение',
+        })
+      } catch {
+        setStatus('Одно из изображений не прочиталось')
+      }
+    }
+
+    getDroppedImageUrls(event.dataTransfer).forEach(url => {
+      items.push({ kind: 'image', url, title: getLinkTitle(url) || 'Изображение' })
+    })
+
+    const uniqueItems = items.filter((item, index, source) => source.findIndex(other => other.url === item.url) === index)
+    if (!appendAttachments(uniqueItems)) {
+      setStatus('Перетащите изображение, ссылку на изображение или медиа со стола')
+      return
+    }
+    setStatus(`Добавлено вложений: ${uniqueItems.length}`)
   }
 
   const deleteEntry = () => {
@@ -263,7 +347,23 @@ export default function JournalPage() {
           </div>
         </aside>
 
-        <section className="journal-editor" aria-label="Запись дневника">
+        <section
+          className={`journal-editor ${dragOverJournal ? 'drag-over' : ''}`}
+          aria-label="Запись дневника"
+          onDragEnter={event => {
+            event.preventDefault()
+            setDragOverJournal(true)
+          }}
+          onDragOver={event => {
+            event.preventDefault()
+            event.dataTransfer.dropEffect = 'copy'
+            setDragOverJournal(true)
+          }}
+          onDragLeave={event => {
+            if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragOverJournal(false)
+          }}
+          onDrop={handleJournalDrop}
+        >
           {selectedEntry ? (
             <>
               <input
@@ -277,6 +377,9 @@ export default function JournalPage() {
                 placeholder="Текст записи"
               />
               <section className="journal-media-tools" aria-label="Вставка медиа в дневник">
+                <div className="journal-drop-hint">
+                  Перетащите сюда изображение с компьютера, из браузера или медиа со стола.
+                </div>
                 <form onSubmit={handleAddImage}>
                   <strong>Изображение</strong>
                   <input
@@ -559,6 +662,14 @@ export default function JournalPage() {
           min-height: 0;
           overflow: auto;
           padding: 14px;
+          outline: 1px solid transparent;
+          transition: border-color 160ms ease, outline-color 160ms ease, box-shadow 160ms ease;
+        }
+
+        .journal-editor.drag-over {
+          border-color: #ff3131;
+          outline-color: rgba(255, 49, 49, 0.34);
+          box-shadow: 0 0 0 3px rgba(255, 49, 49, 0.12), 0 0 34px rgba(255, 49, 49, 0.18);
         }
 
         .journal-editor > input {
@@ -583,6 +694,17 @@ export default function JournalPage() {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
           gap: 10px;
+        }
+
+        .journal-drop-hint {
+          grid-column: 1 / -1;
+          border: 1px dashed rgba(214, 170, 101, 0.44);
+          border-radius: 7px;
+          background: rgba(82, 12, 18, 0.18);
+          color: #d8c3aa;
+          padding: 10px 12px;
+          font-size: 13px;
+          line-height: 1.45;
         }
 
         .journal-media-tools form {

@@ -2624,6 +2624,82 @@ export default function VampireTable() {
     )
   }
 
+  const getLayerShareUrl = (layer: TableLayer) => {
+    if (layer.layerType === 'file') return getFileLayerMeta(layer.imageData, layer.name).url
+    if (layer.layerType === 'image' || layer.layerType === 'video') return layer.imageData
+    return ''
+  }
+
+  const getLayerClipboardText = (layer: TableLayer) => {
+    const url = getLayerShareUrl(layer)
+    if (layer.layerType === 'image' && url) return `![${layer.name}](${url})`
+    if (url) return `[${layer.name}](${url})`
+    if (layer.layerType === 'text') return `${layer.name}\n\n${layer.imageData}`
+    return layer.name
+  }
+
+  const copyTextToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setTableStatus('Скопировано')
+    } catch {
+      const textarea = document.createElement('textarea')
+      textarea.value = text
+      textarea.style.position = 'fixed'
+      textarea.style.opacity = '0'
+      document.body.appendChild(textarea)
+      textarea.select()
+      document.execCommand('copy')
+      textarea.remove()
+      setTableStatus('Скопировано')
+    }
+  }
+
+  const copyLayerForDiary = async (layer: TableLayer) => {
+    await copyTextToClipboard(getLayerClipboardText(layer))
+    setLayerContextMenu(null)
+  }
+
+  const copyLayerUrl = async (layer: TableLayer) => {
+    const url = getLayerShareUrl(layer)
+    await copyTextToClipboard(url || getLayerClipboardText(layer))
+    setLayerContextMenu(null)
+  }
+
+  const copyLayerToPersonalMedia = async (layer: TableLayer) => {
+    if (layer.layerType === 'folder') return
+    await addMediaLayer(
+      layer.imageData,
+      `${layer.name} copy`,
+      { width: layer.width, height: layer.height },
+      layer.layerType === 'video' ? 'video' : layer.layerType === 'text' ? 'text' : layer.layerType === 'file' ? 'file' : 'image',
+      0,
+      undefined,
+      false,
+      {
+        parentId: null,
+        visible: true,
+        locked: false,
+        cropX: layer.cropX,
+        cropY: layer.cropY,
+        cropWidth: layer.cropWidth,
+        cropHeight: layer.cropHeight,
+        opacity: layer.opacity,
+        blendMode: layer.blendMode,
+        rotation: layer.rotation,
+        flipX: layer.flipX,
+        flipY: layer.flipY,
+        brightness: layer.brightness,
+        contrast: layer.contrast,
+        saturation: layer.saturation,
+      }
+    )
+    setRightRailTab('media')
+    setMediaTab('library')
+    setLayerContextMenu(null)
+    setTableStatus('Скопировано в мои медиа')
+  }
+
   const focusLayersForEveryone = (ids: string[]) => {
     const targets = ids
       .map(id => layersRef.current.find(layer => layer.id === id))
@@ -2713,8 +2789,18 @@ export default function VampireTable() {
       return
     }
 
-    event.dataTransfer.effectAllowed = 'move'
+    const shareUrl = getLayerShareUrl(layer)
+    event.dataTransfer.effectAllowed = 'copyMove'
     event.dataTransfer.setData('text/plain', layerId)
+    if (shareUrl) {
+      event.dataTransfer.setData('text/uri-list', shareUrl)
+      event.dataTransfer.setData('application/x-vtm-layer', JSON.stringify({
+        id: layer.id,
+        title: layer.name,
+        url: shareUrl,
+        layerType: layer.layerType,
+      }))
+    }
     setDraggingLayerId(layerId)
     setLayerContextMenu(null)
   }
@@ -3949,10 +4035,18 @@ export default function VampireTable() {
         return (
           <div
             className="layer-context-menu"
-            style={getSmartFloatingPosition(layerContextMenu.x, layerContextMenu.y, 280, 520)}
+            style={getSmartFloatingPosition(layerContextMenu.x, layerContextMenu.y, 280, 620)}
             onClick={event => event.stopPropagation()}
           >
             {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>Переименовать</button> : null}
+            {singleLayer && singleLayer.layerType !== 'folder' ? (
+              <div className="context-menu-group">
+                <span>Копировать</span>
+                <button type="button" onClick={() => copyLayerForDiary(singleLayer)}>Для дневника</button>
+                <button type="button" onClick={() => copyLayerUrl(singleLayer)}>Ссылку</button>
+                <button type="button" onClick={() => copyLayerToPersonalMedia(singleLayer)}>В мои медиа</button>
+              </div>
+            ) : null}
             {singleLayer && ['image', 'video'].includes(singleLayer.layerType) ? (
               <div className="context-menu-group">
                 <span>Изображение</span>
