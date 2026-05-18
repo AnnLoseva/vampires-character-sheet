@@ -1676,26 +1676,13 @@
         text-transform: uppercase;
         letter-spacing: 1px;
         display: block;
-        margin: 8px 0 4px;
+        margin: 0 0 6px;
     }
-    .char-type-group-label:first-child { margin-top: 0; }
-    .char-type-btn {
-        display: block;
-        width: 100%;
-        padding: 7px 10px;
-        background: #141414;
-        border: 1px solid #2a2a2a;
-        border-radius: 5px;
-        color: #888;
-        font-family: 'Courier New', Courier, monospace;
-        font-size: 12px;
-        cursor: pointer;
-        text-align: left;
-        margin-bottom: 3px;
-        transition: border-color 0.15s, color 0.15s, background 0.15s;
+    #char-type-select {
+        font-size: 13px !important;
+        padding: 6px 30px 6px 10px !important;
+        width: 100% !important;
     }
-    .char-type-btn:hover { border-color: #773030; color: #ccc; background: #1a0d0d; }
-    .char-type-btn.active { border-color: #ff3131; background: #220c0c; color: #fff7ed; font-weight: bold; }
 
     /* ==================== ВИДИМОСТЬ ПО ТИПУ ==================== */
     /* По умолчанию показываем вампирские, скрываем смертные */
@@ -1770,13 +1757,14 @@
         <div class="guide">
             <!-- Тип персонажа -->
             <div class="char-type-switcher">
-                <span class="char-type-group-label">Игровой персонаж</span>
-                <button class="char-type-btn active" onclick="setCharacterType('vampire')">🧛 Создать вампира</button>
-                <button class="char-type-btn" onclick="setCharacterType('mortal')">👤 Создать человека</button>
-                <span class="char-type-group-label">НПС</span>
-                <button class="char-type-btn" onclick="setCharacterType('npc-vampire')">🧛 НПС Вампир</button>
-                <button class="char-type-btn" onclick="setCharacterType('npc-ghost')">👻 НПС Призрак</button>
-                <button class="char-type-btn" onclick="setCharacterType('npc-mortal')">👥 НПС Человек</button>
+                <span class="char-type-group-label">Тип персонажа</span>
+                <select id="char-type-select" onchange="setCharacterType(this.value)">
+                    <option value="vampire">🧛 Создать вампира</option>
+                    <option value="mortal">👤 Создать человека</option>
+                    <option value="npc-vampire">🧛 НПС Вампир</option>
+                    <option value="npc-ghost">👻 НПС Призрак</option>
+                    <option value="npc-mortal">👥 НПС Человек</option>
+                </select>
             </div>
 
             <nav class="sheet-tabs" aria-label="Разделы листа персонажа">
@@ -1810,7 +1798,13 @@
             <div class="mortal-only" id="mortal-templates-panel">
                 <hr style="border:0; border-top:1px solid #333; margin:12px 0;">
                 <p style="font-size:12px; color:#888; margin-bottom:8px;">Шаблон смертного:</p>
-                <div id="mortal-template-list"></div>
+                <select id="mortal-template-select" onchange="selectMortalTemplate(this.value)" style="font-size:13px !important; padding:6px 30px 6px 10px !important; width:100% !important; margin-bottom:8px;">
+                    <option value="">— выберите шаблон —</option>
+                    <option value="weak">Слабый смертный</option>
+                    <option value="average">Обычный смертный</option>
+                    <option value="gifted">Одарённый смертный</option>
+                    <option value="formidable">Отчаянный смертный</option>
+                </select>
                 <div id="mortal-template-detail" class="mortal-tpl-detail" style="display:none;"></div>
                 <hr style="border:0; border-top:1px solid #333; margin:12px 0;">
                 <div id="mortal-attr-tracker"></div>

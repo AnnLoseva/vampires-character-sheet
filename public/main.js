@@ -55,11 +55,19 @@ function getTypeBonuses(type) {
 }
 
 function getMeritsLimit() {
+    if ((currentCharType === 'mortal' || currentCharType === 'npc-mortal') && currentMortalTemplate) {
+        const tpl = MORTAL_TEMPLATES.find(t => t.id === currentMortalTemplate);
+        if (tpl) return tpl.merits;
+    }
     const type = document.getElementById('type-input')?.value;
     return 7 + getTypeBonuses(type).meritsBonus;
 }
 
 function getFlawsLimit() {
+    if ((currentCharType === 'mortal' || currentCharType === 'npc-mortal') && currentMortalTemplate) {
+        const tpl = MORTAL_TEMPLATES.find(t => t.id === currentMortalTemplate);
+        if (tpl) return tpl.maxFlaws;
+    }
     const type = document.getElementById('type-input')?.value;
     return 2 + getTypeBonuses(type).flawsBonus;
 }
@@ -1805,6 +1813,8 @@ const MORTAL_TEMPLATES = [
         attrs: { total: 11, budget: [{v:2,n:2},{v:1,n:'все остальные'}] },
         skills: { total: 11, budget: [{v:2,n:3},{v:1,n:5}] },
         merits: 0, maxFlaws: 0, specs: 0,
+        attrLimits:  { 5:0, 4:0, 3:0, 2:2, 1:7 },
+        skillLimits: { 5:0, 4:0, 3:0, 2:3, 1:5 },
     },
     {
         id: 'average',
@@ -1817,6 +1827,8 @@ const MORTAL_TEMPLATES = [
         attrs: { total: 18, budget: [{v:3,n:2},{v:2,n:3},{v:1,n:'остальные'}] },
         skills: { total: 21, budget: [{v:3,n:3},{v:2,n:4},{v:1,n:5}] },
         merits: 3, maxFlaws: 2, specs: 0,
+        attrLimits:  { 5:0, 4:0, 3:2, 2:3, 1:4 },
+        skillLimits: { 5:0, 4:0, 3:3, 2:4, 1:5 },
     },
     {
         id: 'gifted',
@@ -1829,6 +1841,8 @@ const MORTAL_TEMPLATES = [
         attrs: { total: 23, budget: [{v:4,n:1},{v:3,n:2},{v:2,n:2},{v:1,n:'остальные'}] },
         skills: { total: 30, budget: [{v:4,n:2},{v:3,n:4},{v:2,n:4},{v:1,n:4}] },
         merits: 10, maxFlaws: 4, specs: 1,
+        attrLimits:  { 5:0, 4:1, 3:2, 2:2, 1:4 },
+        skillLimits: { 5:0, 4:2, 3:4, 2:4, 1:4 },
     },
     {
         id: 'formidable',
@@ -1841,6 +1855,8 @@ const MORTAL_TEMPLATES = [
         attrs: { total: 39, budget: [{v:5,n:2},{v:4,n:2},{v:3,n:2},{v:2,n:'остальные'}] },
         skills: { total: 44, budget: [{v:5,n:1},{v:4,n:3},{v:3,n:5},{v:2,n:6}] },
         merits: 15, maxFlaws: 0, specs: 3,
+        attrLimits:  { 5:2, 4:2, 3:2, 2:3, 1:0 },
+        skillLimits: { 5:1, 4:3, 3:5, 2:6, 1:0 },
     },
 ];
 
@@ -1857,10 +1873,9 @@ function setCharacterType(type) {
     });
     document.body.classList.add('char-type-' + type);
 
-    // Обновляем активную кнопку переключателя
-    document.querySelectorAll('.char-type-btn').forEach(btn => {
-        btn.classList.toggle('active', btn.getAttribute('onclick') === `setCharacterType('${type}')`);
-    });
+    // Синхронизируем select переключателя
+    const charTypeSelect = document.getElementById('char-type-select');
+    if (charTypeSelect) charTypeSelect.value = type;
 
     // Рендерим нужный трекер
     if (type === 'mortal' || type === 'npc-mortal') {
@@ -1889,25 +1904,20 @@ function updateSireLabel(type) {
 }
 
 function renderMortalTemplates() {
-    const list = document.getElementById('mortal-template-list');
-    if (!list) return;
-
-    list.innerHTML = MORTAL_TEMPLATES.map(tpl => `
-        <div class="mortal-template-card ${currentMortalTemplate === tpl.id ? 'active' : ''}"
-             onclick="selectMortalTemplate('${tpl.id}')">
-            <div class="tpl-name">${tpl.name}</div>
-            <div class="tpl-short">${tpl.short}</div>
-        </div>
-    `).join('');
-
+    const sel = document.getElementById('mortal-template-select');
+    if (sel) sel.value = currentMortalTemplate || '';
     renderMortalTemplateDetail();
     renderMortalAttrTracker();
 }
 
 function selectMortalTemplate(id) {
-    currentMortalTemplate = id;
-    localStorage.setItem('vtm-mortal-template', id);
-    renderMortalTemplates();
+    currentMortalTemplate = id || null;
+    localStorage.setItem('vtm-mortal-template', id || '');
+    const sel = document.getElementById('mortal-template-select');
+    if (sel) sel.value = id || '';
+    renderMortalTemplateDetail();
+    renderMortalAttrTracker();
+    updateTrackers();
 }
 
 function renderMortalTemplateDetail() {
@@ -2317,19 +2327,12 @@ let counts = { attr: {4:0, 3:0, 2:0, 1:0}, skill: {4:0, 3:0, 2:0, 1:0} };
 // Основная функция обновления трекеров
 // Основная функция обновления трекеров
 function updateTrackers() {
+    const isMortal = (currentCharType === 'mortal' || currentCharType === 'npc-mortal');
     const packageSelect = document.getElementById('skill-package');
-    
-    // Если способ развития ещё не выбран
-    if (!packageSelect.value) {
-        document.getElementById('skill-tracker').innerHTML = 
-            '<span style="color:#888; font-style:italic;">Выберите способ развития выше</span>';
-        document.getElementById('spec-tracker').textContent = 'Специализации (S): 0 / 1';
-        return;
-    }
 
-    counts = { 
-        attr: {5:0, 4:0, 3:0, 2:0, 1:0}, 
-        skill: {5:0, 4:0, 3:0, 2:0, 1:0} 
+    counts = {
+        attr: {5:0, 4:0, 3:0, 2:0, 1:0},
+        skill: {5:0, 4:0, 3:0, 2:0, 1:0}
     };
 
     document.querySelectorAll('.dot-input:checked').forEach(input => {
@@ -2346,14 +2349,37 @@ function updateTrackers() {
     document.getElementById('val-hp').textContent = stamina + 3;
     document.getElementById('val-wp').textContent = composure + resolve;
 
-    renderTracker('attr', ATTR_LIMITS, 'attr-tracker');
-    renderTracker('skill', SKILL_PACKAGES[packageSelect.value], 'skill-tracker');
-
-    let specCount = document.querySelectorAll('.spec-checkbox:checked').length;
-    document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / 1`;
+    if (isMortal) {
+        // Режим смертного: используем лимиты шаблона
+        const tpl = currentMortalTemplate ? MORTAL_TEMPLATES.find(t => t.id === currentMortalTemplate) : null;
+        if (tpl) {
+            renderTracker('attr', tpl.attrLimits, 'attr-tracker');
+            renderTracker('skill', tpl.skillLimits, 'skill-tracker');
+            const specCount = document.querySelectorAll('.spec-checkbox:checked').length;
+            document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / ${tpl.specs}`;
+        } else {
+            document.getElementById('attr-tracker').innerHTML =
+                '<span style="color:#888; font-style:italic;">Выберите шаблон смертного</span>';
+            document.getElementById('skill-tracker').innerHTML = '';
+            document.getElementById('spec-tracker').textContent = 'Специализации (S): 0 / 0';
+        }
+        renderMortalAttrTracker();
+    } else {
+        // Режим вампира
+        if (!packageSelect.value) {
+            document.getElementById('skill-tracker').innerHTML =
+                '<span style="color:#888; font-style:italic;">Выберите способ развития выше</span>';
+            document.getElementById('spec-tracker').textContent = 'Специализации (S): 0 / 1';
+        } else {
+            renderTracker('attr', ATTR_LIMITS, 'attr-tracker');
+            renderTracker('skill', SKILL_PACKAGES[packageSelect.value], 'skill-tracker');
+            const specCount = document.querySelectorAll('.spec-checkbox:checked').length;
+            document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / 1`;
+        }
+    }
 
     checkLimits();
-    updateVitals();        // ←←← ДОБАВЬ ЭТУ СТРОКУ
+    updateVitals();
 }
 
 function renderTracker(type, limits, trackerId) {
@@ -2385,18 +2411,34 @@ function checkLimits() {
     }
     
     let hasOver = false;
+    const isMortal = (currentCharType === 'mortal' || currentCharType === 'npc-mortal');
 
-    // Проверка обычных лимитов
-    Object.keys(counts.attr).forEach(v => {
-        if (counts.attr[v] > ATTR_LIMITS[v]) hasOver = true;
-    });
-    Object.keys(counts.skill).forEach(v => {
-        if (counts.skill[v] > SKILL_PACKAGES[currentPackage][v]) hasOver = true;
-    });
+    if (isMortal) {
+        // Проверка лимитов по шаблону смертного
+        if (currentMortalTemplate) {
+            const tpl = MORTAL_TEMPLATES.find(t => t.id === currentMortalTemplate);
+            if (tpl) {
+                Object.keys(counts.attr).forEach(v => {
+                    if (counts.attr[v] > (tpl.attrLimits[v] || 0)) hasOver = true;
+                });
+                Object.keys(counts.skill).forEach(v => {
+                    if (counts.skill[v] > (tpl.skillLimits[v] || 0)) hasOver = true;
+                });
+            }
+        }
+    } else {
+        // Проверка обычных лимитов вампира
+        Object.keys(counts.attr).forEach(v => {
+            if (counts.attr[v] > ATTR_LIMITS[v]) hasOver = true;
+        });
+        Object.keys(counts.skill).forEach(v => {
+            if (counts.skill[v] > SKILL_PACKAGES[currentPackage][v]) hasOver = true;
+        });
 
-    // Специальное правило: любая 5-я точка = красный
-    if (counts.attr[5] > 0 || counts.skill[5] > 0) {
-        hasOver = true;
+        // Специальное правило для вампиров: любая 5-я точка = красный
+        if (counts.attr[5] > 0 || counts.skill[5] > 0) {
+            hasOver = true;
+        }
     }
 
     if (hasOver) {
