@@ -4029,16 +4029,17 @@ export default function VampireTable() {
         const allVisible = contextLayers.every(item => item.visible)
         const allLocked = contextLayers.every(item => item.locked)
         const singleLayer = contextLayers.length === 1 ? contextLayers[0] : null
-        const movableIds = ids.filter(id => layers.find(item => item.id === id)?.layerType !== 'folder')
+        const canManageContext = contextLayers.every(item => canEditLayer(item))
+        const movableIds = canManageContext ? ids.filter(id => layers.find(item => item.id === id)?.layerType !== 'folder') : []
         const folderScope = firstLayer.onTable ? tableManagerLayers : libraryLayers
-        const availableFolders = folderScope.filter(item => item.layerType === 'folder' && !ids.includes(item.id))
+        const availableFolders = canManageContext ? folderScope.filter(item => item.layerType === 'folder' && !ids.includes(item.id)) : []
+        if (!canManageContext && (!singleLayer || singleLayer.layerType === 'folder')) return null
         return (
           <div
             className="layer-context-menu"
             style={getSmartFloatingPosition(layerContextMenu.x, layerContextMenu.y, 280, 620)}
             onClick={event => event.stopPropagation()}
           >
-            {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>Переименовать</button> : null}
             {singleLayer && singleLayer.layerType !== 'folder' ? (
               <div className="context-menu-group">
                 <span>Копировать</span>
@@ -4047,122 +4048,127 @@ export default function VampireTable() {
                 <button type="button" onClick={() => copyLayerToPersonalMedia(singleLayer)}>В мои медиа</button>
               </div>
             ) : null}
-            {singleLayer && ['image', 'video'].includes(singleLayer.layerType) ? (
-              <div className="context-menu-group">
-                <span>Изображение</span>
-                <button type="button" onClick={() => openImageEditor(singleLayer)}>Обрезать</button>
-                <button type="button" onClick={() => patchLayer(singleLayer.id, { rotation: (singleLayer.rotation + 90) % 360 })}>Повернуть</button>
-                <button type="button" onClick={() => duplicateLayer(singleLayer)}>Дублировать</button>
-              </div>
-            ) : null}
-            {singleLayer && getLayerCrop(singleLayer).cropped ? (
-              <button type="button" onClick={() => resetLayerCrop(singleLayer)}>Восстановить обрезанное</button>
-            ) : null}
-            <button type="button" onClick={() => {
-              patchSelectedLayers(ids, () => ({ visible: !allVisible }))
-              setLayerContextMenu(null)
-            }}>
-              {allVisible ? 'Скрыть' : 'Показать'}
-            </button>
-            <button type="button" onClick={() => {
-              patchSelectedLayers(ids, () => ({ locked: !allLocked }))
-              setLayerContextMenu(null)
-            }}>
-              {allLocked ? 'Разблокировать' : 'Заблокировать'}
-            </button>
-            {singleLayer && singleLayer.layerType !== 'folder' ? (
-              <div className="context-menu-group context-menu-controls">
-                <span>Слой</span>
-                <label>
-                  <small>Opacity</small>
-                  <input
-                    type="range"
-                    min="0"
-                    max="1"
-                    step="0.05"
-                    value={singleLayer.opacity}
-                    onChange={event => patchLayer(singleLayer.id, { opacity: Number(event.target.value) })}
-                  />
-                </label>
-                <label>
-                  <small>Blend</small>
-                  <select
-                    value={singleLayer.blendMode}
-                    onChange={event => patchLayer(singleLayer.id, { blendMode: event.target.value as BlendMode })}
-                  >
-                    {(['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'luminosity'] as BlendMode[]).map(mode => (
-                      <option value={mode} key={mode}>{mode}</option>
-                    ))}
-                  </select>
-                </label>
-              </div>
-            ) : null}
-            <div className="context-menu-group">
-              <span>Порядок слоя</span>
-              <button type="button" onClick={() => {
-                reorderLayers(ids, 'top')
-                setLayerContextMenu(null)
-              }}>На самый верх</button>
-              <button type="button" onClick={() => {
-                reorderLayers(ids, 'up')
-                setLayerContextMenu(null)
-              }}>Выше</button>
-              <button type="button" onClick={() => {
-                reorderLayers(ids, 'down')
-                setLayerContextMenu(null)
-              }}>Ниже</button>
-              <button type="button" onClick={() => {
-                reorderLayers(ids, 'bottom')
-                setLayerContextMenu(null)
-              }}>На самый низ</button>
-            </div>
-            {singleLayer?.layerType === 'folder' ? (
-              <button type="button" onClick={() => {
-                createNamedFolder(singleLayer.id, singleLayer.onTable)
-                setLayerContextMenu(null)
-              }}>Новая папка внутри</button>
-            ) : null}
-            {contextLayers.some(item => item.parentId) ? (
-              <button type="button" onClick={() => {
-                patchSelectedLayers(ids, () => ({ parentId: null }))
-                setLayerContextMenu(null)
-              }}>Вынести из папки</button>
-            ) : null}
-            {contextLayers.some(item => item.onTable) ? (
-              <button type="button" onClick={() => {
-                patchSelectedLayers(ids, () => ({ onTable: false, parentId: null }))
-                setLayerContextMenu(null)
-              }}>Убрать в медиа сцены</button>
-            ) : null}
-            {contextLayers.some(item => !item.onTable) ? (
-              <button type="button" onClick={() => {
-                patchSelectedLayers(ids, () => ({ onTable: true, visible: true, parentId: null }))
-                setLayerContextMenu(null)
-              }}>Вынести на стол</button>
-            ) : null}
-            {movableIds.length > 0 ? (
-              <div className="context-menu-group">
-                <span>Поместить в папку</span>
-                {availableFolders.map(folder => (
-                  <button type="button" key={folder.id} onClick={() => {
-                    moveLayersToFolder(movableIds, folder.id)
-                    setLayerContextMenu(null)
-                  }}>{folder.name}</button>
-                ))}
+            {canManageContext ? (
+              <>
+                {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>Переименовать</button> : null}
+                {singleLayer && ['image', 'video'].includes(singleLayer.layerType) ? (
+                  <div className="context-menu-group">
+                    <span>Изображение</span>
+                    <button type="button" onClick={() => openImageEditor(singleLayer)}>Обрезать</button>
+                    <button type="button" onClick={() => patchLayer(singleLayer.id, { rotation: (singleLayer.rotation + 90) % 360 })}>Повернуть</button>
+                    <button type="button" onClick={() => duplicateLayer(singleLayer)}>Дублировать</button>
+                  </div>
+                ) : null}
+                {singleLayer && getLayerCrop(singleLayer).cropped ? (
+                  <button type="button" onClick={() => resetLayerCrop(singleLayer)}>Восстановить обрезанное</button>
+                ) : null}
                 <button type="button" onClick={() => {
-                  createFolderForSelection(movableIds)
+                  patchSelectedLayers(ids, () => ({ visible: !allVisible }))
                   setLayerContextMenu(null)
-                }}>Создать новую папку</button>
-              </div>
+                }}>
+                  {allVisible ? 'Скрыть' : 'Показать'}
+                </button>
+                <button type="button" onClick={() => {
+                  patchSelectedLayers(ids, () => ({ locked: !allLocked }))
+                  setLayerContextMenu(null)
+                }}>
+                  {allLocked ? 'Разблокировать' : 'Заблокировать'}
+                </button>
+                {singleLayer && singleLayer.layerType !== 'folder' ? (
+                  <div className="context-menu-group context-menu-controls">
+                    <span>Слой</span>
+                    <label>
+                      <small>Opacity</small>
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={singleLayer.opacity}
+                        onChange={event => patchLayer(singleLayer.id, { opacity: Number(event.target.value) })}
+                      />
+                    </label>
+                    <label>
+                      <small>Blend</small>
+                      <select
+                        value={singleLayer.blendMode}
+                        onChange={event => patchLayer(singleLayer.id, { blendMode: event.target.value as BlendMode })}
+                      >
+                        {(['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'luminosity'] as BlendMode[]).map(mode => (
+                          <option value={mode} key={mode}>{mode}</option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                ) : null}
+                <div className="context-menu-group">
+                  <span>Порядок слоя</span>
+                  <button type="button" onClick={() => {
+                    reorderLayers(ids, 'top')
+                    setLayerContextMenu(null)
+                  }}>На самый верх</button>
+                  <button type="button" onClick={() => {
+                    reorderLayers(ids, 'up')
+                    setLayerContextMenu(null)
+                  }}>Выше</button>
+                  <button type="button" onClick={() => {
+                    reorderLayers(ids, 'down')
+                    setLayerContextMenu(null)
+                  }}>Ниже</button>
+                  <button type="button" onClick={() => {
+                    reorderLayers(ids, 'bottom')
+                    setLayerContextMenu(null)
+                  }}>На самый низ</button>
+                </div>
+                {singleLayer?.layerType === 'folder' ? (
+                  <button type="button" onClick={() => {
+                    createNamedFolder(singleLayer.id, singleLayer.onTable)
+                    setLayerContextMenu(null)
+                  }}>Новая папка внутри</button>
+                ) : null}
+                {contextLayers.some(item => item.parentId) ? (
+                  <button type="button" onClick={() => {
+                    patchSelectedLayers(ids, () => ({ parentId: null }))
+                    setLayerContextMenu(null)
+                  }}>Вынести из папки</button>
+                ) : null}
+                {contextLayers.some(item => item.onTable) ? (
+                  <button type="button" onClick={() => {
+                    patchSelectedLayers(ids, () => ({ onTable: false, parentId: null }))
+                    setLayerContextMenu(null)
+                  }}>Убрать в медиа сцены</button>
+                ) : null}
+                {contextLayers.some(item => !item.onTable) ? (
+                  <button type="button" onClick={() => {
+                    patchSelectedLayers(ids, () => ({ onTable: true, visible: true, parentId: null }))
+                    setLayerContextMenu(null)
+                  }}>Вынести на стол</button>
+                ) : null}
+                {movableIds.length > 0 ? (
+                  <div className="context-menu-group">
+                    <span>Поместить в папку</span>
+                    {availableFolders.map(folder => (
+                      <button type="button" key={folder.id} onClick={() => {
+                        moveLayersToFolder(movableIds, folder.id)
+                        setLayerContextMenu(null)
+                      }}>{folder.name}</button>
+                    ))}
+                    <button type="button" onClick={() => {
+                      createFolderForSelection(movableIds)
+                      setLayerContextMenu(null)
+                    }}>Создать новую папку</button>
+                  </div>
+                ) : null}
+                <button type="button" onClick={() => {
+                  focusLayersForEveryone(ids.length > 0 ? ids : [firstLayer.id])
+                  setLayerContextMenu(null)
+                }}>Указать всем</button>
+                <button type="button" className="danger" onClick={() => {
+                  deleteSelectedLayers(ids)
+                  setLayerContextMenu(null)
+                }}>Удалить</button>
+              </>
             ) : null}
-            <button type="button" onClick={() => {
-              focusLayersForEveryone(ids.length > 0 ? ids : [firstLayer.id])
-              setLayerContextMenu(null)
-            }}>Указать всем</button>
-            <button type="button" className="danger" onClick={() => {
-              deleteSelectedLayers(ids)
-              setLayerContextMenu(null)
-            }}>Удалить</button>
           </div>
         )
       })() : null}
