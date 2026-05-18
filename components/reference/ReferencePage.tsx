@@ -299,18 +299,33 @@ export default function ReferencePage() {
         .reference-search-status button {
           border: 1px solid #773030;
           border-radius: 6px;
-          color: #f6e4d0;
+          color: #f5f5f5;
           text-decoration: none;
-          padding: 9px 12px;
-          background: rgba(20, 20, 20, 0.82);
+          padding: 10px 14px;
+          background: #141414;
           font: inherit;
+          font-size: 14px;
           cursor: pointer;
+          box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+          transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease;
         }
 
         .reference-topbar a:hover,
         .reference-search-status button:hover {
-          border-color: #c53030;
-          color: #ffd89a;
+          border-color: #ff3131;
+          background: #221111;
+          color: #fff3e2;
+          transform: translateY(-1px);
+        }
+
+        .reference-topbar a:nth-child(2) {
+          border-color: #36d675;
+          color: #dfffe9;
+        }
+
+        .reference-topbar a:nth-child(2):hover {
+          border-color: #66f19a;
+          background: #112218;
         }
 
         .reference-intro {
