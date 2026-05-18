@@ -1,1 +1,1 @@
-export { default } from './table/VampireTable'
+export { default } from './table/GameTable'
