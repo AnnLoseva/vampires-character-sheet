@@ -1778,7 +1778,7 @@
             <div id="startup-trackers">
             <div id="attr-tracker"></div>
 
-            <!-- Вампирский трекер навыков -->
+            <!-- Вампирский: выбор набора навыков -->
             <div class="vampire-only" id="vampire-skill-tracker-block">
                 <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
                 <p style="font-size:12px;">Набор навыков:</p>
@@ -1788,11 +1788,13 @@
                     <option value="balanced">Сбалансированный</option>
                     <option value="versatile">Универсал</option>
                 </select>
-                <div id="skill-tracker"></div>
-                <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
-                <div id="spec-tracker">Специализации (S): 0 / 1</div>
-                <p id="global-warning" style="color:#ffae00; display:none;">Внимание! Проверьте лимиты.</p>
             </div>
+
+            <!-- Трекер навыков — общий для вампиров и смертных -->
+            <div id="skill-tracker"></div>
+            <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
+            <div id="spec-tracker">Специализации (S): 0 / 1</div>
+            <p id="global-warning" style="color:#ffae00; display:none;">Внимание! Проверьте лимиты.</p>
 
             <!-- Шаблоны смертных -->
             <div class="mortal-only" id="mortal-templates-panel">
@@ -1806,8 +1808,6 @@
                     <option value="formidable">Отчаянный смертный</option>
                 </select>
                 <div id="mortal-template-detail" class="mortal-tpl-detail" style="display:none;"></div>
-                <hr style="border:0; border-top:1px solid #333; margin:12px 0;">
-                <div id="mortal-attr-tracker"></div>
             </div>
 
             <hr style="border:0; border-top:1px solid #333; margin: 18px 0;" class="vampire-only">
