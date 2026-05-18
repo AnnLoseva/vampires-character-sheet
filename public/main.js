@@ -1674,7 +1674,7 @@ function showSingleGeneration(key) {
     const gallery = document.getElementById('generation-gallery');
 
     const optionButtons = g.options.map(o => `
-        <button onclick="selectThisGeneration('${o.value}')" style="
+        <button onclick="selectThisGeneration('${o.value}', '${g.key}')" style="
             display: block; width: 100%;
             background: #141414; border: 1px solid ${g.accent}55;
             color: #eee; padding: 14px 20px; border-radius: 6px;
@@ -1749,12 +1749,23 @@ function showSingleGeneration(key) {
     </div>`;
 }
 
-function selectThisGeneration(value) {
-    const sel = document.getElementById('generation-input');
-    if (sel) {
-        sel.value = value;
-        updateGenerationHint();
+function selectThisGeneration(value, typeKey) {
+    // Выставляем поколение
+    const genSel = document.getElementById('generation-input');
+    if (genSel) {
+        genSel.value = value;
+        genSel.dispatchEvent(new Event('change'));
     }
+
+    // Выставляем тип — ключ группы совпадает с value в type-input
+    if (typeKey) {
+        const typeSel = document.getElementById('type-input');
+        if (typeSel) {
+            typeSel.value = typeKey;
+            typeSel.dispatchEvent(new Event('change'));
+        }
+    }
+
     closeGenerationModal();
 }
 
