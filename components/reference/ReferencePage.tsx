@@ -5,6 +5,13 @@ import Link from 'next/link'
 import MarkdownRenderer from './MarkdownRenderer'
 import ReferenceSidebar, { ReferenceHeading } from './ReferenceSidebar'
 
+type SearchResult = {
+  title: string
+  level: 2 | 3
+  slug: string
+  snippet: string
+}
+
 function makeSlug(value: string) {
   return value
     .toLowerCase()
@@ -39,10 +46,108 @@ function collectHeadings(markdown: string): ReferenceHeading[] {
     })
 }
 
-function countMatches(markdown: string, query: string) {
-  const value = query.trim()
-  if (!value) return 0
-  return markdown.toLowerCase().split(value.toLowerCase()).length - 1
+function getSearchTerms(query: string) {
+  return query
+    .toLowerCase()
+    .split(/\s+/)
+    .map(term => term.trim())
+    .filter(term => term.length >= 2)
+}
+
+function normalizeSearchText(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[`*_#[\]()>|~.-]/g, ' ')
+    .replace(/\s+/g, ' ')
+}
+
+function getFirstHeading(markdown: string) {
+  return markdown.split(/\r?\n/).find(line => /^#\s+/.test(line)) || '# Справочник'
+}
+
+function getSearchSnippet(text: string, terms: string[]) {
+  const plain = text
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/[`*_#[\]()>|]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  const lower = plain.toLowerCase()
+  const firstIndex = terms
+    .map(term => lower.indexOf(term))
+    .filter(index => index >= 0)
+    .sort((a, b) => a - b)[0] ?? 0
+  const start = Math.max(0, firstIndex - 90)
+  const end = Math.min(plain.length, firstIndex + 210)
+  const prefix = start > 0 ? '...' : ''
+  const suffix = end < plain.length ? '...' : ''
+  return `${prefix}${plain.slice(start, end)}${suffix}`
+}
+
+function filterMarkdown(markdown: string, query: string) {
+  const terms = getSearchTerms(query)
+  if (terms.length === 0) return { markdown, results: [] as SearchResult[] }
+
+  const lines = markdown.split(/\r?\n/)
+  const title = getFirstHeading(markdown)
+  const blocks: Array<{ heading: string; title: string; level: 2 | 3; content: string }> = []
+  let current: string[] = []
+  let currentHeading = ''
+  let currentTitle = ''
+  let currentLevel: 2 | 3 = 2
+
+  const flush = () => {
+    if (!currentHeading) return
+    blocks.push({
+      heading: currentHeading,
+      title: currentTitle,
+      level: currentLevel,
+      content: current.join('\n').trim(),
+    })
+  }
+
+  lines.forEach(line => {
+    const headingMatch = /^(#{2,3})\s+(.+?)\s*$/.exec(line)
+    if (headingMatch) {
+      flush()
+      currentHeading = line
+      currentTitle = plainHeadingText(headingMatch[2])
+      currentLevel = headingMatch[1].length as 2 | 3
+      current = [line]
+      return
+    }
+    if (currentHeading) current.push(line)
+  })
+  flush()
+
+  const slugCounts = new Map<string, number>()
+  const matchingBlocks = blocks.filter(block => {
+    const haystack = normalizeSearchText(`${block.title} ${block.content}`)
+    return terms.every(term => haystack.includes(term))
+  })
+
+  const results = matchingBlocks.map(block => {
+    const baseSlug = makeSlug(block.title) || 'section'
+    const count = slugCounts.get(baseSlug) || 0
+    slugCounts.set(baseSlug, count + 1)
+    return {
+      title: block.title,
+      level: block.level,
+      slug: count === 0 ? baseSlug : `${baseSlug}-${count}`,
+      snippet: getSearchSnippet(block.content, terms),
+    }
+  })
+
+  if (matchingBlocks.length === 0) {
+    return {
+      markdown: `${title}\n\n## Ничего не найдено\n\nПо запросу **${query.trim()}** разделы не найдены. Попробуйте другое слово или более общий термин.`,
+      results,
+    }
+  }
+
+  return {
+    markdown: `${title}\n\n> Показаны только разделы, где найдены все слова запроса: **${query.trim()}**.\n\n${matchingBlocks.map(block => block.content).join('\n\n')}`,
+    results,
+  }
 }
 
 export default function ReferencePage() {
@@ -72,35 +177,65 @@ export default function ReferencePage() {
     }
   }, [])
 
-  const headings = useMemo(() => collectHeadings(markdown), [markdown])
-  const matches = useMemo(() => countMatches(markdown, query), [markdown, query])
+  const searchState = useMemo(() => filterMarkdown(markdown, query), [markdown, query])
+  const headings = useMemo(() => collectHeadings(searchState.markdown), [searchState.markdown])
+  const isSearching = getSearchTerms(query).length > 0
 
   return (
     <main className="reference-shell">
-      <section className="reference-hero">
+      <section className="reference-topbar">
+        <div>
+          <p className="reference-kicker">VTM V5 Archive</p>
+          <h1>Справочник</h1>
+        </div>
         <nav aria-label="Навигация справочника">
           <Link href="/">Главная</Link>
           <Link href="/table">Игровой стол</Link>
-          <Link href="/character-sheet">Лист персонажа</Link>
+          <Link href="/character-sheet">Лист</Link>
         </nav>
-        <p>VTM V5 Archive</p>
-        <h1>Справочник</h1>
+      </section>
+
+      <section className="reference-intro">
         <span>{status}</span>
         <strong>Правила, кланы, дисциплины, создание персонажа и материалы для мастера в одном тёмном архиве.</strong>
+      </section>
+
+      <section className="reference-searchbar" aria-label="Поиск по справочнику">
         <label className="reference-search">
-          <span>Поиск по справочнику</span>
+          <span>Поиск по словам</span>
           <input
             value={query}
             onChange={event => setQuery(event.target.value)}
-            placeholder="Например: Голконда, Бруха, Голод..."
+            placeholder="Например: Голконда Бруха Голод"
           />
         </label>
-        {query.trim() ? <small>Найдено совпадений: {matches}</small> : null}
+        <div className="reference-search-status">
+          {isSearching ? (
+            <>
+              <strong>Найдено разделов: {searchState.results.length}</strong>
+              <button type="button" onClick={() => setQuery('')}>Сбросить</button>
+            </>
+          ) : (
+            <span>Введите одно или несколько слов, чтобы оставить только подходящие разделы.</span>
+          )}
+        </div>
       </section>
+
+      {isSearching && searchState.results.length > 0 ? (
+        <section className="reference-results" aria-label="Результаты поиска">
+          {searchState.results.slice(0, 12).map(result => (
+            <a href={`#${result.slug}`} key={`${result.slug}-${result.title}`}>
+              <span>{result.level === 2 ? 'Раздел' : 'Подраздел'}</span>
+              <strong>{result.title}</strong>
+              <small>{result.snippet}</small>
+            </a>
+          ))}
+        </section>
+      ) : null}
 
       <section className="reference-layout">
         <ReferenceSidebar headings={headings} />
-        <MarkdownRenderer markdown={markdown || '# Справочник загружается...'} />
+        <MarkdownRenderer markdown={searchState.markdown || '# Справочник загружается...'} />
       </section>
 
       <style jsx global>{`
@@ -120,7 +255,7 @@ export default function ReferencePage() {
       <style jsx>{`
         .reference-shell {
           min-height: 100vh;
-          padding: 28px clamp(16px, 3vw, 44px) 60px;
+          padding: 18px clamp(14px, 2.4vw, 34px) 60px;
           font-family: "Courier New", Courier, monospace;
           background:
             radial-gradient(circle at 18% 0%, rgba(125, 19, 25, 0.32), transparent 34rem),
@@ -128,83 +263,110 @@ export default function ReferencePage() {
             #080506;
         }
 
-        .reference-hero {
-          max-width: 1180px;
-          margin: 0 auto 28px;
-          display: grid;
-          gap: 12px;
-          border-bottom: 1px solid rgba(201, 45, 45, 0.24);
-          padding-bottom: 24px;
+        .reference-topbar {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 18px;
+          border-bottom: 1px solid #2d2d2d;
+          padding-bottom: 12px;
+          margin-bottom: 18px;
         }
 
-        .reference-hero nav {
+        .reference-kicker {
+          margin: 0 0 5px;
+          color: #ff3131;
+          letter-spacing: 0.16em;
+          text-transform: uppercase;
+          font-size: 12px;
+        }
+
+        .reference-topbar h1 {
+          margin: 0;
+          color: #fff7ed;
+          font-size: clamp(34px, 5vw, 58px);
+          letter-spacing: 0;
+        }
+
+        .reference-topbar nav {
           display: flex;
           flex-wrap: wrap;
           gap: 10px;
           justify-content: flex-end;
         }
 
-        .reference-hero a {
-          border: 1px solid rgba(158, 45, 45, 0.7);
+        .reference-topbar a,
+        .reference-search-status button {
+          border: 1px solid #773030;
           border-radius: 6px;
           color: #f6e4d0;
           text-decoration: none;
           padding: 9px 12px;
-          background: rgba(12, 8, 8, 0.7);
+          background: rgba(20, 20, 20, 0.82);
+          font: inherit;
+          cursor: pointer;
         }
 
-        .reference-hero a:hover {
+        .reference-topbar a:hover,
+        .reference-search-status button:hover {
           border-color: #c53030;
           color: #ffd89a;
         }
 
-        .reference-hero p {
-          margin: 12px 0 0;
-          color: #c53030;
-          letter-spacing: 0.18em;
-          text-transform: uppercase;
-          font-size: 13px;
+        .reference-intro {
+          display: grid;
+          gap: 8px;
+          max-width: 1180px;
+          margin-bottom: 16px;
         }
 
-        .reference-hero h1 {
-          margin: 0;
-          color: #fff7ed;
-          font-size: clamp(42px, 7vw, 86px);
-          line-height: 0.95;
-          letter-spacing: 0;
-        }
-
-        .reference-hero > span {
+        .reference-intro span {
           color: #c9a66b;
           font-size: 14px;
         }
 
-        .reference-hero > strong {
-          max-width: 760px;
+        .reference-intro strong {
+          max-width: 920px;
           color: #e8dccc;
           font-size: clamp(16px, 2vw, 22px);
-          line-height: 1.55;
+          line-height: 1.5;
           font-weight: 500;
         }
 
+        .reference-searchbar {
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          display: grid;
+          grid-template-columns: minmax(280px, 680px) minmax(220px, 1fr);
+          gap: 12px;
+          align-items: end;
+          margin: 0 0 20px;
+          padding: 12px;
+          border: 1px solid rgba(151, 44, 44, 0.42);
+          border-radius: 8px;
+          background: rgba(10, 7, 8, 0.96);
+          box-shadow: 0 16px 44px rgba(0, 0, 0, 0.34);
+          backdrop-filter: blur(12px);
+        }
+
         .reference-search {
-          width: min(100%, 760px);
           display: grid;
           gap: 8px;
-          margin-top: 8px;
         }
 
         .reference-search span,
-        .reference-hero small {
+        .reference-search-status span,
+        .reference-results span {
           color: #b8a89a;
           font-size: 13px;
         }
 
         .reference-search input {
-          min-height: 48px;
+          min-height: 46px;
           box-sizing: border-box;
           border: 1px solid rgba(151, 44, 44, 0.78);
-          border-radius: 8px;
+          border-radius: 7px;
           background: rgba(12, 10, 10, 0.88);
           color: #fff8ef;
           padding: 0 15px;
@@ -218,19 +380,64 @@ export default function ReferencePage() {
           box-shadow: 0 0 0 3px rgba(214, 170, 101, 0.14);
         }
 
-        .reference-layout {
-          max-width: 1180px;
-          margin: 0 auto;
+        .reference-search-status {
+          min-height: 46px;
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          align-items: center;
+          justify-content: flex-end;
+        }
+
+        .reference-search-status strong {
+          color: #ffd89a;
+          font-size: 14px;
+        }
+
+        .reference-results {
           display: grid;
-          grid-template-columns: 260px minmax(0, 1fr);
-          gap: 30px;
+          grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+          gap: 10px;
+          margin: 0 0 20px;
+        }
+
+        .reference-results a {
+          display: grid;
+          gap: 5px;
+          border: 1px solid rgba(151, 44, 44, 0.34);
+          border-radius: 8px;
+          background: rgba(15, 10, 11, 0.74);
+          color: #eadfd3;
+          padding: 12px;
+          text-decoration: none;
+        }
+
+        .reference-results a:hover {
+          border-color: #c53030;
+          background: rgba(54, 12, 15, 0.72);
+        }
+
+        .reference-results strong {
+          color: #ffd89a;
+        }
+
+        .reference-results small {
+          color: #cdbfb0;
+          line-height: 1.45;
+        }
+
+        .reference-layout {
+          width: 100%;
+          display: grid;
+          grid-template-columns: 300px minmax(0, 1fr);
+          gap: 28px;
           align-items: start;
         }
 
         :global(.reference-sidebar) {
           position: sticky;
-          top: 18px;
-          max-height: calc(100vh - 36px);
+          top: 92px;
+          max-height: calc(100vh - 112px);
           overflow: auto;
           border: 1px solid rgba(151, 44, 44, 0.38);
           border-radius: 8px;
@@ -276,7 +483,8 @@ export default function ReferencePage() {
         }
 
         :global(.reference-markdown) {
-          width: min(100%, 920px);
+          width: 100%;
+          max-width: none;
           color: #eadfd3;
           font-family: Georgia, "Times New Roman", serif;
           font-size: 18px;
@@ -291,7 +499,7 @@ export default function ReferencePage() {
           color: #fff7ed;
           letter-spacing: 0;
           line-height: 1.2;
-          scroll-margin-top: 24px;
+          scroll-margin-top: 118px;
         }
 
         :global(.reference-markdown h1) {
@@ -322,6 +530,7 @@ export default function ReferencePage() {
         :global(.reference-markdown ul),
         :global(.reference-markdown ol),
         :global(.reference-markdown blockquote) {
+          max-width: 1180px;
           margin: 0 0 18px;
         }
 
@@ -391,7 +600,7 @@ export default function ReferencePage() {
 
         :global(.reference-markdown table) {
           width: 100%;
-          min-width: 620px;
+          min-width: 760px;
           border-collapse: collapse;
           font-family: "Courier New", Courier, monospace;
           font-size: 14px;
@@ -415,9 +624,14 @@ export default function ReferencePage() {
           background: rgba(255, 255, 255, 0.025);
         }
 
-        @media (max-width: 900px) {
+        @media (max-width: 980px) {
+          .reference-searchbar,
           .reference-layout {
             grid-template-columns: 1fr;
+          }
+
+          .reference-searchbar {
+            top: 0;
           }
 
           :global(.reference-sidebar) {
@@ -434,16 +648,24 @@ export default function ReferencePage() {
 
         @media (max-width: 620px) {
           .reference-shell {
-            padding: 18px 12px 42px;
+            padding: 12px 10px 42px;
           }
 
-          .reference-hero nav {
+          .reference-topbar {
+            display: grid;
+          }
+
+          .reference-topbar nav {
             justify-content: flex-start;
           }
 
-          .reference-hero a {
+          .reference-topbar a {
             flex: 1 1 auto;
             text-align: center;
+          }
+
+          .reference-search-status {
+            justify-content: flex-start;
           }
         }
       `}</style>

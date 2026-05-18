@@ -6,7 +6,7 @@ import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 
 type TableRole = 'master' | 'player'
-type Accent = 'gold' | 'red' | 'cyan' | 'blood'
+type Accent = 'gold' | 'red' | 'cyan'
 type AuthMode = 'login' | 'register'
 
 type ChatUser = {
@@ -449,23 +449,13 @@ export default function MainScreen() {
                 <button type="button" className="ghost-action" onClick={() => setLibraryOpen(true)}>
                   Дневник
                 </button>
+                <Link href="/reference" className="ghost-action">
+                  Справочник
+                </Link>
               </div>
             }
           >
             <Sigil>✦</Sigil>
-          </EntryCard>
-
-          <EntryCard
-            accent="blood"
-            title="Справочник"
-            description="Правила, кланы, дисциплины, создание персонажа и материалы для мастера."
-            button={
-              <Link href="/reference" className="card-action">
-                Открыть справочник
-              </Link>
-            }
-          >
-            <Sigil>☽</Sigil>
           </EntryCard>
         </section>
       </section>
@@ -674,7 +664,7 @@ export default function MainScreen() {
 
         .card-grid {
           display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 22px;
         }
 
@@ -745,11 +735,6 @@ export default function MainScreen() {
         .elysium-card.cyan {
           --accent: #8bd5d7;
           --card-image: url('/card-character-sheet.png');
-        }
-
-        .elysium-card.blood {
-          --accent: #c92d2d;
-          --card-image: url('/landing-background.png');
         }
 
         .card-corners {
@@ -950,15 +935,18 @@ export default function MainScreen() {
           z-index: 1;
           width: 100%;
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
+          grid-template-columns: 1fr;
           gap: 8px;
           align-items: center;
         }
 
         .ghost-action {
-          min-width: 76px;
+          min-width: 100%;
           height: 42px;
           border-color: rgba(255,255,255,0.14);
+          display: inline-grid;
+          place-items: center;
+          text-decoration: none;
         }
 
         .ghost-action:hover {
