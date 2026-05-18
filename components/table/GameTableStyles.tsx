@@ -1583,6 +1583,8 @@ export default function GameTableStyles() {
           position: fixed;
           z-index: 1000;
           min-width: 190px;
+          max-height: calc(100vh - 16px);
+          overflow-y: auto;
           padding: 5px;
           border: 1px solid #3a3a3a;
           border-radius: 6px;

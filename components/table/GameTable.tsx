@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import MusicPanel from '../music/MusicPanel'
 import GameTableStyles from './GameTableStyles'
@@ -126,6 +126,51 @@ function formatTime(value: string) {
     minute: '2-digit',
     second: '2-digit',
   }).format(new Date(value))
+}
+
+// ─── Self-measuring context menu positioner ────────────────────────────────
+// Renders initially hidden, measures its real size, then snaps to the best
+// position near the cursor so it never clips off the screen edges.
+
+function SmartContextMenu({
+  x,
+  y,
+  children,
+  onClick,
+}: {
+  x: number
+  y: number
+  children: React.ReactNode
+  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void
+}) {
+  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const { width, height } = el.getBoundingClientRect()
+    const margin = 8
+    const vw = window.innerWidth
+    const vh = window.innerHeight
+    const left = x + width + margin > vw ? Math.max(margin, x - width - margin) : x + margin
+    const top  = y + height + margin > vh ? Math.max(margin, vh - height - margin) : y
+    setPos({ left, top })
+  }, [x, y])
+
+  return (
+    <div
+      ref={ref}
+      className="layer-context-menu"
+      style={pos
+        ? { left: pos.left, top: pos.top }
+        : { left: x, top: y, visibility: 'hidden' }
+      }
+      onClick={onClick}
+    >
+      {children}
+    </div>
+  )
 }
 
 export default function VampireTable() {
@@ -4063,9 +4108,9 @@ export default function VampireTable() {
         const availableFolders = canManageContext ? folderScope.filter(item => item.layerType === 'folder' && !ids.includes(item.id)) : []
         if (!canManageContext && (!singleLayer || singleLayer.layerType === 'folder')) return null
         return (
-          <div
-            className="layer-context-menu"
-            style={getSmartFloatingPosition(layerContextMenu.x, layerContextMenu.y, 280, 620)}
+          <SmartContextMenu
+            x={layerContextMenu.x}
+            y={layerContextMenu.y}
             onClick={event => event.stopPropagation()}
           >
             {singleLayer && singleLayer.layerType !== 'folder' ? (
@@ -4209,7 +4254,7 @@ export default function VampireTable() {
                 }}>Удалить</button>
               </>
             ) : null}
-          </div>
+          </SmartContextMenu>
         )
       })() : null}
 

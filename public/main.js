@@ -346,6 +346,26 @@ function updateVitals() {
 
     // Человечность
     updateHumanity();
+
+    // Сила крови
+    updateBloodPotencyVital();
+}
+
+function updateBloodPotencyVital() {
+    const predatorName = document.getElementById('predator-input')?.value || '';
+    const base = getCurrentBloodPotencyEstimate();
+    let predBonus = 0;
+    if (predatorName && RULES?.predator_types?.[predatorName]) {
+        predBonus = RULES.predator_types[predatorName].blood_potency || 0;
+    }
+    const total = base + predBonus;
+    const el = document.getElementById('val-blood-potency');
+    if (!el) return;
+    el.textContent = total;
+    let tip = `Сила крови: ${base} (от поколения/типа)`;
+    if (predBonus) tip += ` + ${predBonus} (${predatorName})`;
+    tip += ` = ${total}`;
+    el.setAttribute('data-tooltip', tip);
 }
 
 function updateHumanity() {
@@ -1718,6 +1738,9 @@ function updateBloodPotencyAndBonuses() {
 
     content.innerHTML = hintHTML || 'Выберите Поколение и Тип';
     box.style.display = 'block';
+
+    // Обновить показатель Силы крови в виталах
+    updateBloodPotencyVital();
 }
 
 // ==================== ТРЕКЕРЫ И ВАЛИДАЦИЯ ====================

@@ -1074,6 +1074,11 @@
         }
 
         /* ==================== ЗАФИКСИРОВАННЫЙ ЛИСТ ==================== */
+        /* Трата опыта скрыта до фиксации листа */
+        body:not(.sheet-fixed) .exp-spend-container {
+            display: none !important;
+        }
+
         body.sheet-fixed #clan-input,
         body.sheet-fixed #predator-input,
         body.sheet-fixed #generation-input,
@@ -1895,6 +1900,10 @@
                 <option value="8">Старт 8</option>
             </select>
         </div>
+    </div>
+    <div class="vital-item">
+        <span>Сила крови</span>
+        <div id="val-blood-potency" class="blood-potency" data-tooltip="Сила крови = от поколения + тип + стиль охоты">0</div>
     </div>
 </div>
 
