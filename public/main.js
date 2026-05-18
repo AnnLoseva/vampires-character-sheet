@@ -1774,6 +1774,129 @@ function closeGenerationModal() {
     if (modal) modal.style.display = 'none';
 }
 
+// ==================== МОДАЛЬНОЕ ОКНО АРХЕТИПОВ ====================
+let _archetypeTargetFieldId = null;
+let _archetypeCurrentName = null;
+
+function openArchetypeModal(fieldId) {
+    _archetypeTargetFieldId = fieldId;
+    _archetypeCurrentName = null;
+    closeArchetypeDetail();
+
+    const modal = document.getElementById('archetype-modal');
+    if (!modal) return;
+
+    // Subtitle — показываем для какого поля
+    const fieldLabel = fieldId === 'nature-input' ? 'натуры' : 'маски';
+    const subtitle = document.getElementById('archetype-modal-subtitle');
+    if (subtitle) subtitle.textContent = `Выберите архетип ${fieldLabel} — нажмите на карточку, чтобы прочитать описание`;
+
+    // Сбросить поиск
+    const searchEl = document.getElementById('archetype-search');
+    if (searchEl) searchEl.value = '';
+
+    renderArchetypeList('');
+    modal.style.display = 'block';
+    document.body.style.overflow = 'hidden';
+}
+
+function closeArchetypeModal() {
+    const modal = document.getElementById('archetype-modal');
+    if (modal) modal.style.display = 'none';
+    document.body.style.overflow = '';
+    closeArchetypeDetail();
+}
+
+function renderArchetypeList(filter) {
+    const list = document.getElementById('archetype-list');
+    if (!list) return;
+
+    const archetypes = RULES?.archetypes || {};
+    const needle = filter.trim().toLowerCase();
+    const entries = Object.entries(archetypes).filter(([name, data]) => {
+        if (!needle) return true;
+        return name.toLowerCase().includes(needle) || (data.short || '').toLowerCase().includes(needle);
+    });
+
+    list.innerHTML = entries.map(([name, data]) => `
+        <button
+            class="archetype-card"
+            onclick="showArchetypeDetail('${name.replace(/'/g, "\\'")}')"
+            style="text-align:left;background:#1a1a1a;border:1px solid #333;border-radius:7px;padding:11px 14px;cursor:pointer;font-family:'Courier New',Courier,monospace;color:#eee;transition:border-color 0.15s,background 0.15s;"
+            onmouseover="this.style.borderColor='#ff3131';this.style.background='#221111'"
+            onmouseout="this.style.borderColor='#333';this.style.background='#1a1a1a'"
+        >
+            <div style="font-size:14px;font-weight:bold;color:#fff7ed;margin-bottom:4px;">${name}</div>
+            <div style="font-size:12px;color:#b0a090;line-height:1.4;">${data.short || ''}</div>
+        </button>
+    `).join('');
+
+    if (entries.length === 0) {
+        list.innerHTML = '<p style="color:#666;font-size:14px;grid-column:1/-1;">Архетипы не найдены</p>';
+    }
+}
+
+window.filterArchetypes = function(value) {
+    renderArchetypeList(value);
+    closeArchetypeDetail();
+};
+
+function showArchetypeDetail(name) {
+    const data = RULES?.archetypes?.[name];
+    if (!data) return;
+
+    _archetypeCurrentName = name;
+
+    const detail = document.getElementById('archetype-detail');
+    const nameEl = document.getElementById('archetype-detail-name');
+    const textEl = document.getElementById('archetype-detail-text');
+    if (!detail || !nameEl || !textEl) return;
+
+    nameEl.textContent = name;
+    textEl.textContent = data.long || data.short || '';
+    detail.style.display = 'block';
+
+    // Прокрутить к деталям
+    detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeArchetypeDetail() {
+    const detail = document.getElementById('archetype-detail');
+    if (detail) detail.style.display = 'none';
+    _archetypeCurrentName = null;
+}
+
+window.closeArchetypeModal = closeArchetypeModal;
+window.closeArchetypeDetail = closeArchetypeDetail;
+window.openArchetypeModal = openArchetypeModal;
+
+window.selectArchetype = function() {
+    if (!_archetypeCurrentName || !_archetypeTargetFieldId) return;
+    const input = document.getElementById(_archetypeTargetFieldId);
+    if (input) {
+        input.value = _archetypeCurrentName;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+    closeArchetypeModal();
+};
+
+// Закрывать по клику на фон
+document.addEventListener('click', function(e) {
+    const modal = document.getElementById('archetype-modal');
+    if (modal && modal.style.display !== 'none' && e.target === modal) {
+        closeArchetypeModal();
+    }
+});
+
+// Закрывать по Escape
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('archetype-modal');
+        if (modal && modal.style.display !== 'none') closeArchetypeModal();
+    }
+});
+
 
 // ==================== ПОДТВЕРЖДЕНИЕ И ДОБАВЛЕНИЕ ====================
 // ==================== ПОДТВЕРЖДЕНИЕ КЛАНА ====================

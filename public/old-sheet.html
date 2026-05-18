@@ -657,7 +657,32 @@
             box-shadow: 0 0 10px var(--v-red); 
         }
         
-           /* ==================== ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ ==================== */
+           /* ==================== КНОПКА ПОДСКАЗКИ АРХЕТИПА ==================== */
+        .archetype-hint-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            height: 16px;
+            background: transparent;
+            border: 1px solid #555;
+            border-radius: 50%;
+            color: #888;
+            font-size: 10px;
+            font-family: inherit;
+            font-weight: bold;
+            cursor: pointer;
+            padding: 0;
+            line-height: 1;
+            flex-shrink: 0;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .archetype-hint-btn:hover {
+            border-color: #ff3131;
+            color: #ff3131;
+        }
+
+        /* ==================== ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ ==================== */
         .tooltip-trigger:hover::after,
         .dot-label:hover::after,
         .vital-item div:hover::after {
@@ -1730,19 +1755,25 @@
                 <input type="text" id="char-name" placeholder="Имя персонажа" value="Kindred" style="font-size: 22px;">
             </div>
             <div class="profile-field">
-                <span class="header-label">Сир</span>
+                <span class="header-label" data-tooltip="Сир — вампир, который обратил вашего персонажа. Он является вашим создателем, наставником и, нередко, цепью, которая удерживает вас в обществе Сородичей. Отношения с сиром могут быть всем — от любви до ненависти, от слепой покорности до кровной вражды.">Сир ⓘ</span>
                 <input type="text" id="sire-input" placeholder="Сир">
             </div>
             <div class="profile-field">
-                <span class="header-label">Концепция</span>
+                <span class="header-label" data-tooltip="Концепция — краткое описание личности персонажа в нескольких словах или одном предложении. Это не архетип и не роль, а скорее суть того, кем персонаж себя считает. Примеры: «потерявшийся идеалист», «хищник в человеческой шкуре», «страж Маскарада».">Концепция ⓘ</span>
                 <input type="text" id="concept-input" placeholder="Концепция">
             </div>
             <div class="profile-field">
-                <span class="header-label">Натура</span>
+                <span class="header-label" style="display:flex;align-items:center;gap:5px;">
+                    <span data-tooltip="Натура — истинная личность персонажа, его глубинная суть. Её опасно показывать окружающим, но именно она определяет, что персонаж представляет собой на самом деле. Действуя согласно натуре, персонаж восстанавливает пункт воли.">Натура ⓘ</span>
+                    <button class="archetype-hint-btn" onclick="openArchetypeModal('nature-input')" title="Список архетипов">?</button>
+                </span>
                 <input type="text" id="nature-input" placeholder="Натура">
             </div>
             <div class="profile-field">
-                <span class="header-label">Маска</span>
+                <span class="header-label" style="display:flex;align-items:center;gap:5px;">
+                    <span data-tooltip="Маска — фальшивое лицо, которое персонаж показывает окружающему миру. Маска позволяет взаимодействовать с обществом так, как это выгодно персонажу, скрывая его истинную суть. У персонажа может быть несколько масок для разных ситуаций.">Маска ⓘ</span>
+                    <button class="archetype-hint-btn" onclick="openArchetypeModal('mask-input')" title="Список архетипов">?</button>
+                </span>
                 <input type="text" id="mask-input" placeholder="Маска">
             </div>
             <div class="profile-field">
@@ -2093,6 +2124,30 @@
             </button>
         </div>
     </div>
+
+<!-- Модальное окно архетипов -->
+<div id="archetype-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.96); z-index:10000; overflow:auto; padding:20px; box-sizing:border-box;">
+    <div style="max-width:900px; margin:30px auto; background:#111; padding:28px; border-radius:8px; border:1px solid #ff3131; position:relative; font-family:'Courier New',Courier,monospace;">
+        <button onclick="closeArchetypeModal()" style="position:absolute;top:14px;right:18px;background:transparent;color:#ff3131;border:none;font-size:28px;cursor:pointer;line-height:1;">×</button>
+        <h2 style="text-align:center;color:#ff3131;margin:0 0 6px;letter-spacing:3px;font-size:18px;">АРХЕТИПЫ</h2>
+        <p id="archetype-modal-subtitle" style="text-align:center;color:#888;font-size:13px;margin:0 0 20px;">Нажмите на архетип, чтобы прочитать полное описание</p>
+        <div style="margin-bottom:14px;">
+            <input id="archetype-search" type="text" placeholder="Поиск архетипа..." oninput="filterArchetypes(this.value)"
+                style="width:100%;box-sizing:border-box;background:#1a1a1a;border:1px solid #444;border-radius:6px;color:#eee;padding:9px 14px;font-family:inherit;font-size:14px;outline:none;">
+        </div>
+        <div id="archetype-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;"></div>
+        <div id="archetype-detail" style="display:none;margin-top:20px;background:#1a1a1a;border:1px solid #773030;border-radius:8px;padding:18px 20px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h3 id="archetype-detail-name" style="margin:0;color:#ff3131;font-size:17px;letter-spacing:1px;"></h3>
+                <div style="display:flex;gap:8px;">
+                    <button id="archetype-select-btn" onclick="selectArchetype()" style="background:#ff3131;color:#fff;border:none;border-radius:5px;padding:7px 16px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:bold;">Выбрать</button>
+                    <button onclick="closeArchetypeDetail()" style="background:transparent;color:#888;border:1px solid #444;border-radius:5px;padding:7px 12px;cursor:pointer;font-family:inherit;font-size:13px;">Закрыть</button>
+                </div>
+            </div>
+            <p id="archetype-detail-text" style="margin:0;color:#d0d0d0;font-size:14px;line-height:1.7;white-space:pre-line;"></p>
+        </div>
+    </div>
+</div>
 
 <!-- Модальные окна -->
 <div id="clan-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 10000; overflow: auto; padding: 20px;">
