@@ -16,12 +16,16 @@ export default function GameTableStyles() {
       `}</style>
       <style jsx global>{`
         .table-page-shell {
-          min-height: 100vh;
+          height: 100vh;
           padding: 18px;
           font-family: "Courier New", Courier, monospace;
           background:
             linear-gradient(180deg, rgba(120, 0, 0, 0.16), rgba(0, 0, 0, 0) 250px),
             #090909;
+          display: flex;
+          flex-direction: column;
+          box-sizing: border-box;
+          overflow: hidden;
         }
 
         .table-topbar {
@@ -178,8 +182,8 @@ export default function GameTableStyles() {
           display: grid;
           grid-template-columns: 320px minmax(0, 1fr) 420px;
           gap: 12px;
-          height: calc(100vh - 182px);
-          min-height: 560px;
+          flex: 1;
+          min-height: 0;
         }
 
         .table-layout.with-left-toolbar {
@@ -329,7 +333,7 @@ export default function GameTableStyles() {
 
         .left-tabs {
           display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
+          grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 4px;
           padding: 4px;
           border-bottom: 1px solid #2b2b2b;
