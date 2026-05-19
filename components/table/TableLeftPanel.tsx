@@ -38,7 +38,9 @@ export default function TableLeftPanel({
             <span />
           </button>
         </>
-      ) : null}
+      ) : (
+        <aside className="music-dock panel-collapsed" aria-hidden="true" />
+      )}
       {isMaster ? (
         <button
           type="button"
