@@ -1,7 +1,7 @@
 import type { Dispatch, DragEvent, PointerEvent, RefObject, SetStateAction, TouchEvent, WheelEvent } from 'react'
 import {
   createEditorState,
-  getEditorImageStyle,
+  getEditorPreviewStyle,
   getLayerCrop,
   getLayerMediaStyle,
 } from '@/lib/table/layer-utils'
@@ -232,7 +232,7 @@ export default function TableCanvas({
                       loop
                       playsInline
                       draggable={false}
-                      style={imageEditor?.layerId === layer.id ? getEditorImageStyle(imageEditor.state) : getLayerMediaStyle(layer)}
+                      style={imageEditor?.layerId === layer.id ? getEditorPreviewStyle(imageEditor.state) : getLayerMediaStyle(layer)}
                       onError={event => {
                         event.currentTarget.style.display = 'none'
                         event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -268,7 +268,7 @@ export default function TableCanvas({
                     src={layer.imageData}
                     alt=""
                     draggable={false}
-                    style={imageEditor?.layerId === layer.id ? getEditorImageStyle(imageEditor.state) : getLayerMediaStyle(layer)}
+                    style={imageEditor?.layerId === layer.id ? getEditorPreviewStyle(imageEditor.state) : getLayerMediaStyle(layer)}
                     onError={event => {
                       event.currentTarget.style.display = 'none'
                       event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -280,10 +280,10 @@ export default function TableCanvas({
               {imageEditor?.layerId === layer.id ? (
                 <div
                   className="inline-crop-surface"
+                  onPointerDown={event => { event.preventDefault(); event.stopPropagation() }}
                   onPointerMove={updateEditorCropDrag}
                   onPointerUp={finishEditorCropDrag}
                   onPointerCancel={finishEditorCropDrag}
-                  onPointerLeave={finishEditorCropDrag}
                 >
                   <div
                     className="inline-crop-box"
@@ -293,9 +293,9 @@ export default function TableCanvas({
                       width: `${imageEditor.state.cropWidth}%`,
                       height: `${imageEditor.state.cropHeight}%`,
                     }}
-                    onPointerDown={event => startEditorCropDrag(event, 'move')}
+                    onPointerDown={event => { event.stopPropagation(); startEditorCropDrag(event, 'move') }}
                   >
-                    {(['nw', 'ne', 'sw', 'se'] as const).map(handle => (
+                    {(['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const).map(handle => (
                       <button
                         type="button"
                         key={handle}
@@ -306,14 +306,9 @@ export default function TableCanvas({
                     ))}
                   </div>
                   <div className="inline-crop-toolbar" onPointerDown={event => event.stopPropagation()}>
-                    <button type="button" onClick={() => applyImageEditor(false)}>Применить</button>
-                    <button type="button" onClick={() => setImageEditor(null)}>Отменить</button>
-                    <button type="button" onClick={() => updateImageEditor(() => createEditorState({ ...layer, cropX: null, cropY: null, cropWidth: null, cropHeight: null, rotation: 0, flipX: false, flipY: false, brightness: 1, contrast: 1, saturation: 1 }))}>Сбросить</button>
-                    <button type="button" onClick={undoImageEditor} disabled={imageEditor.history.length === 0}>Undo</button>
-                    <button type="button" onClick={redoImageEditor} disabled={imageEditor.future.length === 0}>Redo</button>
-                    <button type="button" className={imageEditor.aspectLocked ? 'active' : ''} onClick={() => setImageEditor(editor => editor ? { ...editor, aspectLocked: !editor.aspectLocked } : editor)}>Lock</button>
-                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, rotation: (state.rotation + 90) % 360 }))}>↻</button>
-                    <button type="button" onClick={() => updateImageEditor(state => ({ ...state, flipX: !state.flipX }))}>⇋</button>
+                    <button type="button" onClick={() => void applyImageEditor(false)}>✓ Применить</button>
+                    <button type="button" onClick={() => updateImageEditor(() => createEditorState({ ...layer, cropX: null, cropY: null, cropWidth: null, cropHeight: null, rotation: layer.rotation, flipX: layer.flipX, flipY: layer.flipY, brightness: layer.brightness, contrast: layer.contrast, saturation: layer.saturation }))}>Сбросить обрезку</button>
+                    <button type="button" onClick={() => setImageEditor(null)}>Отмена</button>
                   </div>
                 </div>
               ) : null}

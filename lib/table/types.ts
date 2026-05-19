@@ -282,7 +282,7 @@ export type ImageEditorDraft = {
   future: ImageEditorState[]
   aspectLocked: boolean
   drag: null | {
-    handle: 'nw' | 'ne' | 'sw' | 'se' | 'move'
+    handle: 'nw' | 'n' | 'ne' | 'e' | 'se' | 's' | 'sw' | 'w' | 'move'
     startX: number
     startY: number
     initial: ImageEditorState

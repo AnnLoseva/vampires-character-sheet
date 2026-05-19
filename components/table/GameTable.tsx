@@ -3353,7 +3353,6 @@ export default function VampireTable() {
       cropX = initial.cropX + dx
       cropY = initial.cropY + dy
     } else {
-      const ratio = Math.max(0.05, initial.cropWidth / Math.max(1, initial.cropHeight))
       if (imageEditor.drag.handle.includes('w')) {
         cropX = initial.cropX + dx
         cropWidth = initial.cropWidth - dx
@@ -3364,10 +3363,6 @@ export default function VampireTable() {
         cropHeight = initial.cropHeight - dy
       }
       if (imageEditor.drag.handle.includes('s')) cropHeight = initial.cropHeight + dy
-      if (imageEditor.aspectLocked) {
-        if (Math.abs(dx) >= Math.abs(dy)) cropHeight = cropWidth / ratio
-        else cropWidth = cropHeight * ratio
-      }
     }
 
     cropWidth = Math.max(8, Math.min(100, cropWidth))

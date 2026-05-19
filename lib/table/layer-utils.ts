@@ -79,6 +79,15 @@ export function createEditorState(layer: TableLayer): ImageEditorState {
   }
 }
 
+// Shows the FULL image (no crop transform) so the user can pick the crop region
+export function getEditorPreviewStyle(state: ImageEditorState): CSSProperties {
+  return {
+    filter: `brightness(${state.brightness}) contrast(${state.contrast}) saturate(${state.saturation})`,
+    transform: `rotate(${state.rotation}deg) scale(${state.flipX ? -1 : 1}, ${state.flipY ? -1 : 1})`,
+    transformOrigin: '50% 50%',
+  }
+}
+
 export function getEditorImageStyle(state: ImageEditorState): CSSProperties {
   return {
     width: `${10000 / state.cropWidth}%`,

@@ -780,68 +780,117 @@ export default function GameTableStyles() {
           position: absolute;
           inset: 0;
           z-index: 8;
-          box-shadow: inset 0 0 0 9999px rgba(0,0,0,0.18);
           touch-action: none;
+          cursor: default;
         }
 
         .inline-crop-box {
           position: absolute;
-          border: 1px solid #fff;
-          box-shadow: 0 0 0 9999px rgba(0,0,0,0.42), 0 0 0 1px rgba(255,49,49,0.85);
+          border: 2px solid #fff;
+          box-shadow: 0 0 0 9999px rgba(0,0,0,0.52), inset 0 0 0 1px rgba(255,255,255,0.15);
           cursor: move;
           touch-action: none;
         }
 
+        /* Rule-of-thirds horizontal lines */
         .inline-crop-box::before,
         .inline-crop-box::after {
           content: "";
           position: absolute;
           left: 0;
           right: 0;
-          border-top: 1px solid rgba(255,255,255,0.38);
+          border-top: 1px solid rgba(255,255,255,0.3);
           pointer-events: none;
         }
 
-        .inline-crop-box::before {
-          top: 33.333%;
+        .inline-crop-box::before { top: 33.333%; }
+        .inline-crop-box::after  { top: 66.666%; }
+
+        /* Crop handles — corners */
+        .crop-handle {
+          position: absolute;
+          width: 12px;
+          height: 12px;
+          background: #fff;
+          border: 2px solid rgba(0,0,0,0.6) !important;
+          border-radius: 2px;
+          padding: 0 !important;
+          box-shadow: 0 1px 4px rgba(0,0,0,0.5);
         }
 
-        .inline-crop-box::after {
-          top: 66.666%;
-        }
+        .crop-handle.nw { left: -7px;  top: -7px;    cursor: nwse-resize; }
+        .crop-handle.ne { right: -7px; top: -7px;    cursor: nesw-resize; }
+        .crop-handle.sw { left: -7px;  bottom: -7px; cursor: nesw-resize; }
+        .crop-handle.se { right: -7px; bottom: -7px; cursor: nwse-resize; }
 
+        /* Crop handles — edges */
+        .crop-handle.n,
+        .crop-handle.s {
+          width: 32px;
+          height: 8px;
+          left: 50%;
+          transform: translateX(-50%);
+          border-radius: 4px;
+          cursor: ns-resize;
+        }
+        .crop-handle.n { top: -5px; }
+        .crop-handle.s { bottom: -5px; }
+
+        .crop-handle.e,
+        .crop-handle.w {
+          width: 8px;
+          height: 32px;
+          top: 50%;
+          transform: translateY(-50%);
+          border-radius: 4px;
+          cursor: ew-resize;
+        }
+        .crop-handle.e { right: -5px; }
+        .crop-handle.w { left: -5px; }
+
+        /* Toolbar — inside the layer at the bottom so overflow:hidden doesn't clip it */
         .inline-crop-toolbar,
         .inline-opacity-control {
           position: absolute;
           left: 50%;
-          bottom: calc(100% + 10px);
+          bottom: 10px;
           transform: translateX(-50%);
-          z-index: 12;
+          z-index: 20;
           display: flex;
           align-items: center;
           gap: 6px;
-          max-width: min(560px, 92vw);
-          padding: 6px;
-          border: 1px solid #3a3a3a;
+          max-width: min(400px, 92%);
+          padding: 6px 8px;
+          border: 1px solid rgba(255,255,255,0.15);
           border-radius: 6px;
-          background: rgba(12,12,12,0.96);
-          box-shadow: 0 14px 32px rgba(0,0,0,0.46);
+          background: rgba(10,10,10,0.92);
+          box-shadow: 0 4px 18px rgba(0,0,0,0.6);
+          white-space: nowrap;
         }
 
         .inline-crop-toolbar button {
-          height: 28px;
-          border: 1px solid #333;
+          height: 30px;
+          border: 1px solid #444;
           border-radius: 4px;
-          background: #191919;
+          background: #222;
           color: #f4f4f4;
-          padding: 0 8px;
+          padding: 0 12px;
           font: inherit;
-          font-size: 11px;
+          font-size: 12px;
           cursor: pointer;
           white-space: nowrap;
         }
 
-        .inline-crop-toolbar button.active,
+        .inline-crop-toolbar button:first-child {
+          background: #1a3a1a;
+          border-color: #36d675;
+          color: #36d675;
+        }
+
+        .inline-crop-toolbar button:first-child:hover {
+          background: #204a20;
+        }
+
         .inline-crop-toolbar button:hover {
           border-color: #ff3131;
           background: #2a1111;
@@ -2090,21 +2139,7 @@ export default function GameTableStyles() {
           inset: 66.666% 0 auto;
         }
 
-        .crop-handle {
-          position: absolute;
-          width: 18px;
-          height: 18px;
-          border-radius: 50%;
-          border: 2px solid #050505 !important;
-          background: #ff3131 !important;
-          padding: 0 !important;
-          box-shadow: 0 0 16px rgba(255,49,49,0.48);
-        }
-
-        .crop-handle.nw { left: -10px; top: -10px; cursor: nwse-resize; }
-        .crop-handle.ne { right: -10px; top: -10px; cursor: nesw-resize; }
-        .crop-handle.sw { left: -10px; bottom: -10px; cursor: nesw-resize; }
-        .crop-handle.se { right: -10px; bottom: -10px; cursor: nwse-resize; }
+        /* .crop-handle styles defined above in inline-crop section */
 
         .image-editor-tools {
           min-height: 0;
