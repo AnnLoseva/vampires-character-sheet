@@ -5694,160 +5694,220 @@ function buildPDFHTML(d) {
     </div>`;
 }
 
-async function generateSheetPDF() {
-    if (typeof window.jspdf === 'undefined') return alert('jsPDF не загружен');
-    const { jsPDF } = window.jspdf;
+function getSheetPdfFileName() {
+    const rawName = (document.getElementById('char-name')?.value || 'Kindred').trim() || 'Kindred';
+    return `V5_${rawName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`;
+}
 
+function syncFormStateToClone(sourceRoot, cloneRoot) {
+    const sourceFields = sourceRoot.querySelectorAll('input, textarea, select');
+    const cloneFields = cloneRoot.querySelectorAll('input, textarea, select');
+
+    sourceFields.forEach((sourceField, index) => {
+        const cloneField = cloneFields[index];
+        if (!cloneField) return;
+
+        if (sourceField.matches('input[type="radio"], input[type="checkbox"]')) {
+            cloneField.checked = sourceField.checked;
+            if (sourceField.checked) cloneField.setAttribute('checked', 'checked');
+            else cloneField.removeAttribute('checked');
+            return;
+        }
+
+        if (sourceField.tagName === 'SELECT') {
+            cloneField.value = sourceField.value;
+            Array.from(cloneField.options || []).forEach(option => {
+                option.selected = option.value === sourceField.value;
+                if (option.selected) option.setAttribute('selected', 'selected');
+                else option.removeAttribute('selected');
+            });
+            return;
+        }
+
+        cloneField.value = sourceField.value;
+        cloneField.setAttribute('value', sourceField.value);
+        if (sourceField.tagName === 'TEXTAREA') cloneField.textContent = sourceField.value;
+    });
+}
+
+function printableValueForControl(control) {
+    if (control.tagName === 'SELECT') {
+        return control.options[control.selectedIndex]?.textContent?.trim() || control.value || '';
+    }
+    return control.value || control.textContent || '';
+}
+
+function replaceControlsWithPrintableText(sourceRoot, cloneRoot) {
+    const sourceControls = sourceRoot.querySelectorAll('textarea, select, input:not([type="radio"]):not([type="checkbox"]):not([type="file"]):not([type="hidden"])');
+    const cloneControls = cloneRoot.querySelectorAll('textarea, select, input:not([type="radio"]):not([type="checkbox"]):not([type="file"]):not([type="hidden"])');
+
+    cloneControls.forEach((control, index) => {
+        const sourceControl = sourceControls[index] || control;
+        const replacement = document.createElement(control.tagName === 'TEXTAREA' ? 'div' : 'span');
+        const computed = window.getComputedStyle(sourceControl);
+        replacement.className = 'printable-control-text';
+        replacement.textContent = printableValueForControl(control);
+        replacement.style.cssText = `
+            display:${control.tagName === 'TEXTAREA' ? 'block' : 'block'};
+            min-height:${Math.max(sourceControl.scrollHeight || 0, sourceControl.offsetHeight || 0, 20)}px;
+            width:100%;
+            box-sizing:border-box;
+            color:${computed.color};
+            background:${computed.backgroundColor === 'rgba(0, 0, 0, 0)' ? 'transparent' : computed.backgroundColor};
+            border:${computed.borderTopWidth} ${computed.borderTopStyle} ${computed.borderTopColor};
+            border-width:${computed.borderTopWidth} ${computed.borderRightWidth} ${computed.borderBottomWidth} ${computed.borderLeftWidth};
+            border-style:${computed.borderTopStyle} ${computed.borderRightStyle} ${computed.borderBottomStyle} ${computed.borderLeftStyle};
+            border-color:${computed.borderTopColor} ${computed.borderRightColor} ${computed.borderBottomColor} ${computed.borderLeftColor};
+            border-radius:${computed.borderRadius};
+            padding:${computed.padding};
+            font:${computed.font};
+            line-height:${computed.lineHeight};
+            white-space:pre-wrap;
+            overflow-wrap:anywhere;
+        `;
+        control.replaceWith(replacement);
+    });
+
+    cloneRoot.querySelectorAll('input[type="file"], input[type="hidden"]').forEach(input => input.remove());
+}
+
+function prepareSheetCloneForPrint(sheet) {
+    const clone = sheet.cloneNode(true);
+    syncFormStateToClone(sheet, clone);
+
+    clone.querySelectorAll('[data-sheet-section]').forEach(section => {
+        section.classList.add('active');
+        section.style.display = 'block';
+    });
+
+    clone.querySelectorAll('[data-sheet-section]:not(:first-child)').forEach(section => {
+        section.classList.add('pdf-section-break');
+    });
+
+    clone.querySelectorAll('button, .portrait-actions, .touchstone-actions, .inventory-card-actions, .locked-origin-control, .archetype-hint-btn, .merit-add-btn').forEach(element => {
+        element.remove();
+    });
+
+    clone.querySelectorAll('.skill-specs').forEach(container => {
+        if (container.children.length > 0) container.style.display = 'flex';
+    });
+
+    replaceControlsWithPrintableText(sheet, clone);
+    return clone;
+}
+
+function getPrintableSheetStyles() {
+    const styles = Array.from(document.querySelectorAll('style')).map(style => style.textContent || '').join('\n');
+    return `
+        ${styles}
+
+        html, body {
+            background: #0a0a0a !important;
+            color: #d0d0d0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            width: auto !important;
+            height: auto !important;
+            min-height: 0 !important;
+            overflow: visible !important;
+            display: block !important;
+        }
+
+        body {
+            padding: 0 !important;
+        }
+
+        .pdf-print-root {
+            width: 980px;
+            margin: 0 auto;
+            background: #0a0a0a;
+        }
+
+        .pdf-print-root .sheet {
+            min-width: 0 !important;
+            width: 980px !important;
+            max-width: 980px !important;
+            box-sizing: border-box !important;
+            margin: 0 auto !important;
+            box-shadow: none !important;
+        }
+
+        .pdf-print-root .pdf-section-break {
+            break-before: page;
+            page-break-before: always;
+        }
+
+        .printable-control-text:empty::before {
+            content: "\\00a0";
+        }
+
+        @page {
+            size: auto;
+            margin: 10mm;
+        }
+
+        @media print {
+            html, body {
+                background: #0a0a0a !important;
+                -webkit-print-color-adjust: exact !important;
+                print-color-adjust: exact !important;
+            }
+
+            .pdf-print-root,
+            .pdf-print-root .sheet {
+                width: 980px !important;
+            }
+        }
+    `;
+}
+
+async function generateSheetPDF() {
     const btn = document.getElementById('btn-pdf');
     const originalText = btn?.textContent || 'Скачать PDF';
-    if (btn) { btn.textContent = 'Генерируем…'; btn.disabled = true; }
+    if (btn) { btn.textContent = 'Готовим PDF…'; btn.disabled = true; }
 
     try {
-        const val = (id) => (document.getElementById(id)?.value || '').trim();
-        const txt = (id) => (document.getElementById(id)?.textContent || '').trim();
+        const sheet = document.getElementById('capture-area');
+        if (!sheet) throw new Error('Не найден лист персонажа');
 
-        const charName = val('char-name') || 'Kindred';
-        const sire = val('sire-input');
-        const concept = val('concept-input');
-        const nature = val('nature-input');
-        const mask = val('mask-input');
-        const trueAge = val('true-age-input');
-        const apparentAge = val('apparent-age-input');
-        const birthDate = val('birth-date-input');
-        const deathDate = val('death-date-input');
-        const clanBane = val('clan-bane-input');
-        const clan = val('clan-input');
-        const predator = val('predator-input');
-        const genVal = val('generation-input');
-        const generation = genVal ? `${genVal} поколение` : '';
-        const typeRaw = val('type-input');
-        const typeNames = { childe:'Птенец', neonate:'Неонат', ancilla:'Анцилла', elder:'Старейшина', methuselah:'Матузалем', antediluvian:'Антедилувиан' };
-        const type = typeNames[typeRaw] || typeRaw;
-        const appearance = val('appearance-input');
-        const backstory = val('backstory-input');
-        const notes = val('notes-input');
-        const hp = txt('val-hp');
-        const wp = txt('val-wp');
-        const humanity = txt('val-humanity');
-        const bloodPotency = txt('val-blood-potency');
-
-        const attrNames = ['Сила','Ловкость','Выносливость','Обаяние','Манипуляция','Самообладание','Интеллект','Смекалка','Упорство'];
-        const attrs = {};
-        attrNames.forEach(name => {
-            attrs[name] = parseInt(document.querySelector(`input[name="${name}"]:checked`)?.value || '1');
-        });
-
-        const skillNames = ['Атлетика','Вождение','Воровство','Выживание','Драка','Ремесло','Скрытность','Стрельба','Фехтование',
-            'Запугивание','Исполнение','Лидерство','Обращение с животными','Проницательность','Убеждение','Уличное чутьё','Хитрость','Этикет',
-            'Гуманитарные науки','Естественные науки','Медицина','Наблюдательность','Оккультизм','Политика','Расследование','Техника','Финансы'];
-        const skills = {};
-        skillNames.forEach(name => {
-            skills[name] = parseInt(document.querySelector(`input[name="${name}"]:checked`)?.value || '0');
-        });
-
-        const disciplines = {};
-        Object.keys(disciplineSources || {}).forEach(name => {
-            const dots = Object.values(disciplineSources[name] || {}).reduce((a, b) => a + b, 0);
-            if (dots > 0) disciplines[name] = { dots, powers: (selectedPowers[name] || []) };
-        });
-
-        // Build a plain-text PDF so text remains selectable/copiable
-        const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
-        const PAGE_W = pdf.internal.pageSize.getWidth();
-        const PAGE_H = pdf.internal.pageSize.getHeight();
-        const MARGIN = 40;
-        let y = MARGIN;
-        const lineHeight = 14;
-
-        const addHeading = (text) => {
-            pdf.setFontSize(14);
-            pdf.setFont('helvetica', 'bold');
-            const lines = pdf.splitTextToSize(text, PAGE_W - MARGIN * 2);
-            lines.forEach(line => { pdf.text(line, MARGIN, y); y += lineHeight; });
-            y += 6;
-            pdf.setFont('helvetica', 'normal');
-            pdf.setFontSize(11);
-        };
-
-        const addPara = (text) => {
-            pdf.setFontSize(11);
-            const lines = pdf.splitTextToSize(text || '', PAGE_W - MARGIN * 2);
-            lines.forEach(line => { pdf.text(line, MARGIN, y); y += lineHeight; });
-            y += 6;
-        };
-
-        const newLineIfNeeded = (needed = 1) => {
-            if (y + needed * lineHeight > PAGE_H - MARGIN) {
-                pdf.addPage();
-                y = MARGIN;
-            }
-        };
-
-        // Title
-        pdf.setFontSize(18);
-        pdf.setFont('helvetica', 'bold');
-        const title = charName || 'Персонаж';
-        const titleWidth = pdf.getTextWidth(title);
-        pdf.text(title, (PAGE_W - titleWidth) / 2, y);
-        y += 22;
-        pdf.setFont('helvetica', 'normal');
-
-        // Basic info
-        addHeading('Общая информация');
-        newLineIfNeeded(6);
-        addPara(`Клан: ${clan || '-'}    Тип: ${type || '-'}    Поколение: ${generation || '-'}`);
-        addPara(`Сир: ${sire || '-'}    Концепт: ${concept || '-'}    Природа/Маска: ${nature || '-'} / ${mask || '-'}`);
-        addPara(`Истинный возраст: ${trueAge || '-'}    Видимый возраст: ${apparentAge || '-'}`);
-        addPara(`Дата рождения: ${birthDate || '-'}    Дата смерти: ${deathDate || '-'}`);
-
-        // Vitals
-        addHeading('Виталы');
-        newLineIfNeeded(4);
-        addPara(`Здоровье: ${hp || '-'}    Сила воли: ${wp || '-'}    Человечность: ${humanity || '-'}    Сила крови: ${bloodPotency || '-'}`);
-
-        // Attributes
-        addHeading('Характеристики');
-        newLineIfNeeded(6);
-        Object.entries(attrs).forEach(([k, v]) => { newLineIfNeeded(1); addPara(`${k}: ${v}`); });
-
-        // Skills
-        addHeading('Навыки');
-        newLineIfNeeded(6);
-        Object.entries(skills).forEach(([k, v]) => { newLineIfNeeded(1); addPara(`${k}: ${v}`); });
-
-        // Disciplines
-        if (Object.keys(disciplines).length) {
-            addHeading('Дисциплины');
-            newLineIfNeeded(4);
-            Object.entries(disciplines).forEach(([name, info]) => {
-                newLineIfNeeded(1);
-                addPara(`${name}: ${info.dots} точек`);
-                if ((info.powers || []).length) addPara(`Силы: ${(info.powers || []).join(', ')}`);
-            });
+        const printWindow = window.open('', '_blank');
+        if (!printWindow) {
+            throw new Error('Браузер заблокировал окно печати. Разреши всплывающие окна для сайта и попробуй снова.');
         }
 
-        // Inventory
-        addHeading('Инвентарь');
-        newLineIfNeeded(4);
-        if ((inventory || []).length) {
-            inventory.forEach(item => { newLineIfNeeded(2); addPara(`${item.name || 'Без названия'} — ${item.category || ''} · ${item.quantity || 1} шт.`); if (item.description) addPara(item.description); if (item.note) addPara(`Примечание: ${item.note}`); });
-        } else {
-            addPara('Инвентарь пуст.');
-        }
+        const printableSheet = prepareSheetCloneForPrint(sheet);
+        const styles = getPrintableSheetStyles();
+        const fileName = getSheetPdfFileName();
 
-        // Backstory / notes
-        addHeading('История и заметки');
-        newLineIfNeeded(6);
-        addPara(appearance || '');
-        addPara(backstory || '');
-        addPara(notes || '');
+        printWindow.document.open();
+        printWindow.document.write(`<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <base href="${window.location.origin}/">
+    <title>${fileName}</title>
+    <style>${styles}</style>
+</head>
+<body class="${document.body.className}">
+    <main class="pdf-print-root"></main>
+</body>
+</html>`);
+        printWindow.document.close();
+        printWindow.document.querySelector('.pdf-print-root').appendChild(printWindow.document.importNode(printableSheet, true));
 
-        // Save PDF
-        pdf.save(`V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`);
+        await new Promise(resolve => {
+            if (printWindow.document.readyState === 'complete') resolve();
+            else printWindow.addEventListener('load', resolve, { once: true });
+        });
+        await new Promise(resolve => setTimeout(resolve, 250));
+
+        printWindow.focus();
+        printWindow.print();
 
     } catch (err) {
         console.error(err);
-        alert('Ошибка генерации PDF: ' + err.message);
+        alert('Ошибка подготовки PDF: ' + err.message);
     } finally {
         if (btn) { btn.textContent = originalText; btn.disabled = false; }
     }
