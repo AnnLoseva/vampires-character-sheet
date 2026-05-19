@@ -5210,7 +5210,10 @@ function applyCharacterData(d, sourceName = 'JSON') {
         enforceClanSpecificRules();
 
         startingSheetFixed = Boolean(d.sheetLock?.fixed);
-        baseLevels = d.sheetLock?.baseLevels ? JSON.parse(JSON.stringify(d.sheetLock.baseLevels)) : captureCurrentLevels();
+        const savedBaseLevels = d.sheetLock?.baseLevels;
+        baseLevels = (savedBaseLevels && Object.keys(savedBaseLevels).length > 0)
+            ? JSON.parse(JSON.stringify(savedBaseLevels))
+            : captureCurrentLevels();
         sheetLockSnapshot = d.sheetLock?.snapshot ? JSON.parse(JSON.stringify(d.sheetLock.snapshot)) : captureSheetSnapshot();
         startingSheetBase = d.sheetLock?.baseState
             ? JSON.parse(JSON.stringify(d.sheetLock.baseState))
@@ -6533,6 +6536,11 @@ function fixStartingSheet() {
         sheetLockSnapshot = captureSheetSnapshot();
         startingSheetBase = JSON.parse(JSON.stringify(sheetLockSnapshot));
     } else {
+        // Если baseLevels пустой (старые данные без sheetLock или первая фиксация),
+        // захватываем текущие уровни как базу, иначе оставляем как есть (XP-история)
+        if (!Object.keys(baseLevels || {}).length) {
+            baseLevels = captureCurrentLevels();
+        }
         sheetLockSnapshot = captureSheetSnapshot();
     }
     startingSheetFixed = true;
