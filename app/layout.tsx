@@ -15,7 +15,19 @@ export default function RootLayout({
     <html lang="ru" className="dark">
       <body>
         {children}
-        <div id="global-music-engine" aria-hidden="true" style={{position: 'absolute', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none'}} />
+        <div
+          id="global-music-engine"
+          aria-hidden="true"
+          style={{
+            position: 'fixed',
+            left: '-10000px',
+            top: 0,
+            width: 640,
+            height: 360,
+            overflow: 'hidden',
+            pointerEvents: 'none',
+          }}
+        />
       </body>
     </html>
   )

@@ -58,16 +58,14 @@ export class YouTubeAdapter implements MusicSyncAdapter {
       return
     }
 
-    // Move the existing iframe to the new container so video keeps playing
-    if (this.player && this.container) {
-      const iframe = this.container.querySelector('iframe')
-      if (iframe) {
-        container.innerHTML = ''
-        container.appendChild(iframe)
-      }
+    if (this.player) {
+      this.player.destroy()
+      this.player = null
+      this.loadedKey = ''
     }
 
     this.container = container
+    this.container.innerHTML = ''
     this.cancelled = false
     void this.ensurePlayer()
   }
@@ -128,10 +126,14 @@ export class YouTubeAdapter implements MusicSyncAdapter {
       height: 260,
       playerVars: {
         autoplay: 0,
-        controls: 1,
+        controls: this.options.isMaster ? 1 : 0,
+        disablekb: this.options.isMaster ? 0 : 1,
         enablejsapi: 1,
+        fs: 1,
+        modestbranding: 1,
         origin: window.location.origin,
         playsinline: 1,
+        rel: 0,
       },
       events: {
         onReady: event => {

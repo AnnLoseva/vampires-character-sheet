@@ -873,8 +873,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             // visible web embeds when the Music panel is open
             musicProvider === 'youtube' ? (
               <div className={`youtube-embed ${!isMaster ? 'readonly' : ''}`} aria-label="YouTube плеер" ref={youtubeShellRef}>
-                {/* VISIBLE_MUSIC_ENGINE_ID is the slot where the hidden panel's adapter moves its iframe.
-                    playerMountRef must be a SEPARATE hidden div so clearing it doesn't wipe the iframe. */}
                 <div id={VISIBLE_MUSIC_ENGINE_ID} style={{ width: '100%', height: '100%' }} />
                 <div ref={playerMountRef} style={{ display: 'none' }} />
               </div>
@@ -1022,7 +1020,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .music-web-placeholder span { color: #9c9c9c; font-size: 12px; }
         .audio-player { width: 100%; border-top: 1px solid #252525; background: #050505; }
         .audio-player:not([controls]) { display: none; }
-        .youtube-embed { width: 100%; aspect-ratio: 16 / 9; min-height: 230px; border-top: 1px solid #252525; background: #050505; }
+        .youtube-embed { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 230px; border-top: 1px solid #252525; background: #050505; }
         .youtube-embed > div, .file-embed > div { width: 100%; height: 100%; }
         .youtube-embed iframe { width: 100%; height: 100%; display: block; border: 0; }
         .spotify-embed { width: 100%; min-height: 86px; border-top: 1px solid #252525; background: #050505; }
@@ -1032,6 +1030,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .music-readonly p { margin: 0 0 4px; color: #ddd; }
         .music-panel iframe.readonly, .spotify-embed.readonly { filter: grayscale(0.35); }
         .youtube-embed.readonly { filter: grayscale(0.18); }
+        .youtube-embed.readonly::after { content: ""; position: absolute; inset: 0; z-index: 2; cursor: default; }
         .player-local-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px; border-top: 1px solid #252525; background: #0d0d0d; }
         .player-local-controls label { flex: 1; min-width: 160px; display: grid; grid-template-columns: auto minmax(80px, 1fr) 42px; gap: 8px; align-items: center; color: #bdbdbd; font-size: 12px; }
         .player-local-controls input { width: 100%; accent-color: #9ab7ff; }
