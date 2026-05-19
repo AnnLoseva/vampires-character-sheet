@@ -120,34 +120,36 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     let cancelled = false
 
     const loadMusic = async () => {
-      const extended = await supabase
-        .from(TABLE_MUSIC)
-        .select('room, url, active_uri, is_playing, position_seconds, updated_at, provider, playlist_id, playlist_index, track_id, source_type')
-        .eq('room', room)
-        .maybeSingle()
+      try {
+        const extended = await supabase
+          .from(TABLE_MUSIC)
+          .select('room, url, active_uri, is_playing, position_seconds, updated_at, provider, playlist_id, playlist_index, track_id, source_type')
+          .eq('room', room)
+          .maybeSingle()
 
-      if (cancelled) return
+        if (cancelled) return
 
-      if (!extended.error) {
-        if (extended.data) engineRef.current?.applyIncoming(mapMusicRow(extended.data))
+        if (!extended.error) {
+          if (extended.data) {
+            engineRef.current?.applyIncoming(mapMusicRow(extended.data))
+          } else setMusicStatus('Музыка не выбрана')
+          return
+        }
+
+        console.warn('Extended music load failed, attempting fallback:', extended.error)
+        const fallback = await supabase.from(TABLE_MUSIC).select('*').eq('room', room).maybeSingle()
+        if (cancelled) return
+        if (fallback.error) {
+          console.error('Не удалось загрузить музыку комнаты (fallback):', fallback.error)
+          setMusicStatus('Нет общей музыки')
+          return
+        }
+        if (fallback.data) engineRef.current?.applyIncoming(mapMusicRow(fallback.data))
         else setMusicStatus('Музыка не выбрана')
-        return
+      } catch (err) {
+        console.error('Unexpected error loading music:', err)
+        setMusicStatus('Ошибка при загрузке музыки')
       }
-
-      const legacy = await supabase
-        .from(TABLE_MUSIC)
-        .select('room, url, active_uri, is_playing, position_seconds, updated_at')
-        .eq('room', room)
-        .maybeSingle()
-
-      if (cancelled) return
-      if (legacy.error) {
-        console.error('Не удалось загрузить музыку комнаты:', legacy.error)
-        setMusicStatus('Нет общей музыки')
-        return
-      }
-      if (legacy.data) engineRef.current?.applyIncoming(mapMusicRow(legacy.data))
-      else setMusicStatus('Музыка не выбрана')
     }
 
     void loadMusic()
@@ -169,8 +171,9 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         setMusicLibrary(next)
       })
 
+    const channelName = `table-music:${room}:${Math.random().toString(36).slice(2)}`
     const channel = supabase
-      .channel(`table-music:${room}`)
+      .channel(channelName)
       .on('broadcast', { event: 'music' }, payload => {
         const music = payload.payload as MusicState
         if (!music || music.room !== room) return
