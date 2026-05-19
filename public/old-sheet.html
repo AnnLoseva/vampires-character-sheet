@@ -1851,12 +1851,12 @@
 
     <button onclick="fixStartingSheet()"
         id="fix-start-btn"
-        class="vampire-only npc-hide"
+        class="npc-hide"
         style="width:100%; padding:14px; margin:15px 0; background:#ff3131; color:white; border:none; border-radius:8px; font-size:16px; font-weight:bold;">
     Зафиксировать стартовый лист
 </button>
     <div class="sheet-lock-note">
-        Лист зафиксирован. Заблокированы броски, клан, стиль охоты, поколение и тип. Остальное можно редактировать.
+        Лист зафиксирован. Нажимай на названия навыков, атрибутов или точки — откроется бросок кубиков. Остальное можно редактировать.
     </div>
         </div>
 
@@ -2205,14 +2205,6 @@
                 Войти в свой акк
             </button>
 
-    <!-- Кнопка броска кубиков -->
-    <button id="dice-btn"
-        onclick="openDiceRollModal()"
-        style="padding:14px 16px; font-size:15px; font-weight:bold; background:#1a0d0d; color:#ff3131; border:2px solid #ff3131; border-radius:6px; margin-top:8px; cursor:pointer; width:100%; font-family:'Courier New',Courier,monospace; letter-spacing:1px; transition: background 0.2s, box-shadow 0.2s;"
-        onmouseover="this.style.background='#2a1010'; this.style.boxShadow='0 0 16px rgba(255,49,49,0.4)'"
-        onmouseout="this.style.background='#1a0d0d'; this.style.boxShadow='none'">
-        🎲 Бросить кубики
-    </button>
 
     <!-- Подсказка Клана -->
     <div id="clan-hint-box" class="hint-box vampire-only">
