@@ -23,6 +23,9 @@ import {
   upsertMusicLibraryItem,
 } from './utils'
 
+const VISIBLE_MUSIC_ENGINE_ID = 'vtm-music-visible-engine'
+const VISIBLE_MUSIC_ENGINE_EVENT = 'vtm-music-visible-engine-updated'
+
 type MusicPanelProps = {
   room: string
   tableRole: 'master' | 'player' | null
@@ -69,6 +72,24 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
   const musicProvider = musicState.provider || getMusicProvider(musicState.url)
   const musicTree = useMemo(() => buildMusicTree(musicLibrary), [musicLibrary])
+  const [visibleEngineMountVersion, setVisibleEngineMountVersion] = useState(0)
+
+  useEffect(() => {
+    if (!playbackEnabled) return
+
+    const update = () => setVisibleEngineMountVersion(v => v + 1)
+    update()
+    window.addEventListener(VISIBLE_MUSIC_ENGINE_EVENT, update)
+    return () => window.removeEventListener(VISIBLE_MUSIC_ENGINE_EVENT, update)
+  }, [playbackEnabled])
+
+  useEffect(() => {
+    if (hidden || playbackEnabled) return
+
+    const notify = () => window.dispatchEvent(new CustomEvent(VISIBLE_MUSIC_ENGINE_EVENT))
+    notify()
+    return () => notify()
+  }, [hidden, playbackEnabled, musicProvider])
 
   useEffect(() => {
     const savedVolume = Number(window.localStorage.getItem('vtm-youtube-volume'))
@@ -295,10 +316,9 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       }
       adapterProviderRef.current = provider
       adapterMasterRef.current = isMaster
-      // Prefer the hidden global mount so opening the Music tab doesn't create visible iframes.
-      // If the music panel is visible, prefer mounting into the local visible player container
+      const visibleMount = typeof document !== 'undefined' ? document.getElementById(VISIBLE_MUSIC_ENGINE_ID) as HTMLDivElement | null : null
       const globalMount = typeof document !== 'undefined' ? document.getElementById('global-music-engine') as HTMLDivElement | null : null
-      const mountEl = !hidden && playerMountRef.current ? playerMountRef.current : globalMount ?? playerMountRef.current
+      const mountEl = visibleMount ?? (!hidden && playerMountRef.current ? playerMountRef.current : globalMount ?? playerMountRef.current)
       if (mountEl) {
         adapterRef.current?.mount(mountEl)
         adapterRef.current?.onStateChange(patch => {
@@ -308,7 +328,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     }
 
     void adapterRef.current?.load(musicState)
-  }, [musicProvider, musicState, isMaster, localVolume, playbackEnabled])
+  }, [musicProvider, musicState, isMaster, localVolume, playbackEnabled, visibleEngineMountVersion])
 
   useEffect(() => {
     if (!playbackEnabled) return
@@ -769,11 +789,11 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             // visible web embeds when the Music panel is open
             musicProvider === 'youtube' ? (
               <div className={`youtube-embed ${!isMaster ? 'readonly' : ''}`} aria-label="YouTube плеер">
-                <div ref={playerMountRef} />
+                <div id={VISIBLE_MUSIC_ENGINE_ID} ref={playerMountRef} />
               </div>
             ) : (
               <div className={`spotify-embed ${!isMaster ? 'readonly' : ''}`} aria-label="Spotify плеер">
-                <div ref={playerMountRef} />
+                <div id={VISIBLE_MUSIC_ENGINE_ID} ref={playerMountRef} />
               </div>
             )
           ) : (
@@ -825,8 +845,13 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           {musicTree.length === 0 ? <p className="panel-empty">Музыка ещё не загружена.</p> : musicTree.map(item => renderMusicNode(item))}
         </div>
       </section>
-
       <style jsx>{`
+        .table-right-panel {
+          width: 100%;
+          min-width: 0;
+          min-height: 0;
+          align-self: stretch;
+        }
         .table-right-panel {
           width: 100%;
           min-width: 0;
