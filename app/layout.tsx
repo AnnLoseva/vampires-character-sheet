@@ -13,7 +13,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru" className="dark">
-      <body>{children}</body>
+      <body>
+        {children}
+        <div id="global-music-engine" aria-hidden="true" style={{position: 'absolute', width: 0, height: 0, overflow: 'hidden', pointerEvents: 'none'}} />
+      </body>
     </html>
   )
 }

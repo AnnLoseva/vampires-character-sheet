@@ -244,7 +244,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       return
     }
 
-    if (!playerMountRef.current) return
+    // allow mounting into a global hidden mount if the local player mount isn't rendered
     const provider = musicProvider
     if (adapterRef.current && (adapterProviderRef.current !== provider || adapterMasterRef.current !== isMaster)) {
       adapterRef.current.destroy()
@@ -292,10 +292,13 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       }
       adapterProviderRef.current = provider
       adapterMasterRef.current = isMaster
-      adapterRef.current?.mount(playerMountRef.current)
-      adapterRef.current?.onStateChange(patch => {
-        void engineRef.current?.publishMusicState(patch)
-      })
+      const mountEl = playerMountRef.current ?? (typeof document !== 'undefined' ? document.getElementById('global-music-engine') as HTMLDivElement | null : null)
+      if (mountEl) {
+        adapterRef.current?.mount(mountEl)
+        adapterRef.current?.onStateChange(patch => {
+          void engineRef.current?.publishMusicState(patch)
+        })
+      }
     }
 
     void adapterRef.current?.load(musicState)
