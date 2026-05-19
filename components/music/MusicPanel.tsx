@@ -11,7 +11,6 @@ import {
   buildMusicTree,
   getEffectiveMusicPosition,
   getMusicProvider,
-  getSpotifyEmbedUrl,
   getSpotifyUri,
   getStoragePathFromPublicUrl,
   mapMusicLibraryRow,
@@ -57,7 +56,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   const [unlockVisible, setUnlockVisible] = useState(false)
 
   const musicFileInputRef = useRef<HTMLInputElement>(null)
-  const playerShellRef = useRef<HTMLDivElement>(null)
   const playerMountRef = useRef<HTMLDivElement>(null)
   const engineRef = useRef<MusicSyncEngine | null>(null)
   const musicChannelRef = useRef<MusicChannel | null>(null)
@@ -70,7 +68,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   const musicDraftDirtyRef = useRef(false)
 
   const musicProvider = musicState.provider || getMusicProvider(musicState.url)
-  const spotifyEmbedUrl = useMemo(() => getSpotifyEmbedUrl(musicState.activeUri || musicState.url), [musicState.activeUri, musicState.url])
   const musicTree = useMemo(() => buildMusicTree(musicLibrary), [musicLibrary])
 
   useEffect(() => {
@@ -612,10 +609,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     await moveMusicItem(draggedId, target?.id ?? null)
   }
 
-  const openYouTubeFullscreen = () => {
-    playerShellRef.current?.requestFullscreen()
-  }
-
   const renderMusicNode = (item: MusicTreeNode, depth = 0): React.ReactNode => {
     const isFolder = item.itemType === 'folder'
     const isExpanded = expandedMusicFolders.has(item.id)
@@ -758,17 +751,20 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       ) : null}
 
       {showPlayerShell ? (
-        <div className={`${musicProvider}-embed ${isMaster ? '' : 'readonly'}`} ref={playerShellRef}>
-          <div ref={playerMountRef} aria-label="Музыка комнаты" />
-        </div>
-      ) : spotifyEmbedUrl ? (
-        <iframe
-          className={isMaster ? '' : 'readonly'}
-          title="Музыка комнаты"
-          src={spotifyEmbedUrl}
-          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-          loading="lazy"
-        />
+        <>
+          <div
+            className={`music-engine-mount ${musicProvider === 'file' ? 'file-engine' : 'web-engine'}`}
+            aria-hidden={musicProvider !== 'file'}
+          >
+            <div ref={playerMountRef} aria-label="Музыка комнаты" />
+          </div>
+          {musicProvider === 'youtube' || musicProvider === 'spotify' ? (
+            <div className="music-web-placeholder" aria-label="Музыкальный плеер">
+              <strong>{musicProvider === 'youtube' ? youtubeLabel : 'Spotify'}</strong>
+              <span>{musicState.isPlaying ? 'Играет' : 'Пауза'} · {Math.floor(getEffectiveMusicPosition(musicState))} сек.</span>
+            </div>
+          ) : null}
+        </>
       ) : null}
 
       {!isMaster && ((musicProvider === 'youtube' && musicState.url) || (musicProvider === 'file' && musicState.url)) ? (
@@ -779,7 +775,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             <strong>{localVolume}%</strong>
           </label>
           {unlockVisible ? <button type="button" onClick={() => { adapterRef.current?.play(); setUnlockVisible(false) }}>Включить музыку</button> : null}
-          {musicProvider === 'youtube' ? <button type="button" onClick={openYouTubeFullscreen}>На весь экран</button> : null}
         </div>
       ) : null}
 
@@ -849,6 +844,27 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .music-meta { display: flex; justify-content: space-between; gap: 8px; color: #9c9c9c; font-size: 12px; }
         .music-warning { padding: 9px 10px; border-top: 1px solid #302b20; border-bottom: 1px solid #302b20; background: #1b1710; color: #d9c99d; font-size: 12px; line-height: 1.35; }
         .music-panel iframe { width: 100%; height: 86px; border: 0; border-top: 1px solid #252525; background: #050505; }
+        .music-engine-mount.web-engine {
+          position: fixed;
+          left: -10000px;
+          bottom: 0;
+          width: 1px;
+          height: 1px;
+          opacity: 0;
+          pointer-events: none;
+          overflow: hidden;
+        }
+        .music-engine-mount.file-engine { width: 100%; border-top: 1px solid #252525; background: #050505; }
+        .music-web-placeholder {
+          display: grid;
+          gap: 4px;
+          padding: 12px;
+          border-top: 1px solid #252525;
+          background: #080808;
+          color: #d8d8d8;
+        }
+        .music-web-placeholder strong { color: #f2f2f2; font-size: 13px; }
+        .music-web-placeholder span { color: #9c9c9c; font-size: 12px; }
         .audio-player { width: 100%; border-top: 1px solid #252525; background: #050505; }
         .audio-player:not([controls]) { display: none; }
         .youtube-embed { width: 100%; aspect-ratio: 16 / 9; min-height: 230px; border-top: 1px solid #252525; background: #050505; }
