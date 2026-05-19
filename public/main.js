@@ -5498,7 +5498,7 @@ function setupSaveButton() {
     }
 }
 
-// ==================== ГЕНЕРАЦИЯ PDF (все 3 раздела) ====================
+// ==================== ГЕНЕРАЦИЯ PDF (все 3 раздела, постраничная нарезка) ====================
 async function generateSheetPDF() {
     const area = document.getElementById('capture-area');
     if (!area) return alert('Не найден #capture-area');
@@ -5510,24 +5510,24 @@ async function generateSheetPDF() {
     const originalText = btn?.textContent || 'Скачать PDF';
     if (btn) { btn.textContent = 'Генерируем…'; btn.disabled = true; }
 
-    // Запомним текущий раздел чтобы вернуть после
     const currentSection = localStorage.getItem('vtm-sheet-section') || 'social';
-
     const sectionNames = ['social', 'mechanics', 'inventory'];
     const { jsPDF } = window.jspdf;
-    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const pageWidth = 210; // A4 мм
+
+    // A4 в мм
+    const PAGE_W_MM = 210;
+    const PAGE_H_MM = 297;
+
+    // Первая страница создаётся вручную ниже
+    let pdf = null;
+    let firstPage = true;
 
     try {
-        for (let i = 0; i < sectionNames.length; i++) {
-            const sectionName = sectionNames[i];
-
+        for (const sectionName of sectionNames) {
             // Показываем только этот раздел
             document.querySelectorAll('[data-sheet-section]').forEach(s => {
                 s.classList.toggle('active', s.dataset.sheetSection === sectionName);
             });
-
-            // Ждём перерисовки
             await new Promise(r => setTimeout(r, 120));
 
             let restoreTextareaHeights = null;
@@ -5535,12 +5535,9 @@ async function generateSheetPDF() {
             try {
                 restoreTextareaHeights = expandTextareasForCapture(area);
                 restoreImageStyles = stabilizeImagesForCapture(area);
-
-                // Раскрываем специализации
                 area.querySelectorAll('.skill-specs').forEach(c => {
                     if (c.children.length > 0) c.style.display = 'flex';
                 });
-
                 await new Promise(r => setTimeout(r, 80));
 
                 const canvas = await window.html2canvas(area, {
@@ -5552,17 +5549,25 @@ async function generateSheetPDF() {
                 });
 
                 const imgData = canvas.toDataURL('image/jpeg', 0.88);
-                // Высота страницы под реальные пропорции, но не больше A4
-                const ratio = canvas.height / canvas.width;
-                const pageHeight = Math.min(ratio * pageWidth, 297);
 
-                if (i > 0) pdf.addPage([pageWidth, pageHeight], 'portrait');
-                else {
-                    // Первая страница уже создана конструктором, подгоняем её размер
-                    pdf.internal.pageSize.width = pageWidth;
-                    pdf.internal.pageSize.height = pageHeight;
+                // Сколько мм занимает весь canvas при ширине PAGE_W_MM
+                const totalImgH_mm = (canvas.height / canvas.width) * PAGE_W_MM;
+                // Сколько страниц нужно для этого раздела
+                const pagesForSection = Math.ceil(totalImgH_mm / PAGE_H_MM);
+
+                for (let p = 0; p < pagesForSection; p++) {
+                    if (firstPage) {
+                        pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+                        firstPage = false;
+                    } else {
+                        pdf.addPage('a4', 'portrait');
+                    }
+
+                    // Смещаем картинку вверх так, чтобы нужный кусок оказался в зоне страницы.
+                    // addImage рисует картинку начиная с (x, y); то что выходит за границы — обрезается.
+                    const yOffset_mm = -p * PAGE_H_MM;
+                    pdf.addImage(imgData, 'JPEG', 0, yOffset_mm, PAGE_W_MM, totalImgH_mm);
                 }
-                pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
 
             } finally {
                 if (restoreImageStyles) restoreImageStyles();
@@ -5570,13 +5575,12 @@ async function generateSheetPDF() {
             }
         }
 
-        pdf.save(`V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`);
+        if (pdf) pdf.save(`V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`);
 
     } catch (err) {
         console.error(err);
         alert('Ошибка генерации PDF: ' + err.message);
     } finally {
-        // Восстанавливаем раздел
         switchSheetSection(currentSection);
         if (btn) { btn.textContent = originalText; btn.disabled = false; }
     }
