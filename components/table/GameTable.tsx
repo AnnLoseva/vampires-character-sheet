@@ -231,7 +231,7 @@ export default function VampireTable() {
   const [imageEditor, setImageEditor] = useState<ImageEditorDraft | null>(null)
   const [draggingLayerId, setDraggingLayerId] = useState<string | null>(null)
   const [layerDropTarget, setLayerDropTarget] = useState<LayerDropTarget>(null)
-  const [rightRailTab, setRightRailTab] = useState<RightRailTab>('media')
+  const [rightRailTab, setRightRailTab] = useState<RightRailTab>('rolls')
   const [mediaTab, setMediaTab] = useState<MediaTab>('layers')
   const [leftToolbarTab, setLeftToolbarTab] = useState<LeftToolbarTab>('scenes')
   const [leftPanelOpen, setLeftPanelOpen] = useState(true)
@@ -3406,7 +3406,7 @@ export default function VampireTable() {
         </div>
       </section>
 
-      <section className="active-character-strip" aria-label="Активный персонаж">
+      {!isMaster ? <section className="active-character-strip" aria-label="Активный персонаж">
         <div className="active-character-card">
           <div className="chat-avatar large" aria-hidden="true">
             {selectedActiveCharacter?.image ? (
@@ -3443,16 +3443,13 @@ export default function VampireTable() {
           </label>
           {!selectedActiveCharacter ? <button type="button" onClick={() => setRightRailTab('chat')}>Выбрать персонажа</button> : null}
         </div>
-      </section>
+      </section> : null}
 
-      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''} ${!isMaster || !musicPanelOpen ? 'music-collapsed' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
+      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''} music-collapsed ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
         <TableLeftPanel
           isMaster={isMaster}
-          musicPanelOpen={musicPanelOpen}
           leftPanelOpen={leftPanelOpen}
-          setMusicPanelOpen={setMusicPanelOpen}
           setLeftPanelOpen={setLeftPanelOpen}
-          musicPanel={<MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} />}
         >
         {isMaster ? (
           <button
@@ -3473,6 +3470,7 @@ export default function VampireTable() {
               <button type="button" className={leftToolbarTab === 'scenes' ? 'active' : ''} onClick={() => setLeftToolbarTab('scenes')}>Сцены</button>
               <button type="button" className={leftToolbarTab === 'layers' ? 'active' : ''} onClick={() => setLeftToolbarTab('layers')}>Слои сцены</button>
               <button type="button" className={leftToolbarTab === 'media' ? 'active' : ''} onClick={() => setLeftToolbarTab('media')}>Медиа сцены</button>
+              <button type="button" className={leftToolbarTab === 'music' ? 'active' : ''} onClick={() => setLeftToolbarTab('music')}>Музыка</button>
             </nav>
 
             <SceneManager
@@ -3628,6 +3626,12 @@ export default function VampireTable() {
                           />}
               </div>
             </section>
+
+            {leftToolbarTab === 'music' ? (
+              <div style={{ flex: 1, overflow: 'auto' }}>
+                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} />
+              </div>
+            ) : null}
           </aside>
         ) : null}
         </TableLeftPanel>
@@ -3677,6 +3681,7 @@ export default function VampireTable() {
         />
 
         <TableRightPanel
+          isMaster={isMaster}
           rightPanelOpen={rightPanelOpen}
           rightRailTab={rightRailTab}
           setRightPanelOpen={setRightPanelOpen}

@@ -393,6 +393,6 @@ export type LayerDropTarget = {
 
 export type RightRailTab = 'media' | 'rolls' | 'chat' | 'diary' | 'master'
 export type MediaTab = 'music' | 'layers' | 'library'
-export type LeftToolbarTab = 'scenes' | 'layers' | 'media'
+export type LeftToolbarTab = 'scenes' | 'layers' | 'media' | 'music'
 export type ChatPanelTab = 'text' | 'voice'
 export type VoiceQuality = 'balanced' | 'clear'

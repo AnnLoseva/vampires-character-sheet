@@ -2,6 +2,7 @@ import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import type { RightRailTab } from '@/lib/table/types'
 
 type TableRightPanelProps = {
+  isMaster: boolean
   rightPanelOpen: boolean
   rightRailTab: RightRailTab
   setRightPanelOpen: Dispatch<SetStateAction<boolean>>
@@ -10,6 +11,7 @@ type TableRightPanelProps = {
 }
 
 export default function TableRightPanel({
+  isMaster,
   rightPanelOpen,
   rightRailTab,
   setRightPanelOpen,
@@ -31,13 +33,15 @@ export default function TableRightPanel({
       </button>
       <aside className={`right-rail ${rightPanelOpen ? '' : 'panel-collapsed'}`}>
         <nav className="right-tabs" aria-label="Панели стола">
-          <button
-            type="button"
-            className={rightRailTab === 'media' ? 'active' : ''}
-            onClick={() => setRightRailTab('media')}
-          >
-            Медиа
-          </button>
+          {!isMaster ? (
+            <button
+              type="button"
+              className={rightRailTab === 'media' ? 'active' : ''}
+              onClick={() => setRightRailTab('media')}
+            >
+              Медиа
+            </button>
+          ) : null}
           <button
             type="button"
             className={rightRailTab === 'rolls' ? 'active' : ''}

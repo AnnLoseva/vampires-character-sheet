@@ -1,46 +1,22 @@
-import type { Dispatch, ReactNode, SetStateAction } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 
 type TableLeftPanelProps = {
   isMaster: boolean
-  musicPanelOpen: boolean
   leftPanelOpen: boolean
-  setMusicPanelOpen: Dispatch<SetStateAction<boolean>>
   setLeftPanelOpen: Dispatch<SetStateAction<boolean>>
-  musicPanel: ReactNode
-  children: ReactNode
+  children: React.ReactNode
 }
 
 export default function TableLeftPanel({
   isMaster,
-  musicPanelOpen,
   leftPanelOpen,
-  setMusicPanelOpen,
   setLeftPanelOpen,
-  musicPanel,
   children,
 }: TableLeftPanelProps) {
   return (
     <>
-      {isMaster ? (
-        <>
-          <aside className={`music-dock ${musicPanelOpen ? '' : 'panel-collapsed'}`} aria-label="Музыка комнаты">
-            {musicPanel}
-          </aside>
-          <button
-            type="button"
-            className="column-edge-toggle music-toggle"
-            onClick={() => setMusicPanelOpen(prev => !prev)}
-            aria-label={musicPanelOpen ? 'Скрыть музыку' : 'Показать музыку'}
-            title={musicPanelOpen ? 'Скрыть музыку' : 'Показать музыку'}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
-        </>
-      ) : (
-        <aside className="music-dock panel-collapsed" aria-hidden="true" />
-      )}
+      {/* Placeholder column — keeps the CSS grid slot for the (always-collapsed) music dock */}
+      <aside className="music-dock panel-collapsed" aria-hidden="true" />
       {isMaster ? (
         <button
           type="button"
