@@ -15,8 +15,6 @@ export default function TableLeftPanel({
 }: TableLeftPanelProps) {
   return (
     <>
-      {/* Placeholder column — keeps the CSS grid slot for the (always-collapsed) music dock */}
-      <aside className="music-dock panel-collapsed" aria-hidden="true" />
       {isMaster ? (
         <button
           type="button"

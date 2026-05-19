@@ -3445,27 +3445,14 @@ export default function VampireTable() {
         </div>
       </section> : null}
 
-      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''} music-collapsed ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
+      <section className={`table-layout ${isMaster && leftPanelOpen ? 'with-left-toolbar' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
         <TableLeftPanel
           isMaster={isMaster}
           leftPanelOpen={leftPanelOpen}
           setLeftPanelOpen={setLeftPanelOpen}
         >
-        {isMaster ? (
-          <button
-            type="button"
-            className="column-edge-toggle master-toggle"
-            onClick={() => setLeftPanelOpen(prev => !prev)}
-            aria-label={leftPanelOpen ? 'Скрыть сцены' : 'Показать сцены'}
-            title={leftPanelOpen ? 'Скрыть сцены' : 'Показать сцены'}
-          >
-            <span />
-            <span />
-            <span />
-          </button>
-        ) : null}
-        {isMaster ? (
-          <aside className={`left-toolbar ${leftPanelOpen ? '' : 'panel-collapsed'}`} aria-label="Мастерская панель сцен">
+        {isMaster && leftPanelOpen ? (
+          <aside className="left-toolbar" aria-label="Мастерская панель сцен">
             <nav className="left-tabs" aria-label="Разделы сцен">
               <button type="button" className={leftToolbarTab === 'scenes' ? 'active' : ''} onClick={() => setLeftToolbarTab('scenes')}>Сцены</button>
               <button type="button" className={leftToolbarTab === 'layers' ? 'active' : ''} onClick={() => setLeftToolbarTab('layers')}>Слои сцены</button>

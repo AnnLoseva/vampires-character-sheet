@@ -31,7 +31,7 @@ export default function TableRightPanel({
         <span />
         <span />
       </button>
-      <aside className={`right-rail ${rightPanelOpen ? '' : 'panel-collapsed'}`}>
+      {rightPanelOpen ? <aside className="right-rail">
         <nav className="right-tabs" aria-label="Панели стола">
           {!isMaster ? (
             <button
@@ -72,7 +72,7 @@ export default function TableRightPanel({
           </button>
         </nav>
         {children}
-      </aside>
+      </aside> : null}
     </>
   )
 }

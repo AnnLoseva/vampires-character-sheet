@@ -180,50 +180,22 @@ export default function GameTableStyles() {
         .table-layout {
           position: relative;
           display: grid;
-          grid-template-columns: 320px minmax(0, 1fr) 420px;
+          grid-template-columns: minmax(0, 1fr) 420px;
           gap: 12px;
           flex: 1;
           min-height: 0;
         }
 
         .table-layout.with-left-toolbar {
-          grid-template-columns: 320px 330px minmax(0, 1fr) 420px;
-        }
-
-        .table-layout.music-collapsed {
-          grid-template-columns: 0 minmax(0, 1fr) 420px;
-        }
-
-        .table-layout.with-left-toolbar.music-collapsed {
-          grid-template-columns: 0 330px minmax(0, 1fr) 420px;
-        }
-
-        .table-layout.with-left-toolbar.left-collapsed {
-          grid-template-columns: 320px 0 minmax(0, 1fr) 420px;
-        }
-
-        .table-layout.with-left-toolbar.music-collapsed.left-collapsed {
-          grid-template-columns: 0 0 minmax(0, 1fr) 420px;
+          grid-template-columns: 330px minmax(0, 1fr) 420px;
         }
 
         .table-layout.right-collapsed {
-          grid-template-columns: 320px minmax(0, 1fr) 0;
+          grid-template-columns: minmax(0, 1fr);
         }
 
         .table-layout.with-left-toolbar.right-collapsed {
-          grid-template-columns: 320px 330px minmax(0, 1fr) 0;
-        }
-
-        .table-layout.with-left-toolbar.left-collapsed.right-collapsed {
-          grid-template-columns: 320px 0 minmax(0, 1fr) 0;
-        }
-
-        .table-layout.music-collapsed.right-collapsed {
-          grid-template-columns: 0 minmax(0, 1fr) 0;
-        }
-
-        .table-layout.with-left-toolbar.music-collapsed.left-collapsed.right-collapsed {
-          grid-template-columns: 0 0 minmax(0, 1fr) 0;
+          grid-template-columns: 330px minmax(0, 1fr);
         }
 
         .play-surface,
@@ -279,32 +251,14 @@ export default function GameTableStyles() {
           border-color: #ff3131;
         }
 
-        .music-toggle {
-          left: 306px;
-          top: 50%;
-          transform: translateY(-50%);
-        }
-
-        .music-collapsed .music-toggle {
-          left: 0;
-        }
-
         .master-toggle {
-          left: 648px;
+          left: 318px;
           top: 50%;
           transform: translateY(-50%);
         }
 
         .left-collapsed .master-toggle {
-          left: 330px;
-        }
-
-        .music-collapsed .master-toggle {
-          left: 328px;
-        }
-
-        .music-collapsed.left-collapsed .master-toggle {
-          left: 22px;
+          left: 0;
         }
 
         .right-toggle {
