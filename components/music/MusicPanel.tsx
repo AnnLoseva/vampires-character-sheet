@@ -714,8 +714,20 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             <button type="button" onClick={() => applyMusicDraft()}>
               Применить
             </button>
-            <button type="button" onClick={() => applyMusicDraft({ play: true })}>
-              Играть
+            <button
+              type="button"
+              onClick={() => {
+                if (!musicStateRef.current.url || musicDraftDirtyRef.current) {
+                  applyMusicDraft({ play: true })
+                  return
+                }
+                publishMusicState({
+                  isPlaying: !musicStateRef.current.isPlaying,
+                  positionSeconds: Math.max(0, Math.floor(engineRef.current?.getEffectivePosition() ?? 0)),
+                })
+              }}
+            >
+              {musicState.isPlaying ? 'Пауза' : 'Играть'}
             </button>
             <button
               type="button"
@@ -841,12 +853,13 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .audio-player:not([controls]) { display: none; }
         .youtube-embed { width: 100%; aspect-ratio: 16 / 9; min-height: 230px; border-top: 1px solid #252525; background: #050505; }
         .youtube-embed > div, .file-embed > div { width: 100%; height: 100%; }
-        .youtube-embed iframe { width: 100%; height: 100%; display: block; border: 0; }
+        .youtube-embed iframe { width: 100%; height: 100%; display: block; border: 0; pointer-events: none; }
         .spotify-embed { width: 100%; min-height: 86px; border-top: 1px solid #252525; background: #050505; }
+        .spotify-embed iframe { pointer-events: none; }
         .file-embed { width: 100%; min-height: 42px; border-top: 1px solid #252525; background: #050505; }
         .music-readonly { margin: 0; padding: 10px; color: #9d9d9d; font-size: 12px; line-height: 1.35; border-bottom: 1px solid #252525; }
         .music-readonly p { margin: 0 0 4px; color: #ddd; }
-        .music-panel iframe.readonly, .spotify-embed.readonly { pointer-events: none; filter: grayscale(0.35); }
+        .music-panel iframe.readonly, .spotify-embed.readonly { filter: grayscale(0.35); }
         .youtube-embed.readonly { filter: grayscale(0.18); }
         .youtube-embed.readonly > div, .youtube-embed.readonly iframe { pointer-events: none; }
         .player-local-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px; border-top: 1px solid #252525; background: #0d0d0d; }
