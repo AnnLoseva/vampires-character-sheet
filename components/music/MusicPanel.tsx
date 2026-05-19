@@ -88,7 +88,9 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
     const notify = () => window.dispatchEvent(new CustomEvent(VISIBLE_MUSIC_ENGINE_EVENT))
     notify()
-    return () => notify()
+    return () => {
+      void notify()
+    }
   }, [hidden, playbackEnabled, musicProvider])
 
   useEffect(() => {
