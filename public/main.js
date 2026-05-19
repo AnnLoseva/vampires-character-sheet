@@ -5699,215 +5699,322 @@ function getSheetPdfFileName() {
     return `V5_${rawName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`;
 }
 
-function syncFormStateToClone(sourceRoot, cloneRoot) {
-    const sourceFields = sourceRoot.querySelectorAll('input, textarea, select');
-    const cloneFields = cloneRoot.querySelectorAll('input, textarea, select');
+function getSelectText(id) {
+    const select = document.getElementById(id);
+    if (!select) return '';
+    return select.options?.[select.selectedIndex]?.textContent?.trim() || select.value || '';
+}
 
-    sourceFields.forEach((sourceField, index) => {
-        const cloneField = cloneFields[index];
-        if (!cloneField) return;
+function getInputValue(id) {
+    return (document.getElementById(id)?.value || '').trim();
+}
 
-        if (sourceField.matches('input[type="radio"], input[type="checkbox"]')) {
-            cloneField.checked = sourceField.checked;
-            if (sourceField.checked) cloneField.setAttribute('checked', 'checked');
-            else cloneField.removeAttribute('checked');
-            return;
+function getTextValue(id) {
+    return (document.getElementById(id)?.textContent || '').trim();
+}
+
+function getCheckedDots(name, fallback = 0) {
+    return parseInt(document.querySelector(`input[name="${name}"]:checked`)?.value || String(fallback), 10) || 0;
+}
+
+function getSheetPdfData() {
+    const attrGroups = {
+        'Физические': ['Сила', 'Ловкость', 'Выносливость'],
+        'Социальные': ['Обаяние', 'Манипуляция', 'Самообладание'],
+        'Ментальные': ['Интеллект', 'Смекалка', 'Упорство']
+    };
+    const skillGroups = {
+        'Физические': ['Атлетика', 'Вождение', 'Воровство', 'Выживание', 'Драка', 'Ремесло', 'Скрытность', 'Стрельба', 'Фехтование'],
+        'Социальные': ['Запугивание', 'Исполнение', 'Лидерство', 'Обращение с животными', 'Проницательность', 'Убеждение', 'Уличное чутьё', 'Хитрость', 'Этикет'],
+        'Ментальные': ['Гуманитарные науки', 'Естественные науки', 'Медицина', 'Наблюдательность', 'Оккультизм', 'Политика', 'Расследование', 'Техника', 'Финансы']
+    };
+
+    const disciplines = Object.keys(disciplineSources || {}).map(name => ({
+        name,
+        dots: Object.values(disciplineSources[name] || {}).reduce((sum, value) => sum + Number(value || 0), 0),
+        powers: (selectedPowers[name] || []).map(power => typeof power === 'string' ? power : power.name || power.название || '').filter(Boolean)
+    })).filter(item => item.dots > 0);
+
+    return {
+        name: getInputValue('char-name') || 'Kindred',
+        info: [
+            ['Сир', getInputValue('sire-input')],
+            ['Концепция', getInputValue('concept-input')],
+            ['Натура', getInputValue('nature-input')],
+            ['Маска', getInputValue('mask-input')],
+            ['Истинный возраст', getInputValue('true-age-input')],
+            ['Видимый возраст', getInputValue('apparent-age-input')],
+            ['Дата рождения', getInputValue('birth-date-input')],
+            ['Дата смерти', getInputValue('death-date-input')],
+            ['Клан', getSelectText('clan-input')],
+            ['Стиль охоты', getSelectText('predator-input')],
+            ['Поколение', getSelectText('generation-input')],
+            ['Тип', getSelectText('type-input')]
+        ],
+        clanBane: getInputValue('clan-bane-input'),
+        touchstones: (touchstones || []).map(item => item.text || '').filter(Boolean),
+        appearance: getInputValue('appearance-input'),
+        backstory: getInputValue('backstory-input'),
+        notes: getInputValue('notes-input'),
+        attrGroups,
+        skillGroups,
+        attrValues: Object.values(attrGroups).flat().reduce((acc, name) => ({ ...acc, [name]: getCheckedDots(name, 1) }), {}),
+        skillValues: Object.values(skillGroups).flat().reduce((acc, name) => ({ ...acc, [name]: getCheckedDots(name, 0) }), {}),
+        vitals: [
+            ['Здоровье', getTextValue('val-hp')],
+            ['Сила воли', getTextValue('val-wp')],
+            ['Человечность', getTextValue('val-humanity')],
+            ['Сила крови', getTextValue('val-blood-potency')],
+            ['Свободный опыт', getInputValue('free-exp')]
+        ],
+        disciplines,
+        merits: (selectedMerits || []).map(item => ({ name: item.name, points: item.points || 0 })),
+        flaws: (selectedFlaws || []).map(item => ({ name: item.name, points: item.points || 0 })),
+        thinBloodMerits: (selectedThinBloodMerits || []).map(item => ({ name: item.name, points: item.points || 0 })),
+        thinBloodFlaws: (selectedThinBloodFlaws || []).map(item => ({ name: item.name, points: item.points || 0 })),
+        inventory: (inventory || []).map(item => ({
+            name: item.name || 'Без названия',
+            category: item.category || 'Другое',
+            quantity: item.quantity || 1,
+            description: item.description || '',
+            note: item.note || ''
+        }))
+    };
+}
+
+async function addPdfFont(pdf) {
+    const toBase64 = (buffer) => {
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.length; i += 0x8000) {
+            binary += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
         }
+        return btoa(binary);
+    };
 
-        if (sourceField.tagName === 'SELECT') {
-            cloneField.value = sourceField.value;
-            Array.from(cloneField.options || []).forEach(option => {
-                option.selected = option.value === sourceField.value;
-                if (option.selected) option.setAttribute('selected', 'selected');
-                else option.removeAttribute('selected');
+    const [regular, bold] = await Promise.all([
+        fetch('/fonts/Arial.ttf').then(response => {
+            if (!response.ok) throw new Error('Не удалось загрузить шрифт PDF');
+            return response.arrayBuffer();
+        }),
+        fetch('/fonts/ArialBold.ttf').then(response => {
+            if (!response.ok) throw new Error('Не удалось загрузить жирный шрифт PDF');
+            return response.arrayBuffer();
+        })
+    ]);
+
+    pdf.addFileToVFS('Arial.ttf', toBase64(regular));
+    pdf.addFileToVFS('ArialBold.ttf', toBase64(bold));
+    pdf.addFont('Arial.ttf', 'VTMArial', 'normal');
+    pdf.addFont('ArialBold.ttf', 'VTMArial', 'bold');
+    pdf.setFont('VTMArial', 'normal');
+}
+
+function drawPdfSheet(pdf, data) {
+    const page = {
+        w: pdf.internal.pageSize.getWidth(),
+        h: pdf.internal.pageSize.getHeight(),
+        margin: 28
+    };
+    const colors = {
+        bg: [10, 10, 10],
+        sheet: [0, 0, 0],
+        panel: [8, 8, 8],
+        line: [46, 46, 46],
+        text: [220, 220, 220],
+        muted: [130, 130, 130],
+        red: [255, 49, 49],
+        white: [255, 255, 255],
+        gold: [255, 174, 0]
+    };
+    let y = page.margin;
+
+    const setColor = (color) => pdf.setTextColor(color[0], color[1], color[2]);
+    const fillPage = () => {
+        pdf.setFillColor(...colors.bg);
+        pdf.rect(0, 0, page.w, page.h, 'F');
+        pdf.setFillColor(...colors.sheet);
+        pdf.setDrawColor(...colors.line);
+        pdf.rect(20, 18, page.w - 40, page.h - 36, 'FD');
+        y = page.margin + 8;
+    };
+    const addPage = () => {
+        pdf.addPage();
+        fillPage();
+    };
+    const ensureSpace = (height) => {
+        if (y + height > page.h - page.margin) addPage();
+    };
+    const text = (value, x, yy, options = {}) => {
+        pdf.setFont('VTMArial', options.bold ? 'bold' : 'normal');
+        pdf.setFontSize(options.size || 9);
+        setColor(options.color || colors.text);
+        pdf.text(String(value || ''), x, yy, options.align ? { align: options.align } : undefined);
+    };
+    const wrapped = (value, x, yy, width, options = {}) => {
+        pdf.setFont('VTMArial', options.bold ? 'bold' : 'normal');
+        pdf.setFontSize(options.size || 9);
+        const lines = pdf.splitTextToSize(String(value || ''), width);
+        setColor(options.color || colors.text);
+        pdf.text(lines, x, yy);
+        return lines.length * (options.lineHeight || 11);
+    };
+    const section = (title) => {
+        ensureSpace(28);
+        y += 10;
+        text(title.toUpperCase(), page.w / 2, y, { size: 14, bold: true, color: colors.white, align: 'center' });
+        y += 8;
+        pdf.setDrawColor(...colors.line);
+        pdf.line(page.margin + 12, y, page.w - page.margin - 12, y);
+        y += 14;
+    };
+    const panel = (x, yy, w, h) => {
+        pdf.setFillColor(...colors.panel);
+        pdf.setDrawColor(...colors.line);
+        pdf.roundedRect(x, yy, w, h, 3, 3, 'FD');
+    };
+    const field = (label, value, x, yy, w, h = 27) => {
+        panel(x, yy, w, h);
+        text(label, x + 8, yy + 10, { size: 6.8, bold: true, color: colors.muted });
+        wrapped(value || ' ', x + 8, yy + 22, w - 16, { size: 8.6, lineHeight: 9.8, color: colors.white });
+    };
+    const dots = (count, x, yy, max = 5) => {
+        for (let i = 1; i <= max; i++) {
+            pdf.setDrawColor(...colors.red);
+            if (i <= count) {
+                pdf.setFillColor(...colors.red);
+                pdf.circle(x + (i - 1) * 9, yy, 3.1, 'FD');
+            } else {
+                pdf.circle(x + (i - 1) * 9, yy, 3.1, 'S');
+            }
+        }
+    };
+    const dotText = (count, max = 5) => '●'.repeat(Math.max(0, count)) + '○'.repeat(Math.max(0, max - count));
+    const blockText = (title, value) => {
+        if (!value) return;
+        const width = page.w - page.margin * 2 - 28;
+        const lines = pdf.splitTextToSize(value, width);
+        const height = Math.max(46, 28 + lines.length * 10);
+        ensureSpace(height + 8);
+        panel(page.margin + 14, y, width + 14, height);
+        text(title, page.margin + 24, y + 14, { size: 8, bold: true, color: colors.red });
+        wrapped(value, page.margin + 24, y + 29, width - 6, { size: 8.5, lineHeight: 10.5 });
+        y += height + 8;
+    };
+
+    fillPage();
+
+    text(data.name, page.w / 2, y + 14, { size: 20, bold: true, color: colors.red, align: 'center' });
+    text('Vampire: the Masquerade V5 - лист персонажа', page.w / 2, y + 30, { size: 8, color: colors.muted, align: 'center' });
+    y += 46;
+
+    section('Социальное');
+    const fieldW = (page.w - page.margin * 2 - 24) / 3;
+    data.info.forEach(([label, value], index) => {
+        const x = page.margin + 14 + (index % 3) * (fieldW + 8);
+        if (index > 0 && index % 3 === 0) y += 35;
+        field(label, value, x, y, fieldW, 29);
+    });
+    y += 43;
+    blockText('Изъян клана', data.clanBane);
+    if (data.touchstones.length) blockText('Опоры и принципы', data.touchstones.map((item, index) => `${index + 1}. ${item}`).join('\n'));
+    blockText('Внешность', data.appearance);
+    blockText('Предыстория', data.backstory);
+    blockText('Заметки персонажа', data.notes);
+
+    addPage();
+    section('Броски / механика');
+    const drawGroups = (title, groups, values, startY) => {
+        y = startY;
+        text(title, page.w / 2, y, { size: 13, bold: true, color: colors.white, align: 'center' });
+        y += 12;
+        const colW = (page.w - page.margin * 2 - 28) / 3;
+        const top = y;
+        Object.entries(groups).forEach(([group, names], groupIndex) => {
+            const x = page.margin + 14 + groupIndex * colW;
+            panel(x, top, colW - 6, 18 + names.length * 15);
+            text(group, x + (colW - 6) / 2, top + 13, { size: 8, bold: true, color: colors.muted, align: 'center' });
+            names.forEach((name, index) => {
+                const rowY = top + 28 + index * 15;
+                text(name, x + 8, rowY, { size: 8.4 });
+                text(dotText(values[name] || 0), x + colW - 53, rowY, { size: 8.2, color: colors.red });
             });
-            return;
-        }
+        });
+        y = top + 24 + Math.max(...Object.values(groups).map(names => names.length)) * 15;
+    };
 
-        cloneField.value = sourceField.value;
-        cloneField.setAttribute('value', sourceField.value);
-        if (sourceField.tagName === 'TEXTAREA') cloneField.textContent = sourceField.value;
+    drawGroups('Характеристики', data.attrGroups, data.attrValues, y);
+    y += 18;
+    drawGroups('Навыки', data.skillGroups, data.skillValues, y);
+    y += 20;
+
+    const vitalW = (page.w - page.margin * 2 - 42) / data.vitals.length;
+    data.vitals.forEach(([label, value], index) => {
+        const x = page.margin + 14 + index * (vitalW + 4);
+        panel(x, y, vitalW, 35);
+        text(label, x + vitalW / 2, y + 12, { size: 7, bold: true, color: colors.muted, align: 'center' });
+        text(value || '-', x + vitalW / 2, y + 27, { size: 13, bold: true, color: colors.white, align: 'center' });
     });
-}
+    y += 48;
 
-function printableValueForControl(control) {
-    if (control.tagName === 'SELECT') {
-        return control.options[control.selectedIndex]?.textContent?.trim() || control.value || '';
+    if (data.disciplines.length) {
+        section('Дисциплины');
+        data.disciplines.forEach(item => {
+            ensureSpace(24);
+            text(item.name, page.margin + 18, y, { size: 9.2, bold: true });
+            dots(item.dots, page.w - page.margin - 72, y - 2);
+            y += 12;
+            if (item.powers.length) {
+                y += wrapped(`Силы: ${item.powers.join(', ')}`, page.margin + 28, y, page.w - page.margin * 2 - 52, { size: 7.8, color: colors.muted, lineHeight: 9.2 });
+            }
+        });
     }
-    return control.value || control.textContent || '';
-}
 
-function replaceControlsWithPrintableText(sourceRoot, cloneRoot) {
-    const sourceControls = sourceRoot.querySelectorAll('textarea, select, input:not([type="radio"]):not([type="checkbox"]):not([type="file"]):not([type="hidden"])');
-    const cloneControls = cloneRoot.querySelectorAll('textarea, select, input:not([type="radio"]):not([type="checkbox"]):not([type="file"]):not([type="hidden"])');
+    const advantageLines = [
+        ...data.merits.map(item => `Преимущество: ${item.name} ${dotText(item.points, item.points)}`),
+        ...data.flaws.map(item => `Недостаток: ${item.name} ${dotText(item.points, item.points)}`),
+        ...data.thinBloodMerits.map(item => `Слабокровное преимущество: ${item.name} ${dotText(item.points, item.points)}`),
+        ...data.thinBloodFlaws.map(item => `Слабокровный недостаток: ${item.name} ${dotText(item.points, item.points)}`)
+    ];
+    if (advantageLines.length) blockText('Преимущества и недостатки', advantageLines.join('\n'));
 
-    cloneControls.forEach((control, index) => {
-        const sourceControl = sourceControls[index] || control;
-        const replacement = document.createElement(control.tagName === 'TEXTAREA' ? 'div' : 'span');
-        const computed = window.getComputedStyle(sourceControl);
-        replacement.className = 'printable-control-text';
-        replacement.textContent = printableValueForControl(control);
-        replacement.style.cssText = `
-            display:${control.tagName === 'TEXTAREA' ? 'block' : 'block'};
-            min-height:${Math.max(sourceControl.scrollHeight || 0, sourceControl.offsetHeight || 0, 20)}px;
-            width:100%;
-            box-sizing:border-box;
-            color:${computed.color};
-            background:${computed.backgroundColor === 'rgba(0, 0, 0, 0)' ? 'transparent' : computed.backgroundColor};
-            border:${computed.borderTopWidth} ${computed.borderTopStyle} ${computed.borderTopColor};
-            border-width:${computed.borderTopWidth} ${computed.borderRightWidth} ${computed.borderBottomWidth} ${computed.borderLeftWidth};
-            border-style:${computed.borderTopStyle} ${computed.borderRightStyle} ${computed.borderBottomStyle} ${computed.borderLeftStyle};
-            border-color:${computed.borderTopColor} ${computed.borderRightColor} ${computed.borderBottomColor} ${computed.borderLeftColor};
-            border-radius:${computed.borderRadius};
-            padding:${computed.padding};
-            font:${computed.font};
-            line-height:${computed.lineHeight};
-            white-space:pre-wrap;
-            overflow-wrap:anywhere;
-        `;
-        control.replaceWith(replacement);
-    });
-
-    cloneRoot.querySelectorAll('input[type="file"], input[type="hidden"]').forEach(input => input.remove());
-}
-
-function prepareSheetCloneForPrint(sheet) {
-    const clone = sheet.cloneNode(true);
-    syncFormStateToClone(sheet, clone);
-
-    clone.querySelectorAll('[data-sheet-section]').forEach(section => {
-        section.classList.add('active');
-        section.style.display = 'block';
-    });
-
-    clone.querySelectorAll('[data-sheet-section]:not(:first-child)').forEach(section => {
-        section.classList.add('pdf-section-break');
-    });
-
-    clone.querySelectorAll('button, .portrait-actions, .touchstone-actions, .inventory-card-actions, .locked-origin-control, .archetype-hint-btn, .merit-add-btn').forEach(element => {
-        element.remove();
-    });
-
-    clone.querySelectorAll('.skill-specs').forEach(container => {
-        if (container.children.length > 0) container.style.display = 'flex';
-    });
-
-    replaceControlsWithPrintableText(sheet, clone);
-    return clone;
-}
-
-function getPrintableSheetStyles() {
-    const styles = Array.from(document.querySelectorAll('style')).map(style => style.textContent || '').join('\n');
-    return `
-        ${styles}
-
-        html, body {
-            background: #0a0a0a !important;
-            color: #d0d0d0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            width: auto !important;
-            height: auto !important;
-            min-height: 0 !important;
-            overflow: visible !important;
-            display: block !important;
-        }
-
-        body {
-            padding: 0 !important;
-        }
-
-        .pdf-print-root {
-            width: 980px;
-            margin: 0 auto;
-            background: #0a0a0a;
-        }
-
-        .pdf-print-root .sheet {
-            min-width: 0 !important;
-            width: 980px !important;
-            max-width: 980px !important;
-            box-sizing: border-box !important;
-            margin: 0 auto !important;
-            box-shadow: none !important;
-        }
-
-        .pdf-print-root .pdf-section-break {
-            break-before: page;
-            page-break-before: always;
-        }
-
-        .printable-control-text:empty::before {
-            content: "\\00a0";
-        }
-
-        @page {
-            size: auto;
-            margin: 10mm;
-        }
-
-        @media print {
-            html, body {
-                background: #0a0a0a !important;
-                -webkit-print-color-adjust: exact !important;
-                print-color-adjust: exact !important;
-            }
-
-            .pdf-print-root,
-            .pdf-print-root .sheet {
-                width: 980px !important;
-            }
-        }
-    `;
+    addPage();
+    section('Инвентарь');
+    if (!data.inventory.length) {
+        text('Инвентарь пуст.', page.margin + 18, y, { size: 9, color: colors.muted });
+    } else {
+        data.inventory.forEach(item => {
+            const details = [
+                `${item.category} · ${item.quantity} шт.`,
+                item.description,
+                item.note ? `Заметка: ${item.note}` : ''
+            ].filter(Boolean).join('\n');
+            const lines = pdf.splitTextToSize(details, page.w - page.margin * 2 - 46);
+            const height = Math.max(42, 27 + lines.length * 10);
+            ensureSpace(height + 8);
+            panel(page.margin + 14, y, page.w - page.margin * 2 - 28, height);
+            text(item.name, page.margin + 24, y + 14, { size: 9.5, bold: true, color: colors.white });
+            wrapped(details, page.margin + 24, y + 29, page.w - page.margin * 2 - 46, { size: 8.3, color: colors.muted, lineHeight: 10 });
+            y += height + 8;
+        });
+    }
 }
 
 async function generateSheetPDF() {
+    if (typeof window.jspdf === 'undefined') return alert('jsPDF не загружен');
+    const { jsPDF } = window.jspdf;
     const btn = document.getElementById('btn-pdf');
     const originalText = btn?.textContent || 'Скачать PDF';
-    if (btn) { btn.textContent = 'Готовим PDF…'; btn.disabled = true; }
+    if (btn) { btn.textContent = 'Скачиваем PDF…'; btn.disabled = true; }
 
     try {
-        const sheet = document.getElementById('capture-area');
-        if (!sheet) throw new Error('Не найден лист персонажа');
-
-        const printWindow = window.open('', '_blank');
-        if (!printWindow) {
-            throw new Error('Браузер заблокировал окно печати. Разреши всплывающие окна для сайта и попробуй снова.');
-        }
-
-        const printableSheet = prepareSheetCloneForPrint(sheet);
-        const styles = getPrintableSheetStyles();
-        const fileName = getSheetPdfFileName();
-
-        printWindow.document.open();
-        printWindow.document.write(`<!DOCTYPE html>
-<html lang="ru">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <base href="${window.location.origin}/">
-    <title>${fileName}</title>
-    <style>${styles}</style>
-</head>
-<body class="${document.body.className}">
-    <main class="pdf-print-root"></main>
-</body>
-</html>`);
-        printWindow.document.close();
-        printWindow.document.querySelector('.pdf-print-root').appendChild(printWindow.document.importNode(printableSheet, true));
-
-        await new Promise(resolve => {
-            if (printWindow.document.readyState === 'complete') resolve();
-            else printWindow.addEventListener('load', resolve, { once: true });
-        });
-        await new Promise(resolve => setTimeout(resolve, 250));
-
-        printWindow.focus();
-        printWindow.print();
-
+        const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait', compress: true });
+        await addPdfFont(pdf);
+        drawPdfSheet(pdf, getSheetPdfData());
+        pdf.save(getSheetPdfFileName());
     } catch (err) {
         console.error(err);
-        alert('Ошибка подготовки PDF: ' + err.message);
+        alert('Ошибка генерации PDF: ' + err.message);
     } finally {
         if (btn) { btn.textContent = originalText; btn.disabled = false; }
     }
