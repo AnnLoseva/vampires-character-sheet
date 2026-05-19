@@ -2407,7 +2407,7 @@ export default function GameTableStyles() {
 
         .chat-sidebar {
           display: grid;
-          grid-template-rows: auto auto auto minmax(0, 1fr) auto;
+          grid-template-rows: auto auto minmax(0, 1fr) auto;
         }
 
         .chat-sidebar header {

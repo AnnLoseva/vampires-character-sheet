@@ -56,21 +56,19 @@ function ResizableImageView({ node, updateAttributes, selected }: ReactNodeViewP
         const hasW = dir.includes('w')
 
         let newW = startW
-        let newH = startH
 
         if (hasE) newW = Math.max(60, startW + dx)
         if (hasW) newW = Math.max(60, startW - dx)
-        if (hasS) newH = Math.max(40, startH + dy)
-        if (hasN) newH = Math.max(40, startH - dy)
-
-        // Corner handles: keep aspect ratio
-        if ((hasN || hasS) && (hasE || hasW)) {
-          newH = Math.round(newW / aspect)
+        // Vertical-only handles adjust width proportionally via aspect ratio
+        if ((hasN || hasS) && !(hasE || hasW)) {
+          const dy2 = hasS ? dy : -dy
+          const newH = Math.max(40, startH + dy2)
+          newW = Math.round(newH * aspect)
         }
 
         updateAttributes({
           width: Math.round(newW),
-          height: Math.round(newH),
+          height: null,
         })
       }
 
@@ -111,7 +109,7 @@ function ResizableImageView({ node, updateAttributes, selected }: ReactNodeViewP
         style={{
           display: 'block',
           width: w ? `${w}px` : 'auto',
-          height: h ? `${h}px` : 'auto',
+          height: 'auto',
           maxWidth: '100%',
           borderRadius: 3,
           outline: selected ? '2px solid #d6aa65' : '2px solid transparent',
