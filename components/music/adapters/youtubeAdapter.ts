@@ -110,7 +110,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
       height: 260,
       playerVars: {
         autoplay: 0,
-        controls: this.options.isMaster ? 1 : 0,
+        controls: 1,
         enablejsapi: 1,
         origin: window.location.origin,
         playsinline: 1,

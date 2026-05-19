@@ -60,6 +60,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
   const musicFileInputRef = useRef<HTMLInputElement>(null)
   const playerMountRef = useRef<HTMLDivElement>(null)
+  const youtubeShellRef = useRef<HTMLDivElement>(null)
   const engineRef = useRef<MusicSyncEngine | null>(null)
   const musicChannelRef = useRef<MusicChannel | null>(null)
   const adapterRef = useRef<MusicSyncAdapter | null>(null)
@@ -765,6 +766,12 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     )
   }
 
+  const openYouTubeFullscreen = () => {
+    const el = youtubeShellRef.current
+    if (!el) return
+    if (el.requestFullscreen) el.requestFullscreen()
+  }
+
   const showPlayerShell = musicProvider === 'youtube' || musicProvider === 'spotify' || musicProvider === 'file'
   const youtubeLabel = musicState.playlistId ? `YouTube playlist ${musicState.playlistIndex ?? 0}` : 'YouTube'
 
@@ -851,7 +858,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           ) : !hidden ? (
             // visible web embeds when the Music panel is open
             musicProvider === 'youtube' ? (
-              <div className={`youtube-embed ${!isMaster ? 'readonly' : ''}`} aria-label="YouTube плеер">
+              <div className={`youtube-embed ${!isMaster ? 'readonly' : ''}`} aria-label="YouTube плеер" ref={youtubeShellRef}>
                 <div id={VISIBLE_MUSIC_ENGINE_ID} ref={playerMountRef} />
               </div>
             ) : (
@@ -883,6 +890,9 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             <input type="range" min="0" max="100" value={localVolume} onChange={event => setPlayerLocalVolume(Number(event.target.value))} />
             <strong>{localVolume}%</strong>
           </label>
+          {musicProvider === 'youtube' ? (
+            <button type="button" onClick={openYouTubeFullscreen}>⛶ Полный экран</button>
+          ) : null}
           {unlockVisible ? <button type="button" onClick={() => { adapterRef.current?.play(); setUnlockVisible(false) }}>Включить музыку</button> : null}
         </div>
       ) : null}
@@ -991,9 +1001,8 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .music-readonly p { margin: 0 0 4px; color: #ddd; }
         .music-panel iframe.readonly, .spotify-embed.readonly { filter: grayscale(0.35); }
         .youtube-embed.readonly { filter: grayscale(0.18); }
-        .youtube-embed.readonly > div, .youtube-embed.readonly iframe { pointer-events: none; }
-        .player-local-controls { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 10px; border-top: 1px solid #252525; background: #0d0d0d; }
-        .player-local-controls label { min-width: 0; display: grid; grid-template-columns: auto minmax(80px, 1fr) 42px; gap: 8px; align-items: center; color: #bdbdbd; font-size: 12px; }
+        .player-local-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px; border-top: 1px solid #252525; background: #0d0d0d; }
+        .player-local-controls label { flex: 1; min-width: 160px; display: grid; grid-template-columns: auto minmax(80px, 1fr) 42px; gap: 8px; align-items: center; color: #bdbdbd; font-size: 12px; }
         .player-local-controls input { width: 100%; accent-color: #9ab7ff; }
         .player-local-controls strong { color: #eee; font-size: 12px; text-align: right; }
         .player-local-controls button { min-width: 0; height: 30px; border: 1px solid #333; border-radius: 5px; background: #181818; color: #f4f4f4; cursor: pointer; font: inherit; font-size: 12px; white-space: nowrap; }
