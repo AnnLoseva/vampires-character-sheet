@@ -767,7 +767,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         </>
       ) : null}
 
-      {!isMaster && ((musicProvider === 'youtube' && musicState.url) || (musicProvider === 'file' && musicState.url)) ? (
+      {playbackEnabled && !isMaster && ((musicProvider === 'youtube' && musicState.url) || (musicProvider === 'file' && musicState.url)) ? (
         <div className="player-local-controls" aria-label="Локальные настройки плеера">
           <label>
             <span>Громкость</span>

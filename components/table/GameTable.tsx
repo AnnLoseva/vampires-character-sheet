@@ -3557,7 +3557,7 @@ export default function VampireTable() {
         tableRole={tableRole}
         channelRef={channelRef}
         hidden
-        playbackEnabled={!isMusicPanelVisible}
+        playbackEnabled
       />
 
       <section className={`table-layout ${isMaster && leftPanelOpen ? 'with-left-toolbar' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
@@ -3734,7 +3734,7 @@ export default function VampireTable() {
 
             {leftToolbarTab === 'music' ? (
               <div style={{ flex: 1, overflow: 'auto' }}>
-                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={isMusicPanelVisible} />
+                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={false} />
               </div>
             ) : null}
           </aside>
@@ -3928,7 +3928,7 @@ export default function VampireTable() {
 
             {!isMaster && mediaTab === 'music' ? (
               <div className="table-right-panel" style={{ overflow: 'auto' }}>
-                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={isMusicPanelVisible} />
+                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={false} />
               </div>
             ) : null}
           </section>
