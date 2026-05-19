@@ -60,7 +60,17 @@ export class YouTubeAdapter implements MusicSyncAdapter {
     }
 
     if (this.player) {
-      this.suppressStateEventsUntil = Date.now() + 1200
+      this.suppressStateEventsUntil = Date.now() + 5000
+      const iframe = this.container?.querySelector('iframe')
+      if (iframe) {
+        container.innerHTML = ''
+        container.appendChild(iframe)
+        this.container = container
+        this.cancelled = false
+        this.syncPlayer()
+        return
+      }
+
       this.player.destroy()
       this.player = null
       this.loadedKey = ''
@@ -98,7 +108,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
 
   destroy() {
     this.cancelled = true
-    this.suppressStateEventsUntil = Date.now() + 1200
+    this.suppressStateEventsUntil = Date.now() + 5000
     if (this.driftTimer !== null) window.clearInterval(this.driftTimer)
     this.driftTimer = null
     this.player?.destroy()

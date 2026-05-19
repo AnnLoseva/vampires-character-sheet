@@ -861,35 +861,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             }}
             placeholder="YouTube или Spotify ссылка"
           />
-          <div className="music-link-actions">
-            <button type="button" onClick={() => applyMusicDraft()}>
-              Применить
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                if (!musicStateRef.current.url || musicDraftDirtyRef.current) {
-                  applyMusicDraft({ play: true })
-                  return
-                }
-                publishMusicState({
-                  isPlaying: !musicStateRef.current.isPlaying,
-                  positionSeconds: Math.max(0, Math.floor(engineRef.current?.getEffectivePosition() ?? 0)),
-                })
-              }}
-            >
-              {musicState.isPlaying ? 'Пауза' : 'Играть'}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                musicDraftDirtyRef.current = false
-                setMusicDraft(musicStateRef.current.url || '')
-              }}
-            >
-              Сброс
-            </button>
-          </div>
           <div className="music-meta">
             <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider === 'youtube' ? youtubeLabel : musicProvider}</span>
             <span>{Math.floor(getEffectiveMusicPosition(musicState))} сек.</span>
