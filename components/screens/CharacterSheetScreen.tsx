@@ -25,6 +25,7 @@ export default function CharacterSheetPage() {
           margin: 0 !important;
           padding: 0 !important;
           height: 100vh !important;
+          height: 100dvh !important;
           width: 100vw !important;
           overflow: hidden !important;
           background: #0a0a0a !important;
@@ -68,15 +69,7 @@ export default function CharacterSheetPage() {
 
       <iframe
         src={iframeSrc}
-        style={{
-          position: 'fixed',
-          top: 64,
-          left: 0,
-          width: '100vw',
-          height: 'calc(100vh - 64px)',
-          border: 'none',
-          zIndex: 1,
-        }}
+        className="sheet-iframe"
         title="VTM V5 Character Sheet"
       />
 
@@ -117,6 +110,17 @@ export default function CharacterSheetPage() {
         .sheet-nav-links a:hover {
           background: #2a1111;
           border-color: #ff3131;
+        }
+
+        .sheet-iframe {
+          position: fixed;
+          top: 64px;
+          left: 0;
+          width: 100vw;
+          height: calc(100vh - 64px);
+          height: calc(100dvh - 64px);
+          border: none;
+          z-index: 1;
         }
       `}</style>
     </>

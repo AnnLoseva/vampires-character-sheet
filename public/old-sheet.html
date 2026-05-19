@@ -2,6 +2,7 @@
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>VTM V5 Digital Sheet v1.0.19</title>
     
 
@@ -16,6 +17,7 @@
         color: #d0d0d0;
         font-family: 'Courier New', Courier, monospace;
         min-height: 100vh;
+        min-height: 100dvh;
         overflow-x: hidden;
     }
 
@@ -25,6 +27,7 @@
         gap: 20px;
         padding: 20px 10px;
         min-height: 100vh;
+        min-height: 100dvh;
     }
 
     .sheet {
@@ -69,10 +72,12 @@
         color: #d0d0d0;
         font-family: 'Courier New', Courier, monospace;
         padding: 20px 15px 20px 30px;
+        padding-bottom: calc(20px + env(safe-area-inset-bottom));
         display: flex;
         justify-content: center;
         align-items: flex-start;
         min-height: 100vh;
+        min-height: 100dvh;
         overflow-x: hidden;
         gap: 18px;
     }
