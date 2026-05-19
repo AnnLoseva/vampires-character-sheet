@@ -12,6 +12,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
   private audio: HTMLAudioElement | null = null
   private state: MusicState | null = null
   private callback: ((patch: MusicAdapterStateChange) => void) | null = null
+  private isDestroying = false
 
   constructor(private options: LocalAudioAdapterOptions) {}
 
@@ -69,9 +70,11 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
   }
 
   destroy() {
+    this.isDestroying = true
     this.audio?.pause()
     this.audio?.remove()
     this.audio = null
+    this.isDestroying = false
   }
 
   onStateChange(callback: (patch: MusicAdapterStateChange) => void) {
@@ -82,6 +85,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
   }
 
   private publishElementState(isPlaying: boolean) {
+    if (this.isDestroying) return
     if (!this.options.isMaster || !this.audio || !this.options.canPublish()) return
     const duration = Number.isFinite(this.audio.duration) ? Math.max(0, this.audio.duration) : 0
     const positionSeconds = Math.max(0, Math.floor(this.audio.currentTime || 0))

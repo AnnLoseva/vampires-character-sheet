@@ -119,6 +119,7 @@ export class SpotifyAdapter implements MusicSyncAdapter {
         this.controller = controller
         controller.addListener('ready', () => this.syncController())
         controller.addListener('playback_update', event => {
+          if (this.cancelled) return
           if (!this.options.isMaster || !this.options.canPublish()) return
           const now = Date.now()
           const nextPosition = Math.max(0, Math.floor((event.data.position || 0) / 1000))

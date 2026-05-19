@@ -173,6 +173,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
   }
 
   private handlePlayerState(event: YouTubePlayerStateEvent) {
+    if (this.cancelled) return
     if (event.data === 1) this.options.onStatus('Играет синхронно')
     if (event.data === 2 || event.data === 0) this.options.onStatus('Пауза')
     if (!this.options.isMaster || (event.data !== 0 && event.data !== 1 && event.data !== 2)) return

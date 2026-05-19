@@ -29,6 +29,7 @@ type MusicPanelProps = {
   tableRole: 'master' | 'player' | null
   channelRef?: MusicChannelRef
   hidden?: boolean
+  playbackEnabled?: boolean
 }
 
 const emptyMusicState = (room: string): MusicState => ({
@@ -41,7 +42,7 @@ const emptyMusicState = (room: string): MusicState => ({
   provider: 'none',
 })
 
-export default function MusicPanel({ room, tableRole, channelRef, hidden = false }: MusicPanelProps) {
+export default function MusicPanel({ room, tableRole, channelRef, hidden = false, playbackEnabled = true }: MusicPanelProps) {
   const isMaster = tableRole === 'master'
   const [musicLibrary, setMusicLibrary] = useState<MusicLibraryItem[]>([])
   const [selectedMusicFolderId, setSelectedMusicFolderId] = useState<string | null>(null)
@@ -105,6 +106,17 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       onStatus: setMusicStatus,
     })
   }, [room, isMaster, channelRef])
+
+  useEffect(() => {
+    const handleLocalMusicState = (event: Event) => {
+      const music = (event as CustomEvent<MusicState>).detail
+      if (!music || music.room !== room) return
+      engineRef.current?.applyIncoming(music)
+    }
+
+    window.addEventListener('vtm-music-state', handleLocalMusicState)
+    return () => window.removeEventListener('vtm-music-state', handleLocalMusicState)
+  }, [room])
 
   useEffect(() => {
     const supabase = createClient()
@@ -227,6 +239,14 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   }, [room])
 
   useEffect(() => {
+    if (!playbackEnabled) {
+      adapterRef.current?.destroy()
+      adapterRef.current = null
+      adapterProviderRef.current = 'none'
+      if (playerMountRef.current) playerMountRef.current.innerHTML = ''
+      return
+    }
+
     if (!playerMountRef.current) return
     const provider = musicProvider
     if (adapterRef.current && (adapterProviderRef.current !== provider || adapterMasterRef.current !== isMaster)) {
@@ -282,13 +302,15 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     }
 
     void adapterRef.current?.load(musicState)
-  }, [musicProvider, musicState, isMaster, localVolume])
+  }, [musicProvider, musicState, isMaster, localVolume, playbackEnabled])
 
   useEffect(() => {
+    if (!playbackEnabled) return
     adapterRef.current?.setVolume?.(localVolume)
-  }, [localVolume])
+  }, [localVolume, playbackEnabled])
 
   useEffect(() => {
+    if (!playbackEnabled) return
     if (!musicState.isPlaying || (musicProvider !== 'youtube' && musicProvider !== 'file')) return
     const unlock = () => {
       adapterRef.current?.play()
@@ -302,7 +324,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       window.removeEventListener('pointerdown', unlock)
       window.removeEventListener('keydown', unlock)
     }
-  }, [musicProvider, musicState.isPlaying])
+  }, [musicProvider, musicState.isPlaying, playbackEnabled])
 
   const broadcast = (event: string, payload: unknown) => {
     musicChannelRef.current?.send({ type: 'broadcast', event, payload })
@@ -662,7 +684,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   const youtubeLabel = musicState.playlistId ? `YouTube playlist ${musicState.playlistIndex ?? 0}` : 'YouTube'
 
   return (
-    <section className={`music-panel table-right-panel ${hidden ? 'table-right-panel-hidden' : ''}`} aria-label="Музыка комнаты">
+    <section className={`music-panel table-right-panel ${hidden ? 'music-panel-hidden' : ''}`} aria-label="Музыка комнаты">
       <header>
         <strong>Музыка</strong>
         <span>{isMaster ? musicStatus : 'Музыкой управляет мастер'}</span>
@@ -778,7 +800,17 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           min-height: 0;
           align-self: stretch;
         }
-        .table-right-panel-hidden { display: none !important; }
+        .music-panel-hidden {
+          position: fixed !important;
+          left: 0;
+          bottom: 0;
+          width: 1px !important;
+          height: 1px !important;
+          opacity: 0;
+          pointer-events: none;
+          overflow: hidden;
+          z-index: -1;
+        }
         .music-panel {
           border: 1px solid #2b2b2b;
           background: #101010;

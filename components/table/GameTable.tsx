@@ -620,23 +620,26 @@ export default function VampireTable() {
       source_type: track.sourceType,
     }
 
+    const payload = {
+      room: nextMusic.room,
+      url: nextMusic.url,
+      activeUri: nextMusic.active_uri,
+      isPlaying: nextMusic.is_playing,
+      positionSeconds: nextMusic.position_seconds,
+      updatedAt: nextMusic.updated_at,
+      provider: nextMusic.provider,
+      playlistId: nextMusic.playlist_id || undefined,
+      playlistIndex: typeof nextMusic.playlist_index === 'number' ? nextMusic.playlist_index : undefined,
+      trackId: nextMusic.track_id,
+      sourceType: nextMusic.source_type,
+    }
+
     await createClient().from(TABLE_MUSIC).upsert(nextMusic)
+    window.dispatchEvent(new CustomEvent('vtm-music-state', { detail: payload }))
     channelRef.current?.send({
       type: 'broadcast',
       event: 'music',
-      payload: {
-        room: nextMusic.room,
-        url: nextMusic.url,
-        activeUri: nextMusic.active_uri,
-        isPlaying: nextMusic.is_playing,
-        positionSeconds: nextMusic.position_seconds,
-        updatedAt: nextMusic.updated_at,
-        provider: nextMusic.provider,
-        playlistId: nextMusic.playlist_id || undefined,
-        playlistIndex: typeof nextMusic.playlist_index === 'number' ? nextMusic.playlist_index : undefined,
-        trackId: nextMusic.track_id,
-        sourceType: nextMusic.source_type,
-      },
+      payload,
     })
   }
 
@@ -1468,6 +1471,9 @@ export default function VampireTable() {
   const selectedScene = scenes.find(scene => scene.id === getSelectedSceneId()) || activeScene
   const activeSceneMusic = useMemo(() => sortSceneMusic(sceneMusic.filter(track => track.sceneId === activeSceneId)), [sceneMusic, activeSceneId])
   const selectedSceneMusic = useMemo(() => sortSceneMusic(sceneMusic.filter(track => track.sceneId === selectedScene?.id)), [sceneMusic, selectedScene?.id])
+  const isMusicPanelVisible = isMaster
+    ? leftPanelOpen && leftToolbarTab === 'music'
+    : rightPanelOpen && rightRailTab === 'media' && mediaTab === 'music'
   const selectedLayer = layers.find(layer => layer.id === selectedLayerId) || null
   const previewLayer = layers.find(layer => layer.id === previewLayerId) || null
   const currentOwnerId = isMaster ? 'master' : chatUser?.id ?? null
@@ -3446,6 +3452,13 @@ export default function VampireTable() {
       </section> : null}
 
       <section className={`table-layout ${isMaster && leftPanelOpen ? 'with-left-toolbar' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
+        <MusicPanel
+          room={room}
+          tableRole={tableRole}
+          channelRef={channelRef}
+          hidden
+          playbackEnabled={!isMusicPanelVisible}
+        />
         <TableLeftPanel
           isMaster={isMaster}
           leftPanelOpen={leftPanelOpen}
@@ -3616,7 +3629,7 @@ export default function VampireTable() {
 
             {leftToolbarTab === 'music' ? (
               <div style={{ flex: 1, overflow: 'auto' }}>
-                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} />
+                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={isMusicPanelVisible} />
               </div>
             ) : null}
           </aside>
@@ -3806,7 +3819,7 @@ export default function VampireTable() {
 
             {!isMaster && mediaTab === 'music' ? (
               <div className="table-right-panel" style={{ overflow: 'auto' }}>
-                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} />
+                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={isMusicPanelVisible} />
               </div>
             ) : null}
           </section>
