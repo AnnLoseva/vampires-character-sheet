@@ -48,6 +48,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
   private lastPublishAt = 0
   private driftTimer: number | null = null
   private cancelled = false
+  private suppressStateEventsUntil = 0
 
   constructor(private options: YouTubeAdapterOptions) {}
 
@@ -59,6 +60,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
     }
 
     if (this.player) {
+      this.suppressStateEventsUntil = Date.now() + 1200
       this.player.destroy()
       this.player = null
       this.loadedKey = ''
@@ -96,6 +98,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
 
   destroy() {
     this.cancelled = true
+    this.suppressStateEventsUntil = Date.now() + 1200
     if (this.driftTimer !== null) window.clearInterval(this.driftTimer)
     this.driftTimer = null
     this.player?.destroy()
@@ -194,6 +197,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
 
   private handlePlayerState(event: YouTubePlayerStateEvent) {
     if (this.cancelled) return
+    if (Date.now() < this.suppressStateEventsUntil) return
     if (event.data === 1) this.options.onStatus('Играет синхронно')
     if (event.data === 2 || event.data === 0) this.options.onStatus('Пауза')
     if (!this.options.isMaster || (event.data !== 0 && event.data !== 1 && event.data !== 2)) return

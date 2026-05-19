@@ -25,6 +25,8 @@ import {
 
 const VISIBLE_MUSIC_ENGINE_ID = 'vtm-music-visible-engine'
 const VISIBLE_MUSIC_ENGINE_EVENT = 'vtm-music-visible-engine-updated'
+const MUSIC_UNLOCK_NEEDED_EVENT = 'vtm-music-unlock-needed'
+const MUSIC_UNLOCK_REQUEST_EVENT = 'vtm-music-unlock-request'
 
 type MusicPanelProps = {
   room: string
@@ -125,6 +127,18 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   useEffect(() => {
     const savedVolume = Number(window.localStorage.getItem('vtm-youtube-volume'))
     if (Number.isFinite(savedVolume)) setLocalVolume(Math.min(100, Math.max(0, savedVolume)))
+  }, [])
+
+  useEffect(() => {
+    const showUnlock = () => setUnlockVisible(true)
+    const hideUnlock = () => setUnlockVisible(false)
+
+    window.addEventListener(MUSIC_UNLOCK_NEEDED_EVENT, showUnlock)
+    window.addEventListener(MUSIC_UNLOCK_REQUEST_EVENT, hideUnlock)
+    return () => {
+      window.removeEventListener(MUSIC_UNLOCK_NEEDED_EVENT, showUnlock)
+      window.removeEventListener(MUSIC_UNLOCK_REQUEST_EVENT, hideUnlock)
+    }
   }, [])
 
   useEffect(() => {
@@ -333,7 +347,10 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           volume: localVolume,
           onStatus: status => {
             setMusicStatus(status)
-            if (status.includes('Включить музыку')) setUnlockVisible(true)
+            if (status.includes('Включить музыку')) {
+              setUnlockVisible(true)
+              window.dispatchEvent(new CustomEvent(MUSIC_UNLOCK_NEEDED_EVENT))
+            }
           },
           canPublish: () => engineRef.current?.canPublishLifecycleEvent() ?? false,
         })
@@ -351,7 +368,10 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           volume: localVolume,
           onStatus: status => {
             setMusicStatus(status)
-            if (status.includes('Включить музыку')) setUnlockVisible(true)
+            if (status.includes('Включить музыку')) {
+              setUnlockVisible(true)
+              window.dispatchEvent(new CustomEvent(MUSIC_UNLOCK_NEEDED_EVENT))
+            }
           },
           canPublish: () => engineRef.current?.canPublishLifecycleEvent() ?? false,
         })
@@ -398,6 +418,20 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     adapterRef.current?.setVolume?.(localVolume)
   }, [localVolume, playbackEnabled])
 
+  useEffect(() => {
+    if (!playbackEnabled) return
+    const resyncVisibleTab = () => {
+      if (document.visibilityState !== 'visible') return
+      void adapterRef.current?.load(musicStateRef.current)
+    }
+    document.addEventListener('visibilitychange', resyncVisibleTab)
+    window.addEventListener('focus', resyncVisibleTab)
+    return () => {
+      document.removeEventListener('visibilitychange', resyncVisibleTab)
+      window.removeEventListener('focus', resyncVisibleTab)
+    }
+  }, [playbackEnabled])
+
   // Listen for volume changes from the visible (non-playbackEnabled) panel instance
   useEffect(() => {
     if (!playbackEnabled) return
@@ -413,10 +447,21 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
   useEffect(() => {
     if (!playbackEnabled) return
+    const unlockFromVisiblePanel = () => {
+      adapterRef.current?.play()
+      setUnlockVisible(false)
+    }
+    window.addEventListener(MUSIC_UNLOCK_REQUEST_EVENT, unlockFromVisiblePanel)
+    return () => window.removeEventListener(MUSIC_UNLOCK_REQUEST_EVENT, unlockFromVisiblePanel)
+  }, [playbackEnabled])
+
+  useEffect(() => {
+    if (!playbackEnabled) return
     if (!musicState.isPlaying || (musicProvider !== 'youtube' && musicProvider !== 'file')) return
     const unlock = () => {
       adapterRef.current?.play()
       setUnlockVisible(false)
+      window.dispatchEvent(new CustomEvent(MUSIC_UNLOCK_REQUEST_EVENT))
       window.removeEventListener('pointerdown', unlock)
       window.removeEventListener('keydown', unlock)
     }
@@ -922,7 +967,18 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           {musicProvider === 'youtube' ? (
             <button type="button" onClick={openYouTubeFullscreen}>⛶ Полный экран</button>
           ) : null}
-          {unlockVisible ? <button type="button" onClick={() => { adapterRef.current?.play(); setUnlockVisible(false) }}>Включить музыку</button> : null}
+          {unlockVisible ? (
+            <button
+              type="button"
+              onClick={() => {
+                adapterRef.current?.play()
+                setUnlockVisible(false)
+                window.dispatchEvent(new CustomEvent(MUSIC_UNLOCK_REQUEST_EVENT))
+              }}
+            >
+              Включить музыку
+            </button>
+          ) : null}
         </div>
       ) : null}
 
