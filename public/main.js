@@ -5498,6 +5498,92 @@ function setupSaveButton() {
     }
 }
 
+// ==================== ГЕНЕРАЦИЯ PDF (все 3 раздела) ====================
+async function generateSheetPDF() {
+    const area = document.getElementById('capture-area');
+    if (!area) return alert('Не найден #capture-area');
+    if (typeof window.html2canvas !== 'function') return alert('html2canvas не загружен');
+    if (typeof window.jspdf === 'undefined') return alert('jsPDF не загружен');
+
+    const charName = (document.getElementById('char-name')?.value || 'Kindred').trim();
+    const btn = document.getElementById('btn-pdf');
+    const originalText = btn?.textContent || 'Скачать PDF';
+    if (btn) { btn.textContent = 'Генерируем…'; btn.disabled = true; }
+
+    // Запомним текущий раздел чтобы вернуть после
+    const currentSection = localStorage.getItem('vtm-sheet-section') || 'social';
+
+    const sectionNames = ['social', 'mechanics', 'inventory'];
+    const { jsPDF } = window.jspdf;
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const pageWidth = 210; // A4 мм
+
+    try {
+        for (let i = 0; i < sectionNames.length; i++) {
+            const sectionName = sectionNames[i];
+
+            // Показываем только этот раздел
+            document.querySelectorAll('[data-sheet-section]').forEach(s => {
+                s.classList.toggle('active', s.dataset.sheetSection === sectionName);
+            });
+
+            // Ждём перерисовки
+            await new Promise(r => setTimeout(r, 120));
+
+            let restoreTextareaHeights = null;
+            let restoreImageStyles = null;
+            try {
+                restoreTextareaHeights = expandTextareasForCapture(area);
+                restoreImageStyles = stabilizeImagesForCapture(area);
+
+                // Раскрываем специализации
+                area.querySelectorAll('.skill-specs').forEach(c => {
+                    if (c.children.length > 0) c.style.display = 'flex';
+                });
+
+                await new Promise(r => setTimeout(r, 80));
+
+                const canvas = await window.html2canvas(area, {
+                    scale: 2,
+                    useCORS: true,
+                    allowTaint: false,
+                    backgroundColor: '#0a0a0a',
+                    logging: false,
+                });
+
+                const imgData = canvas.toDataURL('image/jpeg', 0.88);
+                // Высота страницы под реальные пропорции, но не больше A4
+                const ratio = canvas.height / canvas.width;
+                const pageHeight = Math.min(ratio * pageWidth, 297);
+
+                if (i > 0) pdf.addPage([pageWidth, pageHeight], 'portrait');
+                else {
+                    // Первая страница уже создана конструктором, подгоняем её размер
+                    pdf.internal.pageSize.width = pageWidth;
+                    pdf.internal.pageSize.height = pageHeight;
+                }
+                pdf.addImage(imgData, 'JPEG', 0, 0, pageWidth, pageHeight);
+
+            } finally {
+                if (restoreImageStyles) restoreImageStyles();
+                if (restoreTextareaHeights) restoreTextareaHeights();
+            }
+        }
+
+        pdf.save(`V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`);
+
+    } catch (err) {
+        console.error(err);
+        alert('Ошибка генерации PDF: ' + err.message);
+    } finally {
+        // Восстанавливаем раздел
+        switchSheetSection(currentSection);
+        if (btn) { btn.textContent = originalText; btn.disabled = false; }
+    }
+}
+
+window.generateSheetPDF = generateSheetPDF;
+
 // ==================== ТРАТА ОПЫТА — АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ УРОВНЯ ====================
 
 let expLog = [];

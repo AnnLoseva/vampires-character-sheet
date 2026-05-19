@@ -358,36 +358,37 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       }
       adapterProviderRef.current = provider
       adapterMasterRef.current = isMaster
-      const visibleMount = typeof document !== 'undefined' ? document.getElementById(VISIBLE_MUSIC_ENGINE_ID) as HTMLDivElement | null : null
-      const globalMount = typeof document !== 'undefined' ? document.getElementById('global-music-engine') as HTMLDivElement | null : null
-      const mountEl = visibleMount ?? (!hidden && playerMountRef.current ? playerMountRef.current : globalMount ?? playerMountRef.current)
-      if (mountEl) {
-        adapterRef.current?.mount(mountEl)
-        adapterRef.current?.onStateChange(patch => {
-          const currentState = musicStateRef.current
-          if (
-            patch.playbackEnded &&
-            isMaster &&
-            currentState.provider !== 'spotify' &&
-            !currentState.playlistId &&
-            (currentState.provider === 'file' || currentState.provider === 'youtube')
-          ) {
-            const nextTrack = getNextLibraryTrack(currentState)
-            if (nextTrack) {
-              publishMusicState({
-                url: nextTrack.url,
-                provider: getMusicProvider(nextTrack.url),
-                activeUri: nextTrack.id,
-                isPlaying: true,
-                positionSeconds: 0,
-              })
-              return
-            }
+      adapterRef.current?.onStateChange(patch => {
+        const currentState = musicStateRef.current
+        if (
+          patch.playbackEnded &&
+          isMaster &&
+          currentState.provider !== 'spotify' &&
+          !currentState.playlistId &&
+          (currentState.provider === 'file' || currentState.provider === 'youtube')
+        ) {
+          const nextTrack = getNextLibraryTrack(currentState)
+          if (nextTrack) {
+            publishMusicState({
+              url: nextTrack.url,
+              provider: getMusicProvider(nextTrack.url),
+              activeUri: nextTrack.id,
+              isPlaying: true,
+              positionSeconds: 0,
+            })
+            return
           }
-          void engineRef.current?.publishMusicState(patch)
-        })
-      }
+        }
+        void engineRef.current?.publishMusicState(patch)
+      })
     }
+
+    // Always re-evaluate the best mount target (runs on every effect trigger,
+    // including when visibleEngineMountVersion changes after the visible panel appears).
+    const visibleMount = typeof document !== 'undefined' ? document.getElementById(VISIBLE_MUSIC_ENGINE_ID) as HTMLDivElement | null : null
+    const globalMount = typeof document !== 'undefined' ? document.getElementById('global-music-engine') as HTMLDivElement | null : null
+    const mountEl = visibleMount ?? (!hidden && playerMountRef.current ? playerMountRef.current : globalMount ?? playerMountRef.current)
+    if (mountEl) adapterRef.current?.mount(mountEl)
 
     void adapterRef.current?.load(musicState)
   }, [musicProvider, musicState, isMaster, localVolume, playbackEnabled, visibleEngineMountVersion])

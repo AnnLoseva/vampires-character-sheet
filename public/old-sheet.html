@@ -817,6 +817,28 @@
             background: rgba(255, 49, 49, 0.1);
         }
 
+        #btn-pdf {
+            background: transparent;
+            color: #9ab7ff;
+            border: 2px solid #9ab7ff;
+            padding: 16px;
+            width: 100%;
+            margin-top: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            border-radius: 6px;
+            transition: all 0.2s;
+        }
+
+        #btn-pdf:hover {
+            background: rgba(154, 183, 255, 0.1);
+        }
+
+        #btn-pdf:disabled, #btn-save:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
         /* ==================== СПЕЦИАЛИЗАЦИИ ==================== */
         .skill-specs { 
             margin-left: 38px; 
@@ -2237,6 +2259,9 @@
             <button id="btn-save" style="padding:18px; font-size:16px;">
                 Скачать как картинку (JPG)
             </button>
+            <button id="btn-pdf" onclick="generateSheetPDF()">
+                Скачать все разделы (PDF)
+            </button>
 
             <button onclick="exportToJSON()" style="padding:16px; font-size:16px; background:#111; color:#ffae00; border:2px solid #a14600;">
                 Экспорт в JSON
@@ -2346,6 +2371,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script src="/main.js"></script>
 <script src="/supabase.js"></script> 
