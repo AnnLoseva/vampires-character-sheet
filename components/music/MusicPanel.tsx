@@ -296,7 +296,9 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       adapterProviderRef.current = provider
       adapterMasterRef.current = isMaster
       // Prefer the hidden global mount so opening the Music tab doesn't create visible iframes.
-      const mountEl = (typeof document !== 'undefined' ? document.getElementById('global-music-engine') as HTMLDivElement | null : null) ?? playerMountRef.current
+      // If the music panel is visible, prefer mounting into the local visible player container
+      const globalMount = typeof document !== 'undefined' ? document.getElementById('global-music-engine') as HTMLDivElement | null : null
+      const mountEl = !hidden && playerMountRef.current ? playerMountRef.current : globalMount ?? playerMountRef.current
       if (mountEl) {
         adapterRef.current?.mount(mountEl)
         adapterRef.current?.onStateChange(patch => {
@@ -759,13 +761,30 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
       {showPlayerShell ? (
         <>
-          <div
-            className={`music-engine-mount ${musicProvider === 'file' ? 'file-engine' : 'web-engine'}`}
-            aria-hidden={musicProvider !== 'file'}
-          >
-            <div ref={playerMountRef} aria-label="Музыка комнаты" />
-          </div>
-          {musicProvider === 'youtube' || musicProvider === 'spotify' ? (
+          {musicProvider === 'file' ? (
+            <div className="music-engine-mount file-engine">
+              <div ref={playerMountRef} aria-label="Музыка комнаты" />
+            </div>
+          ) : !hidden ? (
+            // visible web embeds when the Music panel is open
+            musicProvider === 'youtube' ? (
+              <div className={`youtube-embed ${!isMaster ? 'readonly' : ''}`} aria-label="YouTube плеер">
+                <div ref={playerMountRef} />
+              </div>
+            ) : (
+              <div className={`spotify-embed ${!isMaster ? 'readonly' : ''}`} aria-label="Spotify плеер">
+                <div ref={playerMountRef} />
+              </div>
+            )
+          ) : (
+            // hidden global mount when panel is closed
+            <div className="music-engine-mount web-engine" aria-hidden="true">
+              <div ref={playerMountRef} aria-label="Музыка комнаты" />
+            </div>
+          )}
+
+          {/* show simple placeholder when embed is hidden */}
+          {(hidden && (musicProvider === 'youtube' || musicProvider === 'spotify')) ? (
             <div className="music-web-placeholder" aria-label="Музыкальный плеер">
               <strong>{musicProvider === 'youtube' ? youtubeLabel : 'Spotify'}</strong>
               <span>{musicState.isPlaying ? 'Играет' : 'Пауза'} · {Math.floor(getEffectiveMusicPosition(musicState))} сек.</span>
