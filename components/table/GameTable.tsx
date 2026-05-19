@@ -3455,8 +3455,8 @@ export default function VampireTable() {
           <aside className="left-toolbar" aria-label="Мастерская панель сцен">
             <nav className="left-tabs" aria-label="Разделы сцен">
               <button type="button" className={leftToolbarTab === 'scenes' ? 'active' : ''} onClick={() => setLeftToolbarTab('scenes')}>Сцены</button>
-              <button type="button" className={leftToolbarTab === 'layers' ? 'active' : ''} onClick={() => setLeftToolbarTab('layers')}>Слои сцены</button>
-              <button type="button" className={leftToolbarTab === 'media' ? 'active' : ''} onClick={() => setLeftToolbarTab('media')}>Медиа сцены</button>
+              <button type="button" className={leftToolbarTab === 'layers' ? 'active' : ''} onClick={() => setLeftToolbarTab('layers')}>Слои</button>
+              <button type="button" className={leftToolbarTab === 'media' ? 'active' : ''} onClick={() => setLeftToolbarTab('media')}>Медиа</button>
               <button type="button" className={leftToolbarTab === 'music' ? 'active' : ''} onClick={() => setLeftToolbarTab('music')}>Музыка</button>
             </nav>
 

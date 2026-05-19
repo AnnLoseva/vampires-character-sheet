@@ -187,7 +187,7 @@ export default function GameTableStyles() {
         }
 
         .table-layout.with-left-toolbar {
-          grid-template-columns: 330px minmax(0, 1fr) 420px;
+          grid-template-columns: 380px minmax(0, 1fr) 420px;
         }
 
         .table-layout.right-collapsed {
@@ -195,7 +195,7 @@ export default function GameTableStyles() {
         }
 
         .table-layout.with-left-toolbar.right-collapsed {
-          grid-template-columns: 330px minmax(0, 1fr);
+          grid-template-columns: 380px minmax(0, 1fr);
         }
 
         .play-surface,
@@ -252,7 +252,7 @@ export default function GameTableStyles() {
         }
 
         .master-toggle {
-          left: 318px;
+          left: 368px;
           top: 50%;
           transform: translateY(-50%);
         }
@@ -318,10 +318,12 @@ export default function GameTableStyles() {
         .scene-control-panel,
         .scene-layer-panel,
         .scene-media-panel {
+          min-width: 0;
           min-height: 0;
           display: grid;
           grid-template-rows: auto auto minmax(0, 1fr);
           background: #101010;
+          overflow: hidden;
         }
 
         .scene-control-panel {
@@ -345,6 +347,13 @@ export default function GameTableStyles() {
           padding: 10px;
         }
 
+        .scene-control-panel > header > *,
+        .scene-layer-panel > header > *,
+        .scene-media-panel > header > *,
+        .scene-music-box > header > * {
+          min-width: 0;
+        }
+
         .scene-control-panel header div,
         .scene-music-box header {
           min-width: 0;
@@ -356,6 +365,9 @@ export default function GameTableStyles() {
         .scene-music-box span {
           color: #9c9c9c;
           font-size: 11px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .scene-control-panel strong,
@@ -1209,7 +1221,8 @@ export default function GameTableStyles() {
         }
 
         .media-manager-toolbar {
-          display: flex;
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(92px, 1fr));
           gap: 6px;
           padding: 8px;
           border-bottom: 1px solid #2b2b2b;
@@ -1219,6 +1232,7 @@ export default function GameTableStyles() {
         .media-manager-toolbar button,
         .text-material-form button,
         .library-card button {
+          min-width: 0;
           height: 32px;
           border: 1px solid #773030;
           border-radius: 5px;
@@ -1228,6 +1242,9 @@ export default function GameTableStyles() {
           font: inherit;
           font-size: 12px;
           cursor: pointer;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .media-manager-toolbar button:disabled,
@@ -1238,7 +1255,7 @@ export default function GameTableStyles() {
 
         .media-url-form {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) auto;
+          grid-template-columns: minmax(0, 1fr) minmax(78px, auto);
           gap: 6px;
           padding: 8px;
           border-bottom: 1px solid #2b2b2b;
@@ -1262,6 +1279,7 @@ export default function GameTableStyles() {
         }
 
         .media-url-form button {
+          min-width: 0;
           height: 34px;
           border: 1px solid #773030;
           border-radius: 5px;
@@ -1271,6 +1289,9 @@ export default function GameTableStyles() {
           font: inherit;
           font-size: 12px;
           cursor: pointer;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .media-url-form button:disabled {
