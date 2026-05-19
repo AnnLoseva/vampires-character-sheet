@@ -100,6 +100,7 @@ export type YouTubePlayer = {
   getPlayerState?: () => number
   getPlaylistIndex?: () => number
   getVideoData?: () => { video_id?: string }
+  getIframe?: () => HTMLIFrameElement
   destroy: () => void
 }
 
@@ -139,6 +140,7 @@ export type MusicSyncAdapter = {
 
 export type MusicChannel = {
   send: (args: { type: 'broadcast'; event: string; payload: unknown }) => Promise<unknown> | unknown
+  httpSend?: (event: string, payload: unknown, options?: { timeout?: number }) => Promise<unknown> | unknown
 }
 
 export type MusicChannelRef = MutableRefObject<MusicChannel | null>

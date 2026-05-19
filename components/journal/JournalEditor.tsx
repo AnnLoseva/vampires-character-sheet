@@ -96,7 +96,7 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
   function JournalEditor({ value, onChange, placeholder = 'Текст записи…', compact = false }, ref) {
     const editor = useEditor({
       extensions: [
-        StarterKit,
+        StarterKit.configure({ link: false }),
         ResizableImage,
         Link.configure({ openOnClick: false, autolink: true }),
         Placeholder.configure({ placeholder }),

@@ -9,6 +9,7 @@ import { MusicSyncEngine } from './MusicSyncEngine'
 import type { MusicChannel, MusicChannelRef, MusicDropTarget, MusicLibraryItem, MusicLibraryRow, MusicProvider, MusicState, MusicSyncAdapter, MusicTreeNode } from './types'
 import {
   buildMusicTree,
+  broadcastMusicChannel,
   getEffectiveMusicPosition,
   getMusicProvider,
   getSpotifyUri,
@@ -502,8 +503,8 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   }, [musicProvider, musicState.isPlaying, playbackEnabled])
 
   const broadcast = (event: string, payload: unknown) => {
-    musicChannelRef.current?.send({ type: 'broadcast', event, payload })
-    channelRef?.current?.send({ type: 'broadcast', event, payload })
+    broadcastMusicChannel(musicChannelRef.current, event, payload)
+    broadcastMusicChannel(channelRef?.current, event, payload)
   }
 
   const publishMusicState = (patch: Partial<Omit<MusicState, 'room' | 'updatedAt'>>) => {

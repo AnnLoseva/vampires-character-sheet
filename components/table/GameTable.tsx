@@ -14,6 +14,7 @@ import ChatPanel from './ChatPanel'
 import JournalPanel from './JournalPanel'
 import MasterPanel from './MasterPanel'
 import {
+  broadcastMusicChannel,
   getMusicProvider,
   parseYouTubeUrl,
   safeStorageName as safeMusicStorageName,
@@ -709,11 +710,7 @@ export default function VampireTable() {
       await createClient().from(TABLE_MUSIC).upsert(toLegacyMusicDbRow(legacy))
     }
     window.dispatchEvent(new CustomEvent('vtm-music-state', { detail: payload }))
-    channelRef.current?.send({
-      type: 'broadcast',
-      event: 'music',
-      payload,
-    })
+    broadcastMusicChannel(channelRef.current, 'music', payload)
   }
 
   const raiseHand = () => {
@@ -1639,7 +1636,7 @@ export default function VampireTable() {
     return buildLayerTree(libraryLayers)
   }, [libraryLayers])
   const broadcast = (event: string, payload: unknown) => {
-    channelRef.current?.send({ type: 'broadcast', event, payload })
+    broadcastMusicChannel(channelRef.current, event, payload)
   }
 
   const hashChatPassword = (password: string) => {

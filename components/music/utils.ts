@@ -1,4 +1,4 @@
-import type { MusicLibraryItem, MusicLibraryRow, MusicProvider, MusicRow, MusicState, MusicTreeNode } from './types'
+import type { MusicChannel, MusicLibraryItem, MusicLibraryRow, MusicProvider, MusicRow, MusicState, MusicTreeNode } from './types'
 
 export const TABLE_MUSIC = 'table_music'
 export const TABLE_MUSIC_LIBRARY = 'table_music_library'
@@ -208,4 +208,10 @@ export function toLegacyMusicDbRow(next: MusicState) {
     position_seconds: next.positionSeconds,
     updated_at: next.updatedAt,
   }
+}
+
+export function broadcastMusicChannel(channel: MusicChannel | null | undefined, event: string, payload: unknown) {
+  if (!channel) return
+  if (channel.httpSend) return channel.httpSend(event, payload)
+  return channel.send({ type: 'broadcast', event, payload })
 }

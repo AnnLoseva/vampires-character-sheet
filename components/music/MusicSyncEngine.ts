@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase'
 import type { MusicChannel, MusicState } from './types'
-import { getEffectiveMusicPosition, getMusicProvider, isMusicLifecycleSafe, TABLE_MUSIC, toLegacyMusicDbRow, toMusicDbRow } from './utils'
+import { broadcastMusicChannel, getEffectiveMusicPosition, getMusicProvider, isMusicLifecycleSafe, TABLE_MUSIC, toLegacyMusicDbRow, toMusicDbRow } from './utils'
 
 type MusicEngineOptions = {
   room: string
@@ -98,7 +98,7 @@ export class MusicSyncEngine {
 
     this.state = next
     this.options.onState(next)
-    this.options.getChannel()?.send({ type: 'broadcast', event: 'music', payload: next })
+    broadcastMusicChannel(this.options.getChannel(), 'music', next)
 
     const onlyPosition = Object.keys(patch).every(key => key === 'positionSeconds' || key === 'updatedAt')
     if (options.persist === false || (onlyPosition && nowMs - this.lastPersistAt < POSITION_ONLY_THROTTLE_MS)) return
