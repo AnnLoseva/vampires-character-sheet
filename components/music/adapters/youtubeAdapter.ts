@@ -61,10 +61,12 @@ export class YouTubeAdapter implements MusicSyncAdapter {
 
     if (this.player) {
       this.suppressStateEventsUntil = Date.now() + 5000
-      const iframe = this.container?.querySelector('iframe')
+      const iframe = this.container?.querySelector('iframe') || container.querySelector('iframe')
       if (iframe) {
-        container.innerHTML = ''
-        container.appendChild(iframe)
+        if (!container.contains(iframe)) {
+          container.innerHTML = ''
+          container.appendChild(iframe)
+        }
         this.container = container
         this.cancelled = false
         this.syncPlayer()
@@ -89,21 +91,21 @@ export class YouTubeAdapter implements MusicSyncAdapter {
   }
 
   play() {
-    this.player?.playVideo()
+    this.player?.playVideo?.()
   }
 
   pause() {
-    this.player?.pauseVideo()
+    this.player?.pauseVideo?.()
   }
 
   seek(seconds: number) {
-    this.player?.seekTo(Math.max(0, Math.floor(seconds)), true)
-    if (this.state?.isPlaying) this.player?.playVideo()
+    this.player?.seekTo?.(Math.max(0, Math.floor(seconds)), true)
+    if (this.state?.isPlaying) this.player?.playVideo?.()
   }
 
   setVolume(volume: number) {
     this.options.volume = volume
-    this.player?.setVolume(volume)
+    this.player?.setVolume?.(volume)
   }
 
   destroy() {
@@ -150,7 +152,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
       },
       events: {
         onReady: event => {
-          event.target.setVolume(this.options.volume)
+          event.target.setVolume?.(this.options.volume)
           this.syncPlayer()
           this.startDriftCheck()
         },
@@ -165,6 +167,13 @@ export class YouTubeAdapter implements MusicSyncAdapter {
   private getDesiredTrackId() {
     if (!this.state) return ''
     return this.state.trackId || (!this.state.playlistId ? this.state.activeUri || getYouTubeId(this.state.url) : '')
+  }
+
+  private getPlayerTime(player = this.player) {
+    if (typeof player?.getCurrentTime !== 'function') {
+      return this.state ? Math.max(0, Math.floor(getEffectiveMusicPosition(this.state))) : 0
+    }
+    return Math.max(0, player.getCurrentTime() || 0)
   }
 
   private syncPlayer() {
@@ -191,18 +200,18 @@ export class YouTubeAdapter implements MusicSyncAdapter {
       return
     }
 
-    const currentPosition = Math.max(0, this.player.getCurrentTime?.() || 0)
+    const currentPosition = this.getPlayerTime()
     const currentPlayerState = this.player.getPlayerState?.()
     const isActuallyPlaying = currentPlayerState === 1
     const isActuallyPaused = currentPlayerState === 2 || currentPlayerState === 5 || currentPlayerState === 0
     const seekThreshold = this.options.isMaster ? 4 : 2.25
 
     if (Math.abs(currentPosition - positionSeconds) > seekThreshold) {
-      this.player.seekTo(positionSeconds, true)
+      this.player.seekTo?.(positionSeconds, true)
     }
 
-    if (this.state.isPlaying && !isActuallyPlaying) this.player.playVideo()
-    if (!this.state.isPlaying && !isActuallyPaused) this.player.pauseVideo()
+    if (this.state.isPlaying && !isActuallyPlaying) this.player.playVideo?.()
+    if (!this.state.isPlaying && !isActuallyPaused) this.player.pauseVideo?.()
   }
 
   private handlePlayerState(event: YouTubePlayerStateEvent) {
@@ -213,7 +222,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
     if (!this.options.isMaster || (event.data !== 0 && event.data !== 1 && event.data !== 2)) return
     if (!this.options.canPublish()) return
 
-    const positionSeconds = Math.max(0, Math.floor(event.target.getCurrentTime() || 0))
+    const positionSeconds = Math.max(0, Math.floor(this.getPlayerTime(event.target)))
     const nextPlaying = event.data === 1
     const currentMusic = this.state
     if (!currentMusic) return
@@ -246,7 +255,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
       const now = Date.now()
       if (now - this.lastPublishAt < 900) return
 
-      const positionSeconds = Math.max(0, Math.floor(this.player.getCurrentTime() || 0))
+      const positionSeconds = Math.max(0, Math.floor(this.getPlayerTime()))
       const expectedPosition = getEffectiveMusicPosition(this.state, now)
       if (Math.abs(positionSeconds - expectedPosition) <= 4) return
 

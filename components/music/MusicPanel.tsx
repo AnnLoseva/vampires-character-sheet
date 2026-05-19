@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, useEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { LocalAudioAdapter } from './adapters/localAudioAdapter'
 import { SpotifyAdapter } from './adapters/spotifyAdapter'
@@ -114,13 +114,19 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     return () => window.removeEventListener(VISIBLE_MUSIC_ENGINE_EVENT, update)
   }, [playbackEnabled])
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (hidden || playbackEnabled) return
 
     const notify = () => window.dispatchEvent(new CustomEvent(VISIBLE_MUSIC_ENGINE_EVENT))
     notify()
     return () => {
-      void notify()
+      const visibleMount = document.getElementById(VISIBLE_MUSIC_ENGINE_ID)
+      const globalMount = document.getElementById('global-music-engine')
+      if (visibleMount && globalMount && visibleMount.firstChild) {
+        globalMount.innerHTML = ''
+        while (visibleMount.firstChild) globalMount.appendChild(visibleMount.firstChild)
+      }
+      notify()
     }
   }, [hidden, playbackEnabled, musicProvider])
 
@@ -841,7 +847,13 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         <span>{isMaster ? musicStatus : 'Музыкой управляет мастер'}</span>
       </header>
       {isMaster ? (
-        <div className="music-controls">
+        <form
+          className="music-controls"
+          onSubmit={event => {
+            event.preventDefault()
+            applyMusicDraft({ play: true })
+          }}
+        >
           <input
             value={musicDraft}
             onFocus={() => {
@@ -854,18 +866,13 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             onBlur={() => {
               musicDraftEditingRef.current = false
             }}
-            onKeyDown={event => {
-              if (event.key !== 'Enter') return
-              event.preventDefault()
-              applyMusicDraft({ play: true })
-            }}
             placeholder="YouTube или Spotify ссылка"
           />
           <div className="music-meta">
             <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider === 'youtube' ? youtubeLabel : musicProvider}</span>
             <span>{Math.floor(getEffectiveMusicPosition(musicState))} сек.</span>
           </div>
-        </div>
+        </form>
       ) : (
         <div className="music-readonly">
           <p>Музыкой управляет мастер</p>
