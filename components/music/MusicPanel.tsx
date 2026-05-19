@@ -397,6 +397,19 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     adapterRef.current?.setVolume?.(localVolume)
   }, [localVolume, playbackEnabled])
 
+  // Listen for volume changes from the visible (non-playbackEnabled) panel instance
+  useEffect(() => {
+    if (!playbackEnabled) return
+    const onVolume = (e: Event) => {
+      const v = (e as CustomEvent<number>).detail
+      if (!Number.isFinite(v)) return
+      const clamped = Math.min(100, Math.max(0, Math.round(v)))
+      adapterRef.current?.setVolume?.(clamped)
+    }
+    window.addEventListener('vtm-player-volume', onVolume)
+    return () => window.removeEventListener('vtm-player-volume', onVolume)
+  }, [playbackEnabled])
+
   useEffect(() => {
     if (!playbackEnabled) return
     if (!musicState.isPlaying || (musicProvider !== 'youtube' && musicProvider !== 'file')) return
@@ -859,7 +872,10 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             // visible web embeds when the Music panel is open
             musicProvider === 'youtube' ? (
               <div className={`youtube-embed ${!isMaster ? 'readonly' : ''}`} aria-label="YouTube плеер" ref={youtubeShellRef}>
-                <div id={VISIBLE_MUSIC_ENGINE_ID} ref={playerMountRef} />
+                {/* VISIBLE_MUSIC_ENGINE_ID is the slot where the hidden panel's adapter moves its iframe.
+                    playerMountRef must be a SEPARATE hidden div so clearing it doesn't wipe the iframe. */}
+                <div id={VISIBLE_MUSIC_ENGINE_ID} style={{ width: '100%', height: '100%' }} />
+                <div ref={playerMountRef} style={{ display: 'none' }} />
               </div>
             ) : (
               <div className={`spotify-embed ${!isMaster ? 'readonly' : ''}`} aria-label="Spotify плеер">
@@ -883,11 +899,25 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         </>
       ) : null}
 
-      {playbackEnabled && !isMaster && ((musicProvider === 'youtube' && musicState.url) || (musicProvider === 'file' && musicState.url)) ? (
+      {!isMaster && ((musicProvider === 'youtube' && musicState.url) || (musicProvider === 'file' && musicState.url)) ? (
         <div className="player-local-controls" aria-label="Локальные настройки плеера">
           <label>
             <span>Громкость</span>
-            <input type="range" min="0" max="100" value={localVolume} onChange={event => setPlayerLocalVolume(Number(event.target.value))} />
+            <input
+              type="range"
+              min="0"
+              max="100"
+              value={localVolume}
+              onChange={event => {
+                const v = Math.min(100, Math.max(0, Math.round(Number(event.target.value))))
+                setLocalVolume(v)
+                window.localStorage.setItem('vtm-youtube-volume', String(v))
+                // Propagate to the always-hidden playbackEnabled panel that owns the adapter
+                window.dispatchEvent(new CustomEvent('vtm-player-volume', { detail: v }))
+                // Also set directly if this panel owns the adapter
+                adapterRef.current?.setVolume?.(v)
+              }}
+            />
             <strong>{localVolume}%</strong>
           </label>
           {musicProvider === 'youtube' ? (

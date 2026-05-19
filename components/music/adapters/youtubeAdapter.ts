@@ -52,6 +52,21 @@ export class YouTubeAdapter implements MusicSyncAdapter {
   constructor(private options: YouTubeAdapterOptions) {}
 
   mount(container: HTMLElement) {
+    if (this.container === container) {
+      this.cancelled = false
+      void this.ensurePlayer()
+      return
+    }
+
+    // Move the existing iframe to the new container so video keeps playing
+    if (this.player && this.container) {
+      const iframe = this.container.querySelector('iframe')
+      if (iframe) {
+        container.innerHTML = ''
+        container.appendChild(iframe)
+      }
+    }
+
     this.container = container
     this.cancelled = false
     void this.ensurePlayer()
@@ -103,7 +118,10 @@ export class YouTubeAdapter implements MusicSyncAdapter {
     if (this.cancelled || !this.container || !this.state) return
 
     this.container.innerHTML = ''
-    const initialVideoId = this.state.trackId || this.state.activeUri || getYouTubeId(this.state.url) || undefined
+    // For playlists, don't pass a videoId – syncPlayer will call loadPlaylist after onReady
+    const initialVideoId = this.state.playlistId
+      ? undefined
+      : (this.state.trackId || getYouTubeId(this.state.url) || undefined)
     this.player = new api.Player(this.container, {
       videoId: initialVideoId,
       width: '100%',
