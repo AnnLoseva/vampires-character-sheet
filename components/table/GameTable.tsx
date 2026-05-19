@@ -19,6 +19,7 @@ import {
   safeStorageName as safeMusicStorageName,
   TABLE_MUSIC,
   TABLE_MUSIC_BUCKET,
+  toLegacyMusicDbRow,
 } from '../music/utils'
 import {
   DEFAULT_SCENE_NAME,
@@ -108,6 +109,8 @@ import type {
   VoiceQuality,
   VoiceSignal,
 } from '@/lib/table/types'
+
+let supportsExtendedTableMusicSchema = false
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
@@ -681,7 +684,30 @@ export default function VampireTable() {
       sourceType: nextMusic.source_type,
     }
 
-    await createClient().from(TABLE_MUSIC).upsert(nextMusic)
+    let persistLegacyMusic = !supportsExtendedTableMusicSchema
+    if (supportsExtendedTableMusicSchema) {
+      const { error } = await createClient().from(TABLE_MUSIC).upsert(nextMusic)
+      if (error?.code === '42703' || /column .* does not exist/i.test(error?.message || '')) {
+        supportsExtendedTableMusicSchema = false
+        persistLegacyMusic = true
+      } else if (error) {
+        console.error('Не удалось сохранить расширенное состояние музыки сцены:', error)
+        persistLegacyMusic = true
+      }
+    }
+
+    if (persistLegacyMusic) {
+      const legacy = {
+        room: payload.room,
+        url: payload.url,
+        activeUri: payload.activeUri,
+        isPlaying: payload.isPlaying,
+        positionSeconds: payload.positionSeconds,
+        updatedAt: payload.updatedAt,
+        provider: payload.provider,
+      }
+      await createClient().from(TABLE_MUSIC).upsert(toLegacyMusicDbRow(legacy))
+    }
     window.dispatchEvent(new CustomEvent('vtm-music-state', { detail: payload }))
     channelRef.current?.send({
       type: 'broadcast',

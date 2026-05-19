@@ -198,3 +198,14 @@ export function toMusicDbRow(next: MusicState) {
     source_type: next.sourceType || null,
   }
 }
+
+export function toLegacyMusicDbRow(next: MusicState) {
+  return {
+    room: next.room,
+    url: next.url,
+    active_uri: next.activeUri,
+    is_playing: next.isPlaying,
+    position_seconds: next.positionSeconds,
+    updated_at: next.updatedAt,
+  }
+}

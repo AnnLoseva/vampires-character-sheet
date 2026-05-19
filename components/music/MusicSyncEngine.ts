@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase'
 import type { MusicChannel, MusicState } from './types'
-import { getEffectiveMusicPosition, getMusicProvider, isMusicLifecycleSafe, TABLE_MUSIC, toMusicDbRow } from './utils'
+import { getEffectiveMusicPosition, getMusicProvider, isMusicLifecycleSafe, TABLE_MUSIC, toLegacyMusicDbRow, toMusicDbRow } from './utils'
 
 type MusicEngineOptions = {
   room: string
@@ -11,6 +11,7 @@ type MusicEngineOptions = {
 }
 
 const POSITION_ONLY_THROTTLE_MS = 1800
+let supportsExtendedMusicSchema = false
 
 export class MusicSyncEngine {
   private state: MusicState
@@ -104,17 +105,17 @@ export class MusicSyncEngine {
     this.lastPersistAt = nowMs
 
     const supabase = createClient()
-    const { error } = await supabase.from(TABLE_MUSIC).upsert(toMusicDbRow(next))
-    if (!error) return
+    if (supportsExtendedMusicSchema) {
+      const { error } = await supabase.from(TABLE_MUSIC).upsert(toMusicDbRow(next))
+      if (!error) return
+      if (error.code === '42703' || /column .* does not exist/i.test(error.message || '')) {
+        supportsExtendedMusicSchema = false
+      } else {
+        console.error('Не удалось сохранить расширенное состояние музыки:', error)
+      }
+    }
 
-    const legacy = await supabase.from(TABLE_MUSIC).upsert({
-      room: next.room,
-      url: next.url,
-      active_uri: next.activeUri,
-      is_playing: next.isPlaying,
-      position_seconds: next.positionSeconds,
-      updated_at: next.updatedAt,
-    })
+    const legacy = await supabase.from(TABLE_MUSIC).upsert(toLegacyMusicDbRow(next))
 
     if (legacy.error) {
       console.error('Не удалось сохранить музыку комнаты:', legacy.error)

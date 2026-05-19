@@ -27,6 +27,8 @@ const VISIBLE_MUSIC_ENGINE_ID = 'vtm-music-visible-engine'
 const VISIBLE_MUSIC_ENGINE_EVENT = 'vtm-music-visible-engine-updated'
 const MUSIC_UNLOCK_NEEDED_EVENT = 'vtm-music-unlock-needed'
 const MUSIC_UNLOCK_REQUEST_EVENT = 'vtm-music-unlock-request'
+let supportsExtendedMusicLoad = false
+let supportsMusicLibraryAutoplay = false
 
 type MusicPanelProps = {
   room: string
@@ -204,22 +206,29 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
     const loadMusic = async () => {
       try {
-        const extended = await supabase
-          .from(TABLE_MUSIC)
-          .select('room, url, active_uri, is_playing, position_seconds, updated_at, provider, playlist_id, playlist_index, track_id, source_type')
-          .eq('room', room)
-          .maybeSingle()
+        if (supportsExtendedMusicLoad) {
+          const extended = await supabase
+            .from(TABLE_MUSIC)
+            .select('room, url, active_uri, is_playing, position_seconds, updated_at, provider, playlist_id, playlist_index, track_id, source_type')
+            .eq('room', room)
+            .maybeSingle()
 
-        if (cancelled) return
+          if (cancelled) return
 
-        if (!extended.error) {
-          if (extended.data) {
-            engineRef.current?.applyIncoming(mapMusicRow(extended.data))
-          } else setMusicStatus('Музыка не выбрана')
-          return
+          if (!extended.error) {
+            if (extended.data) {
+              engineRef.current?.applyIncoming(mapMusicRow(extended.data))
+            } else setMusicStatus('Музыка не выбрана')
+            return
+          }
+
+          if (extended.error.code === '42703' || /column .* does not exist/i.test(extended.error.message || '')) {
+            supportsExtendedMusicLoad = false
+          } else {
+            console.warn('Extended music load failed, attempting fallback:', extended.error)
+          }
         }
 
-        console.warn('Extended music load failed, attempting fallback:', extended.error)
         const fallback = await supabase.from(TABLE_MUSIC).select('*').eq('room', room).maybeSingle()
         if (cancelled) return
         if (fallback.error) {
@@ -237,22 +246,35 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
     void loadMusic()
 
-    supabase
-      .from(TABLE_MUSIC_LIBRARY)
-      .select('id, room, item_type, parent_id, name, url, autoplay, created_at')
-      .eq('room', room)
-      .order('created_at', { ascending: true })
-      .limit(160)
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error('Не удалось загрузить музыкальную библиотеку:', error)
-          return
-        }
-        const next = (data || []).map(row => mapMusicLibraryRow(row as MusicLibraryRow))
-        musicLibraryRef.current = next
-        setMusicLibrary(next)
-      })
+    const loadMusicLibrary = async () => {
+      const selectColumns = supportsMusicLibraryAutoplay
+        ? 'id, room, item_type, parent_id, name, url, autoplay, created_at'
+        : 'id, room, item_type, parent_id, name, url, created_at'
+
+      const { data, error } = await supabase
+        .from(TABLE_MUSIC_LIBRARY)
+        .select(selectColumns)
+        .eq('room', room)
+        .order('created_at', { ascending: true })
+        .limit(160)
+
+      if (error && supportsMusicLibraryAutoplay && (error.code === '42703' || /column .* does not exist/i.test(error.message || ''))) {
+        supportsMusicLibraryAutoplay = false
+        await loadMusicLibrary()
+        return
+      }
+
+      if (cancelled) return
+      if (error) {
+        console.error('Не удалось загрузить музыкальную библиотеку:', error)
+        return
+      }
+      const next = (data || []).map(row => mapMusicLibraryRow(row as MusicLibraryRow))
+      musicLibraryRef.current = next
+      setMusicLibrary(next)
+    }
+
+    void loadMusicLibrary()
 
     const channelName = `table-music:${room}:${Math.random().toString(36).slice(2)}`
     const channel = supabase
@@ -572,7 +594,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       createdAt: new Date().toISOString(),
     }
 
-    const { error } = await createClient().from(TABLE_MUSIC_LIBRARY).insert({
+    const folderRow = {
       id: folder.id,
       room: folder.room,
       item_type: folder.itemType,
@@ -581,7 +603,25 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       url: folder.url,
       autoplay: folder.autoplay ?? false,
       created_at: folder.createdAt,
-    })
+    }
+    const folderLegacyRow = {
+      id: folder.id,
+      room: folder.room,
+      item_type: folder.itemType,
+      parent_id: folder.parentId,
+      name: folder.name,
+      url: folder.url,
+      created_at: folder.createdAt,
+    }
+
+    const supabase = createClient()
+    let { error } = supportsMusicLibraryAutoplay
+      ? await supabase.from(TABLE_MUSIC_LIBRARY).insert(folderRow)
+      : await supabase.from(TABLE_MUSIC_LIBRARY).insert(folderLegacyRow)
+    if (error && supportsMusicLibraryAutoplay && (error.code === '42703' || /column .* does not exist/i.test(error.message || ''))) {
+      supportsMusicLibraryAutoplay = false
+      ;({ error } = await supabase.from(TABLE_MUSIC_LIBRARY).insert(folderLegacyRow))
+    }
 
     const next = upsertMusicLibraryItem(musicLibraryRef.current, folder)
     musicLibraryRef.current = next
@@ -633,7 +673,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           createdAt: new Date().toISOString(),
         }
 
-        const { error } = await supabase.from(TABLE_MUSIC_LIBRARY).insert({
+        const itemRow = {
           id: item.id,
           room: item.room,
           item_type: item.itemType,
@@ -642,7 +682,24 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           url: item.url,
           autoplay: item.autoplay ?? false,
           created_at: item.createdAt,
-        })
+        }
+        const itemLegacyRow = {
+          id: item.id,
+          room: item.room,
+          item_type: item.itemType,
+          parent_id: item.parentId,
+          name: item.name,
+          url: item.url,
+          created_at: item.createdAt,
+        }
+
+        let { error } = supportsMusicLibraryAutoplay
+          ? await supabase.from(TABLE_MUSIC_LIBRARY).insert(itemRow)
+          : await supabase.from(TABLE_MUSIC_LIBRARY).insert(itemLegacyRow)
+        if (error && supportsMusicLibraryAutoplay && (error.code === '42703' || /column .* does not exist/i.test(error.message || ''))) {
+          supportsMusicLibraryAutoplay = false
+          ;({ error } = await supabase.from(TABLE_MUSIC_LIBRARY).insert(itemLegacyRow))
+        }
 
         const next = upsertMusicLibraryItem(musicLibraryRef.current, item)
         musicLibraryRef.current = next
