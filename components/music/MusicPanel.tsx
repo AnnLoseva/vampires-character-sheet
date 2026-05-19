@@ -292,7 +292,8 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       }
       adapterProviderRef.current = provider
       adapterMasterRef.current = isMaster
-      const mountEl = playerMountRef.current ?? (typeof document !== 'undefined' ? document.getElementById('global-music-engine') as HTMLDivElement | null : null)
+      // Prefer the hidden global mount so opening the Music tab doesn't create visible iframes.
+      const mountEl = (typeof document !== 'undefined' ? document.getElementById('global-music-engine') as HTMLDivElement | null : null) ?? playerMountRef.current
       if (mountEl) {
         adapterRef.current?.mount(mountEl)
         adapterRef.current?.onStateChange(patch => {
