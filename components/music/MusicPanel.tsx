@@ -74,6 +74,22 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   const musicTree = useMemo(() => buildMusicTree(musicLibrary), [musicLibrary])
   const [visibleEngineMountVersion, setVisibleEngineMountVersion] = useState(0)
 
+  const getNextLibraryTrack = (current: MusicState | null) => {
+    if (!current) return null
+    const flattened: MusicLibraryItem[] = []
+    const traverse = (nodes: MusicTreeNode[]) => {
+      nodes.forEach(node => {
+        if (node.itemType === 'track') flattened.push(node)
+        if (node.children.length) traverse(node.children)
+      })
+    }
+    traverse(musicTree)
+
+    const currentIndex = flattened.findIndex(item => item.id === current.activeUri || item.url === current.url)
+    if (currentIndex === -1 || currentIndex + 1 >= flattened.length) return null
+    return flattened[currentIndex + 1]
+  }
+
   useEffect(() => {
     if (!playbackEnabled) return
 
@@ -324,6 +340,26 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       if (mountEl) {
         adapterRef.current?.mount(mountEl)
         adapterRef.current?.onStateChange(patch => {
+          const currentState = musicStateRef.current
+          if (
+            patch.playbackEnded &&
+            isMaster &&
+            currentState.provider !== 'spotify' &&
+            !currentState.playlistId &&
+            (currentState.provider === 'file' || currentState.provider === 'youtube')
+          ) {
+            const nextTrack = getNextLibraryTrack(currentState)
+            if (nextTrack) {
+              publishMusicState({
+                url: nextTrack.url,
+                provider: getMusicProvider(nextTrack.url),
+                activeUri: nextTrack.id,
+                isPlaying: true,
+                positionSeconds: 0,
+              })
+              return
+            }
+          }
           void engineRef.current?.publishMusicState(patch)
         })
       }

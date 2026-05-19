@@ -121,6 +121,7 @@ export type YouTubeIframeApi = {
 export type MusicAdapterStateChange = Partial<Omit<MusicState, 'room' | 'updatedAt' | 'url' | 'provider'>> & {
   url?: string
   provider?: MusicProvider
+  playbackEnded?: boolean
 }
 
 export type MusicSyncAdapter = {

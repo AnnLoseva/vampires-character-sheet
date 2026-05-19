@@ -190,15 +190,17 @@ export class YouTubeAdapter implements MusicSyncAdapter {
     const stateChanged = currentMusic.isPlaying !== nextPlaying
     const positionChanged = Math.abs(positionSeconds - getEffectiveMusicPosition(currentMusic)) > 1
     const playlistChanged = currentMusic.trackId !== trackId || currentMusic.playlistIndex !== playlistIndex
+    const playbackEnded = event.data === 0
 
-    if (stateChanged || positionChanged || playlistChanged) {
+    if (stateChanged || positionChanged || playlistChanged || playbackEnded) {
       this.lastPublishAt = Date.now()
       this.callback?.({
         isPlaying: nextPlaying,
-        positionSeconds: event.data === 0 ? 0 : positionSeconds,
+        positionSeconds: playbackEnded ? 0 : positionSeconds,
         playlistIndex,
         trackId,
         activeUri: currentMusic.playlistId || trackId || currentMusic.activeUri,
+        playbackEnded,
       })
     }
   }

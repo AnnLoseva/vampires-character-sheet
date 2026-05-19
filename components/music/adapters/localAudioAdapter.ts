@@ -23,6 +23,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     this.audio.controls = this.options.isMaster
     this.audio.addEventListener('play', () => this.publishElementState(true))
     this.audio.addEventListener('pause', () => this.publishElementState(false))
+    this.audio.addEventListener('ended', () => this.publishElementState(false, true))
     this.audio.addEventListener('seeked', () => this.publishElementState(this.state?.isPlaying ?? false))
     container.appendChild(this.audio)
     if (this.state) void this.load(this.state)
@@ -84,11 +85,15 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     }
   }
 
-  private publishElementState(isPlaying: boolean) {
+  private publishElementState(isPlaying: boolean, playbackEnded = false) {
     if (this.isDestroying) return
     if (!this.options.isMaster || !this.audio || !this.options.canPublish()) return
     const duration = Number.isFinite(this.audio.duration) ? Math.max(0, this.audio.duration) : 0
     const positionSeconds = Math.max(0, Math.floor(this.audio.currentTime || 0))
-    this.callback?.({ isPlaying, positionSeconds: duration > 0 ? Math.min(positionSeconds, Math.floor(duration)) : positionSeconds })
+    this.callback?.({
+      isPlaying,
+      positionSeconds: duration > 0 ? Math.min(positionSeconds, Math.floor(duration)) : positionSeconds,
+      playbackEnded,
+    })
   }
 }
