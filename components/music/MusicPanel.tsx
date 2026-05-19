@@ -269,7 +269,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         console.error('Не удалось загрузить музыкальную библиотеку:', error)
         return
       }
-      const next = (data || []).map(row => mapMusicLibraryRow(row as MusicLibraryRow))
+      const next = (data || []).map(row => mapMusicLibraryRow(row as unknown as MusicLibraryRow))
       musicLibraryRef.current = next
       setMusicLibrary(next)
     }
