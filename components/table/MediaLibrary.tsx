@@ -8,6 +8,7 @@ type MediaLibraryProps = {
   isMaster: boolean
   isUploading: boolean
   fileInputRef: RefObject<HTMLInputElement | null>
+  folderInputRef: RefObject<HTMLInputElement | null>
   mediaSearchDraft: string
   textMaterialNameDraft: string
   textMaterialDraft: string
@@ -23,7 +24,7 @@ type MediaLibraryProps = {
   createTextMaterial: (event: FormEvent<HTMLFormElement>) => Promise<void>
   handleLayerRootDragOver: (event: DragEvent<HTMLDivElement>) => void
   handleLayerRootDrop: (event: DragEvent<HTMLDivElement>) => Promise<void>
-  uploadFiles: (files: FileList | File[], onTable?: boolean, options?: { asBackground?: boolean; point?: { x: number; y: number } }) => Promise<void>
+  uploadFiles: (files: FileList | File[], onTable?: boolean, options?: { asBackground?: boolean; point?: { x: number; y: number }; preserveFolders?: boolean }) => Promise<void>
   setLayerDropTarget: Dispatch<SetStateAction<LayerDropTarget>>
   canMoveLayer: (layer: TableLayer) => boolean
   isLayerEffectivelyVisible: (layer: TableLayer) => boolean
@@ -45,6 +46,7 @@ export default function MediaLibrary({
   isMaster,
   isUploading,
   fileInputRef,
+  folderInputRef,
   mediaSearchDraft,
   textMaterialNameDraft,
   textMaterialDraft,
@@ -87,7 +89,7 @@ export default function MediaLibrary({
         const droppedFiles = Array.from(event.dataTransfer.files || [])
         if (droppedFiles.length > 0) {
           event.preventDefault()
-          await uploadFiles(droppedFiles, false)
+          await uploadFiles(droppedFiles, false, { preserveFolders: true })
         }
       }}
     >
@@ -99,6 +101,9 @@ export default function MediaLibrary({
       <div className="media-manager-toolbar">
         <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
           {isUploading ? 'Загрузка...' : 'Загрузить'}
+        </button>
+        <button type="button" onClick={() => folderInputRef.current?.click()} disabled={isUploading}>
+          Папка файлов
         </button>
         <button type="button" onClick={() => void createNamedFolder(null, false)}>Папка</button>
       </div>
@@ -140,7 +145,7 @@ export default function MediaLibrary({
           const droppedFiles = Array.from(event.dataTransfer.files || [])
           if (droppedFiles.length > 0) {
             event.preventDefault()
-            await uploadFiles(droppedFiles, false)
+            await uploadFiles(droppedFiles, false, { preserveFolders: true })
             return
           }
           await handleLayerRootDrop(event)

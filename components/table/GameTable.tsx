@@ -240,6 +240,7 @@ export default function VampireTable() {
   const [chatPanelTab, setChatPanelTab] = useState<ChatPanelTab>('text')
   const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const folderInputRef = useRef<HTMLInputElement>(null)
   const backgroundFileInputRef = useRef<HTMLInputElement>(null)
   const sceneMusicFileInputRef = useRef<HTMLInputElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
@@ -259,6 +260,13 @@ export default function VampireTable() {
   const journalEntriesRef = useRef<JournalEntry[]>([])
   const voiceEnabledRef = useRef(false)
   const voiceMutedRef = useRef(false)
+
+  useEffect(() => {
+    const folderInput = folderInputRef.current
+    if (!folderInput) return
+    folderInput.setAttribute('webkitdirectory', '')
+    folderInput.setAttribute('directory', '')
+  }, [])
   const voiceQualityRef = useRef<VoiceQuality>('clear')
   const voiceParticipantsRef = useRef<VoiceParticipant[]>([])
   const localVoiceStreamRef = useRef<MediaStream | null>(null)
@@ -2130,9 +2138,12 @@ export default function VampireTable() {
   const uploadFiles = async (
     files: FileList | File[],
     onTable = true,
-    options: { asBackground?: boolean; point?: { x: number; y: number } } = {}
+    options: { asBackground?: boolean; point?: { x: number; y: number }; preserveFolders?: boolean } = {}
   ) => {
-    const uploadItems = Array.from(files)
+    const uploadItems = Array.from(files).map(file => ({
+      file,
+      relativePath: options.preserveFolders ? file.webkitRelativePath || file.name : file.name,
+    }))
     if (uploadItems.length === 0) return
     if (!isMaster && !chatUser) {
       window.alert('Сначала войди в аккаунт игрока, чтобы добавлять медиа в комнату.')
@@ -2144,7 +2155,43 @@ export default function VampireTable() {
 
     try {
       const supabase = createClient()
-      for (const [index, file] of uploadItems.entries()) {
+      const folderIds = new Map<string, string | null>()
+
+      const ensureFolder = async (folderPath: string, onTableForFolder: boolean) => {
+        const parts = folderPath.split('/').map(part => part.trim()).filter(Boolean)
+        if (parts.length === 0) return null
+
+        let parentId: string | null = null
+        let pathKey = ''
+
+        for (const part of parts) {
+          pathKey = pathKey ? `${pathKey}/${part}` : part
+          if (folderIds.has(pathKey)) {
+            parentId = folderIds.get(pathKey) ?? null
+            continue
+          }
+
+          const existing = layersRef.current.find(layer =>
+            layer.layerType === 'folder' &&
+            layer.parentId === parentId &&
+            layer.name === part &&
+            layer.onTable === onTableForFolder
+          )
+          const folderId = existing?.id || await createFolder(parentId, part, false, onTableForFolder)
+          folderIds.set(pathKey, folderId)
+          if (folderId) parentId = folderId
+        }
+
+        return parentId
+      }
+
+      for (const [index, item] of uploadItems.entries()) {
+        const file = item.file
+        const relativeParts = item.relativePath.split('/').filter(Boolean)
+        const parentFolderPath = relativeParts.length > 1 ? relativeParts.slice(0, -1).join('/') : ''
+        const parentId = options.preserveFolders && parentFolderPath
+          ? await ensureFolder(parentFolderPath, onTable)
+          : undefined
         const layerType: 'image' | 'video' | 'text' | 'file' = file.type.startsWith('image/')
           ? 'image'
           : file.type.startsWith('video/')
@@ -2161,7 +2208,12 @@ export default function VampireTable() {
             : { width: 440, height: 300 }
         URL.revokeObjectURL(objectUrl)
 
-        const storagePath = `${room}/${id}-${safeStorageName(file.name)}`
+        const storageFolderPath = options.preserveFolders
+          ? relativeParts.slice(0, -1).map(part => safeStorageName(part)).filter(Boolean).join('/')
+          : ''
+        const storagePath = storageFolderPath
+          ? `${room}/${storageFolderPath}/${id}-${safeStorageName(file.name)}`
+          : `${room}/${id}-${safeStorageName(file.name)}`
         const { error: uploadError } = await supabase.storage
           .from(TABLE_IMAGE_BUCKET)
           .upload(storagePath, file, {
@@ -2196,15 +2248,18 @@ export default function VampireTable() {
           index,
           options.asBackground ? { x: 0, y: 0 } : options.point,
           onTable,
-          options.asBackground
-            ? {
+          {
+            ...(options.asBackground
+              ? {
               zIndex: -1000 + index,
               locked: true,
               parentId: null,
               width: Math.max(1600, natural.width),
               height: Math.max(900, Math.round((Math.max(1600, natural.width) / Math.max(1, natural.width)) * Math.max(1, natural.height))),
-            }
-            : {}
+              }
+              : {}),
+            ...(parentId !== undefined ? { parentId } : {}),
+          }
         )
       }
 
@@ -2241,6 +2296,13 @@ export default function VampireTable() {
   const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       await uploadFiles(event.target.files, mediaTab !== 'library')
+      event.target.value = ''
+    }
+  }
+
+  const handleFolderUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    if (event.target.files) {
+      await uploadFiles(event.target.files, mediaTab !== 'library', { preserveFolders: true })
       event.target.value = ''
     }
   }
@@ -3281,7 +3343,7 @@ export default function VampireTable() {
     }
     const droppedFiles = Array.from(event.dataTransfer.files || [])
     if (droppedFiles.some(file => file.type.startsWith('image/') || file.type.startsWith('video/'))) {
-      await uploadFiles(droppedFiles, true, { point: getScenePointFromClient(event.clientX, event.clientY) })
+      await uploadFiles(droppedFiles, true, { point: getScenePointFromClient(event.clientX, event.clientY), preserveFolders: true })
       return
     }
 
@@ -3291,7 +3353,7 @@ export default function VampireTable() {
       return
     }
 
-    if (droppedFiles.length > 0) await uploadFiles(droppedFiles, true, { point: getScenePointFromClient(event.clientX, event.clientY) })
+    if (droppedFiles.length > 0) await uploadFiles(droppedFiles, true, { point: getScenePointFromClient(event.clientX, event.clientY), preserveFolders: true })
   }
 
   const handleSceneMediaDrop = async (event: React.DragEvent<HTMLElement>) => {
@@ -3299,7 +3361,7 @@ export default function VampireTable() {
     event.stopPropagation()
     const droppedFiles = Array.from(event.dataTransfer.files || [])
     if (droppedFiles.length > 0) {
-      await uploadFiles(droppedFiles, false)
+      await uploadFiles(droppedFiles, false, { preserveFolders: true })
       return
     }
 
@@ -3319,7 +3381,7 @@ export default function VampireTable() {
     event.stopPropagation()
     const droppedFiles = Array.from(event.dataTransfer.files || [])
     if (droppedFiles.length > 0) {
-      await uploadFiles(droppedFiles, true)
+      await uploadFiles(droppedFiles, true, { preserveFolders: true })
       return
     }
     const mediaUrls = getDroppedMediaUrls(event.dataTransfer)
@@ -3407,6 +3469,7 @@ export default function VampireTable() {
           ) : null}
           <a href={`/character-sheet?room=${encodeURIComponent(room)}`} title="Открыть лист персонажа">Лист</a>
           <input ref={fileInputRef} type="file" multiple onChange={handleImageUpload} />
+          <input ref={folderInputRef} type="file" multiple onChange={handleFolderUpload} />
           <input ref={backgroundFileInputRef} type="file" accept="image/*" multiple onChange={handleBackgroundUpload} />
           <input ref={sceneMusicFileInputRef} type="file" accept="audio/*" multiple onChange={handleSceneMusicUpload} />
         </div>
@@ -3451,14 +3514,15 @@ export default function VampireTable() {
         </div>
       </section> : null}
 
+      <MusicPanel
+        room={room}
+        tableRole={tableRole}
+        channelRef={channelRef}
+        hidden
+        playbackEnabled={!isMusicPanelVisible}
+      />
+
       <section className={`table-layout ${isMaster && leftPanelOpen ? 'with-left-toolbar' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
-        <MusicPanel
-          room={room}
-          tableRole={tableRole}
-          channelRef={channelRef}
-          hidden
-          playbackEnabled={!isMusicPanelVisible}
-        />
         <TableLeftPanel
           isMaster={isMaster}
           leftPanelOpen={leftPanelOpen}
@@ -3560,6 +3624,9 @@ export default function VampireTable() {
               <div className="media-manager-toolbar">
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
                   {isUploading ? 'Загрузка...' : 'Загрузить'}
+                </button>
+                <button type="button" onClick={() => folderInputRef.current?.click()} disabled={isUploading}>
+                  Папка файлов
                 </button>
                 <button type="button" onClick={() => backgroundFileInputRef.current?.click()} disabled={isUploading}>
                   Фон
@@ -3721,6 +3788,9 @@ export default function VampireTable() {
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
                   {isUploading ? 'Загрузка...' : 'Новый слой'}
                 </button>
+                <button type="button" onClick={() => folderInputRef.current?.click()} disabled={isUploading}>
+                  Папка файлов
+                </button>
               </div>
 
               <form className="media-url-form" onSubmit={handleMediaUrlSubmit}>
@@ -3784,6 +3854,7 @@ export default function VampireTable() {
               isMaster={isMaster}
               isUploading={isUploading}
               fileInputRef={fileInputRef}
+              folderInputRef={folderInputRef}
               mediaSearchDraft={mediaSearchDraft}
               textMaterialNameDraft={textMaterialNameDraft}
               textMaterialDraft={textMaterialDraft}
