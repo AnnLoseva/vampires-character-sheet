@@ -895,7 +895,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .audio-player:not([controls]) { display: none; }
         .youtube-embed { width: 100%; aspect-ratio: 16 / 9; min-height: 230px; border-top: 1px solid #252525; background: #050505; }
         .youtube-embed > div, .file-embed > div { width: 100%; height: 100%; }
-        .youtube-embed iframe { width: 100%; height: 100%; display: block; border: 0; pointer-events: none; }
+        .youtube-embed iframe { width: 100%; height: 100%; display: block; border: 0; }
         .spotify-embed { width: 100%; min-height: 86px; border-top: 1px solid #252525; background: #050505; }
         .spotify-embed iframe { pointer-events: none; }
         .file-embed { width: 100%; min-height: 42px; border-top: 1px solid #252525; background: #050505; }
