@@ -35,6 +35,7 @@ export function mapMusicLibraryRow(row: MusicLibraryRow): MusicLibraryItem {
     parentId: row.parent_id ?? null,
     name: row.name,
     url: row.url || '',
+    autoplay: row.autoplay ?? false,
     createdAt: row.created_at,
   }
 }
@@ -140,6 +141,18 @@ export function parseYouTubeUrl(url: string) {
 
 export function getYouTubeId(url: string) {
   return parseYouTubeUrl(url).videoId
+}
+
+export async function fetchYouTubeTitle(videoId: string): Promise<string | null> {
+  if (!videoId) return null
+  try {
+    const response = await fetch(`https://noembed.com/embed?url=https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`)
+    if (!response.ok) return null
+    const data = (await response.json()) as { title?: string }
+    return data.title || null
+  } catch {
+    return null
+  }
 }
 
 export function getEffectiveMusicPosition(music: MusicState, now = Date.now()) {

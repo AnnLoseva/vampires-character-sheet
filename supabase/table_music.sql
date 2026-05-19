@@ -57,6 +57,7 @@ create table if not exists public.table_music_library (
   parent_id text null,
   name text not null,
   url text not null default '',
+  autoplay boolean not null default false,
   created_at timestamptz not null default now()
 );
 

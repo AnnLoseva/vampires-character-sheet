@@ -533,9 +533,12 @@ export default function VampireTable() {
     if (error) {
       console.error('Не удалось загрузить музыку сцены:', error)
       setSceneMusic([])
+      sceneMusicRef.current = []
       return
     }
-    setSceneMusic(sortSceneMusic((data || []).map(row => mapSceneMusicRow(row as SceneMusicRow))))
+    const loadedTracks = sortSceneMusic((data || []).map(row => mapSceneMusicRow(row as SceneMusicRow)))
+    sceneMusicRef.current = loadedTracks
+    setSceneMusic(loadedTracks)
   }
 
   const ensureDefaultScene = async (targetRoom: string) => {
@@ -795,6 +798,18 @@ export default function VampireTable() {
     setExpandedFolders(prev => new Set(prev).add(folderId))
   }
 
+  const fetchYouTubeTitle = async (url: string): Promise<string | null> => {
+    try {
+      const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
+      const response = await fetch(oembedUrl)
+      if (!response.ok) return null
+      const data = await response.json() as { title?: string }
+      return data.title || null
+    } catch {
+      return null
+    }
+  }
+
   const addSceneMusic = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     if (!isMaster || !selectedScene) return
@@ -804,13 +819,16 @@ export default function VampireTable() {
     const baseOrder = selectedSceneMusic.reduce((max, track) => Math.max(max, track.orderIndex), -1)
     for (const [index, url] of urls.entries()) {
       const now = new Date().toISOString()
+      const provider = getMusicProvider(url)
+      const defaultTitle = `Трек ${baseOrder + index + 2}`
+      const youtubeTitle = provider === 'youtube' ? await fetchYouTubeTitle(url) : null
       const track: SceneMusicTrack = {
         id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
         room,
         sceneId: selectedScene.id,
-        title: `Трек ${baseOrder + index + 2}`,
+        title: youtubeTitle || defaultTitle,
         url,
-        sourceType: getMusicProvider(url),
+        sourceType: provider,
         orderIndex: baseOrder + index + 1,
         isDefault: selectedSceneMusic.length === 0 && index === 0,
         autoplay: selectedSceneMusic.length === 0 && index === 0,

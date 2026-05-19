@@ -74,6 +74,18 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   const musicTree = useMemo(() => buildMusicTree(musicLibrary), [musicLibrary])
   const [visibleEngineMountVersion, setVisibleEngineMountVersion] = useState(0)
 
+  const getAutoplayTrack = () => {
+    const flattened: MusicLibraryItem[] = []
+    const traverse = (nodes: MusicTreeNode[]) => {
+      nodes.forEach(node => {
+        if (node.itemType === 'track') flattened.push(node)
+        if (node.children.length) traverse(node.children)
+      })
+    }
+    traverse(musicTree)
+    return flattened.find(item => item.autoplay) || null
+  }
+
   const getNextLibraryTrack = (current: MusicState | null) => {
     if (!current) return null
     const flattened: MusicLibraryItem[] = []
@@ -117,6 +129,17 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   useEffect(() => {
     musicLibraryRef.current = musicLibrary
   }, [musicLibrary])
+
+  useEffect(() => {
+    if (!isMaster || !playbackEnabled) return
+    const currentUrl = musicStateRef.current.url
+    if (currentUrl) return
+
+    const autoplayTrack = getAutoplayTrack()
+    if (autoplayTrack && autoplayTrack.itemType === 'track') {
+      playMusicTrack(autoplayTrack)
+    }
+  }, [musicLibrary, isMaster, playbackEnabled])
 
   useEffect(() => {
     musicStateRef.current = musicState
@@ -195,7 +218,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
     supabase
       .from(TABLE_MUSIC_LIBRARY)
-      .select('id, room, item_type, parent_id, name, url, created_at')
+      .select('id, room, item_type, parent_id, name, url, autoplay, created_at')
       .eq('room', room)
       .order('created_at', { ascending: true })
       .limit(160)
@@ -490,6 +513,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       parent_id: folder.parentId,
       name: folder.name,
       url: folder.url,
+      autoplay: folder.autoplay ?? false,
       created_at: folder.createdAt,
     })
 
@@ -550,6 +574,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           parent_id: item.parentId,
           name: item.name,
           url: item.url,
+          autoplay: item.autoplay ?? false,
           created_at: item.createdAt,
         })
 

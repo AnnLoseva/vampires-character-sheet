@@ -37,6 +37,7 @@ export type MusicLibraryItem = {
   parentId: string | null
   name: string
   url: string
+  autoplay?: boolean
   createdAt: string
 }
 
@@ -47,6 +48,7 @@ export type MusicLibraryRow = {
   parent_id: string | null
   name: string
   url: string | null
+  autoplay?: boolean | null
   created_at: string
 }
 
