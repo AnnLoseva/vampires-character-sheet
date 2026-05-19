@@ -21,20 +21,24 @@ export default function TableLeftPanel({
 }: TableLeftPanelProps) {
   return (
     <>
-      <aside className={`music-dock ${musicPanelOpen ? '' : 'panel-collapsed'}`} aria-label="Музыка комнаты">
-        {musicPanel}
-      </aside>
-      <button
-        type="button"
-        className="column-edge-toggle music-toggle"
-        onClick={() => setMusicPanelOpen(prev => !prev)}
-        aria-label={musicPanelOpen ? 'Скрыть музыку' : 'Показать музыку'}
-        title={musicPanelOpen ? 'Скрыть музыку' : 'Показать музыку'}
-      >
-        <span />
-        <span />
-        <span />
-      </button>
+      {isMaster ? (
+        <>
+          <aside className={`music-dock ${musicPanelOpen ? '' : 'panel-collapsed'}`} aria-label="Музыка комнаты">
+            {musicPanel}
+          </aside>
+          <button
+            type="button"
+            className="column-edge-toggle music-toggle"
+            onClick={() => setMusicPanelOpen(prev => !prev)}
+            aria-label={musicPanelOpen ? 'Скрыть музыку' : 'Показать музыку'}
+            title={musicPanelOpen ? 'Скрыть музыку' : 'Показать музыку'}
+          >
+            <span />
+            <span />
+            <span />
+          </button>
+        </>
+      ) : null}
       {isMaster ? (
         <button
           type="button"

@@ -99,41 +99,9 @@ export default function ChatPanel({
 
   return (
     <section className={`chat-sidebar table-right-panel ${rightRailTab === 'chat' ? '' : 'table-right-panel-hidden'}`} aria-label="Чат стола">
-      <header>
-        <div>
-          <span>Чат</span>
-          <strong>{chatMessages.length}</strong>
-        </div>
-        <div>
-          <span>Статус</span>
-          <strong>{chatStatus}</strong>
-        </div>
-      </header>
-
       <div className="chat-login">
         {chatUser ? (
           <>
-            <section className="room-participants-panel" aria-label="Участники комнаты">
-              <header>
-                <strong>Участники</strong>
-                <span>{roomParticipants.length || 1}</span>
-              </header>
-              <div>
-                {roomParticipants.length === 0 ? (
-                  <p className="panel-empty">Пока виден только ваш вход.</p>
-                ) : roomParticipants.map(participant => (
-                  <button type="button" className="participant-row" key={participant.userId} onClick={() => void openParticipantPreview(participant)}>
-                    <span className="chat-avatar" aria-hidden="true">
-                      {participant.characterImage ? <img src={participant.characterImage} alt="" /> : <span>{participant.characterName.slice(0, 1).toUpperCase()}</span>}
-                    </span>
-                    <span>
-                      <strong>{participant.username}</strong>
-                      <small>{participant.characterName || 'без персонажа'}{participant.characterClan ? ` · ${participant.characterClan}` : ''}</small>
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
             <div className="chat-user-row">
               <span>{chatUser.username}</span>
               <button type="button" onClick={logoutChat}>Выйти</button>

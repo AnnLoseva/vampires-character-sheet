@@ -1464,8 +1464,6 @@ export default function VampireTable() {
     broadcast('active-character', { room, participant })
   }, [chatUser, selectedChatCharacterId, chatCharacters, room])
 
-  const latest = rolls[0]
-  const totalDice = useMemo(() => rolls.reduce((sum, roll) => sum + roll.diceCount, 0), [rolls])
   const activeScene = scenes.find(scene => scene.id === activeSceneId) || null
   const selectedScene = scenes.find(scene => scene.id === getSelectedSceneId()) || activeScene
   const activeSceneMusic = useMemo(() => sortSceneMusic(sceneMusic.filter(track => track.sceneId === activeSceneId)), [sceneMusic, activeSceneId])
@@ -3452,7 +3450,7 @@ export default function VampireTable() {
         </div>
       </section>
 
-      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''} ${!musicPanelOpen ? 'music-collapsed' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
+      <section className={`table-layout ${isMaster ? 'with-left-toolbar' : ''} ${!isMaster || !musicPanelOpen ? 'music-collapsed' : ''} ${isMaster && !leftPanelOpen ? 'left-collapsed' : ''} ${!rightPanelOpen ? 'right-collapsed' : ''}`}>
         <TableLeftPanel
           isMaster={isMaster}
           musicPanelOpen={musicPanelOpen}
@@ -3698,6 +3696,9 @@ export default function VampireTable() {
                 <button type="button" className={mediaTab === 'library' ? 'active' : ''} onClick={() => setMediaTab('library')}>
                   Мои медиа
                 </button>
+                <button type="button" className={mediaTab === 'music' ? 'active' : ''} onClick={() => setMediaTab('music')}>
+                  Музыка
+                </button>
               </nav>
             ) : null}
 
@@ -3717,7 +3718,6 @@ export default function VampireTable() {
 
               <div className="media-manager-toolbar">
                 <button type="button" onClick={() => createNamedFolder()}>Папка</button>
-                <button type="button" onClick={() => backgroundFileInputRef.current?.click()} disabled={isUploading}>Фон</button>
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
                   {isUploading ? 'Загрузка...' : 'Новый слой'}
                 </button>
@@ -3816,24 +3816,15 @@ export default function VampireTable() {
               toggleFolder={toggleFolder}
             />
             ) : null}
+
+            {!isMaster && mediaTab === 'music' ? (
+              <div className="table-right-panel" style={{ overflow: 'auto' }}>
+                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} />
+              </div>
+            ) : null}
           </section>
 
           <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label="История бросков">
-            <header>
-              <div>
-                <span>Броски</span>
-                <strong>{rolls.length}</strong>
-              </div>
-              <div>
-                <span>Кубы</span>
-                <strong>{totalDice}</strong>
-              </div>
-              <div>
-                <span>Итог</span>
-                <strong>{latest ? latest.successes : 0}</strong>
-              </div>
-            </header>
-
             <section className="roll-list">
               {rolls.length === 0 ? (
                 <p className="panel-empty">Бросков пока нет.</p>
