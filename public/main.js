@@ -5751,44 +5751,99 @@ async function generateSheetPDF() {
             if (dots > 0) disciplines[name] = { dots, powers: (selectedPowers[name] || []) };
         });
 
-        const htmlContent = buildPDFHTML({
-            charName, sire, concept, nature, mask,
-            trueAge, apparentAge, birthDate, deathDate,
-            clanBane, clan, predator, generation, type,
-            appearance, backstory, notes,
-            touchstones: touchstones || [],
-            attrs, skills, hp, wp, humanity, bloodPotency,
-            disciplines,
-            selectedMerits: selectedMerits || [],
-            selectedFlaws: selectedFlaws || [],
-            inventory: inventory || [],
-        });
-
-        // Render in a hidden off-screen container so pdf.html() can see the DOM
-        const container = document.createElement('div');
-        container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;';
-        container.innerHTML = htmlContent;
-        document.body.appendChild(container);
-
+        // Build a plain-text PDF so text remains selectable/copiable
         const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
-        const PAGE_W_PT = 595.28;
-        const MARGIN_PT = 40;
+        const PAGE_W = pdf.internal.pageSize.getWidth();
+        const PAGE_H = pdf.internal.pageSize.getHeight();
+        const MARGIN = 40;
+        let y = MARGIN;
+        const lineHeight = 14;
 
-        await new Promise((resolve, reject) => {
-            pdf.html(container, {
-                callback: (doc) => {
-                    document.body.removeChild(container);
-                    doc.save(`V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`);
-                    resolve();
-                },
-                margin: [MARGIN_PT, MARGIN_PT, MARGIN_PT, MARGIN_PT],
-                autoPaging: 'text',
-                x: 0,
-                y: 0,
-                width: PAGE_W_PT - MARGIN_PT * 2,
-                windowWidth: 794,
+        const addHeading = (text) => {
+            pdf.setFontSize(14);
+            pdf.setFont('helvetica', 'bold');
+            const lines = pdf.splitTextToSize(text, PAGE_W - MARGIN * 2);
+            lines.forEach(line => { pdf.text(line, MARGIN, y); y += lineHeight; });
+            y += 6;
+            pdf.setFont('helvetica', 'normal');
+            pdf.setFontSize(11);
+        };
+
+        const addPara = (text) => {
+            pdf.setFontSize(11);
+            const lines = pdf.splitTextToSize(text || '', PAGE_W - MARGIN * 2);
+            lines.forEach(line => { pdf.text(line, MARGIN, y); y += lineHeight; });
+            y += 6;
+        };
+
+        const newLineIfNeeded = (needed = 1) => {
+            if (y + needed * lineHeight > PAGE_H - MARGIN) {
+                pdf.addPage();
+                y = MARGIN;
+            }
+        };
+
+        // Title
+        pdf.setFontSize(18);
+        pdf.setFont('helvetica', 'bold');
+        const title = charName || 'Персонаж';
+        const titleWidth = pdf.getTextWidth(title);
+        pdf.text(title, (PAGE_W - titleWidth) / 2, y);
+        y += 22;
+        pdf.setFont('helvetica', 'normal');
+
+        // Basic info
+        addHeading('Общая информация');
+        newLineIfNeeded(6);
+        addPara(`Клан: ${clan || '-'}    Тип: ${type || '-'}    Поколение: ${generation || '-'}`);
+        addPara(`Сир: ${sire || '-'}    Концепт: ${concept || '-'}    Природа/Маска: ${nature || '-'} / ${mask || '-'}`);
+        addPara(`Истинный возраст: ${trueAge || '-'}    Видимый возраст: ${apparentAge || '-'}`);
+        addPara(`Дата рождения: ${birthDate || '-'}    Дата смерти: ${deathDate || '-'}`);
+
+        // Vitals
+        addHeading('Виталы');
+        newLineIfNeeded(4);
+        addPara(`Здоровье: ${hp || '-'}    Сила воли: ${wp || '-'}    Человечность: ${humanity || '-'}    Сила крови: ${bloodPotency || '-'}`);
+
+        // Attributes
+        addHeading('Характеристики');
+        newLineIfNeeded(6);
+        Object.entries(attrs).forEach(([k, v]) => { newLineIfNeeded(1); addPara(`${k}: ${v}`); });
+
+        // Skills
+        addHeading('Навыки');
+        newLineIfNeeded(6);
+        Object.entries(skills).forEach(([k, v]) => { newLineIfNeeded(1); addPara(`${k}: ${v}`); });
+
+        // Disciplines
+        if (Object.keys(disciplines).length) {
+            addHeading('Дисциплины');
+            newLineIfNeeded(4);
+            Object.entries(disciplines).forEach(([name, info]) => {
+                newLineIfNeeded(1);
+                addPara(`${name}: ${info.dots} точек`);
+                if ((info.powers || []).length) addPara(`Силы: ${(info.powers || []).join(', ')}`);
             });
-        });
+        }
+
+        // Inventory
+        addHeading('Инвентарь');
+        newLineIfNeeded(4);
+        if ((inventory || []).length) {
+            inventory.forEach(item => { newLineIfNeeded(2); addPara(`${item.name || 'Без названия'} — ${item.category || ''} · ${item.quantity || 1} шт.`); if (item.description) addPara(item.description); if (item.note) addPara(`Примечание: ${item.note}`); });
+        } else {
+            addPara('Инвентарь пуст.');
+        }
+
+        // Backstory / notes
+        addHeading('История и заметки');
+        newLineIfNeeded(6);
+        addPara(appearance || '');
+        addPara(backstory || '');
+        addPara(notes || '');
+
+        // Save PDF
+        pdf.save(`V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`);
 
     } catch (err) {
         console.error(err);
