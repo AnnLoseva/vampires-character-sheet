@@ -5499,89 +5499,301 @@ function setupSaveButton() {
 }
 
 // ==================== ГЕНЕРАЦИЯ PDF (все 3 раздела, постраничная нарезка) ====================
-async function generateSheetPDF() {
-    const area = document.getElementById('capture-area');
-    if (!area) return alert('Не найден #capture-area');
-    if (typeof window.html2canvas !== 'function') return alert('html2canvas не загружен');
-    if (typeof window.jspdf === 'undefined') return alert('jsPDF не загружен');
+// ---- Helpers for text PDF ----
+function _pdfDots(n, max) {
+    n = Math.min(Math.max(parseInt(n) || 0, 0), max || 5);
+    return '●'.repeat(n) + '○'.repeat((max || 5) - n);
+}
 
-    const charName = (document.getElementById('char-name')?.value || 'Kindred').trim();
+function _pdfEsc(str) {
+    return String(str || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+function _pdfField(label, value) {
+    if (!value) return '';
+    return `<tr>
+        <td style="color:#555;padding:3px 10px 3px 0;white-space:nowrap;vertical-align:top;font-weight:600;">${_pdfEsc(label)}</td>
+        <td style="padding:3px 0;vertical-align:top;">${_pdfEsc(value)}</td>
+    </tr>`;
+}
+
+function _pdfSection(title, content) {
+    return `<div style="margin-bottom:22px;">
+        <div style="font-size:13pt;font-weight:bold;color:#8b0000;border-bottom:2px solid #8b0000;padding-bottom:4px;margin-bottom:10px;letter-spacing:1px;">${_pdfEsc(title)}</div>
+        ${content}
+    </div>`;
+}
+
+function _pdfTextBlock(title, text) {
+    if (!text) return '';
+    return `<div style="margin-bottom:18px;">
+        <div style="font-size:10pt;font-weight:bold;color:#8b0000;margin-bottom:4px;letter-spacing:1px;">${_pdfEsc(title)}</div>
+        <div style="font-size:9.5pt;line-height:1.5;white-space:pre-wrap;color:#1a1a1a;">${_pdfEsc(text)}</div>
+    </div>`;
+}
+
+function buildPDFHTML(d) {
+    const ATTR_CATS = {
+        'Физические': ['Сила','Ловкость','Выносливость'],
+        'Социальные': ['Обаяние','Манипуляция','Самообладание'],
+        'Ментальные': ['Интеллект','Смекалка','Упорство'],
+    };
+    const SKILL_CATS = {
+        'Физические': ['Атлетика','Вождение','Воровство','Выживание','Драка','Ремесло','Скрытность','Стрельба','Фехтование'],
+        'Социальные': ['Запугивание','Исполнение','Лидерство','Обращение с животными','Проницательность','Убеждение','Уличное чутьё','Хитрость','Этикет'],
+        'Ментальные': ['Гуманитарные науки','Естественные науки','Медицина','Наблюдательность','Оккультизм','Политика','Расследование','Техника','Финансы'],
+    };
+
+    const base = `font-family:Arial,Helvetica,sans-serif;font-size:10pt;color:#111;line-height:1.45;`;
+
+    // --- PAGE BREAK helper ---
+    const pb = `<div style="page-break-before:always;"></div>`;
+
+    // ============================================================
+    // SECTION 1: SOCIAL
+    // ============================================================
+    const infoRows = [
+        _pdfField('Имя', d.charName),
+        _pdfField('Сир', d.sire),
+        _pdfField('Концепция', d.concept),
+        _pdfField('Натура', d.nature),
+        _pdfField('Маска', d.mask),
+        _pdfField('Истинный возраст', d.trueAge),
+        _pdfField('Видимый возраст', d.apparentAge),
+        _pdfField('Дата рождения', d.birthDate),
+        _pdfField('Дата смерти', d.deathDate),
+        _pdfField('Клан', d.clan),
+        _pdfField('Стиль охоты', d.predator),
+        _pdfField('Поколение', d.generation),
+        _pdfField('Тип', d.type),
+    ].join('');
+
+    const social = `
+        <div style="text-align:center;margin-bottom:20px;">
+            <div style="font-size:20pt;font-weight:bold;color:#8b0000;letter-spacing:2px;">${_pdfEsc(d.charName)}</div>
+            <div style="font-size:9pt;color:#666;margin-top:2px;">Vampire: the Masquerade V5 — Лист персонажа</div>
+        </div>
+
+        ${_pdfSection('ОСНОВНАЯ ИНФОРМАЦИЯ', `<table style="width:100%;border-collapse:collapse;">${infoRows}</table>`)}
+
+        ${d.clanBane ? _pdfSection('ИЗЪЯН КЛАНА', `<div style="font-size:9.5pt;line-height:1.5;color:#1a1a1a;white-space:pre-wrap;">${_pdfEsc(d.clanBane)}</div>`) : ''}
+
+        ${d.touchstones.length ? _pdfSection('ОПОРЫ И ПРИНЦИПЫ',
+            d.touchstones.map((t, i) => t.text ? `<div style="margin-bottom:6px;"><span style="color:#8b0000;font-weight:bold;">${i+1}.</span> ${_pdfEsc(t.text)}</div>` : '').join('')
+        ) : ''}
+
+        ${_pdfTextBlock('ВНЕШНОСТЬ', d.appearance)}
+        ${_pdfTextBlock('ПРЕДЫСТОРИЯ', d.backstory)}
+        ${_pdfTextBlock('ЗАМЕТКИ', d.notes)}
+    `;
+
+    // ============================================================
+    // SECTION 2: MECHANICS
+    // ============================================================
+
+    // Attributes columns
+    const attrColsHTML = Object.entries(ATTR_CATS).map(([cat, names]) => `
+        <div style="flex:1;">
+            <div style="font-weight:bold;color:#8b0000;margin-bottom:6px;font-size:9pt;">${_pdfEsc(cat)}</div>
+            ${names.map(name => `
+                <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:9.5pt;">
+                    <span>${_pdfEsc(name)}</span>
+                    <span style="font-size:8pt;letter-spacing:1px;">${_pdfDots(d.attrs[name])}</span>
+                </div>
+            `).join('')}
+        </div>
+    `).join('');
+
+    // Skills columns
+    const skillColsHTML = Object.entries(SKILL_CATS).map(([cat, names]) => `
+        <div style="flex:1;">
+            <div style="font-weight:bold;color:#8b0000;margin-bottom:6px;font-size:9pt;">${_pdfEsc(cat)}</div>
+            ${names.map(name => {
+                const val = d.skills[name] || 0;
+                return `
+                    <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:9.5pt;">
+                        <span>${_pdfEsc(name)}</span>
+                        <span style="font-size:8pt;letter-spacing:1px;">${_pdfDots(val)}</span>
+                    </div>
+                `;
+            }).join('')}
+        </div>
+    `).join('');
+
+    // Vitals
+    const vitalsHTML = `
+        <div style="display:flex;gap:30px;flex-wrap:wrap;margin-top:6px;">
+            <div><span style="color:#555;font-weight:600;">Здоровье:</span> ${_pdfEsc(d.hp)}</div>
+            <div><span style="color:#555;font-weight:600;">Сила воли:</span> ${_pdfEsc(d.wp)}</div>
+            <div><span style="color:#555;font-weight:600;">Человечность:</span> ${_pdfEsc(d.humanity)}</div>
+            <div><span style="color:#555;font-weight:600;">Сила крови:</span> ${_pdfEsc(d.bloodPotency)}</div>
+        </div>
+    `;
+
+    // Disciplines
+    let discHTML = '';
+    const discEntries = Object.entries(d.disciplines);
+    if (discEntries.length) {
+        discHTML = discEntries.map(([name, info]) => `
+            <div style="margin-bottom:8px;">
+                <span style="font-weight:bold;">${_pdfEsc(name)}</span>
+                <span style="margin-left:8px;font-size:8pt;letter-spacing:1px;">${_pdfDots(info.dots)}</span>
+                ${info.powers.length ? `<div style="font-size:9pt;color:#444;margin-left:14px;margin-top:2px;">${info.powers.map(p => `• ${_pdfEsc(p)}`).join('  ')}</div>` : ''}
+            </div>
+        `).join('');
+    }
+
+    // Merits / Flaws
+    const meritRows = d.selectedMerits.map(m =>
+        `<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:9.5pt;"><span>${_pdfEsc(m.name)}</span><span style="color:#555;">${'●'.repeat(m.points || 0)}</span></div>`
+    ).join('');
+    const flawRows = d.selectedFlaws.map(f =>
+        `<div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:9.5pt;"><span>${_pdfEsc(f.name)}</span><span style="color:#555;">${'●'.repeat(f.points || 0)}</span></div>`
+    ).join('');
+
+    const mechanics = `
+        ${_pdfSection('ХАРАКТЕРИСТИКИ', `<div style="display:flex;gap:24px;">${attrColsHTML}</div>`)}
+        ${_pdfSection('НАВЫКИ', `<div style="display:flex;gap:24px;">${skillColsHTML}</div>`)}
+        ${_pdfSection('ВИТАЛЫ', vitalsHTML)}
+        ${discHTML ? _pdfSection('ДИСЦИПЛИНЫ', discHTML) : ''}
+        ${meritRows || flawRows ? _pdfSection('ПРЕИМУЩЕСТВА И НЕДОСТАТКИ', `
+            ${meritRows ? `<div style="margin-bottom:12px;"><div style="font-weight:bold;color:#555;margin-bottom:4px;">Преимущества</div>${meritRows}</div>` : ''}
+            ${flawRows ? `<div><div style="font-weight:bold;color:#555;margin-bottom:4px;">Недостатки</div>${flawRows}</div>` : ''}
+        `) : ''}
+    `;
+
+    // ============================================================
+    // SECTION 3: INVENTORY
+    // ============================================================
+    let invHTML = '';
+    if (d.inventory.length) {
+        invHTML = d.inventory.map(item => `
+            <div style="margin-bottom:10px;padding:8px 10px;border:1px solid #ddd;border-radius:4px;">
+                <div style="font-weight:bold;font-size:10pt;">${_pdfEsc(item.name || 'Без названия')}
+                    <span style="font-weight:normal;color:#666;font-size:9pt;"> — ${_pdfEsc(item.category)} · ${item.quantity} шт.</span>
+                </div>
+                ${item.description ? `<div style="font-size:9pt;color:#444;margin-top:3px;white-space:pre-wrap;">${_pdfEsc(item.description)}</div>` : ''}
+                ${item.note ? `<div style="font-size:9pt;color:#888;margin-top:2px;font-style:italic;white-space:pre-wrap;">${_pdfEsc(item.note)}</div>` : ''}
+            </div>
+        `).join('');
+    } else {
+        invHTML = `<div style="color:#888;font-style:italic;">Инвентарь пуст.</div>`;
+    }
+
+    const inventory_section = `
+        <div style="font-size:15pt;font-weight:bold;color:#8b0000;margin-bottom:16px;letter-spacing:1px;">ИНВЕНТАРЬ</div>
+        ${invHTML}
+    `;
+
+    return `<div style="${base}padding:0;margin:0;background:#fff;">
+        <div style="padding:0;">${social}</div>
+        ${pb}
+        <div style="padding:0;">${mechanics}</div>
+        ${pb}
+        <div style="padding:0;">${inventory_section}</div>
+    </div>`;
+}
+
+async function generateSheetPDF() {
+    if (typeof window.jspdf === 'undefined') return alert('jsPDF не загружен');
+    const { jsPDF } = window.jspdf;
+
     const btn = document.getElementById('btn-pdf');
     const originalText = btn?.textContent || 'Скачать PDF';
     if (btn) { btn.textContent = 'Генерируем…'; btn.disabled = true; }
 
-    const currentSection = localStorage.getItem('vtm-sheet-section') || 'social';
-    const sectionNames = ['social', 'mechanics', 'inventory'];
-    const { jsPDF } = window.jspdf;
-
-    // A4 в мм
-    const PAGE_W_MM = 210;
-    const PAGE_H_MM = 297;
-
-    // Первая страница создаётся вручную ниже
-    let pdf = null;
-    let firstPage = true;
-
     try {
-        for (const sectionName of sectionNames) {
-            // Показываем только этот раздел
-            document.querySelectorAll('[data-sheet-section]').forEach(s => {
-                s.classList.toggle('active', s.dataset.sheetSection === sectionName);
+        const val = (id) => (document.getElementById(id)?.value || '').trim();
+        const txt = (id) => (document.getElementById(id)?.textContent || '').trim();
+
+        const charName = val('char-name') || 'Kindred';
+        const sire = val('sire-input');
+        const concept = val('concept-input');
+        const nature = val('nature-input');
+        const mask = val('mask-input');
+        const trueAge = val('true-age-input');
+        const apparentAge = val('apparent-age-input');
+        const birthDate = val('birth-date-input');
+        const deathDate = val('death-date-input');
+        const clanBane = val('clan-bane-input');
+        const clan = val('clan-input');
+        const predator = val('predator-input');
+        const genVal = val('generation-input');
+        const generation = genVal ? `${genVal} поколение` : '';
+        const typeRaw = val('type-input');
+        const typeNames = { childe:'Птенец', neonate:'Неонат', ancilla:'Анцилла', elder:'Старейшина', methuselah:'Матузалем', antediluvian:'Антедилувиан' };
+        const type = typeNames[typeRaw] || typeRaw;
+        const appearance = val('appearance-input');
+        const backstory = val('backstory-input');
+        const notes = val('notes-input');
+        const hp = txt('val-hp');
+        const wp = txt('val-wp');
+        const humanity = txt('val-humanity');
+        const bloodPotency = txt('val-blood-potency');
+
+        const attrNames = ['Сила','Ловкость','Выносливость','Обаяние','Манипуляция','Самообладание','Интеллект','Смекалка','Упорство'];
+        const attrs = {};
+        attrNames.forEach(name => {
+            attrs[name] = parseInt(document.querySelector(`input[name="${name}"]:checked`)?.value || '1');
+        });
+
+        const skillNames = ['Атлетика','Вождение','Воровство','Выживание','Драка','Ремесло','Скрытность','Стрельба','Фехтование',
+            'Запугивание','Исполнение','Лидерство','Обращение с животными','Проницательность','Убеждение','Уличное чутьё','Хитрость','Этикет',
+            'Гуманитарные науки','Естественные науки','Медицина','Наблюдательность','Оккультизм','Политика','Расследование','Техника','Финансы'];
+        const skills = {};
+        skillNames.forEach(name => {
+            skills[name] = parseInt(document.querySelector(`input[name="${name}"]:checked`)?.value || '0');
+        });
+
+        const disciplines = {};
+        Object.keys(disciplineSources || {}).forEach(name => {
+            const dots = Object.values(disciplineSources[name] || {}).reduce((a, b) => a + b, 0);
+            if (dots > 0) disciplines[name] = { dots, powers: (selectedPowers[name] || []) };
+        });
+
+        const htmlContent = buildPDFHTML({
+            charName, sire, concept, nature, mask,
+            trueAge, apparentAge, birthDate, deathDate,
+            clanBane, clan, predator, generation, type,
+            appearance, backstory, notes,
+            touchstones: touchstones || [],
+            attrs, skills, hp, wp, humanity, bloodPotency,
+            disciplines,
+            selectedMerits: selectedMerits || [],
+            selectedFlaws: selectedFlaws || [],
+            inventory: inventory || [],
+        });
+
+        // Render in a hidden off-screen container so pdf.html() can see the DOM
+        const container = document.createElement('div');
+        container.style.cssText = 'position:fixed;left:-9999px;top:0;width:794px;background:#fff;';
+        container.innerHTML = htmlContent;
+        document.body.appendChild(container);
+
+        const pdf = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'portrait' });
+        const PAGE_W_PT = 595.28;
+        const MARGIN_PT = 40;
+
+        await new Promise((resolve, reject) => {
+            pdf.html(container, {
+                callback: (doc) => {
+                    document.body.removeChild(container);
+                    doc.save(`V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`);
+                    resolve();
+                },
+                margin: [MARGIN_PT, MARGIN_PT, MARGIN_PT, MARGIN_PT],
+                autoPaging: 'text',
+                x: 0,
+                y: 0,
+                width: PAGE_W_PT - MARGIN_PT * 2,
+                windowWidth: 794,
             });
-            await new Promise(r => setTimeout(r, 120));
-
-            let restoreTextareaHeights = null;
-            let restoreImageStyles = null;
-            try {
-                restoreTextareaHeights = expandTextareasForCapture(area);
-                restoreImageStyles = stabilizeImagesForCapture(area);
-                area.querySelectorAll('.skill-specs').forEach(c => {
-                    if (c.children.length > 0) c.style.display = 'flex';
-                });
-                await new Promise(r => setTimeout(r, 80));
-
-                const canvas = await window.html2canvas(area, {
-                    scale: 2,
-                    useCORS: true,
-                    allowTaint: false,
-                    backgroundColor: '#0a0a0a',
-                    logging: false,
-                });
-
-                const imgData = canvas.toDataURL('image/jpeg', 0.88);
-
-                // Сколько мм занимает весь canvas при ширине PAGE_W_MM
-                const totalImgH_mm = (canvas.height / canvas.width) * PAGE_W_MM;
-                // Сколько страниц нужно для этого раздела
-                const pagesForSection = Math.ceil(totalImgH_mm / PAGE_H_MM);
-
-                for (let p = 0; p < pagesForSection; p++) {
-                    if (firstPage) {
-                        pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-                        firstPage = false;
-                    } else {
-                        pdf.addPage('a4', 'portrait');
-                    }
-
-                    // Смещаем картинку вверх так, чтобы нужный кусок оказался в зоне страницы.
-                    // addImage рисует картинку начиная с (x, y); то что выходит за границы — обрезается.
-                    const yOffset_mm = -p * PAGE_H_MM;
-                    pdf.addImage(imgData, 'JPEG', 0, yOffset_mm, PAGE_W_MM, totalImgH_mm);
-                }
-
-            } finally {
-                if (restoreImageStyles) restoreImageStyles();
-                if (restoreTextareaHeights) restoreTextareaHeights();
-            }
-        }
-
-        if (pdf) pdf.save(`V5_${charName.replace(/[^a-zA-Z0-9а-яА-ЯёЁ_-]/g, '_')}.pdf`);
+        });
 
     } catch (err) {
         console.error(err);
         alert('Ошибка генерации PDF: ' + err.message);
     } finally {
-        switchSheetSection(currentSection);
         if (btn) { btn.textContent = originalText; btn.disabled = false; }
     }
 }
