@@ -188,8 +188,7 @@ export default function TableCanvas({
               onDoubleClick={event => {
                 event.preventDefault()
                 event.stopPropagation()
-                if (['image', 'video'].includes(layer.layerType)) openImageEditor(layer)
-                else revealLayerInTableManager(layer)
+                if (!['image', 'video'].includes(layer.layerType)) revealLayerInTableManager(layer)
               }}
               onClick={event => {
                 event.stopPropagation()
@@ -198,8 +197,6 @@ export default function TableCanvas({
                 if (!selectedLayerIds.has(layer.id)) {
                   setLayerSelection([layer.id], layer.id)
                 }
-                if (!['image', 'video'].includes(layer.layerType) || !canEditLayer(layer) || layer.locked) return
-                if (selectedLayerId === layer.id && imageEditor?.layerId !== layer.id) openImageEditor(layer)
               }}
             >
               {layer.layerType === 'video' ? (
