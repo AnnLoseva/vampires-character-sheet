@@ -128,6 +128,42 @@ function formatTime(value: string) {
   }).format(new Date(value))
 }
 
+function getJournalReferencedMediaUrls(currentEntries: JournalEntry[]) {
+  if (typeof window === 'undefined') return new Set<string>()
+  const entries = [...currentEntries]
+
+  try {
+    for (let index = 0; index < window.localStorage.length; index += 1) {
+      const key = window.localStorage.key(index)
+      if (!key?.startsWith('vtm-journal:')) continue
+      const parsed = JSON.parse(window.localStorage.getItem(key) || '[]')
+      if (Array.isArray(parsed)) entries.push(...parsed)
+    }
+  } catch (error) {
+    console.warn('Не удалось проверить ссылки дневника перед удалением медиа:', error)
+  }
+
+  const urls = new Set<string>()
+  entries.forEach(entry => {
+    extractImageUrlsFromHtml(entry.text || '').forEach(url => urls.add(url))
+    entry.attachments?.forEach(attachment => {
+      if (attachment.kind === 'image' && attachment.url) urls.add(attachment.url)
+    })
+  })
+  return urls
+}
+
+function isMediaUrlReferencedInJournal(url: string, journalUrls: Set<string>) {
+  if (!url) return false
+  if (journalUrls.has(url)) return true
+  const storagePath = getStoragePathFromPublicUrl(url)
+  if (!storagePath) return false
+  for (const journalUrl of journalUrls) {
+    if (getStoragePathFromPublicUrl(journalUrl) === storagePath) return true
+  }
+  return false
+}
+
 // ─── Self-measuring context menu positioner ────────────────────────────────
 // Renders initially hidden, measures its real size, then snaps to the best
 // position near the cursor so it never clips off the screen edges.
@@ -2421,6 +2457,7 @@ export default function VampireTable() {
     const supabase = createClient()
     await supabase.from(TABLE_IMAGES).delete().in('id', [...deleteIds])
 
+    const journalUrls = getJournalReferencedMediaUrls(journalEntriesRef.current)
     await Promise.all(deletedLayers.map(async deletedLayer => {
       const fileUrl = deletedLayer.layerType === 'file' ? getFileLayerMeta(deletedLayer.imageData, deletedLayer.name).url : deletedLayer.imageData
       const stillUsed = nextLayers.some(item => {
@@ -2428,6 +2465,7 @@ export default function VampireTable() {
         return itemUrl && itemUrl === fileUrl
       })
       if (stillUsed) return
+      if (isMediaUrlReferencedInJournal(fileUrl, journalUrls)) return
       const storagePath = getStoragePathFromPublicUrl(fileUrl)
       if (storagePath) {
         const { error } = await supabase.storage.from(TABLE_IMAGE_BUCKET).remove([storagePath])
