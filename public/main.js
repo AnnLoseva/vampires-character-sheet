@@ -804,6 +804,8 @@ function showDisciplineHint(discName) {
             <div style="margin-top:15px; background:#1a1a1a; padding:10px; border-radius:6px; font-size:13.5px;">
                 <strong>Тип:</strong> ${disc.system.type || '—'}<br>
                 <strong>Маскарад:</strong> ${disc.system.masquerade || '—'}
+                ${disc.system.resonance ? `<br><strong>Резонанс:</strong> ${disc.system.resonance}` : ''}
+                ${disc.system.limitations ? `<br><strong>Ограничения:</strong> ${disc.system.limitations}` : ''}
             </div>
         `;
     }
@@ -1031,7 +1033,7 @@ function openPowerSelectionModal(discName, maxLevel) {
                 card.innerHTML = `
                     <div style="color:#ffae00;font-weight:bold;">${powerName}</div>
                     <div style="color:#666;font-size:13px;">Уровень ${lvl}</div>
-                    <div style="color:#ccc;margin-top:8px;line-height:1.5;">${power.description ? power.description.substring(0, 140) + '...' : 'Нет описания'}</div>
+                    <div style="color:#ccc;margin-top:8px;line-height:1.5;">${power.description ? power.description.substring(0, 180) + (power.description.length > 180 ? '...' : '') : 'Нет описания'}</div>
                 `;
 
                 card.addEventListener('click', () => {
@@ -1049,6 +1051,7 @@ function openPowerSelectionModal(discName, maxLevel) {
                         <h3 style="color:#ff3131; margin:0 0 12px;">${powerName} <span style="color:#666;font-size:14px;">(Уровень ${lvl})</span></h3>
                         <div style="line-height:1.65;">${power.description || 'Описание отсутствует'}</div>
                     `;
+                    if (power.effect) html += `<p style="margin-top:12px;"><strong>Эффект:</strong> ${power.effect}</p>`;
                     if (power.pool) html += `<p style="margin-top:12px;"><strong>Бросок:</strong> ${power.pool}</p>`;
                     if (power.cost) html += `<p><strong>Стоимость:</strong> ${power.cost}</p>`;
                     if (power.duration) html += `<p><strong>Длительность:</strong> ${power.duration}</p>`;
