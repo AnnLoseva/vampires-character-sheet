@@ -5492,7 +5492,7 @@ function setupSaveButton() {
     }
 }
 
-// ==================== ГЕНЕРАЦИЯ PDF (все 3 раздела, постраничная нарезка) ====================
+// ==================== ГЕНЕРАЦИЯ PDF (только раздел социалки) ====================
 // ---- Helpers for text PDF ----
 function _pdfDots(n, max) {
     n = Math.min(Math.max(parseInt(n) || 0, 0), max || 5);
@@ -5915,83 +5915,6 @@ function drawPdfSheet(pdf, data) {
     blockText('Внешность', data.appearance);
     blockText('Предыстория', data.backstory);
     blockText('Заметки персонажа', data.notes);
-
-    addPage();
-    section('Броски / механика');
-    const drawGroups = (title, groups, values, startY) => {
-        y = startY;
-        text(title, page.w / 2, y, { size: 13, bold: true, color: colors.white, align: 'center' });
-        y += 12;
-        const colW = (page.w - page.margin * 2 - 28) / 3;
-        const top = y;
-        Object.entries(groups).forEach(([group, names], groupIndex) => {
-            const x = page.margin + 14 + groupIndex * colW;
-            panel(x, top, colW - 6, 18 + names.length * 15);
-            text(group, x + (colW - 6) / 2, top + 13, { size: 8, bold: true, color: colors.muted, align: 'center' });
-            names.forEach((name, index) => {
-                const rowY = top + 28 + index * 15;
-                text(name, x + 8, rowY, { size: 8.4 });
-                text(dotText(values[name] || 0), x + colW - 53, rowY, { size: 8.2, color: colors.red });
-            });
-        });
-        y = top + 24 + Math.max(...Object.values(groups).map(names => names.length)) * 15;
-    };
-
-    drawGroups('Характеристики', data.attrGroups, data.attrValues, y);
-    y += 18;
-    drawGroups('Навыки', data.skillGroups, data.skillValues, y);
-    y += 20;
-
-    const vitalW = (page.w - page.margin * 2 - 42) / data.vitals.length;
-    data.vitals.forEach(([label, value], index) => {
-        const x = page.margin + 14 + index * (vitalW + 4);
-        panel(x, y, vitalW, 35);
-        text(label, x + vitalW / 2, y + 12, { size: 7, bold: true, color: colors.muted, align: 'center' });
-        text(value || '-', x + vitalW / 2, y + 27, { size: 13, bold: true, color: colors.white, align: 'center' });
-    });
-    y += 48;
-
-    if (data.disciplines.length) {
-        section('Дисциплины');
-        data.disciplines.forEach(item => {
-            ensureSpace(24);
-            text(item.name, page.margin + 18, y, { size: 9.2, bold: true });
-            dots(item.dots, page.w - page.margin - 72, y - 2);
-            y += 12;
-            if (item.powers.length) {
-                y += wrapped(`Силы: ${item.powers.join(', ')}`, page.margin + 28, y, page.w - page.margin * 2 - 52, { size: 7.8, color: colors.muted, lineHeight: 9.2 });
-            }
-        });
-    }
-
-    const advantageLines = [
-        ...data.merits.map(item => `Преимущество: ${item.name} ${dotText(item.points, item.points)}`),
-        ...data.flaws.map(item => `Недостаток: ${item.name} ${dotText(item.points, item.points)}`),
-        ...data.thinBloodMerits.map(item => `Слабокровное преимущество: ${item.name} ${dotText(item.points, item.points)}`),
-        ...data.thinBloodFlaws.map(item => `Слабокровный недостаток: ${item.name} ${dotText(item.points, item.points)}`)
-    ];
-    if (advantageLines.length) blockText('Преимущества и недостатки', advantageLines.join('\n'));
-
-    addPage();
-    section('Инвентарь');
-    if (!data.inventory.length) {
-        text('Инвентарь пуст.', page.margin + 18, y, { size: 9, color: colors.muted });
-    } else {
-        data.inventory.forEach(item => {
-            const details = [
-                `${item.category} · ${item.quantity} шт.`,
-                item.description,
-                item.note ? `Заметка: ${item.note}` : ''
-            ].filter(Boolean).join('\n');
-            const lines = pdf.splitTextToSize(details, page.w - page.margin * 2 - 46);
-            const height = Math.max(42, 27 + lines.length * 10);
-            ensureSpace(height + 8);
-            panel(page.margin + 14, y, page.w - page.margin * 2 - 28, height);
-            text(item.name, page.margin + 24, y + 14, { size: 9.5, bold: true, color: colors.white });
-            wrapped(details, page.margin + 24, y + 29, page.w - page.margin * 2 - 46, { size: 8.3, color: colors.muted, lineHeight: 10 });
-            y += height + 8;
-        });
-    }
 }
 
 async function generateSheetPDF() {
