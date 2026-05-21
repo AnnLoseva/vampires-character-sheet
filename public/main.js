@@ -8,8 +8,10 @@ let clanDisciplines = [];
 let predatorDisciplines = [];
 let currentClanData = [];
 let currentPredatorData = [];
+let currentGenerationData = [];
 let currentClanIndex = 0;
 let currentPredatorIndex = 0;
+let currentGenerationIndex = 0;
 let currentClanDisciplines = [];     // какие дисциплины дал клан
 let currentPredatorDisciplines = []; // какие дисциплины дал стиль охоты
 let clanProvidedDisciplines = {};      // дисциплины от текущего клана
@@ -1565,6 +1567,7 @@ const GENERATION_GROUPS = [
         subtitle: 'Старшая Кровь',
         motto: 'Они пережили тех, кто считал себя бессмертными',
         accent: '#c9a84c',
+        image: '/static/generation_gallery/ancilla.png',
         icon: '♛',
         age: '1780–1940 гг.',
         potency: 'Сила Крови 2',
@@ -1585,6 +1588,7 @@ const GENERATION_GROUPS = [
         subtitle: 'Первые Ночи',
         motto: 'Они ещё помнят, как были людьми',
         accent: '#7a7aaa',
+        image: '/static/generation_gallery/childe.png',
         icon: '◈',
         age: 'менее 15 лет назад',
         potency: 'Сила Крови 0–1',
@@ -1606,6 +1610,7 @@ const GENERATION_GROUPS = [
         subtitle: 'Молодая Кровь',
         motto: 'Они уже поняли, что мир принадлежит хищникам',
         accent: '#cc3333',
+        image: '/static/generation_gallery/neonate.png',
         icon: '✦',
         age: 'после 1940 года',
         potency: 'Сила Крови 1',
@@ -1626,80 +1631,61 @@ function openGenerationGallery() {
     const gallery = document.getElementById('generation-gallery');
     if (!modal || !gallery) return;
 
-    // Треугольная раскладка: Анциллы сверху по центру, Птенцы и Неонаты снизу
-    let html = `<div style="
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: 24px;
-        max-width: 900px;
-        margin: 0 auto;
-    ">`;
+    gallery.innerHTML = '';
+    currentGenerationData = GENERATION_GROUPS;
+    currentGenerationIndex = 0;
 
-    // Верхняя строка — Анциллы (по центру)
-    html += `<div style="width: 100%; max-width: 420px;">`;
-    html += buildGenerationCard(GENERATION_GROUPS[0]);
-    html += `</div>`;
+    currentGenerationData.forEach((g, index) => {
+        const div = document.createElement('div');
+        div.style.cursor = 'pointer';
+        div.innerHTML = buildGenerationCard(g);
+        div.onclick = () => {
+            currentGenerationIndex = index;
+            showSingleGeneration(g.key);
+        };
+        gallery.appendChild(div);
+    });
 
-    // Нижняя строка — Птенцы и Неонаты
-    html += `<div style="display: flex; gap: 24px; width: 100%; justify-content: center; flex-wrap: wrap;">`;
-    html += `<div style="flex: 1; min-width: 260px; max-width: 420px;">`;
-    html += buildGenerationCard(GENERATION_GROUPS[1]);
-    html += `</div>`;
-    html += `<div style="flex: 1; min-width: 260px; max-width: 420px;">`;
-    html += buildGenerationCard(GENERATION_GROUPS[2]);
-    html += `</div>`;
-    html += `</div>`;
-
-    html += `</div>`;
-    gallery.innerHTML = html;
     modal.style.display = 'block';
 }
 
 function buildGenerationCard(g) {
     return `
-    <div onclick="showSingleGeneration('${g.key}')" style="
-        cursor: pointer;
-        background: linear-gradient(135deg, #0d0d0d 60%, #1a1010 100%);
-        border: 2px solid ${g.accent}44;
-        border-radius: 12px;
-        padding: 28px 22px 22px;
-        text-align: center;
-        transition: border-color 0.2s, box-shadow 0.2s;
-        box-shadow: 0 4px 24px rgba(0,0,0,0.5);
-        position: relative;
+    <div style="
+        border: 2px solid #550000;
+        border-radius: 8px;
+        padding: 0 0 16px;
+        background: #0d0d0d;
         overflow: hidden;
+        transition: border-color 0.2s, box-shadow 0.2s;
     "
     onmouseover="this.style.borderColor='${g.accent}'; this.style.boxShadow='0 0 30px ${g.accent}44';"
-    onmouseout="this.style.borderColor='${g.accent}44'; this.style.boxShadow='0 4px 24px rgba(0,0,0,0.5)';">
-
-        <div style="font-size: 48px; color: ${g.accent}; margin-bottom: 10px; opacity: 0.85;">${g.icon}</div>
-        <h2 style="color: ${g.accent}; margin: 0 0 4px; font-family: 'Courier New', monospace; letter-spacing: 4px; font-size: 22px;">${g.title}</h2>
-        <div style="color: #888; font-size: 12px; letter-spacing: 3px; text-transform: uppercase; margin-bottom: 16px;">${g.subtitle}</div>
-
-        <div style="display: flex; justify-content: center; gap: 20px; margin-bottom: 16px; flex-wrap: wrap;">
-            <div style="background:#111; border:1px solid #222; border-radius:6px; padding:8px 14px; font-size:13px;">
-                <div style="color:#555; font-size:10px; letter-spacing:1px; margin-bottom:3px;">ПОКОЛЕНИЕ</div>
-                <div style="color:#ddd;">${g.gens}</div>
-            </div>
-            <div style="background:#111; border:1px solid #222; border-radius:6px; padding:8px 14px; font-size:13px;">
-                <div style="color:#555; font-size:10px; letter-spacing:1px; margin-bottom:3px;">КРОВЬ</div>
-                <div style="color:${g.accent};">${g.potency}</div>
-            </div>
-        </div>
-
-        <div style="color:#aaa; font-size:13px; font-style:italic; border-top:1px solid #222; padding-top:14px; line-height:1.5;">
-            «${g.motto}»
-        </div>
-
-        <div style="position:absolute; bottom:10px; right:14px; color:${g.accent}; font-size:18px; opacity:0.4;">▶</div>
+    onmouseout="this.style.borderColor='#550000'; this.style.boxShadow='none';">
+        <img src="${g.image}" style="width:100%; max-height:60vh; object-fit:contain; background:#050505;">
+        <h3 style="color:${g.accent}; margin:12px 0 6px; text-align:center; font-family:'Courier New', monospace; letter-spacing:3px;">${g.title}</h3>
+        <p style="color:#ddd; font-size:14px; padding:0 10px; text-align:center; margin:0 0 8px;">${g.subtitle}</p>
+        <p style="color:#aaa; font-size:13px; padding:0 14px; text-align:center; margin:0;">${g.gens} · ${g.potency}</p>
     </div>`;
+}
+
+function prevGeneration() {
+    if (!currentGenerationData || currentGenerationData.length === 0) return;
+    currentGenerationIndex = (currentGenerationIndex - 1 + currentGenerationData.length) % currentGenerationData.length;
+    showSingleGeneration(currentGenerationData[currentGenerationIndex].key);
+}
+
+function nextGeneration() {
+    if (!currentGenerationData || currentGenerationData.length === 0) return;
+    currentGenerationIndex = (currentGenerationIndex + 1) % currentGenerationData.length;
+    showSingleGeneration(currentGenerationData[currentGenerationIndex].key);
 }
 
 function showSingleGeneration(key) {
     const g = GENERATION_GROUPS.find(x => x.key === key);
     if (!g) return;
     const gallery = document.getElementById('generation-gallery');
+    const nextIndex = GENERATION_GROUPS.findIndex(x => x.key === key);
+    if (nextIndex !== -1) currentGenerationIndex = nextIndex;
 
     const optionButtons = g.options.map(o => `
         <button onclick="selectThisGeneration('${o.value}', '${g.key}')" style="
@@ -1723,11 +1709,16 @@ function showSingleGeneration(key) {
     const archetypes = g.archetypes.map(a => `<li style="color:#aaa; margin-bottom:4px;">${a}</li>`).join('');
 
     gallery.innerHTML = `
-    <div style="max-width: 820px; margin: 0 auto; text-align: center; padding: 10px 0 30px;">
+    <div style="max-width: 1100px; margin: 0 auto; text-align: center; padding: 10px 0 30px;">
 
-        <div style="font-size: 56px; color: ${g.accent}; margin-bottom: 8px;">${g.icon}</div>
-        <h2 style="color: ${g.accent}; font-family: 'Courier New', monospace; letter-spacing: 5px; font-size: 28px; margin: 0 0 4px;">${g.title}</h2>
-        <div style="color: #666; font-size: 11px; letter-spacing: 4px; margin-bottom: 24px;">${g.subtitle.toUpperCase()}</div>
+        <div style="position:relative; display:inline-block;">
+            <button onclick="prevGeneration()" style="position:absolute; left:-50px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.85); color:${g.accent}; border:2px solid ${g.accent}; width:70px; height:70px; border-radius:50%; font-size:32px; cursor:pointer; z-index:25; box-shadow:0 0 25px ${g.accent}66;">←</button>
+            <button onclick="nextGeneration()" style="position:absolute; right:-50px; top:50%; transform:translateY(-50%); background:rgba(0,0,0,0.85); color:${g.accent}; border:2px solid ${g.accent}; width:70px; height:70px; border-radius:50%; font-size:32px; cursor:pointer; z-index:25; box-shadow:0 0 25px ${g.accent}66;">→</button>
+            <img src="${g.image}" style="max-width:100%; max-height:65vh; border:4px solid ${g.accent}; border-radius:12px; box-shadow:0 0 40px ${g.accent}66;">
+        </div>
+
+        <h2 style="color: ${g.accent}; font-family: 'Courier New', monospace; letter-spacing: 5px; font-size: 28px; margin: 25px 0 4px;">${g.title}</h2>
+        <div style="color: #888; font-size: 12px; letter-spacing: 4px; margin-bottom: 24px;">${g.subtitle.toUpperCase()}</div>
 
         <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 28px;">
             <div style="background:#0d0d0d; border:1px solid ${g.accent}33; border-radius:8px; padding:12px 20px;">

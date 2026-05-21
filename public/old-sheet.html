@@ -1676,14 +1676,16 @@
 
             #merits-flaws-modal > div,
             #clan-modal > div,
-            #predator-modal > div {
+            #predator-modal > div,
+            #generation-modal > div {
                 margin: 8px auto !important;
                 padding: 18px 12px !important;
                 width: 100% !important;
             }
 
             #clan-gallery,
-            #predator-gallery {
+            #predator-gallery,
+            #generation-gallery {
                 grid-template-columns: 1fr !important;
                 gap: 14px !important;
             }
@@ -2321,10 +2323,10 @@
 </div>
 
 <div id="generation-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 10000; overflow: auto; padding: 20px;">
-    <div style="max-width: 1100px; margin: 40px auto; background: #111; padding: 30px; border-radius: 8px; border: 1px solid #ff3131; position: relative;">
+    <div style="max-width: 1300px; margin: 40px auto; background: #111; padding: 30px; border-radius: 8px; border: 1px solid #ff3131; position: relative;">
         <button onclick="closeGenerationModal()" style="position: absolute; top: 15px; right: 20px; background: transparent; color: #ff3131; border: none; font-size: 28px; cursor: pointer;">×</button>
         <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px; font-family: 'Courier New', monospace; letter-spacing: 3px;">ВЫБОР ПОКОЛЕНИЯ</h2>
-        <div id="generation-gallery"></div>
+        <div id="generation-gallery" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px;"></div>
     </div>
 </div>
 
