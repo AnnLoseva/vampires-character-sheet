@@ -16,6 +16,7 @@ import MasterPanel from './MasterPanel'
 import {
   broadcastMusicChannel,
   getMusicProvider,
+  isMissingColumnError,
   parseYouTubeUrl,
   safeStorageName as safeMusicStorageName,
   TABLE_MUSIC,
@@ -111,7 +112,7 @@ import type {
   VoiceSignal,
 } from '@/lib/table/types'
 
-let supportsExtendedTableMusicSchema = false
+let supportsExtendedTableMusicSchema = true
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
@@ -688,7 +689,7 @@ export default function VampireTable() {
     let persistLegacyMusic = !supportsExtendedTableMusicSchema
     if (supportsExtendedTableMusicSchema) {
       const { error } = await createClient().from(TABLE_MUSIC).upsert(nextMusic)
-      if (error?.code === '42703' || /column .* does not exist/i.test(error?.message || '')) {
+      if (isMissingColumnError(error)) {
         supportsExtendedTableMusicSchema = false
         persistLegacyMusic = true
       } else if (error) {

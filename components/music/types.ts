@@ -1,6 +1,6 @@
 import type { MutableRefObject } from 'react'
 
-export type MusicProvider = 'none' | 'youtube' | 'spotify' | 'file'
+export type MusicProvider = 'none' | 'youtube' | 'file'
 
 export type MusicState = {
   room: string
@@ -23,7 +23,7 @@ export type MusicRow = {
   is_playing: boolean | null
   position_seconds: number | null
   updated_at: string
-  provider?: MusicProvider | null
+  provider?: MusicProvider | 'spotify' | null
   playlist_id?: string | null
   playlist_index?: number | null
   track_id?: string | null
@@ -59,24 +59,6 @@ export type MusicTreeNode = MusicLibraryItem & {
 export type MusicDropTarget = {
   id: string | null
 } | null
-
-export type SpotifyController = {
-  loadUri: (spotifyUri: string, preferVideo?: boolean, startAt?: number) => void
-  play: () => void
-  pause: () => void
-  resume: () => void
-  seek: (seconds: number) => void
-  destroy: () => void
-  addListener: (event: string, callback: (event: { data: { playingURI?: string; isPaused?: boolean; position?: number } }) => void) => void
-}
-
-export type SpotifyIframeApi = {
-  createController: (
-    element: HTMLElement,
-    options: { uri: string; width?: string | number; height?: string | number; theme?: string },
-    callback: (controller: SpotifyController) => void
-  ) => void
-}
 
 export type YouTubePlayerStateEvent = {
   data: number

@@ -3,7 +3,6 @@
 import { ChangeEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { LocalAudioAdapter } from './adapters/localAudioAdapter'
-import { SpotifyAdapter } from './adapters/spotifyAdapter'
 import { YouTubeAdapter } from './adapters/youtubeAdapter'
 import { MusicSyncEngine } from './MusicSyncEngine'
 import type { MusicChannel, MusicChannelRef, MusicDropTarget, MusicLibraryItem, MusicLibraryRow, MusicProvider, MusicState, MusicSyncAdapter, MusicTreeNode } from './types'
@@ -12,8 +11,9 @@ import {
   broadcastMusicChannel,
   getEffectiveMusicPosition,
   getMusicProvider,
-  getSpotifyUri,
   getStoragePathFromPublicUrl,
+  isMissingColumnError,
+  isMissingRelationError,
   mapMusicLibraryRow,
   mapMusicRow,
   parseYouTubeUrl,
@@ -28,8 +28,8 @@ const VISIBLE_MUSIC_ENGINE_ID = 'vtm-music-visible-engine'
 const VISIBLE_MUSIC_ENGINE_EVENT = 'vtm-music-visible-engine-updated'
 const MUSIC_UNLOCK_NEEDED_EVENT = 'vtm-music-unlock-needed'
 const MUSIC_UNLOCK_REQUEST_EVENT = 'vtm-music-unlock-request'
-let supportsExtendedMusicLoad = false
-let supportsMusicLibraryAutoplay = false
+let supportsExtendedMusicLoad = true
+let supportsMusicLibraryAutoplay = true
 
 type MusicPanelProps = {
   room: string
@@ -223,7 +223,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             return
           }
 
-          if (extended.error.code === '42703' || /column .* does not exist/i.test(extended.error.message || '')) {
+          if (isMissingColumnError(extended.error)) {
             supportsExtendedMusicLoad = false
           } else {
             console.warn('Extended music load failed, attempting fallback:', extended.error)
@@ -248,7 +248,8 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     void loadMusic()
 
     const loadMusicLibrary = async () => {
-      const selectColumns = supportsMusicLibraryAutoplay
+      const includeAutoplay = supportsMusicLibraryAutoplay
+      const selectColumns = includeAutoplay
         ? 'id, room, item_type, parent_id, name, url, autoplay, created_at'
         : 'id, room, item_type, parent_id, name, url, created_at'
 
@@ -259,7 +260,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .order('created_at', { ascending: true })
         .limit(160)
 
-      if (error && supportsMusicLibraryAutoplay && (error.code === '42703' || /column .* does not exist/i.test(error.message || ''))) {
+      if (error && includeAutoplay && isMissingColumnError(error)) {
         supportsMusicLibraryAutoplay = false
         await loadMusicLibrary()
         return
@@ -267,6 +268,11 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
       if (cancelled) return
       if (error) {
+        if (isMissingRelationError(error)) {
+          setMusicLibrary([])
+          musicLibraryRef.current = []
+          return
+        }
         console.error('Не удалось загрузить музыкальную библиотеку:', error)
         return
       }
@@ -362,7 +368,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       adapterMasterRef.current = isMaster
     }
 
-    if (provider !== 'youtube' && provider !== 'spotify' && provider !== 'file') {
+    if (provider !== 'youtube' && provider !== 'file') {
       adapterRef.current?.destroy()
       adapterRef.current = null
       if (playerMountRef.current) playerMountRef.current.innerHTML = ''
@@ -381,13 +387,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
               window.dispatchEvent(new CustomEvent(MUSIC_UNLOCK_NEEDED_EVENT))
             }
           },
-          canPublish: () => engineRef.current?.canPublishLifecycleEvent() ?? false,
-        })
-      }
-      if (provider === 'spotify') {
-        adapterRef.current = new SpotifyAdapter({
-          isMaster,
-          onStatus: setMusicStatus,
           canPublish: () => engineRef.current?.canPublishLifecycleEvent() ?? false,
         })
       }
@@ -412,7 +411,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         if (
           patch.playbackEnded &&
           isMaster &&
-          currentState.provider !== 'spotify' &&
           !currentState.playlistId &&
           (currentState.provider === 'file' || currentState.provider === 'youtube')
         ) {
@@ -553,24 +551,39 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       return
     }
 
-    if (provider === 'spotify') {
-      const activeUri = getSpotifyUri(normalizedUrl)
-      if (!activeUri) {
-        setMusicStatus('Spotify ссылка не распознана')
-        return
-      }
-      publishMusicState({ url: normalizedUrl, provider, activeUri, isPlaying: Boolean(options.play), positionSeconds: 0 })
-      musicDraftDirtyRef.current = false
-      return
-    }
-
     if (provider === 'file') {
       publishMusicState({ url: normalizedUrl, provider, activeUri: '', isPlaying: Boolean(options.play), positionSeconds: 0 })
       musicDraftDirtyRef.current = false
       return
     }
 
-    setMusicStatus('Поддерживаются YouTube, Spotify и аудиофайлы')
+    setMusicStatus('Поддерживаются YouTube и аудиофайлы')
+  }
+
+  const playCurrentMusic = () => {
+    if (!isMaster) return
+    if (musicDraftDirtyRef.current && musicDraft.trim()) {
+      applyMusicDraft({ play: true })
+      return
+    }
+    if (!musicStateRef.current.url) return
+    publishMusicState({
+      isPlaying: true,
+      positionSeconds: Math.max(0, Math.floor(engineRef.current?.getEffectivePosition() ?? 0)),
+    })
+  }
+
+  const pauseCurrentMusic = () => {
+    if (!isMaster || !musicStateRef.current.url) return
+    publishMusicState({
+      isPlaying: false,
+      positionSeconds: Math.max(0, Math.floor(engineRef.current?.getEffectivePosition() ?? 0)),
+    })
+  }
+
+  const stopCurrentMusic = () => {
+    if (!isMaster || !musicStateRef.current.url) return
+    publishMusicState({ isPlaying: false, positionSeconds: 0 })
   }
 
   const setPlayerLocalVolume = (volume: number) => {
@@ -616,10 +629,11 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     }
 
     const supabase = createClient()
-    let { error } = supportsMusicLibraryAutoplay
+    const includeAutoplay = supportsMusicLibraryAutoplay
+    let { error } = includeAutoplay
       ? await supabase.from(TABLE_MUSIC_LIBRARY).insert(folderRow)
       : await supabase.from(TABLE_MUSIC_LIBRARY).insert(folderLegacyRow)
-    if (error && supportsMusicLibraryAutoplay && (error.code === '42703' || /column .* does not exist/i.test(error.message || ''))) {
+    if (error && includeAutoplay && isMissingColumnError(error)) {
       supportsMusicLibraryAutoplay = false
       ;({ error } = await supabase.from(TABLE_MUSIC_LIBRARY).insert(folderLegacyRow))
     }
@@ -694,10 +708,11 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           created_at: item.createdAt,
         }
 
-        let { error } = supportsMusicLibraryAutoplay
+        const includeAutoplay = supportsMusicLibraryAutoplay
+        let { error } = includeAutoplay
           ? await supabase.from(TABLE_MUSIC_LIBRARY).insert(itemRow)
           : await supabase.from(TABLE_MUSIC_LIBRARY).insert(itemLegacyRow)
-        if (error && supportsMusicLibraryAutoplay && (error.code === '42703' || /column .* does not exist/i.test(error.message || ''))) {
+        if (error && includeAutoplay && isMissingColumnError(error)) {
           supportsMusicLibraryAutoplay = false
           ;({ error } = await supabase.from(TABLE_MUSIC_LIBRARY).insert(itemLegacyRow))
         }
@@ -895,11 +910,11 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     if (el.requestFullscreen) el.requestFullscreen()
   }
 
-  const showPlayerShell = musicProvider === 'youtube' || musicProvider === 'spotify' || musicProvider === 'file'
+  const showPlayerShell = musicProvider === 'youtube' || musicProvider === 'file'
   const youtubeLabel = musicState.playlistId ? `YouTube playlist ${musicState.playlistIndex ?? 0}` : 'YouTube'
 
   return (
-    <section className={`music-panel table-right-panel ${hidden ? 'music-panel-hidden' : ''}`} aria-label="Музыка комнаты">
+    <section className={`music-panel table-right-panel ${hidden ? 'music-panel-hidden' : ''}`} aria-label="Музыка комнаты" aria-hidden={hidden || undefined}>
       <header>
         <strong>Музыка</strong>
         <span>{isMaster ? musicStatus : 'Музыкой управляет мастер'}</span>
@@ -924,8 +939,19 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             onBlur={() => {
               musicDraftEditingRef.current = false
             }}
-            placeholder="YouTube или Spotify ссылка"
+            placeholder="YouTube ссылка или аудиофайл"
           />
+          <div className="music-link-actions" aria-label="Управление музыкой комнаты">
+            <button type="button" onClick={playCurrentMusic} disabled={!musicDraft.trim() && !musicState.url}>
+              Играть
+            </button>
+            <button type="button" onClick={pauseCurrentMusic} disabled={!musicState.url || !musicState.isPlaying}>
+              Пауза
+            </button>
+            <button type="button" onClick={stopCurrentMusic} disabled={!musicState.url}>
+              Стоп
+            </button>
+          </div>
           <div className="music-meta">
             <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider === 'youtube' ? youtubeLabel : musicProvider}</span>
             <span>{Math.floor(getEffectiveMusicPosition(musicState))} сек.</span>
@@ -937,12 +963,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider}</span>
         </div>
       )}
-
-      {musicProvider === 'spotify' ? (
-        <div className="music-warning">
-          Spotify Embed может проигрывать только preview/ограниченное воспроизведение. Для полного трека каждый игрок должен открыть Spotify или подключить Premium playback.
-        </div>
-      ) : null}
 
       {showPlayerShell ? (
         <>
@@ -957,11 +977,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
                 <div id={VISIBLE_MUSIC_ENGINE_ID} style={{ width: '100%', height: '100%' }} />
                 <div ref={playerMountRef} style={{ display: 'none' }} />
               </div>
-            ) : (
-              <div className={`spotify-embed ${!isMaster ? 'readonly' : ''}`} aria-label="Spotify плеер">
-                <div id={VISIBLE_MUSIC_ENGINE_ID} ref={playerMountRef} />
-              </div>
-            )
+            ) : null
           ) : (
             // hidden global mount when panel is closed
             <div className="music-engine-mount web-engine" aria-hidden="true">
@@ -970,9 +986,9 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           )}
 
           {/* show simple placeholder when embed is hidden */}
-          {(hidden && (musicProvider === 'youtube' || musicProvider === 'spotify')) ? (
+          {(hidden && musicProvider === 'youtube') ? (
             <div className="music-web-placeholder" aria-label="Музыкальный плеер">
-              <strong>{musicProvider === 'youtube' ? youtubeLabel : 'Spotify'}</strong>
+              <strong>{youtubeLabel}</strong>
               <span>{musicState.isPlaying ? 'Играет' : 'Пауза'} · {Math.floor(getEffectiveMusicPosition(musicState))} сек.</span>
             </div>
           ) : null}
@@ -1086,8 +1102,8 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .music-link-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
         .music-link-actions button { min-width: 0; height: 30px; border: 1px solid #333; border-radius: 5px; background: #181818; color: #f4f4f4; cursor: pointer; font: inherit; font-size: 12px; }
         .music-link-actions button:hover { background: #242424; }
+        .music-link-actions button:disabled { cursor: not-allowed; opacity: 0.48; }
         .music-meta { display: flex; justify-content: space-between; gap: 8px; color: #9c9c9c; font-size: 12px; }
-        .music-warning { padding: 9px 10px; border-top: 1px solid #302b20; border-bottom: 1px solid #302b20; background: #1b1710; color: #d9c99d; font-size: 12px; line-height: 1.35; }
         .music-panel iframe { width: 100%; height: 86px; border: 0; border-top: 1px solid #252525; background: #050505; }
         .music-engine-mount.web-engine {
           position: fixed;
@@ -1115,12 +1131,9 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         .youtube-embed { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 230px; border-top: 1px solid #252525; background: #050505; }
         .youtube-embed > div, .file-embed > div { width: 100%; height: 100%; }
         .youtube-embed iframe { width: 100%; height: 100%; display: block; border: 0; }
-        .spotify-embed { width: 100%; min-height: 86px; border-top: 1px solid #252525; background: #050505; }
-        .spotify-embed iframe { pointer-events: none; }
         .file-embed { width: 100%; min-height: 42px; border-top: 1px solid #252525; background: #050505; }
         .music-readonly { margin: 0; padding: 10px; color: #9d9d9d; font-size: 12px; line-height: 1.35; border-bottom: 1px solid #252525; }
         .music-readonly p { margin: 0 0 4px; color: #ddd; }
-        .music-panel iframe.readonly, .spotify-embed.readonly { filter: grayscale(0.35); }
         .youtube-embed.readonly { filter: grayscale(0.18); }
         .youtube-embed.readonly::after { content: ""; position: absolute; inset: 0; z-index: 2; cursor: default; }
         .player-local-controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 10px; border-top: 1px solid #252525; background: #0d0d0d; }

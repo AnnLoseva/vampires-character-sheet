@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase'
 import type { MusicChannel, MusicState } from './types'
-import { broadcastMusicChannel, getEffectiveMusicPosition, getMusicProvider, isMusicLifecycleSafe, TABLE_MUSIC, toLegacyMusicDbRow, toMusicDbRow } from './utils'
+import { broadcastMusicChannel, getEffectiveMusicPosition, getMusicProvider, isMissingColumnError, isMusicLifecycleSafe, TABLE_MUSIC, toLegacyMusicDbRow, toMusicDbRow } from './utils'
 
 type MusicEngineOptions = {
   room: string
@@ -11,7 +11,7 @@ type MusicEngineOptions = {
 }
 
 const POSITION_ONLY_THROTTLE_MS = 1800
-let supportsExtendedMusicSchema = false
+let supportsExtendedMusicSchema = true
 
 export class MusicSyncEngine {
   private state: MusicState
@@ -108,7 +108,7 @@ export class MusicSyncEngine {
     if (supportsExtendedMusicSchema) {
       const { error } = await supabase.from(TABLE_MUSIC).upsert(toMusicDbRow(next))
       if (!error) return
-      if (error.code === '42703' || /column .* does not exist/i.test(error.message || '')) {
+      if (isMissingColumnError(error)) {
         supportsExtendedMusicSchema = false
       } else {
         console.error('Не удалось сохранить расширенное состояние музыки:', error)

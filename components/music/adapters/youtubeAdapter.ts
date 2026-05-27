@@ -60,7 +60,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
     }
 
     if (this.player) {
-      this.suppressStateEventsUntil = Date.now() + 5000
+      this.suppressStateEventsUntil = Date.now() + 400
       const iframe = this.player.getIframe?.() || this.container?.querySelector('iframe') || container.querySelector('iframe')
       if (iframe) {
         if (!container.contains(iframe)) {

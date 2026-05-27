@@ -11,7 +11,7 @@ export function upsertMusicLibraryItem(items: MusicLibraryItem[], item: MusicLib
 }
 
 export function mapMusicRow(row: MusicRow): MusicState {
-  const provider = row.provider || getMusicProvider(row.url || '')
+  const provider = row.provider === 'spotify' ? 'none' : row.provider || getMusicProvider(row.url || '')
   return {
     room: row.room,
     url: row.url || '',
@@ -63,42 +63,35 @@ export function buildMusicTree(musicLibrary: MusicLibraryItem[]): MusicTreeNode[
   return sortNodes(roots)
 }
 
-export function getSpotifyUri(url: string) {
-  try {
-    const parsed = new URL(url.trim())
-    if (parsed.hostname.replace(/^www\./, '') !== 'open.spotify.com') return ''
-
-    const [type, id] = parsed.pathname.split('/').filter(Boolean)
-    if (!type || !id || !['track', 'playlist', 'album'].includes(type)) return ''
-    return `spotify:${type}:${id}`
-  } catch {
-    return ''
-  }
+type DbErrorLike = {
+  code?: string | null
+  message?: string | null
+  details?: string | null
+  hint?: string | null
 }
 
-export function getSpotifyEmbedUrl(urlOrUri: string) {
-  const raw = urlOrUri.trim()
-  if (!raw) return ''
+export function isMissingColumnError(error: DbErrorLike | null | undefined) {
+  if (!error) return false
+  const text = [error.message, error.details, error.hint].filter(Boolean).join(' ')
+  return (
+    error.code === '42703' ||
+    error.code === 'PGRST204' ||
+    /column .* does not exist/i.test(text) ||
+    /could not find .* column/i.test(text) ||
+    (/schema cache/i.test(text) && /column/i.test(text))
+  )
+}
 
-  if (raw.startsWith('spotify:')) {
-    const [, type, id] = raw.split(':')
-    if (type && id) return `https://open.spotify.com/embed/${type}/${id}`
-  }
-
-  try {
-    const parsed = new URL(raw)
-    const host = parsed.hostname.replace(/^www\./, '')
-    if (host === 'open.spotify.com') {
-      const parts = parsed.pathname.split('/').filter(Boolean)
-      if (parts.length >= 2 && ['track', 'playlist', 'album'].includes(parts[0])) {
-        return `https://open.spotify.com/embed/${parts[0]}/${parts[1]}`
-      }
-    }
-  } catch {
-    return ''
-  }
-
-  return ''
+export function isMissingRelationError(error: DbErrorLike | null | undefined) {
+  if (!error) return false
+  const text = [error.message, error.details, error.hint].filter(Boolean).join(' ')
+  return (
+    error.code === '42P01' ||
+    error.code === 'PGRST205' ||
+    /relation .* does not exist/i.test(text) ||
+    /could not find .* table/i.test(text) ||
+    (/schema cache/i.test(text) && /table/i.test(text))
+  )
 }
 
 export function getMusicProvider(url: string): MusicProvider {
@@ -109,7 +102,6 @@ export function getMusicProvider(url: string): MusicProvider {
     const parsed = new URL(raw)
     const host = parsed.hostname.replace(/^www\./, '')
     if (host === 'youtu.be' || host.endsWith('youtube.com')) return 'youtube'
-    if (host === 'open.spotify.com') return 'spotify'
     if (/\.(mp3|wav|ogg|m4a|flac|webm|aac)(\?.*)?$/i.test(parsed.pathname)) return 'file'
   } catch {
     return 'none'
