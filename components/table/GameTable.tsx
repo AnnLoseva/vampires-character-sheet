@@ -112,7 +112,7 @@ import type {
   VoiceSignal,
 } from '@/lib/table/types'
 
-let supportsExtendedTableMusicSchema = true
+let supportsExtendedTableMusicSchema = false
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'

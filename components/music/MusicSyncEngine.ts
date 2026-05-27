@@ -11,7 +11,7 @@ type MusicEngineOptions = {
 }
 
 const POSITION_ONLY_THROTTLE_MS = 1800
-let supportsExtendedMusicSchema = true
+let supportsExtendedMusicSchema = false
 
 export class MusicSyncEngine {
   private state: MusicState
@@ -98,6 +98,9 @@ export class MusicSyncEngine {
 
     this.state = next
     this.options.onState(next)
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('vtm-music-state', { detail: next }))
+    }
     broadcastMusicChannel(this.options.getChannel(), 'music', next)
 
     const onlyPosition = Object.keys(patch).every(key => key === 'positionSeconds' || key === 'updatedAt')

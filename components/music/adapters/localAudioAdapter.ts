@@ -41,17 +41,14 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     if (Math.abs(this.audio.currentTime - positionSeconds) > seekThreshold) this.audio.currentTime = positionSeconds
 
     if (state.isPlaying && this.audio.paused) {
-      this.audio.play().catch(error => {
-        console.error('Браузер заблокировал автозапуск аудио:', error)
-        this.options.onStatus('Нажми «Включить музыку», чтобы запустить звук')
-      })
+      this.playAudio()
     } else if (!state.isPlaying && !this.audio.paused) {
       this.audio.pause()
     }
   }
 
   play() {
-    void this.audio?.play()
+    this.playAudio()
   }
 
   pause() {
@@ -62,7 +59,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     if (!this.audio) return
     const duration = Number.isFinite(this.audio.duration) ? Math.max(0, this.audio.duration) : 0
     this.audio.currentTime = duration > 0 ? Math.min(Math.max(0, Math.floor(seconds)), Math.max(0, duration - 0.25)) : Math.max(0, Math.floor(seconds))
-    if (this.state?.isPlaying) void this.audio.play()
+    if (this.state?.isPlaying) this.playAudio()
   }
 
   setVolume(volume: number) {
@@ -90,10 +87,28 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     if (!this.options.isMaster || !this.audio || !this.options.canPublish()) return
     const duration = Number.isFinite(this.audio.duration) ? Math.max(0, this.audio.duration) : 0
     const positionSeconds = Math.max(0, Math.floor(this.audio.currentTime || 0))
+    const nextPosition = duration > 0 ? Math.min(positionSeconds, Math.floor(duration)) : positionSeconds
+    if (this.state) {
+      this.state = {
+        ...this.state,
+        isPlaying,
+        positionSeconds: nextPosition,
+        updatedAt: new Date().toISOString(),
+      }
+    }
     this.callback?.({
       isPlaying,
-      positionSeconds: duration > 0 ? Math.min(positionSeconds, Math.floor(duration)) : positionSeconds,
+      positionSeconds: nextPosition,
       playbackEnded,
+    })
+  }
+
+  private playAudio() {
+    this.audio?.play().catch(error => {
+      if (!(error instanceof DOMException) || error.name !== 'NotAllowedError') {
+        console.warn('Не удалось запустить аудио:', error)
+      }
+      this.options.onStatus('Нажми «Включить музыку», чтобы запустить звук')
     })
   }
 }

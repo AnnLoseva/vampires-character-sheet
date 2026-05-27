@@ -125,6 +125,21 @@ export class YouTubeAdapter implements MusicSyncAdapter {
     }
   }
 
+  private publishPatch(patch: MusicAdapterStateChange) {
+    if (this.state) {
+      this.state = {
+        ...this.state,
+        activeUri: patch.activeUri ?? this.state.activeUri,
+        isPlaying: patch.isPlaying ?? this.state.isPlaying,
+        positionSeconds: patch.positionSeconds ?? this.state.positionSeconds,
+        playlistIndex: patch.playlistIndex ?? this.state.playlistIndex,
+        trackId: patch.trackId ?? this.state.trackId,
+        updatedAt: new Date().toISOString(),
+      }
+    }
+    this.callback?.(patch)
+  }
+
   private async ensurePlayer() {
     if (!this.container || !this.state || this.player) return
     const api = await loadYouTubeIframeApi()
@@ -239,7 +254,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
 
     if (stateChanged || positionChanged || playlistChanged || playbackEnded) {
       this.lastPublishAt = Date.now()
-      this.callback?.({
+      this.publishPatch({
         isPlaying: nextPlaying,
         positionSeconds: playbackEnded ? 0 : positionSeconds,
         playlistIndex,
@@ -263,7 +278,7 @@ export class YouTubeAdapter implements MusicSyncAdapter {
 
       this.lastPublishAt = now
       const videoData = this.player.getVideoData?.() || {}
-      this.callback?.({
+      this.publishPatch({
         isPlaying: this.state.isPlaying,
         positionSeconds,
         playlistIndex: typeof this.player.getPlaylistIndex === 'function' ? this.player.getPlaylistIndex() : this.state.playlistIndex,

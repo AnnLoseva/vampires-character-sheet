@@ -12,6 +12,7 @@ export function upsertMusicLibraryItem(items: MusicLibraryItem[], item: MusicLib
 
 export function mapMusicRow(row: MusicRow): MusicState {
   const provider = row.provider === 'spotify' ? 'none' : row.provider || getMusicProvider(row.url || '')
+  const youtube = provider === 'youtube' ? parseYouTubeUrl(row.url || '') : { videoId: '', playlistId: undefined }
   return {
     room: row.room,
     url: row.url || '',
@@ -20,9 +21,9 @@ export function mapMusicRow(row: MusicRow): MusicState {
     positionSeconds: row.position_seconds ?? 0,
     updatedAt: row.updated_at,
     provider,
-    playlistId: row.playlist_id || undefined,
+    playlistId: row.playlist_id || youtube.playlistId || undefined,
     playlistIndex: typeof row.playlist_index === 'number' ? row.playlist_index : undefined,
-    trackId: row.track_id || undefined,
+    trackId: row.track_id || youtube.videoId || undefined,
     sourceType: row.source_type || undefined,
   }
 }
