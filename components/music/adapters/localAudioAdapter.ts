@@ -13,6 +13,9 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
   private state: MusicState | null = null
   private callback: ((patch: MusicAdapterStateChange) => void) | null = null
   private isDestroying = false
+  private loadedUrl = ''
+  private unsupportedUrl = ''
+  private unlockNeededUrl = ''
 
   constructor(private options: LocalAudioAdapterOptions) {}
 
@@ -25,6 +28,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     this.audio.addEventListener('pause', () => this.publishElementState(false))
     this.audio.addEventListener('ended', () => this.publishElementState(false, true))
     this.audio.addEventListener('seeked', () => this.publishElementState(this.state?.isPlaying ?? false))
+    this.audio.addEventListener('error', () => this.handleUnsupportedSource())
     container.appendChild(this.audio)
     if (this.state) void this.load(this.state)
   }
@@ -35,7 +39,13 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     const duration = Number.isFinite(this.audio.duration) ? Math.max(0, this.audio.duration) : 0
     const rawPosition = Math.max(0, Math.floor(getEffectiveMusicPosition(state)))
     const positionSeconds = duration > 0 ? Math.min(rawPosition, Math.max(0, duration - 0.25)) : rawPosition
-    if (this.audio.src !== state.url) this.audio.src = state.url
+    if (this.loadedUrl !== state.url) {
+      this.loadedUrl = state.url
+      this.unsupportedUrl = ''
+      this.unlockNeededUrl = ''
+      this.audio.src = state.url
+      this.audio.load()
+    }
     this.audio.volume = this.options.volume / 100
     const seekThreshold = this.options.isMaster ? 3.5 : 1.8
     if (Math.abs(this.audio.currentTime - positionSeconds) > seekThreshold) this.audio.currentTime = positionSeconds
@@ -48,7 +58,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
   }
 
   play() {
-    this.playAudio()
+    this.playAudio({ force: true })
   }
 
   pause() {
@@ -72,6 +82,9 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     this.audio?.pause()
     this.audio?.remove()
     this.audio = null
+    this.loadedUrl = ''
+    this.unsupportedUrl = ''
+    this.unlockNeededUrl = ''
     this.isDestroying = false
   }
 
@@ -103,12 +116,42 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     })
   }
 
-  private playAudio() {
-    this.audio?.play().catch(error => {
-      if (!(error instanceof DOMException) || error.name !== 'NotAllowedError') {
-        console.warn('Не удалось запустить аудио:', error)
-      }
+  private playAudio(options: { force?: boolean } = {}) {
+    const url = this.state?.url || this.loadedUrl
+    if (url && this.unsupportedUrl === url) {
+      this.options.onStatus('Этот аудиофайл не поддерживается браузером')
+      return
+    }
+    if (options.force && url && this.unlockNeededUrl === url) {
+      this.unlockNeededUrl = ''
+    }
+    if (url && this.unlockNeededUrl === url) {
       this.options.onStatus('Нажми «Включить музыку», чтобы запустить звук')
+      return
+    }
+
+    this.audio?.play().catch(error => {
+      if (error instanceof DOMException && error.name === 'NotAllowedError') {
+        this.unlockNeededUrl = url
+        this.options.onStatus('Нажми «Включить музыку», чтобы запустить звук')
+        return
+      }
+      if (error instanceof DOMException && (error.name === 'NotSupportedError' || error.name === 'AbortError')) {
+        if (error.name === 'NotSupportedError') this.handleUnsupportedSource()
+        return
+      }
+      console.warn('Не удалось запустить аудио:', error)
+      this.options.onStatus('Аудиофайл не запустился')
     })
+  }
+
+  private handleUnsupportedSource() {
+    const url = this.state?.url || this.loadedUrl
+    if (!url || this.unsupportedUrl === url) return
+    this.unsupportedUrl = url
+    this.options.onStatus('Этот аудиофайл не поддерживается браузером')
+    if (this.options.isMaster) {
+      this.callback?.({ isPlaying: false, positionSeconds: 0 })
+    }
   }
 }

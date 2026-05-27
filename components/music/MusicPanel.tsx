@@ -802,7 +802,26 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
   const playMusicTrack = (track: MusicLibraryItem) => {
     if (!isMaster || track.itemType !== 'track' || !track.url) return
-    publishMusicState({ url: track.url, activeUri: track.id, provider: 'file', isPlaying: true, positionSeconds: 0 })
+    const provider = getMusicProvider(track.url)
+    if (provider === 'youtube') {
+      const parsed = parseYouTubeUrl(track.url)
+      publishMusicState({
+        url: track.url,
+        activeUri: parsed.playlistId || parsed.videoId || track.id,
+        provider,
+        playlistId: parsed.playlistId,
+        playlistIndex: parsed.playlistId ? 0 : undefined,
+        trackId: parsed.videoId || undefined,
+        isPlaying: true,
+        positionSeconds: 0,
+      })
+      return
+    }
+    if (provider !== 'file') {
+      setMusicStatus('Этот трек не похож на аудиофайл')
+      return
+    }
+    publishMusicState({ url: track.url, activeUri: track.id, provider, isPlaying: true, positionSeconds: 0 })
   }
 
   const handleMusicDragStart = (event: React.DragEvent<HTMLElement>, itemId: string) => {
