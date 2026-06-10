@@ -4,6 +4,9 @@ import './globals.css'
 export const metadata: Metadata = {
   title: 'VTM V5 — Character Sheet & Table',
   description: 'Вампиры: Маскарад V5',
+  icons: {
+    icon: '/favicon.ico',
+  },
 }
 
 export default function RootLayout({
