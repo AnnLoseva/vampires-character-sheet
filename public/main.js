@@ -1267,6 +1267,43 @@ async function renderClanIcon(clanName) {
 
 // ==================== ГАЛЕРЕЯ КЛАНОВ ====================
 
+const CLAN_GALLERY_IMAGE_OVERRIDES = {
+    "Вентру": "/static/clan_gallery/ventrue_full.png",
+    "Каитиф": "/static/clan_gallery/caitiff_full.png"
+};
+
+const CLAN_GALLERY_DESCRIPTIONS = {
+    "Бруха": "Бунтари и идеалисты.",
+    "Вентру": "Аристократы и правители.",
+    "Гангрел": "Дикие дети природы.",
+    "Малкавиан": "Безумные пророки.",
+    "Носферату": "Отверженные хранители тайн.",
+    "Тореадор": "Художники и ценители красоты.",
+    "Тремер": "Маги и учёные крови.",
+    "Каитиф": "Независимые и скрытные.",
+    "Слабокровные": "Самые молодые и слабые вампиры."
+};
+
+function getClanGalleryDescription(name, data) {
+    if (CLAN_GALLERY_DESCRIPTIONS[name]) return CLAN_GALLERY_DESCRIPTIONS[name];
+
+    const firstParagraph = (data.description || '').split(/\n+/).find(Boolean) || '';
+    const firstSentence = firstParagraph.match(/^.*?[.!?]/u)?.[0] || firstParagraph;
+
+    if (!firstSentence) return "Описание появится в правилах.";
+    return firstSentence.length > 140 ? `${firstSentence.slice(0, 137)}...` : firstSentence;
+}
+
+function buildClanGalleryData() {
+    return Object.entries(RULES.clans || {})
+        .map(([name, data]) => ({
+            name,
+            image: CLAN_GALLERY_IMAGE_OVERRIDES[name] || data.gallery_image,
+            desc: getClanGalleryDescription(name, data)
+        }))
+        .filter(clan => clan.image);
+}
+
 // Открытие галереи кланов
 function openClanGallery() {
     if (startingSheetFixed && !expShopMode) return;
@@ -1276,17 +1313,7 @@ function openClanGallery() {
 
     gallery.innerHTML = '';
 
-    currentClanData = [
-        { name: "Бруха", image: "/static/clan_gallery/brujah_full.png", desc: "Бунтари и идеалисты." },
-        { name: "Вентру", image: "/static/clan_gallery/ventrue_full.png", desc: "Аристократы и правители." },
-        { name: "Гангрел", image: "/static/clan_gallery/gangrel_full.png", desc: "Дикие дети природы." },
-        { name: "Малкавиан", image: "/static/clan_gallery/malkavian_full.png", desc: "Безумные пророки." },
-        { name: "Носферату", image: "/static/clan_gallery/nosferatu_full.png", desc: "Отверженные хранители тайн." },
-        { name: "Тореадор", image: "/static/clan_gallery/toreador_full.png", desc: "Художники и ценители красоты." },
-        { name: "Тремер", image: "/static/clan_gallery/tremere_full.png", desc: "Маги и учёные крови." },
-        { name: "Каитиф", image: "/static/clan_gallery/caitiff_full.png", desc: "Независимые и скрытные." },
-        { name: "Слабокровные", image: "/static/clan_gallery/thinblood_full.png", desc: "Самые молодые и слабые вампиры." }
-    ];
+    currentClanData = buildClanGalleryData();
 
     currentClanIndex = 0;
 
