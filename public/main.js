@@ -1281,8 +1281,31 @@ const CLAN_GALLERY_DESCRIPTIONS = {
     "Тореадор": "Художники и ценители красоты.",
     "Тремер": "Маги и учёные крови.",
     "Каитиф": "Независимые и скрытные.",
-    "Слабокровные": "Самые молодые и слабые вампиры."
+    "Слабокровные": "Самые молодые и слабые вампиры.",
+    "Каппадокийцы": "Некроманты, мистики смерти и хранители забытых тайн.",
+    "Киасиды": "Странные учёные, фейская кровь и холодная одержимость знаниями.",
+    "Кровные Братья": "Синхронная линия крови, созданная как единый боевой организм.",
+    "Ламии": "Воительницы смерти, телохранительницы и служительницы мрачных культов.",
+    "Лианнан": "Древняя кровь дикой земли, искусства и кровавого вдохновения.",
+    "Нагараджа": "Пожиратели плоти, некроманты и изгнанные охотники за тайнами.",
+    "Нойады": "Северная кровь, древние духи и шаманские традиции ночи.",
+    "Предвестники Черепов": "Мстительные некроманты, несущие память о погибшей крови.",
+    "Салюбри": "Исцелители, воины и проклятые носители третьего глаза.",
+    "Самеди": "Разлагающиеся некроманты, духи кладбищ и мастера жуткого выживания."
 };
+
+const CLAN_GALLERY_SUPPLEMENTAL = [
+    { name: "Каппадокийцы", image: "/static/clan_gallery/cappadocians_full.png" },
+    { name: "Киасиды", image: "/static/clan_gallery/kyasid_full.png" },
+    { name: "Кровные Братья", image: "/static/clan_gallery/blood_brothers_full.png" },
+    { name: "Ламии", image: "/static/clan_gallery/lamia_full.png" },
+    { name: "Лианнан", image: "/static/clan_gallery/liannan_full.png" },
+    { name: "Нагараджа", image: "/static/clan_gallery/nagaraja_full.png" },
+    { name: "Нойады", image: "/static/clan_gallery/noiad_full.png" },
+    { name: "Предвестники Черепов", image: "/static/clan_gallery/harbingers_of_skulls_full.png" },
+    { name: "Салюбри", image: "/static/clan_gallery/salubri_full.png" },
+    { name: "Самеди", image: "/static/clan_gallery/samedi_full.png" }
+];
 
 function getClanGalleryDescription(name, data) {
     if (CLAN_GALLERY_DESCRIPTIONS[name]) return CLAN_GALLERY_DESCRIPTIONS[name];
@@ -1295,13 +1318,23 @@ function getClanGalleryDescription(name, data) {
 }
 
 function buildClanGalleryData() {
-    return Object.entries(RULES.clans || {})
+    const rulesGalleryData = Object.entries(RULES.clans || {})
         .map(([name, data]) => ({
             name,
             image: CLAN_GALLERY_IMAGE_OVERRIDES[name] || data.gallery_image,
             desc: getClanGalleryDescription(name, data)
         }))
         .filter(clan => clan.image);
+
+    const clansWithImages = new Set(rulesGalleryData.map(clan => clan.name));
+    const supplementalGalleryData = CLAN_GALLERY_SUPPLEMENTAL
+        .filter(clan => !clansWithImages.has(clan.name))
+        .map(clan => ({
+            ...clan,
+            desc: getClanGalleryDescription(clan.name, clan)
+        }));
+
+    return [...rulesGalleryData, ...supplementalGalleryData];
 }
 
 // Открытие галереи кланов
