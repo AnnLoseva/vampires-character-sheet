@@ -205,12 +205,19 @@ function populateSelects() {
     // === КЛАНЫ ===
     const clanSelect = document.getElementById('clan-input');
     clanSelect.innerHTML = '<option value="">Выберите клан</option>';
-    
-    Object.keys(RULES.clans || {}).forEach(name => {
-        const opt = document.createElement('option');
-        opt.value = name;
-        opt.textContent = name;
-        clanSelect.appendChild(opt);
+
+    groupClansBySection(buildClanSelectData()).forEach(group => {
+        const optGroup = document.createElement('optgroup');
+        optGroup.label = group.title;
+
+        group.clans.forEach(clan => {
+            const opt = document.createElement('option');
+            opt.value = clan.name;
+            opt.textContent = clan.name;
+            optGroup.appendChild(opt);
+        });
+
+        clanSelect.appendChild(optGroup);
     });
 
     // === СТИЛИ ОХОТЫ ===
@@ -1272,6 +1279,38 @@ const CLAN_GALLERY_IMAGE_OVERRIDES = {
     "Каитиф": "/static/clan_gallery/caitiff_full.png"
 };
 
+const CLAN_GALLERY_SECTIONS = [
+    {
+        title: "5 версия",
+        names: [
+            "Бруха",
+            "Вентру",
+            "Гангрел",
+            "Малкавиан",
+            "Носферату",
+            "Тореадор",
+            "Тремер",
+            "Каитиф",
+            "Слабокровные"
+        ]
+    },
+    {
+        title: "20 версия",
+        names: [
+            "Ассамиты",
+            "Джованни",
+            "Ласомбра",
+            "Последователи Сета",
+            "Равнос",
+            "Цимисхи"
+        ]
+    },
+    {
+        title: "Линии крови",
+        names: []
+    }
+];
+
 const CLAN_GALLERY_DESCRIPTIONS = {
     "Бруха": "Бунтари и идеалисты.",
     "Вентру": "Аристократы и правители.",
@@ -1307,6 +1346,26 @@ const CLAN_GALLERY_SUPPLEMENTAL = [
     { name: "Самеди", image: "/static/clan_gallery/samedi_full.png" }
 ];
 
+const CLAN_SECTION_BY_NAME = CLAN_GALLERY_SECTIONS.reduce((sections, group) => {
+    group.names.forEach(name => {
+        sections[name] = group.title;
+    });
+    return sections;
+}, {});
+
+function getClanSectionTitle(name) {
+    return CLAN_SECTION_BY_NAME[name] || "Линии крови";
+}
+
+function groupClansBySection(clans) {
+    return CLAN_GALLERY_SECTIONS
+        .map(section => ({
+            title: section.title,
+            clans: clans.filter(clan => getClanSectionTitle(clan.name) === section.title)
+        }))
+        .filter(section => section.clans.length);
+}
+
 function getClanGalleryDescription(name, data) {
     if (CLAN_GALLERY_DESCRIPTIONS[name]) return CLAN_GALLERY_DESCRIPTIONS[name];
 
@@ -1337,6 +1396,16 @@ function buildClanGalleryData() {
     return [...rulesGalleryData, ...supplementalGalleryData];
 }
 
+function buildClanSelectData() {
+    const galleryData = buildClanGalleryData();
+    const namesWithGalleryData = new Set(galleryData.map(clan => clan.name));
+    const rulesOnlyData = Object.keys(RULES.clans || {})
+        .filter(name => !namesWithGalleryData.has(name))
+        .map(name => ({ name }));
+
+    return [...galleryData, ...rulesOnlyData];
+}
+
 // Открытие галереи кланов
 function openClanGallery() {
     if (startingSheetFixed && !expShopMode) return;
@@ -1350,19 +1419,35 @@ function openClanGallery() {
 
     currentClanIndex = 0;
 
-    currentClanData.forEach((c, index) => {
-        const div = document.createElement('div');
-        div.style.cursor = 'pointer';
-        div.innerHTML = `
-            <img src="${c.image}" style="width:100%; max-height:60vh; object-fit:contain; border-radius:8px; border:2px solid #550000;">
-            <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${c.name}</h3>
-            <p style="color:#ddd; font-size:14px; padding:0 10px;">${c.desc}</p>
+    groupClansBySection(currentClanData).forEach(group => {
+        const heading = document.createElement('div');
+        heading.style.gridColumn = '1 / -1';
+        heading.innerHTML = `
+            <div style="display:flex; align-items:center; gap:18px; margin:22px 0 4px;">
+                <div style="height:1px; flex:1; background:linear-gradient(90deg, transparent, #6f1515);"></div>
+                <h3 style="margin:0; color:#ff3131; letter-spacing:4px; text-transform:uppercase; font-size:22px; text-align:center;">
+                    ${group.title}
+                </h3>
+                <div style="height:1px; flex:1; background:linear-gradient(90deg, #6f1515, transparent);"></div>
+            </div>
         `;
-        div.onclick = () => {
-            currentClanIndex = index;
-            showSingleClan(c);
-        };
-        gallery.appendChild(div);
+        gallery.appendChild(heading);
+
+        group.clans.forEach(c => {
+            const index = currentClanData.indexOf(c);
+            const div = document.createElement('div');
+            div.style.cursor = 'pointer';
+            div.innerHTML = `
+                <img src="${c.image}" style="width:100%; max-height:60vh; object-fit:contain; border-radius:8px; border:2px solid #550000;">
+                <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${c.name}</h3>
+                <p style="color:#ddd; font-size:14px; padding:0 10px;">${c.desc}</p>
+            `;
+            div.onclick = () => {
+                currentClanIndex = index;
+                showSingleClan(c);
+            };
+            gallery.appendChild(div);
+        });
     });
 
     modal.style.display = 'block';
