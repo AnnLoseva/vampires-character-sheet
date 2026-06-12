@@ -23,7 +23,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
 
   mount(container: HTMLElement) {
     if (this.container === container && this.audio) {
-      this.audio.controls = this.options.isMaster
+      this.audio.controls = true
       if (this.state) void this.load(this.state)
       return
     }
@@ -33,7 +33,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     container.innerHTML = ''
     this.audio = document.createElement('audio')
     this.audio.className = 'audio-player'
-    this.audio.controls = this.options.isMaster
+    this.audio.controls = true
     this.audio.addEventListener('play', () => this.publishElementState(true))
     this.audio.addEventListener('pause', () => this.publishElementState(false))
     this.audio.addEventListener('ended', () => this.publishElementState(false, true))

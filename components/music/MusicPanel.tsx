@@ -986,9 +986,16 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       {showPlayerShell ? (
         <>
           {musicProvider === 'file' ? (
-            <div className="music-engine-mount file-engine">
-              <div ref={playerMountRef} aria-label="Музыка комнаты" />
-            </div>
+            !hidden ? (
+              <div className="file-embed" aria-label="Аудиоплеер">
+                <div id={VISIBLE_MUSIC_ENGINE_ID} />
+                <div ref={playerMountRef} style={{ display: 'none' }} />
+              </div>
+            ) : (
+              <div className="music-engine-mount web-engine" aria-hidden="true">
+                <div ref={playerMountRef} aria-label="Музыка комнаты" />
+              </div>
+            )
           ) : !hidden ? (
             // visible web embeds when the Music panel is open
             musicProvider === 'youtube' ? (
@@ -1014,7 +1021,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         </>
       ) : null}
 
-      {!isMaster && ((musicProvider === 'youtube' && musicState.url) || (musicProvider === 'file' && musicState.url)) ? (
+      {!isMaster && musicProvider === 'youtube' && musicState.url ? (
         <div className="player-local-controls" aria-label="Локальные настройки плеера">
           <label>
             <span>Громкость</span>
@@ -1134,7 +1141,6 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           pointer-events: none;
           overflow: hidden;
         }
-        .music-engine-mount.file-engine { width: 100%; border-top: 1px solid #252525; background: #050505; }
         .music-web-placeholder {
           display: grid;
           gap: 4px;
@@ -1145,12 +1151,12 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         }
         .music-web-placeholder strong { color: #f2f2f2; font-size: 13px; }
         .music-web-placeholder span { color: #9c9c9c; font-size: 12px; }
-        .audio-player { width: 100%; border-top: 1px solid #252525; background: #050505; }
-        .audio-player:not([controls]) { display: none; }
+        .audio-player { display: block; width: 100%; min-height: 54px; background: #050505; color-scheme: dark; }
         .youtube-embed { position: relative; width: 100%; aspect-ratio: 16 / 9; min-height: 230px; border-top: 1px solid #252525; background: #050505; }
         .youtube-embed > div, .file-embed > div { width: 100%; height: 100%; }
         .youtube-embed iframe { width: 100%; height: 100%; display: block; border: 0; }
-        .file-embed { width: 100%; min-height: 42px; border-top: 1px solid #252525; background: #050505; }
+        .file-embed { width: 100%; min-height: 54px; border-top: 1px solid #252525; background: #050505; }
+        .file-embed > div { width: 100%; min-height: 54px; }
         .music-readonly { margin: 0; padding: 10px; color: #9d9d9d; font-size: 12px; line-height: 1.35; border-bottom: 1px solid #252525; }
         .music-readonly p { margin: 0 0 4px; color: #ddd; }
         .youtube-embed.readonly { filter: grayscale(0.18); }
