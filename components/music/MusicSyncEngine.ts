@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase'
 import type { MusicChannel, MusicState } from './types'
-import { broadcastMusicChannel, getEffectiveMusicPosition, getMusicProvider, isMissingColumnError, isMusicLifecycleSafe, TABLE_MUSIC, toLegacyMusicDbRow, toMusicDbRow } from './utils'
+import { broadcastMusicChannel, getEffectiveMusicPosition, getMusicProvider, isMissingColumnError, isMusicLifecycleSafe, normalizeMusicState, TABLE_MUSIC, toLegacyMusicDbRow, toMusicDbRow } from './utils'
 
 type MusicEngineOptions = {
   room: string
@@ -11,7 +11,7 @@ type MusicEngineOptions = {
 }
 
 const POSITION_ONLY_THROTTLE_MS = 1800
-let supportsExtendedMusicSchema = false
+let supportsExtendedMusicSchema = true
 
 export class MusicSyncEngine {
   private state: MusicState
@@ -56,10 +56,10 @@ export class MusicSyncEngine {
     const nextTime = new Date(next.updatedAt).getTime()
     if (Number.isFinite(currentTime) && Number.isFinite(nextTime) && nextTime < currentTime) return
 
-    const mapped = {
+    const mapped = normalizeMusicState({
       ...next,
       provider: next.provider || getMusicProvider(next.url),
-    }
+    })
     if (
       mapped.updatedAt === this.state.updatedAt &&
       mapped.url === this.state.url &&
@@ -84,7 +84,7 @@ export class MusicSyncEngine {
 
     const nowMs = Date.now()
     const current = this.state
-    const next: MusicState = {
+    const next = normalizeMusicState({
       ...current,
       ...patch,
       room: this.options.room,
@@ -94,7 +94,7 @@ export class MusicSyncEngine {
       isPlaying: patch.isPlaying ?? current.isPlaying,
       positionSeconds: Math.max(0, Math.floor(patch.positionSeconds ?? current.positionSeconds)),
       updatedAt: new Date(nowMs).toISOString(),
-    }
+    })
 
     this.state = next
     this.options.onState(next)

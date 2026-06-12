@@ -1,4 +1,5 @@
 import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, InventoryItem, LayerPatch, RollMessage, RollRow, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow } from './types'
+import { getMusicProvider } from '@/components/music/utils'
 
 export function mapRollRow(row: RollRow): RollMessage {
   return {
@@ -153,13 +154,14 @@ export function mapSceneRow(row: TableSceneRow): TableScene {
 }
 
 export function mapSceneMusicRow(row: SceneMusicRow): SceneMusicTrack {
+  const provider = getMusicProvider(row.url)
   return {
     id: row.id,
     room: row.room,
     sceneId: row.scene_id,
     title: row.title,
     url: row.url,
-    sourceType: row.source_type || 'youtube',
+    sourceType: row.source_type || (provider === 'none' ? 'youtube' : provider),
     orderIndex: row.order_index ?? 0,
     isDefault: row.is_default ?? false,
     autoplay: row.autoplay ?? false,

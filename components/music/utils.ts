@@ -4,6 +4,12 @@ export const TABLE_MUSIC = 'table_music'
 export const TABLE_MUSIC_LIBRARY = 'table_music_library'
 export const TABLE_MUSIC_BUCKET = 'table-music'
 
+const AUDIO_FILE_EXTENSION_RE = /\.(mp3|wav|ogg|m4a|flac|webm|aac|mp4)$/i
+
+function coerceMusicProvider(value: unknown): MusicProvider | undefined {
+  return value === 'youtube' || value === 'file' || value === 'none' ? value : undefined
+}
+
 export function upsertMusicLibraryItem(items: MusicLibraryItem[], item: MusicLibraryItem) {
   const exists = items.some(existing => existing.id === item.id)
   const next = exists ? items.map(existing => (existing.id === item.id ? item : existing)) : [...items, item]
@@ -11,9 +17,9 @@ export function upsertMusicLibraryItem(items: MusicLibraryItem[], item: MusicLib
 }
 
 export function mapMusicRow(row: MusicRow): MusicState {
-  const provider = row.provider === 'spotify' ? 'none' : row.provider || getMusicProvider(row.url || '')
+  const provider = resolveMusicProvider(row.url || '', row.provider, row.source_type)
   const youtube = provider === 'youtube' ? parseYouTubeUrl(row.url || '') : { videoId: '', playlistId: undefined }
-  return {
+  return normalizeMusicState({
     room: row.room,
     url: row.url || '',
     activeUri: row.active_uri || '',
@@ -25,7 +31,7 @@ export function mapMusicRow(row: MusicRow): MusicState {
     playlistIndex: typeof row.playlist_index === 'number' ? row.playlist_index : undefined,
     trackId: row.track_id || youtube.videoId || undefined,
     sourceType: row.source_type || undefined,
-  }
+  })
 }
 
 export function mapMusicLibraryRow(row: MusicLibraryRow): MusicLibraryItem {
@@ -99,16 +105,72 @@ export function getMusicProvider(url: string): MusicProvider {
   const raw = url.trim()
   if (!raw) return 'none'
 
+  if (raw.startsWith('blob:')) return 'file'
+  if (raw.startsWith('data:audio/')) return 'file'
+
   try {
     const parsed = new URL(raw)
     const host = parsed.hostname.replace(/^www\./, '')
     if (host === 'youtu.be' || host.endsWith('youtube.com')) return 'youtube'
-    if (/\.(mp3|wav|ogg|m4a|flac|webm|aac)(\?.*)?$/i.test(parsed.pathname)) return 'file'
+    const pathname = decodeURIComponent(parsed.pathname)
+    if (pathname.includes(`/storage/v1/object/public/${TABLE_MUSIC_BUCKET}/`)) return 'file'
+    if (pathname.includes(`/storage/v1/object/sign/${TABLE_MUSIC_BUCKET}/`)) return 'file'
+    if (AUDIO_FILE_EXTENSION_RE.test(pathname)) return 'file'
   } catch {
     return 'none'
   }
 
   return 'none'
+}
+
+export function resolveMusicProvider(url: string, declaredProvider?: unknown, sourceType?: unknown): MusicProvider {
+  const urlProvider = getMusicProvider(url)
+  if (urlProvider !== 'none') return urlProvider
+
+  if (declaredProvider === 'spotify') return 'none'
+  return coerceMusicProvider(declaredProvider) || coerceMusicProvider(sourceType) || 'none'
+}
+
+export function normalizeMusicState(state: MusicState): MusicState {
+  const provider = resolveMusicProvider(state.url, state.provider, state.sourceType)
+
+  if (!state.url || provider === 'none') {
+    return {
+      ...state,
+      activeUri: state.url ? state.activeUri : '',
+      isPlaying: state.url ? state.isPlaying : false,
+      provider: state.url ? provider : 'none',
+      sourceType: state.url ? provider : undefined,
+      playlistId: undefined,
+      playlistIndex: undefined,
+      trackId: undefined,
+    }
+  }
+
+  if (provider === 'youtube') {
+    const youtube = parseYouTubeUrl(state.url)
+    const playlistId = state.playlistId || youtube.playlistId || undefined
+    const trackId = state.trackId || youtube.videoId || undefined
+    return {
+      ...state,
+      provider,
+      sourceType: provider,
+      activeUri: state.activeUri || playlistId || trackId || '',
+      playlistId,
+      playlistIndex: playlistId ? (typeof state.playlistIndex === 'number' ? state.playlistIndex : 0) : undefined,
+      trackId,
+    }
+  }
+
+  return {
+    ...state,
+    provider,
+    sourceType: provider,
+    activeUri: state.activeUri || state.url,
+    playlistId: undefined,
+    playlistIndex: undefined,
+    trackId: undefined,
+  }
 }
 
 export function parseYouTubeUrl(url: string) {
@@ -177,18 +239,19 @@ export function getStoragePathFromPublicUrl(publicUrl: string, bucket = TABLE_MU
 }
 
 export function toMusicDbRow(next: MusicState) {
+  const normalized = normalizeMusicState(next)
   return {
-    room: next.room,
-    url: next.url,
-    active_uri: next.activeUri,
-    is_playing: next.isPlaying,
-    position_seconds: next.positionSeconds,
-    updated_at: next.updatedAt,
-    provider: next.provider || getMusicProvider(next.url),
-    playlist_id: next.playlistId || null,
-    playlist_index: typeof next.playlistIndex === 'number' ? next.playlistIndex : null,
-    track_id: next.trackId || null,
-    source_type: next.sourceType || null,
+    room: normalized.room,
+    url: normalized.url,
+    active_uri: normalized.activeUri,
+    is_playing: normalized.isPlaying,
+    position_seconds: normalized.positionSeconds,
+    updated_at: normalized.updatedAt,
+    provider: normalized.provider || getMusicProvider(normalized.url),
+    playlist_id: normalized.playlistId || null,
+    playlist_index: typeof normalized.playlistIndex === 'number' ? normalized.playlistIndex : null,
+    track_id: normalized.trackId || null,
+    source_type: normalized.sourceType || normalized.provider || null,
   }
 }
 
@@ -205,6 +268,22 @@ export function toLegacyMusicDbRow(next: MusicState) {
 
 export function broadcastMusicChannel(channel: MusicChannel | null | undefined, event: string, payload: unknown) {
   if (!channel) return
-  if (channel.httpSend) return channel.httpSend(event, payload)
-  return channel.send({ type: 'broadcast', event, payload })
+  try {
+    const result = channel.httpSend ? channel.httpSend(event, payload) : channel.send({ type: 'broadcast', event, payload })
+    if (result && typeof (result as PromiseLike<unknown>).then === 'function') {
+      return Promise.resolve(result).catch(error => {
+        if (!isAbortLikeError(error)) console.warn('Не удалось отправить музыкальное событие:', error)
+      })
+    }
+    return result
+  } catch (error) {
+    if (!isAbortLikeError(error)) console.warn('Не удалось отправить музыкальное событие:', error)
+  }
+}
+
+function isAbortLikeError(error: unknown) {
+  if (error instanceof DOMException && error.name === 'AbortError') return true
+  if (!error || typeof error !== 'object') return false
+  const candidate = error as { name?: unknown; message?: unknown }
+  return candidate.name === 'AbortError' || (typeof candidate.message === 'string' && candidate.message.toLowerCase().includes('signal is aborted'))
 }

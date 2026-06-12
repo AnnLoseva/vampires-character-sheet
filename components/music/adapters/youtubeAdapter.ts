@@ -200,7 +200,13 @@ export class YouTubeAdapter implements MusicSyncAdapter {
     const playlistIndex = this.state.playlistIndex ?? 0
     const trackId = this.getDesiredTrackId()
     const nextKey = playlistId ? `playlist:${playlistId}:${playlistIndex}` : `video:${trackId}`
-    const currentVideoId = this.player.getVideoData?.().video_id || ''
+    const currentVideoId = this.player.getVideoData?.()?.video_id || ''
+
+    if (!playlistId && !trackId) {
+      this.loadedKey = ''
+      this.player.pauseVideo?.()
+      return
+    }
 
     if (playlistId && this.loadedKey !== nextKey) {
       const options = { list: playlistId, listType: 'playlist', index: playlistIndex, startSeconds: positionSeconds }

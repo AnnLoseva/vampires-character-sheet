@@ -28,8 +28,8 @@ const VISIBLE_MUSIC_ENGINE_ID = 'vtm-music-visible-engine'
 const VISIBLE_MUSIC_ENGINE_EVENT = 'vtm-music-visible-engine-updated'
 const MUSIC_UNLOCK_NEEDED_EVENT = 'vtm-music-unlock-needed'
 const MUSIC_UNLOCK_REQUEST_EVENT = 'vtm-music-unlock-request'
-let supportsExtendedMusicLoad = false
-let supportsMusicLibraryAutoplay = false
+let supportsExtendedMusicLoad = true
+let supportsMusicLibraryAutoplay = true
 
 type MusicPanelProps = {
   room: string

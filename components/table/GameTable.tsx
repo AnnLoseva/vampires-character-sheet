@@ -22,6 +22,7 @@ import {
   TABLE_MUSIC,
   TABLE_MUSIC_BUCKET,
   toLegacyMusicDbRow,
+  toMusicDbRow,
 } from '../music/utils'
 import {
   DEFAULT_SCENE_NAME,
@@ -112,7 +113,7 @@ import type {
   VoiceSignal,
 } from '@/lib/table/types'
 
-let supportsExtendedTableMusicSchema = false
+let supportsExtendedTableMusicSchema = true
 
 function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
@@ -658,33 +659,20 @@ export default function VampireTable() {
     const now = new Date().toISOString()
     const provider = getMusicProvider(track.url)
     const youtube = provider === 'youtube' ? parseYouTubeUrl(track.url) : { videoId: '', playlistId: undefined }
-    const nextMusic = {
+    const payload = {
       room: roomRef.current,
       url: track.url,
-      active_uri: provider === 'youtube' ? youtube.playlistId || youtube.videoId : track.url,
-      is_playing: Boolean(options.play),
-      position_seconds: 0,
-      updated_at: now,
+      activeUri: provider === 'youtube' ? youtube.playlistId || youtube.videoId : track.url,
+      isPlaying: Boolean(options.play),
+      positionSeconds: 0,
+      updatedAt: now,
       provider,
-      playlist_id: youtube.playlistId || null,
-      playlist_index: youtube.playlistId ? Math.max(0, track.orderIndex) : null,
-      track_id: youtube.videoId || track.id,
-      source_type: track.sourceType,
+      playlistId: youtube.playlistId,
+      playlistIndex: youtube.playlistId ? Math.max(0, track.orderIndex) : undefined,
+      trackId: youtube.videoId || undefined,
+      sourceType: provider,
     }
-
-    const payload = {
-      room: nextMusic.room,
-      url: nextMusic.url,
-      activeUri: nextMusic.active_uri,
-      isPlaying: nextMusic.is_playing,
-      positionSeconds: nextMusic.position_seconds,
-      updatedAt: nextMusic.updated_at,
-      provider: nextMusic.provider,
-      playlistId: nextMusic.playlist_id || undefined,
-      playlistIndex: typeof nextMusic.playlist_index === 'number' ? nextMusic.playlist_index : undefined,
-      trackId: nextMusic.track_id,
-      sourceType: nextMusic.source_type,
-    }
+    const nextMusic = toMusicDbRow(payload)
 
     let persistLegacyMusic = !supportsExtendedTableMusicSchema
     if (supportsExtendedTableMusicSchema) {
@@ -699,16 +687,7 @@ export default function VampireTable() {
     }
 
     if (persistLegacyMusic) {
-      const legacy = {
-        room: payload.room,
-        url: payload.url,
-        activeUri: payload.activeUri,
-        isPlaying: payload.isPlaying,
-        positionSeconds: payload.positionSeconds,
-        updatedAt: payload.updatedAt,
-        provider: payload.provider,
-      }
-      await createClient().from(TABLE_MUSIC).upsert(toLegacyMusicDbRow(legacy))
+      await createClient().from(TABLE_MUSIC).upsert(toLegacyMusicDbRow(payload))
     }
     window.dispatchEvent(new CustomEvent('vtm-music-state', { detail: payload }))
     broadcastMusicChannel(channelRef.current, 'music', payload)

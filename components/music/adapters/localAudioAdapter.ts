@@ -9,6 +9,7 @@ type LocalAudioAdapterOptions = {
 }
 
 export class LocalAudioAdapter implements MusicSyncAdapter {
+  private container: HTMLElement | null = null
   private audio: HTMLAudioElement | null = null
   private state: MusicState | null = null
   private callback: ((patch: MusicAdapterStateChange) => void) | null = null
@@ -16,10 +17,19 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
   private loadedUrl = ''
   private unsupportedUrl = ''
   private unlockNeededUrl = ''
+  private suppressElementEventsUntil = 0
 
   constructor(private options: LocalAudioAdapterOptions) {}
 
   mount(container: HTMLElement) {
+    if (this.container === container && this.audio) {
+      this.audio.controls = this.options.isMaster
+      if (this.state) void this.load(this.state)
+      return
+    }
+
+    this.audio?.remove()
+    this.container = container
     container.innerHTML = ''
     this.audio = document.createElement('audio')
     this.audio.className = 'audio-player'
@@ -40,6 +50,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     const rawPosition = Math.max(0, Math.floor(getEffectiveMusicPosition(state)))
     const positionSeconds = duration > 0 ? Math.min(rawPosition, Math.max(0, duration - 0.25)) : rawPosition
     if (this.loadedUrl !== state.url) {
+      this.suppressElementEventsUntil = Date.now() + 500
       this.loadedUrl = state.url
       this.unsupportedUrl = ''
       this.unlockNeededUrl = ''
@@ -48,11 +59,15 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     }
     this.audio.volume = this.options.volume / 100
     const seekThreshold = this.options.isMaster ? 3.5 : 1.8
-    if (Math.abs(this.audio.currentTime - positionSeconds) > seekThreshold) this.audio.currentTime = positionSeconds
+    if (Math.abs(this.audio.currentTime - positionSeconds) > seekThreshold) {
+      this.suppressElementEventsUntil = Date.now() + 300
+      this.audio.currentTime = positionSeconds
+    }
 
     if (state.isPlaying && this.audio.paused) {
       this.playAudio()
     } else if (!state.isPlaying && !this.audio.paused) {
+      this.suppressElementEventsUntil = Date.now() + 300
       this.audio.pause()
     }
   }
@@ -81,6 +96,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     this.isDestroying = true
     this.audio?.pause()
     this.audio?.remove()
+    this.container = null
     this.audio = null
     this.loadedUrl = ''
     this.unsupportedUrl = ''
@@ -97,6 +113,7 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
 
   private publishElementState(isPlaying: boolean, playbackEnded = false) {
     if (this.isDestroying) return
+    if (Date.now() < this.suppressElementEventsUntil) return
     if (!this.options.isMaster || !this.audio || !this.options.canPublish()) return
     const duration = Number.isFinite(this.audio.duration) ? Math.max(0, this.audio.duration) : 0
     const positionSeconds = Math.max(0, Math.floor(this.audio.currentTime || 0))
