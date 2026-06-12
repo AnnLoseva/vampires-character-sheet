@@ -178,7 +178,7 @@ export default function MainScreen() {
 
   const room = useMemo(() => sanitizeRoom(roomDraft) || DEFAULT_ROOM, [roomDraft])
   const tableHref = `/table?room=${encodeURIComponent(room)}&role=${role}`
-  const sheetHref = `/character-sheet?room=${encodeURIComponent(room)}`
+  const sheetHref = `/character-sheet?room=${encodeURIComponent(room)}&role=${role}${selectedCharacterId ? `&characterId=${encodeURIComponent(selectedCharacterId)}` : ''}`
 
   const rememberTableChoice = (nextRole = role) => {
     window.localStorage.setItem('vtm-table-room', room)

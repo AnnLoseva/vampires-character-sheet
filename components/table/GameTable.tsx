@@ -127,6 +127,93 @@ const SKILL_GROUPS = [
   { name: 'Ментальные', traits: ['Гуманитарные науки', 'Естественные науки', 'Медицина', 'Наблюдательность', 'Оккультизм', 'Политика', 'Расследование', 'Техника', 'Финансы'] },
 ] as const
 
+type DisciplinePowerRule = {
+  description?: string
+  pool?: string
+  cost?: string
+  effect?: string
+  duration?: string
+}
+
+type DisciplineRule = {
+  description?: string
+  system?: Record<string, unknown>
+  powers?: Record<string, Record<string, DisciplinePowerRule>>
+}
+
+type DisciplinePowerEntry = {
+  level: number
+  name: string
+  rule: DisciplinePowerRule
+}
+
+type PowerPoolChoice = {
+  source: string
+  options: string[]
+}
+
+const ATTRIBUTE_NAMES = ATTRIBUTE_GROUPS.flatMap(group => [...group.traits])
+const SKILL_NAMES = SKILL_GROUPS.flatMap(group => [...group.traits])
+
+function getSkillDotValue(value: unknown) {
+  if (typeof value === 'number') return value
+  if (!value || typeof value !== 'object') return 0
+  return Number((value as { dots?: number }).dots || 0)
+}
+
+function findCaseInsensitiveName(name: string, names: string[]) {
+  const normalized = name.trim().toLocaleLowerCase('ru')
+  return names.find(candidate => candidate.toLocaleLowerCase('ru') === normalized) || ''
+}
+
+function getCharacterPoolPartDots(character: CharacterOption, name: string) {
+  const attributeName = findCaseInsensitiveName(name, Object.keys(character.attributes))
+  if (attributeName) return Number(character.attributes[attributeName] || 0)
+  const skillName = findCaseInsensitiveName(name, Object.keys(character.skills))
+  if (skillName) return getSkillDotValue(character.skills[skillName])
+  const disciplineName = findCaseInsensitiveName(name, Object.keys(character.disciplines))
+  if (disciplineName) return Object.values(character.disciplines[disciplineName] || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
+  return 0
+}
+
+function getDisciplinePowerEntries(rule?: DisciplineRule) {
+  if (!rule?.powers) return []
+  return Object.entries(rule.powers)
+    .flatMap(([level, powers]) => Object.entries(powers || {}).map(([name, powerRule]) => ({
+      level: Number(level) || 0,
+      name,
+      rule: powerRule,
+    })))
+    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'ru'))
+}
+
+function resolvePowerPool(pool: string, rules: Record<string, DisciplineRule>) {
+  const trimmed = pool.trim()
+  const reference = trimmed.match(/^как\s+(.+)$/i)?.[1]?.trim()
+  if (!reference || reference.toLocaleLowerCase('ru') === 'применяемая сила') return trimmed
+  for (const discipline of Object.values(rules)) {
+    const referencedPower = getDisciplinePowerEntries(discipline).find(power => power.name.toLocaleLowerCase('ru') === reference.toLocaleLowerCase('ru'))
+    if (referencedPower?.rule.pool) return referencedPower.rule.pool
+  }
+  return trimmed
+}
+
+function parsePowerPool(pool: string, disciplineNames: string[]) {
+  const normalizedPool = pool.trim()
+  if (!normalizedPool || normalizedPool === '—' || /^(зависит|как применяемая)/i.test(normalizedPool)) return []
+  const playerSide = normalizedPool.split(/\s+vs\s+/i)[0].split(';')[0].replace(/\s*\([^)]*\)\s*/g, '').trim()
+  if (!playerSide) return []
+  const knownNames = [...ATTRIBUTE_NAMES, ...SKILL_NAMES, ...disciplineNames]
+
+  return playerSide.split(/\s*\+\s*/).map(source => {
+    const options = source
+      .split(/\s+или\s+|\//i)
+      .map(option => findCaseInsensitiveName(option, knownNames))
+      .filter(Boolean)
+    return { source: source.trim(), options } as PowerPoolChoice
+  }).filter(choice => choice.options.length > 0)
+}
+
 function getSelectedPowerNames(value: unknown) {
   if (!Array.isArray(value)) return []
   return value
@@ -147,6 +234,18 @@ function getExtraTraitNames(values: Record<string, unknown>, groups: ReadonlyArr
 function getDotDisplay(value: number) {
   const dots = Math.max(0, Math.min(5, Math.floor(Number(value) || 0)))
   return `${'●'.repeat(dots)}${'○'.repeat(5 - dots)}`
+}
+
+function formatRuleValue(value: unknown): string {
+  if (value === null || value === undefined) return '—'
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) return value.map(formatRuleValue).join(' · ')
+  if (typeof value === 'object') {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, nestedValue]) => `${key.replaceAll('_', ' ')}: ${formatRuleValue(nestedValue)}`)
+      .join(' · ')
+  }
+  return String(value)
 }
 
 function getRoomFromLocation() {
@@ -261,8 +360,16 @@ export default function VampireTable() {
   const [previewCharacter, setPreviewCharacter] = useState<CharacterOption | null>(null)
   const [previewCharacterTab, setPreviewCharacterTab] = useState<'mechanics' | 'inventory'>('mechanics')
   const [previewRollAttribute, setPreviewRollAttribute] = useState('')
+  const [previewRollAttributeTwo, setPreviewRollAttributeTwo] = useState('')
   const [previewRollSkill, setPreviewRollSkill] = useState('')
+  const [previewRollDiscipline, setPreviewRollDiscipline] = useState('')
   const [previewRollModifier, setPreviewRollModifier] = useState(0)
+  const [previewDisciplineName, setPreviewDisciplineName] = useState('')
+  const [disciplineRules, setDisciplineRules] = useState<Record<string, DisciplineRule> | null>(null)
+  const [disciplineRulesStatus, setDisciplineRulesStatus] = useState('')
+  const [previewPowerName, setPreviewPowerName] = useState('')
+  const [previewPowerPoolSelections, setPreviewPowerPoolSelections] = useState<string[]>([])
+  const [previewPowerModifier, setPreviewPowerModifier] = useState(0)
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [selectedJournalEntryId, setSelectedJournalEntryId] = useState('')
   const [journalSearch, setJournalSearch] = useState('')
@@ -351,9 +458,34 @@ export default function VampireTable() {
   useEffect(() => {
     setPreviewCharacterTab('mechanics')
     setPreviewRollAttribute('')
+    setPreviewRollAttributeTwo('')
     setPreviewRollSkill('')
+    setPreviewRollDiscipline('')
     setPreviewRollModifier(0)
+    setPreviewDisciplineName('')
+    setPreviewPowerName('')
   }, [previewCharacter?.id])
+
+  useEffect(() => {
+    if (!previewDisciplineName || disciplineRules) return
+    const controller = new AbortController()
+    setDisciplineRulesStatus('Загружаю описание дисциплины...')
+    fetch('/rules.json', { signal: controller.signal })
+      .then(response => {
+        if (!response.ok) throw new Error('rules.json не найден')
+        return response.json() as Promise<{ disciplines?: Record<string, DisciplineRule> }>
+      })
+      .then(data => {
+        setDisciplineRules(data.disciplines || {})
+        setDisciplineRulesStatus('')
+      })
+      .catch(error => {
+        if (error instanceof DOMException && error.name === 'AbortError') return
+        console.error('Не удалось загрузить правила дисциплин:', error)
+        setDisciplineRulesStatus('Не удалось загрузить описание дисциплины.')
+      })
+    return () => controller.abort()
+  }, [previewDisciplineName, disciplineRules])
   const voiceQualityRef = useRef<VoiceQuality>('clear')
   const voiceParticipantsRef = useRef<VoiceParticipant[]>([])
   const localVoiceStreamRef = useRef<MediaStream | null>(null)
@@ -1350,12 +1482,14 @@ export default function VampireTable() {
       : message.fromUserId === selectedMasterChatUserId || message.toUserId === selectedMasterChatUserId
     return message.fromUserId === chatUser.id || message.toUserId === chatUser.id
   })
-  const getSkillDots = (value: number | { dots?: number }) => typeof value === 'number' ? value : Number(value?.dots || 0)
+  const getSkillDots = (value: number | { dots?: number }) => getSkillDotValue(value)
   const getSkillSpecs = (value: number | { specs?: string[] }) => typeof value === 'object' && Array.isArray(value.specs) ? value.specs : []
   const getDisciplineDots = (sources: Record<string, number>) => Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
   const previewAttributeDots = previewCharacter ? Number(previewCharacter.attributes[previewRollAttribute] || 0) : 0
+  const previewAttributeTwoDots = previewCharacter ? Number(previewCharacter.attributes[previewRollAttributeTwo] || 0) : 0
   const previewSkillDots = previewCharacter ? getSkillDots(previewCharacter.skills[previewRollSkill] || 0) : 0
-  const previewPoolBeforeLimit = previewAttributeDots + previewSkillDots + previewRollModifier
+  const previewDisciplineDots = previewCharacter ? getDisciplineDots(previewCharacter.disciplines[previewRollDiscipline] || {}) : 0
+  const previewPoolBeforeLimit = previewAttributeDots + previewAttributeTwoDots + previewSkillDots + previewDisciplineDots + previewRollModifier
   const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit))
   const canRollPreview = Boolean(previewCharacter?.id && (isMaster || previewCharacter.id === selectedActiveCharacter?.id))
   const previewExtraAttributes = previewCharacter ? getExtraTraitNames(previewCharacter.attributes, ATTRIBUTE_GROUPS) : []
@@ -1363,6 +1497,43 @@ export default function VampireTable() {
   const previewDisciplineNames = previewCharacter
     ? Array.from(new Set([...Object.keys(previewCharacter.disciplines), ...Object.keys(previewCharacter.selectedPowers)])).sort((a, b) => a.localeCompare(b, 'ru'))
     : []
+  const previewDisciplineRule = previewDisciplineName && disciplineRules ? disciplineRules[previewDisciplineName] : undefined
+  const previewOpenedDisciplineDots = previewCharacter && previewDisciplineName
+    ? getDisciplineDots(previewCharacter.disciplines[previewDisciplineName] || {})
+    : 0
+  const previewLearnedPowers = previewCharacter && previewDisciplineName
+    ? getSelectedPowerNames(previewCharacter.selectedPowers[previewDisciplineName])
+    : []
+  const allPreviewDisciplinePowers = getDisciplinePowerEntries(previewDisciplineRule)
+  const previewDisciplinePowers = previewLearnedPowers.length
+    ? allPreviewDisciplinePowers.filter(power => previewLearnedPowers.includes(power.name))
+    : allPreviewDisciplinePowers.filter(power => power.level <= previewOpenedDisciplineDots)
+  const selectedPreviewPower = previewDisciplinePowers.find(power => power.name === previewPowerName) || null
+  const resolvedPreviewPowerPool = selectedPreviewPower?.rule.pool && disciplineRules
+    ? resolvePowerPool(selectedPreviewPower.rule.pool, disciplineRules)
+    : selectedPreviewPower?.rule.pool || ''
+  const previewPowerPoolChoices = parsePowerPool(resolvedPreviewPowerPool, previewDisciplineNames)
+  const previewPowerOpposition = resolvedPreviewPowerPool.split(/\s+vs\s+/i)[1]?.trim() || ''
+  const previewPowerPoolBeforeLimit = previewCharacter
+    ? previewPowerPoolSelections.reduce((sum, name) => sum + getCharacterPoolPartDots(previewCharacter, name), 0) + previewPowerModifier
+    : 0
+  const previewPowerDiceCount = Math.max(0, Math.min(20, previewPowerPoolBeforeLimit))
+
+  useEffect(() => {
+    if (!previewDisciplineName || !disciplineRules) return
+    const disciplineRule = disciplineRules[previewDisciplineName]
+    const allPowers = getDisciplinePowerEntries(disciplineRule)
+    const learnedPowers = previewCharacter ? getSelectedPowerNames(previewCharacter.selectedPowers[previewDisciplineName]) : []
+    const visiblePowers = learnedPowers.length
+      ? allPowers.filter(power => learnedPowers.includes(power.name))
+      : allPowers.filter(power => power.level <= previewOpenedDisciplineDots)
+    setPreviewPowerName(current => visiblePowers.some(power => power.name === current) ? current : visiblePowers[0]?.name || '')
+  }, [previewDisciplineName, disciplineRules, previewCharacter, previewOpenedDisciplineDots])
+
+  useEffect(() => {
+    setPreviewPowerPoolSelections(previewPowerPoolChoices.map(choice => choice.options[0] || ''))
+    setPreviewPowerModifier(0)
+  }, [previewPowerName, resolvedPreviewPowerPool])
 
   const saveJournalEntries = (entries: JournalEntry[], status = 'Сохранено') => {
     setJournalEntries(entries)
@@ -1517,9 +1688,45 @@ export default function VampireTable() {
 
     const poolParts = []
     if (previewRollAttribute) poolParts.push(`${previewRollAttribute} ${previewAttributeDots}`)
+    if (previewRollAttributeTwo) poolParts.push(`${previewRollAttributeTwo} ${previewAttributeTwoDots}`)
     if (previewRollSkill) poolParts.push(`${previewRollSkill} ${previewSkillDots}`)
+    if (previewRollDiscipline) poolParts.push(`${previewRollDiscipline} ${previewDisciplineDots}`)
     if (previewRollModifier) poolParts.push(`модификатор ${previewRollModifier > 0 ? '+' : ''}${previewRollModifier}`)
     await rollQuickDice(previewDiceCount, poolParts.join(' + ') || `${previewDiceCount}к10`, previewCharacter, 'character-sheet')
+  }
+
+  const togglePreviewAttribute = (name: string) => {
+    if (previewRollAttribute === name) {
+      setPreviewRollAttribute('')
+      return
+    }
+    if (previewRollAttributeTwo === name) {
+      setPreviewRollAttributeTwo('')
+      return
+    }
+    if (!previewRollAttribute) setPreviewRollAttribute(name)
+    else setPreviewRollAttributeTwo(name)
+  }
+
+  const openPreviewDiscipline = (name: string) => {
+    setPreviewDisciplineName(name)
+    setPreviewPowerName('')
+  }
+
+  const rollPreviewPower = async () => {
+    if (!previewCharacter || !selectedPreviewPower || !canRollPreview) return
+    if (previewPowerDiceCount < 1 || previewPowerPoolChoices.length === 0) {
+      window.alert('Для этой силы автоматический бросок не указан. Используй обычный конструктор пула.')
+      return
+    }
+    const selectedParts = previewPowerPoolSelections.map(name => `${name} ${getCharacterPoolPartDots(previewCharacter, name)}`)
+    if (previewPowerModifier) selectedParts.push(`модификатор ${previewPowerModifier > 0 ? '+' : ''}${previewPowerModifier}`)
+    await rollQuickDice(
+      previewPowerDiceCount,
+      `${previewDisciplineName}: ${selectedPreviewPower.name} · ${selectedParts.join(' + ')}`,
+      previewCharacter,
+      'discipline-power',
+    )
   }
 
   const addExperienceToActiveCharacter = async () => {
@@ -3580,6 +3787,13 @@ export default function VampireTable() {
     setImageEditor(editor => (editor ? { ...editor, drag: null } : editor))
   }
 
+  const getCharacterSheetHref = (characterId?: string | null) => {
+    const params = new URLSearchParams({ room })
+    if (tableRole) params.set('role', tableRole)
+    if (characterId) params.set('characterId', characterId)
+    return `/character-sheet?${params.toString()}`
+  }
+
   return (
     <main className="table-page-shell">
       <section className="table-topbar">
@@ -3603,7 +3817,7 @@ export default function VampireTable() {
               <button type="button" onClick={saveMasterPassword}>Сменить</button>
             </label>
           ) : null}
-          <a href={`/character-sheet?room=${encodeURIComponent(room)}`} title="Открыть лист персонажа">Лист</a>
+          <a href={getCharacterSheetHref(selectedActiveCharacter?.id)} title="Открыть лист персонажа">Лист</a>
           <input ref={fileInputRef} type="file" multiple onChange={handleImageUpload} />
           <input ref={folderInputRef} type="file" multiple onChange={handleFolderUpload} />
           <input ref={backgroundFileInputRef} type="file" accept="image/*" multiple onChange={handleBackgroundUpload} />
@@ -3628,7 +3842,7 @@ export default function VampireTable() {
           <button type="button" onClick={() => selectedActiveCharacter ? setPreviewCharacter(selectedActiveCharacter) : setRightRailTab('chat')} disabled={!selectedActiveCharacter}>
             Быстрый просмотр
           </button>
-          <a href={`/character-sheet?room=${encodeURIComponent(room)}`}>Открыть полный лист</a>
+          <a href={getCharacterSheetHref(selectedActiveCharacter?.id)}>Открыть полный лист</a>
         </div>
         <div className="active-character-picker">
           <label>
@@ -4193,17 +4407,33 @@ export default function VampireTable() {
                     </div>
                     <div className="preview-roll-controls">
                       <label>
-                        <span>Характеристика</span>
+                        <span>Характеристика 1</span>
                         <select value={previewRollAttribute} onChange={event => setPreviewRollAttribute(event.target.value)}>
                           <option value="">Без характеристики</option>
                           {ATTRIBUTE_GROUPS.map(group => (
                             <optgroup key={group.name} label={group.name}>
-                              {group.traits.map(name => <option key={name} value={name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
+                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
                             </optgroup>
                           ))}
                           {previewExtraAttributes.length ? (
                             <optgroup label="Другие">
-                              {previewExtraAttributes.map(name => <option key={name} value={name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
+                              {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
+                            </optgroup>
+                          ) : null}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Характеристика 2</span>
+                        <select value={previewRollAttributeTwo} onChange={event => setPreviewRollAttributeTwo(event.target.value)}>
+                          <option value="">Без второй характеристики</option>
+                          {ATTRIBUTE_GROUPS.map(group => (
+                            <optgroup key={group.name} label={group.name}>
+                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
+                            </optgroup>
+                          ))}
+                          {previewExtraAttributes.length ? (
+                            <optgroup label="Другие">
+                              {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
                             </optgroup>
                           ) : null}
                         </select>
@@ -4222,6 +4452,15 @@ export default function VampireTable() {
                               {previewExtraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(previewCharacter.skills[name] || 0)}</option>)}
                             </optgroup>
                           ) : null}
+                        </select>
+                      </label>
+                      <label>
+                        <span>Дисциплина</span>
+                        <select value={previewRollDiscipline} onChange={event => setPreviewRollDiscipline(event.target.value)}>
+                          <option value="">Без дисциплины</option>
+                          {previewDisciplineNames.map(name => (
+                            <option key={name} value={name}>{name} · {getDisciplineDots(previewCharacter.disciplines[name] || {})}</option>
+                          ))}
                         </select>
                       </label>
                       <label className="preview-modifier-field">
@@ -4255,7 +4494,7 @@ export default function VampireTable() {
                   </section>
 
                   <section className="preview-trait-section">
-                    <div className="preview-section-heading"><h3>Характеристики</h3><span>Нажми строку, чтобы добавить в бросок</span></div>
+                    <div className="preview-section-heading"><h3>Характеристики</h3><span>Можно выбрать две характеристики</span></div>
                     <div className="preview-trait-columns">
                       {ATTRIBUTE_GROUPS.map(group => (
                         <div className="preview-trait-group" key={group.name}>
@@ -4266,8 +4505,8 @@ export default function VampireTable() {
                               <button
                                 type="button"
                                 key={name}
-                                className={previewRollAttribute === name ? 'active' : ''}
-                                onClick={() => setPreviewRollAttribute(current => current === name ? '' : name)}
+                                className={previewRollAttribute === name || previewRollAttributeTwo === name ? 'active' : ''}
+                                onClick={() => togglePreviewAttribute(name)}
                               >
                                 <span>{name}</span><i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i>
                               </button>
@@ -4281,7 +4520,7 @@ export default function VampireTable() {
                           {previewExtraAttributes.map(name => {
                             const dots = Number(previewCharacter.attributes[name] || 0)
                             return (
-                              <button type="button" key={name} className={previewRollAttribute === name ? 'active' : ''} onClick={() => setPreviewRollAttribute(current => current === name ? '' : name)}>
+                              <button type="button" key={name} className={previewRollAttribute === name || previewRollAttributeTwo === name ? 'active' : ''} onClick={() => togglePreviewAttribute(name)}>
                                 <span>{name}</span><i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i>
                               </button>
                             )
@@ -4335,7 +4574,7 @@ export default function VampireTable() {
                   </section>
 
                   <section className="preview-trait-section">
-                    <div className="preview-section-heading"><h3>Дисциплины и способности</h3></div>
+                    <div className="preview-section-heading"><h3>Дисциплины и способности</h3><span>Нажми дисциплину, чтобы открыть силы</span></div>
                     {previewDisciplineNames.length === 0 ? (
                       <p className="character-preview-empty">Дисциплины не сохранены.</p>
                     ) : (
@@ -4344,10 +4583,10 @@ export default function VampireTable() {
                           const dots = getDisciplineDots(previewCharacter.disciplines[name] || {})
                           const powers = getSelectedPowerNames(previewCharacter.selectedPowers[name])
                           return (
-                            <article key={name}>
-                              <div><strong>{name}</strong><i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i></div>
-                              {powers.length ? <p>{powers.join(' · ')}</p> : <p>Способности не выбраны</p>}
-                            </article>
+                            <button type="button" className="preview-discipline-card" key={name} onClick={() => openPreviewDiscipline(name)}>
+                              <span><strong>{name}</strong><i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i></span>
+                              {powers.length ? <p>{powers.join(' · ')}</p> : <p>Открыть описание и доступные силы</p>}
+                            </button>
                           )
                         })}
                       </div>
@@ -4383,9 +4622,131 @@ export default function VampireTable() {
               {previewCharacter.id && previewCharacter.id === selectedActiveCharacter?.id ? (
                 <button type="button" onClick={addExperienceToActiveCharacter}>Добавить опыт</button>
               ) : null}
-              <a href={`/character-sheet?room=${encodeURIComponent(room)}`}>Открыть полный лист</a>
+              <a href={getCharacterSheetHref(previewCharacter.id)}>Открыть полный лист</a>
               <button type="button" onClick={() => setPreviewCharacter(null)}>Закрыть</button>
             </footer>
+          </section>
+        </div>
+      ) : null}
+
+      {previewCharacter && previewDisciplineName ? (
+        <div className="discipline-detail-backdrop" role="dialog" aria-modal="true" aria-label={`Дисциплина ${previewDisciplineName}`} onMouseDown={() => setPreviewDisciplineName('')}>
+          <section className="discipline-detail-modal" onMouseDown={event => event.stopPropagation()}>
+            <header>
+              <div>
+                <span>Дисциплина · {previewOpenedDisciplineDots} точек</span>
+                <strong>{previewDisciplineName}</strong>
+              </div>
+              <button type="button" onClick={() => setPreviewDisciplineName('')} aria-label="Закрыть описание дисциплины">×</button>
+            </header>
+
+            {disciplineRulesStatus ? (
+              <div className="discipline-detail-status">{disciplineRulesStatus}</div>
+            ) : !previewDisciplineRule ? (
+              <div className="discipline-detail-status">Описание этой дисциплины не найдено в правилах.</div>
+            ) : (
+              <div className="discipline-detail-layout">
+                <aside className="discipline-detail-sidebar">
+                  <div className="discipline-description">
+                    <p>{previewDisciplineRule.description || 'Описание отсутствует.'}</p>
+                    {previewDisciplineRule.system ? (
+                      <dl>
+                        {Object.entries(previewDisciplineRule.system).map(([key, value]) => (
+                          <div key={key}>
+                            <dt>{key === 'type' ? 'Тип' : key === 'masquerade' ? 'Маскарад' : key === 'resonance' ? 'Резонанс' : key === 'limitations' ? 'Ограничения' : key}</dt>
+                            <dd>{formatRuleValue(value)}</dd>
+                          </div>
+                        ))}
+                      </dl>
+                    ) : null}
+                  </div>
+                  <nav className="discipline-power-list" aria-label="Силы дисциплины">
+                    {previewDisciplinePowers.length ? previewDisciplinePowers.map(power => (
+                      <button
+                        type="button"
+                        key={`${power.level}-${power.name}`}
+                        className={previewPowerName === power.name ? 'active' : ''}
+                        onClick={() => setPreviewPowerName(power.name)}
+                      >
+                        <span>Уровень {power.level}</span>
+                        <strong>{power.name}</strong>
+                      </button>
+                    )) : (
+                      <p>Для текущего уровня нет выбранных сил.</p>
+                    )}
+                  </nav>
+                </aside>
+
+                <main className="discipline-power-detail">
+                  {selectedPreviewPower ? (
+                    <>
+                      <div className="discipline-power-title">
+                        <div><span>Уровень {selectedPreviewPower.level}</span><h3>{selectedPreviewPower.name}</h3></div>
+                        <i>{getDotDisplay(selectedPreviewPower.level)}</i>
+                      </div>
+                      <p className="discipline-power-description">{selectedPreviewPower.rule.description || 'Описание отсутствует.'}</p>
+                      <dl className="discipline-power-facts">
+                        <div><dt>Бросок</dt><dd>{selectedPreviewPower.rule.pool || '—'}</dd></div>
+                        <div><dt>Стоимость</dt><dd>{selectedPreviewPower.rule.cost || '—'}</dd></div>
+                        <div><dt>Длительность</dt><dd>{selectedPreviewPower.rule.duration || '—'}</dd></div>
+                      </dl>
+                      {selectedPreviewPower.rule.effect ? (
+                        <section className="discipline-power-effect">
+                          <h4>Эффект</h4>
+                          <p>{selectedPreviewPower.rule.effect}</p>
+                        </section>
+                      ) : null}
+
+                      <section className="discipline-power-roll">
+                        <div className="preview-section-heading">
+                          <div><span>По формуле силы</span><h3>Бросок</h3></div>
+                          <strong>{previewPowerDiceCount}к10</strong>
+                        </div>
+                        {previewPowerPoolChoices.length ? (
+                          <>
+                            <div className="discipline-power-roll-controls">
+                              {previewPowerPoolChoices.map((choice, index) => (
+                                <label key={`${choice.source}-${index}`}>
+                                  <span>Часть пула {index + 1}</span>
+                                  <select
+                                    value={previewPowerPoolSelections[index] || ''}
+                                    onChange={event => setPreviewPowerPoolSelections(current => current.map((value, currentIndex) => currentIndex === index ? event.target.value : value))}
+                                  >
+                                    {choice.options.map(option => (
+                                      <option key={option} value={option}>{option} · {getCharacterPoolPartDots(previewCharacter, option)}</option>
+                                    ))}
+                                  </select>
+                                </label>
+                              ))}
+                              <label>
+                                <span>Модификатор</span>
+                                <input
+                                  type="number"
+                                  min="-20"
+                                  max="20"
+                                  value={previewPowerModifier}
+                                  onChange={event => setPreviewPowerModifier(Math.max(-20, Math.min(20, Number(event.target.value) || 0)))}
+                                />
+                              </label>
+                              <button type="button" onClick={rollPreviewPower} disabled={!canRollPreview || previewPowerDiceCount < 1}>
+                                Бросить {previewPowerDiceCount}к10
+                              </button>
+                            </div>
+                            {previewPowerOpposition ? <p className="discipline-roll-opposition">Сопротивление цели: {previewPowerOpposition}</p> : null}
+                            {selectedPreviewPower.rule.pool !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">Используется формула силы «{selectedPreviewPower.rule.pool?.replace(/^как\s+/i, '')}».</p> : null}
+                          </>
+                        ) : (
+                          <p className="discipline-no-roll">Для этой силы отдельный автоматический бросок не требуется или его пул зависит от ситуации. При необходимости используй конструктор броска в кратком листе.</p>
+                        )}
+                        {!canRollPreview ? <p className="discipline-roll-opposition">Бросать может мастер или владелец активного персонажа.</p> : null}
+                      </section>
+                    </>
+                  ) : (
+                    <div className="discipline-detail-status">Выбери силу слева.</div>
+                  )}
+                </main>
+              </div>
+            )}
           </section>
         </div>
       ) : null}

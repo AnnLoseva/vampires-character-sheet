@@ -1835,7 +1835,7 @@ export default function GameTableStyles() {
 
         .preview-roll-controls {
           display: grid;
-          grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 110px 150px;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
           gap: 8px;
           align-items: end;
           margin-top: 12px;
@@ -1881,7 +1881,8 @@ export default function GameTableStyles() {
         }
 
         .preview-roll-submit:disabled,
-        .quick-roll-grid button:disabled {
+        .quick-roll-grid button:disabled,
+        .discipline-power-roll-controls button:disabled {
           cursor: not-allowed;
           opacity: 0.45;
         }
@@ -1992,15 +1993,26 @@ export default function GameTableStyles() {
           gap: 8px;
         }
 
-        .preview-discipline-list article {
+        .preview-discipline-card {
           min-width: 0;
+          display: grid;
+          gap: 4px;
           border: 1px solid #2c2c2c;
           border-radius: 5px;
           background: #101010;
+          color: inherit;
           padding: 9px;
+          cursor: pointer;
+          font: inherit;
+          text-align: left;
         }
 
-        .preview-discipline-list article div {
+        .preview-discipline-card:hover {
+          border-color: #713535;
+          background: #1a1111;
+        }
+
+        .preview-discipline-card > span {
           display: flex;
           justify-content: space-between;
           gap: 10px;
@@ -2013,6 +2025,314 @@ export default function GameTableStyles() {
           color: #929292;
           font-size: 10px;
           line-height: 1.4;
+        }
+
+        .discipline-detail-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 2050;
+          display: grid;
+          place-items: center;
+          padding: 20px;
+          background: rgba(0,0,0,0.86);
+        }
+
+        .discipline-detail-modal {
+          width: min(1080px, 100%);
+          height: min(820px, 92vh);
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          overflow: hidden;
+          border: 1px solid #493232;
+          border-radius: 8px;
+          background: #0b0b0b;
+          box-shadow: 0 24px 70px rgba(0,0,0,0.72), 0 0 30px rgba(255,49,49,0.14);
+        }
+
+        .discipline-detail-modal > header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          border-bottom: 1px solid #2d2d2d;
+          background: #111;
+          padding: 12px 14px;
+        }
+
+        .discipline-detail-modal > header div {
+          display: grid;
+          gap: 3px;
+        }
+
+        .discipline-detail-modal > header span {
+          color: #b36f6f;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .discipline-detail-modal > header strong {
+          color: #f5f5f5;
+          font-size: 16px;
+        }
+
+        .discipline-detail-modal > header button {
+          width: 34px;
+          height: 34px;
+          border: 1px solid #3a3a3a;
+          border-radius: 5px;
+          background: #181818;
+          color: #fff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 22px;
+          line-height: 1;
+        }
+
+        .discipline-detail-layout {
+          min-height: 0;
+          display: grid;
+          grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.5fr);
+          overflow: hidden;
+        }
+
+        .discipline-detail-sidebar {
+          min-height: 0;
+          overflow-y: auto;
+          border-right: 1px solid #292929;
+          background: #101010;
+          padding: 12px;
+        }
+
+        .discipline-description > p {
+          margin: 0;
+          color: #c6c6c6;
+          font-size: 11px;
+          line-height: 1.55;
+          white-space: pre-wrap;
+        }
+
+        .discipline-description dl {
+          display: grid;
+          gap: 7px;
+          margin: 12px 0 0;
+        }
+
+        .discipline-description dl div {
+          display: grid;
+          gap: 3px;
+          border-left: 2px solid #633030;
+          padding-left: 8px;
+        }
+
+        .discipline-description dt,
+        .discipline-power-facts dt {
+          color: #b27676;
+          font-size: 9px;
+          font-weight: 700;
+          text-transform: uppercase;
+        }
+
+        .discipline-description dd,
+        .discipline-power-facts dd {
+          margin: 0;
+          color: #aaa;
+          font-size: 10px;
+          line-height: 1.4;
+        }
+
+        .discipline-power-list {
+          display: grid;
+          gap: 5px;
+          margin-top: 14px;
+          border-top: 1px solid #292929;
+          padding-top: 12px;
+        }
+
+        .discipline-power-list button {
+          display: grid;
+          gap: 3px;
+          border: 1px solid #2d2d2d;
+          border-radius: 5px;
+          background: #151515;
+          color: #ddd;
+          padding: 8px 9px;
+          cursor: pointer;
+          font: inherit;
+          text-align: left;
+        }
+
+        .discipline-power-list button:hover,
+        .discipline-power-list button.active {
+          border-color: #793737;
+          background: #271616;
+        }
+
+        .discipline-power-list button span {
+          color: #a96969;
+          font-size: 9px;
+          text-transform: uppercase;
+        }
+
+        .discipline-power-list button strong {
+          font-size: 11px;
+        }
+
+        .discipline-power-list > p,
+        .discipline-detail-status {
+          margin: 0;
+          color: #999;
+          padding: 18px;
+          font-size: 12px;
+          text-align: center;
+        }
+
+        .discipline-power-detail {
+          min-height: 0;
+          overflow-y: auto;
+          padding: 16px;
+        }
+
+        .discipline-power-title {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .discipline-power-title div {
+          display: grid;
+          gap: 3px;
+        }
+
+        .discipline-power-title span {
+          color: #af6868;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .discipline-power-title h3 {
+          margin: 0;
+          color: #fff;
+          font-size: 19px;
+        }
+
+        .discipline-power-title i {
+          color: #ff7373;
+          font-size: 13px;
+          font-style: normal;
+          white-space: nowrap;
+        }
+
+        .discipline-power-description {
+          margin: 13px 0 0;
+          color: #d1d1d1;
+          font-size: 12px;
+          line-height: 1.55;
+          white-space: pre-wrap;
+        }
+
+        .discipline-power-facts {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 1px;
+          margin: 14px 0 0;
+          background: #2c2c2c;
+        }
+
+        .discipline-power-facts div {
+          display: grid;
+          gap: 5px;
+          background: #121212;
+          padding: 10px;
+        }
+
+        .discipline-power-facts dd {
+          color: #ddd;
+          font-size: 11px;
+        }
+
+        .discipline-power-effect {
+          margin-top: 14px;
+          border-left: 3px solid #743535;
+          background: #121212;
+          padding: 11px 12px;
+        }
+
+        .discipline-power-effect h4 {
+          margin: 0 0 6px;
+          color: #efaaaa;
+          font-size: 11px;
+        }
+
+        .discipline-power-effect p {
+          margin: 0;
+          color: #bbb;
+          font-size: 11px;
+          line-height: 1.55;
+          white-space: pre-wrap;
+        }
+
+        .discipline-power-roll {
+          margin-top: 14px;
+          border: 1px solid #303030;
+          border-radius: 6px;
+          background: #111;
+          padding: 12px;
+        }
+
+        .discipline-power-roll-controls {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) 100px 150px;
+          gap: 8px;
+          align-items: end;
+          margin-top: 11px;
+        }
+
+        .discipline-power-roll-controls label {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+        }
+
+        .discipline-power-roll-controls label span {
+          color: #8e8e8e;
+          font-size: 9px;
+          text-transform: uppercase;
+        }
+
+        .discipline-power-roll-controls select,
+        .discipline-power-roll-controls input {
+          width: 100%;
+          min-width: 0;
+          height: 36px;
+          box-sizing: border-box;
+          border: 1px solid #383838;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 0 8px;
+          font: inherit;
+          font-size: 11px;
+        }
+
+        .discipline-power-roll-controls button {
+          height: 36px;
+          border: 1px solid #963b3b;
+          border-radius: 5px;
+          background: #6c2222;
+          color: #fff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .discipline-roll-opposition,
+        .discipline-no-roll {
+          margin: 9px 0 0;
+          color: #999;
+          font-size: 10px;
+          line-height: 1.45;
         }
 
         .preview-inventory-list {
@@ -3405,6 +3725,14 @@ export default function GameTableStyles() {
         }
 
         @media (max-width: 1040px) {
+          .preview-roll-controls {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .discipline-power-roll-controls {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
           html,
           body {
             overflow: auto !important;
@@ -3435,7 +3763,8 @@ export default function GameTableStyles() {
         }
 
         @media (max-width: 720px) {
-          .media-preview-backdrop {
+          .media-preview-backdrop,
+          .discipline-detail-backdrop {
             padding: 8px;
           }
 
@@ -3451,9 +3780,32 @@ export default function GameTableStyles() {
             grid-template-columns: minmax(0, 1fr) 90px;
           }
 
-          .preview-roll-controls label:first-child,
-          .preview-roll-controls label:nth-child(2) {
+          .preview-roll-controls label:nth-child(-n+4) {
             grid-column: 1 / -1;
+          }
+
+          .discipline-detail-modal {
+            height: calc(100svh - 16px);
+          }
+
+          .discipline-detail-layout {
+            grid-template-columns: 1fr;
+            overflow-y: auto;
+          }
+
+          .discipline-detail-sidebar,
+          .discipline-power-detail {
+            overflow: visible;
+          }
+
+          .discipline-detail-sidebar {
+            border-right: 0;
+            border-bottom: 1px solid #292929;
+          }
+
+          .discipline-power-facts,
+          .discipline-power-roll-controls {
+            grid-template-columns: 1fr;
           }
 
           .preview-trait-columns,

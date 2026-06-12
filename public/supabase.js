@@ -7,6 +7,7 @@ let supabaseClient = null;
 let currentUser = null;
 let currentCharacterRecordId = null;
 let charactersListCache = null;
+let requestedCharacterLoadStarted = false;
 
 function initSupabase() {
     if (supabaseClient) return supabaseClient;
@@ -353,6 +354,52 @@ async function loadCharacter(id, button = null) {
     closeModal();
     setButtonBusy(button, false);
 }
+
+async function loadRequestedCharacter() {
+    const params = new URLSearchParams(window.location.search);
+    const characterId = params.get('characterId');
+    if (!characterId || requestedCharacterLoadStarted) return;
+
+    const isMasterView = params.get('role') === 'master';
+    if (!currentUser && !isMasterView) {
+        console.warn('Автозагрузка персонажа пропущена: пользователь не вошёл в аккаунт.');
+        return;
+    }
+    if (!window.applyCharacterData) return;
+
+    const client = ensureSupabase();
+    if (!client) return;
+    requestedCharacterLoadStarted = true;
+
+    let request = client
+        .from('characters')
+        .select('id, user_id, data')
+        .eq('id', characterId);
+
+    if (!isMasterView && currentUser) request = request.eq('user_id', currentUser.id);
+
+    const { data, error } = await request.single();
+    if (error || !data?.data) {
+        requestedCharacterLoadStarted = false;
+        console.error('Не удалось автоматически загрузить выбранного персонажа:', error);
+        alert('Не удалось открыть выбранного персонажа. Возможно, у вас нет доступа к этому листу.');
+        return;
+    }
+
+    const ownsCharacter = Boolean(currentUser && data.user_id === currentUser.id);
+    currentCharacterRecordId = ownsCharacter ? data.id : null;
+    window.applyCharacterData(data.data, isMasterView && !ownsCharacter ? 'игрового стола (просмотр мастера)' : 'игрового стола');
+
+    if (ownsCharacter) {
+        const room = params.get('room');
+        localStorage.setItem(`vtm-chat-character:${currentUser.id}`, data.id);
+        localStorage.setItem(`vtm-home-character:${currentUser.id}`, data.id);
+        if (room) localStorage.setItem(`vtm-chat-character:${currentUser.id}:${room}`, data.id);
+    }
+}
+
+window.addEventListener('vtm-sheet-ready', loadRequestedCharacter);
+if (window.__vtmSheetReady) queueMicrotask(loadRequestedCharacter);
 
 async function deleteCharacter(id, name = 'персонажа') {
     const client = ensureSupabase();

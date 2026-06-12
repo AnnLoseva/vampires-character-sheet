@@ -5,18 +5,28 @@ import { useEffect, useMemo, useState } from 'react'
 export default function CharacterSheetPage() {
   const [room, setRoom] = useState('campaign-666')
   const [role, setRole] = useState<'master' | 'player'>('player')
+  const [characterId, setCharacterId] = useState('')
+  const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
     const nextRoom = params.get('room') || window.localStorage.getItem('vtm-table-room') || 'campaign-666'
+    const requestedRole = params.get('role')
     const savedRole = window.localStorage.getItem('vtm-table-role')
     setRoom(nextRoom)
-    if (savedRole === 'master' || savedRole === 'player') setRole(savedRole)
+    setCharacterId(params.get('characterId') || '')
+    if (requestedRole === 'master' || requestedRole === 'player') setRole(requestedRole)
+    else if (savedRole === 'master' || savedRole === 'player') setRole(savedRole)
     window.localStorage.setItem('vtm-table-room', nextRoom)
+    setIsReady(true)
   }, [])
 
   const tableHref = useMemo(() => `/table?room=${encodeURIComponent(room)}&role=${role}`, [room, role])
-  const iframeSrc = useMemo(() => `/old-sheet.html?room=${encodeURIComponent(room)}`, [room])
+  const iframeSrc = useMemo(() => {
+    const params = new URLSearchParams({ room, role })
+    if (characterId) params.set('characterId', characterId)
+    return `/old-sheet.html?${params.toString()}`
+  }, [room, role, characterId])
 
   return (
     <>
@@ -67,11 +77,13 @@ export default function CharacterSheetPage() {
         </a>
       </nav>
 
-      <iframe
-        src={iframeSrc}
-        className="sheet-iframe"
-        title="VTM V5 Character Sheet"
-      />
+      {isReady ? (
+        <iframe
+          src={iframeSrc}
+          className="sheet-iframe"
+          title="VTM V5 Character Sheet"
+        />
+      ) : null}
 
       <style jsx>{`
         .sheet-nav-links {

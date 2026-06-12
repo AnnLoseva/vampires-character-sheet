@@ -192,6 +192,8 @@ async function initializeApp() {
             }
         });
 
+        window.__vtmSheetReady = true;
+        window.dispatchEvent(new CustomEvent('vtm-sheet-ready'));
         console.log("✅ Приложение полностью инициализировано");
     } catch (err) {
         console.error("❌ Ошибка инициализации:", err);
