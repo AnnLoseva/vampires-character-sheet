@@ -1665,10 +1665,10 @@ export default function GameTableStyles() {
         }
 
         .character-preview-modal {
-          width: min(760px, 100%);
-          max-height: min(760px, 90vh);
+          width: min(1040px, 100%);
+          height: min(840px, 92vh);
           display: grid;
-          grid-template-rows: auto minmax(0, 1fr) auto;
+          grid-template-rows: auto auto minmax(0, 1fr) auto;
           border: 1px solid #3a3a3a;
           border-radius: 8px;
           background: #0b0b0b;
@@ -1713,90 +1713,184 @@ export default function GameTableStyles() {
           gap: 3px;
         }
 
-        .character-preview-grid {
+        .character-preview-tabs {
+          display: flex;
+          gap: 2px;
+          border-bottom: 1px solid #292929;
+          background: #0f0f0f;
+          padding: 8px 12px 0;
+        }
+
+        .character-preview-tabs button {
+          min-height: 38px;
+          border: 0;
+          border-bottom: 2px solid transparent;
+          background: transparent;
+          color: #9f9f9f;
+          padding: 0 14px;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .character-preview-tabs button.active {
+          border-bottom-color: #ff4949;
+          color: #fff;
+        }
+
+        .character-preview-tabs button span {
+          display: inline-grid;
+          min-width: 20px;
+          height: 20px;
+          place-items: center;
+          margin-left: 5px;
+          border-radius: 4px;
+          background: #282828;
+          color: #ddd;
+          font-size: 10px;
+        }
+
+        .character-preview-body {
           min-height: 0;
           overflow-y: auto;
+          padding: 0 14px 16px;
+        }
+
+        .character-preview-summary {
           display: grid;
-          gap: 12px;
-          padding: 14px;
-        }
-
-        .character-preview-grid section {
-          border: 1px solid #292929;
-          border-radius: 8px;
-          background: #141414;
-          padding: 12px;
-        }
-
-        .character-preview-grid h3 {
-          margin: 0 0 8px;
-          color: #ffb3b3;
-          font-size: 13px;
-        }
-
-        .character-preview-grid p {
-          margin: 0 0 6px;
-          color: #d7d7d7;
-          font-size: 13px;
-          line-height: 1.45;
-        }
-
-        .character-preview-grid ul {
-          list-style: none;
-          margin: 0;
-          padding: 0;
-          display: grid;
-          gap: 6px;
-        }
-
-        .character-preview-grid li {
-          display: flex;
-          justify-content: space-between;
-          gap: 10px;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 1px;
+          margin: 0 -14px 14px;
           border-bottom: 1px solid #252525;
-          padding-bottom: 6px;
-          color: #ddd;
-          font-size: 12px;
+          background: #252525;
         }
 
-        .character-preview-grid li span {
-          color: #9c9c9c;
-        }
-
-        .mechanics-list {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 7px;
-        }
-
-        .mechanics-list span {
+        .character-preview-summary div {
           min-width: 0;
-          display: flex;
-          justify-content: space-between;
-          gap: 10px;
-          border-bottom: 1px solid #252525;
-          padding-bottom: 5px;
-          color: #ddd;
-          font-size: 12px;
+          display: grid;
+          gap: 4px;
+          background: #111;
+          padding: 10px 12px;
         }
 
-        .mechanics-list b {
+        .character-preview-summary dt {
+          color: #858585;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .character-preview-summary dd {
+          margin: 0;
           overflow: hidden;
+          color: #ededed;
+          font-size: 12px;
+          font-weight: 700;
           text-overflow: ellipsis;
           white-space: nowrap;
         }
 
-        .mechanics-list i {
-          color: #ffb3b3;
-          font-style: normal;
-          text-align: right;
+        .character-mechanics-sheet,
+        .character-inventory-sheet {
+          display: grid;
+          gap: 12px;
+        }
+
+        .character-mechanics-sheet > section,
+        .character-inventory-sheet {
+          border: 1px solid #292929;
+          border-radius: 7px;
+          background: #141414;
+          padding: 12px;
+        }
+
+        .preview-section-heading {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+        }
+
+        .preview-section-heading > div {
+          display: grid;
+          gap: 3px;
+        }
+
+        .preview-section-heading h3 {
+          margin: 0;
+          color: #f3f3f3;
+          font-size: 13px;
+        }
+
+        .preview-section-heading span,
+        .preview-section-heading > div > span {
+          color: #898989;
+          font-size: 10px;
+        }
+
+        .preview-section-heading > strong {
+          color: #ff7777;
+          font-size: 20px;
+        }
+
+        .preview-roll-controls {
+          display: grid;
+          grid-template-columns: minmax(180px, 1fr) minmax(180px, 1fr) 110px 150px;
+          gap: 8px;
+          align-items: end;
+          margin-top: 12px;
+        }
+
+        .preview-roll-controls label {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+        }
+
+        .preview-roll-controls label > span {
+          color: #9c9c9c;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .preview-roll-controls select,
+        .preview-roll-controls input {
+          width: 100%;
+          min-width: 0;
+          height: 36px;
+          box-sizing: border-box;
+          border: 1px solid #353535;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 0 9px;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .preview-roll-submit {
+          height: 36px;
+          border: 1px solid #9a3838;
+          border-radius: 5px;
+          background: #6f2020;
+          color: #fff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .preview-roll-submit:disabled,
+        .quick-roll-grid button:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
         }
 
         .quick-roll-grid {
           display: grid;
           grid-template-columns: repeat(4, minmax(0, 1fr));
           gap: 8px;
-          margin-bottom: 10px;
+          margin-top: 9px;
         }
 
         .quick-roll-grid button {
@@ -1808,6 +1902,197 @@ export default function GameTableStyles() {
           cursor: pointer;
           font: inherit;
           font-size: 12px;
+        }
+
+        .preview-roll-notice,
+        .character-preview-empty {
+          margin: 9px 0 0;
+          color: #999;
+          font-size: 11px;
+        }
+
+        .preview-trait-section .preview-section-heading {
+          margin-bottom: 10px;
+        }
+
+        .preview-trait-columns {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 10px;
+        }
+
+        .preview-trait-group {
+          min-width: 0;
+          display: grid;
+          align-content: start;
+          gap: 3px;
+        }
+
+        .preview-trait-group h4 {
+          margin: 0 0 3px;
+          color: #ff8d8d;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .preview-trait-group button {
+          min-width: 0;
+          min-height: 30px;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 8px;
+          align-items: center;
+          border: 1px solid transparent;
+          border-bottom-color: #292929;
+          border-radius: 4px;
+          background: transparent;
+          color: #ddd;
+          padding: 5px 6px;
+          cursor: pointer;
+          font: inherit;
+          font-size: 11px;
+          text-align: left;
+        }
+
+        .preview-trait-group button:hover {
+          background: #1d1d1d;
+        }
+
+        .preview-trait-group button.active {
+          border-color: #773434;
+          background: #2a1717;
+          color: #fff;
+        }
+
+        .preview-trait-group button > span {
+          min-width: 0;
+          display: grid;
+          gap: 2px;
+        }
+
+        .preview-trait-group button small {
+          overflow: hidden;
+          color: #898989;
+          font-size: 9px;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .preview-trait-group i,
+        .preview-discipline-list i {
+          color: #ff7373;
+          font-style: normal;
+          letter-spacing: 0;
+          white-space: nowrap;
+        }
+
+        .preview-discipline-list {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .preview-discipline-list article {
+          min-width: 0;
+          border: 1px solid #2c2c2c;
+          border-radius: 5px;
+          background: #101010;
+          padding: 9px;
+        }
+
+        .preview-discipline-list article div {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          color: #eee;
+          font-size: 12px;
+        }
+
+        .preview-discipline-list p {
+          margin: 6px 0 0;
+          color: #929292;
+          font-size: 10px;
+          line-height: 1.4;
+        }
+
+        .preview-inventory-list {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 9px;
+          margin-top: 12px;
+        }
+
+        .preview-inventory-list article {
+          min-width: 0;
+          border: 1px solid #303030;
+          border-radius: 6px;
+          background: #0e0e0e;
+          padding: 11px;
+        }
+
+        .preview-inventory-list article > header {
+          display: flex;
+          justify-content: space-between;
+          align-items: start;
+          gap: 12px;
+          border: 0;
+          background: transparent;
+          padding: 0;
+        }
+
+        .preview-inventory-list header div {
+          min-width: 0;
+          display: grid;
+          gap: 4px;
+        }
+
+        .preview-inventory-list article > header strong {
+          overflow-wrap: anywhere;
+          color: #f3f3f3;
+          font-size: 12px;
+        }
+
+        .preview-inventory-list article > header span {
+          color: #ff8585;
+          font-size: 10px;
+        }
+
+        .preview-inventory-list header b {
+          flex: 0 0 auto;
+          min-width: 30px;
+          border: 1px solid #3b3b3b;
+          border-radius: 4px;
+          color: #ddd;
+          padding: 3px 5px;
+          font-size: 11px;
+          text-align: center;
+        }
+
+        .preview-inventory-list article > p {
+          margin: 9px 0 0;
+          color: #bcbcbc;
+          font-size: 11px;
+          line-height: 1.45;
+          white-space: pre-wrap;
+        }
+
+        .preview-inventory-list aside {
+          display: grid;
+          gap: 4px;
+          margin-top: 9px;
+          border-left: 2px solid #6b3030;
+          color: #a9a9a9;
+          padding-left: 8px;
+          font-size: 10px;
+          line-height: 1.4;
+          white-space: pre-wrap;
+        }
+
+        .preview-inventory-list aside span {
+          color: #e7a2a2;
+          font-size: 9px;
+          font-weight: 700;
+          text-transform: uppercase;
         }
 
         .character-preview-actions {
@@ -3150,6 +3435,38 @@ export default function GameTableStyles() {
         }
 
         @media (max-width: 720px) {
+          .media-preview-backdrop {
+            padding: 8px;
+          }
+
+          .character-preview-modal {
+            height: calc(100svh - 16px);
+          }
+
+          .character-preview-summary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .preview-roll-controls {
+            grid-template-columns: minmax(0, 1fr) 90px;
+          }
+
+          .preview-roll-controls label:first-child,
+          .preview-roll-controls label:nth-child(2) {
+            grid-column: 1 / -1;
+          }
+
+          .preview-trait-columns,
+          .preview-discipline-list,
+          .preview-inventory-list {
+            grid-template-columns: 1fr;
+          }
+
+          .character-preview-tabs button {
+            flex: 1 1 0;
+            padding: 0 6px;
+          }
+
           .table-page-shell {
             padding: 8px;
           }
