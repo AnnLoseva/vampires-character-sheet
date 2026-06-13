@@ -447,7 +447,6 @@ export default function VampireTable() {
   const pendingDragPointerRef = useRef<{ clientX: number; clientY: number } | null>(null)
   const dragLayerElementsRef = useRef<Map<string, HTMLElement>>(new Map())
   const dragPreviewPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
-  const lastDragBroadcastAtRef = useRef(0)
   const touchGestureRef = useRef<TouchGestureState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
   const scenesRef = useRef<TableScene[]>([])
@@ -3505,10 +3504,9 @@ export default function VampireTable() {
     dragLayerElementsRef.current = elements
     dragPreviewPositionsRef.current = new Map()
     pendingDragPointerRef.current = null
-    lastDragBroadcastAtRef.current = 0
   }
 
-  const applyLayerMovePreview = (drag: DragState, clientX: number, clientY: number, syncRemote = true) => {
+  const applyLayerMovePreview = (drag: DragState, clientX: number, clientY: number) => {
     const sceneDx = (clientX - drag.startClientX) / zoom
     const sceneDy = (clientY - drag.startClientY) / zoom
     const positions = new Map<string, { x: number; y: number }>()
@@ -3527,15 +3525,6 @@ export default function VampireTable() {
     dragLayerElementsRef.current.forEach(element => {
       element.style.transform = `translate3d(${sceneDx}px, ${sceneDy}px, 0)`
     })
-
-    const now = performance.now()
-    if (syncRemote && now - lastDragBroadcastAtRef.current >= 66) {
-      lastDragBroadcastAtRef.current = now
-      broadcast('layer-move', {
-        room,
-        updates: Array.from(positions, ([id, position]) => ({ id, ...position })),
-      })
-    }
   }
 
   const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize', corner: DragState['corner'] = 'se') => {
@@ -3702,7 +3691,7 @@ export default function VampireTable() {
     if (drag.mode === 'move' && pendingDragPointerRef.current) {
       if (dragAnimationFrameRef.current !== null) cancelAnimationFrame(dragAnimationFrameRef.current)
       dragAnimationFrameRef.current = null
-      applyLayerMovePreview(drag, pendingDragPointerRef.current.clientX, pendingDragPointerRef.current.clientY, false)
+      applyLayerMovePreview(drag, pendingDragPointerRef.current.clientX, pendingDragPointerRef.current.clientY)
     }
     dragRef.current = null
     pendingDragPointerRef.current = null
