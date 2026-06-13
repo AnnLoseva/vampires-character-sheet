@@ -164,6 +164,7 @@ export default function TableCanvas({
             <div
               className={`scene-layer ${layer.layerType === 'image' ? 'image-layer' : ''} ${layer.layerType === 'video' ? 'video-layer' : ''} ${layer.layerType === 'text' ? 'text-layer' : ''} ${getLayerCrop(layer).cropped ? 'cropped-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || !canEditLayer(layer) ? 'locked' : ''}`}
               key={layer.id}
+              data-layer-id={layer.id}
               style={{
                 left: layer.x,
                 top: layer.y,

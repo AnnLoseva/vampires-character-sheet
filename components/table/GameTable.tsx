@@ -434,6 +434,11 @@ export default function VampireTable() {
   const chatListRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
   const dragRef = useRef<DragState | null>(null)
+  const dragAnimationFrameRef = useRef<number | null>(null)
+  const pendingDragPointerRef = useRef<{ clientX: number; clientY: number } | null>(null)
+  const dragLayerElementsRef = useRef<Map<string, HTMLElement>>(new Map())
+  const dragPreviewPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+  const lastDragBroadcastAtRef = useRef(0)
   const touchGestureRef = useRef<TouchGestureState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
   const scenesRef = useRef<TableScene[]>([])
@@ -498,6 +503,10 @@ export default function VampireTable() {
   useEffect(() => {
     layersRef.current = layers
   }, [layers])
+
+  useEffect(() => () => {
+    if (dragAnimationFrameRef.current !== null) cancelAnimationFrame(dragAnimationFrameRef.current)
+  }, [])
 
   useEffect(() => {
     scenesRef.current = scenes
@@ -1229,8 +1238,23 @@ export default function VampireTable() {
         const update = payload.payload as { id?: string; room?: string; patch?: LayerPatch }
         if (!update.id || update.room !== currentRoom || !update.patch) return
         if (update.patch.sceneId && update.patch.sceneId !== activeSceneIdRef.current) return
+        const patch = update.patch
         setLayers(prev => {
-          const next = sortLayers(prev.map(layer => (layer.id === update.id ? { ...layer, ...update.patch } : layer)))
+          const patched = prev.map(layer => (layer.id === update.id ? { ...layer, ...patch } : layer))
+          const next = patch.zIndex !== undefined || patch.parentId !== undefined ? sortLayers(patched) : patched
+          layersRef.current = next
+          return next
+        })
+      })
+      .on('broadcast', { event: 'layer-move' }, payload => {
+        const update = payload.payload as { room?: string; updates?: Array<{ id: string; x: number; y: number }> }
+        if (update.room !== currentRoom || !Array.isArray(update.updates) || update.updates.length === 0) return
+        const positions = new Map(update.updates.map(item => [item.id, item]))
+        setLayers(prev => {
+          const next = prev.map(layer => {
+            const position = positions.get(layer.id)
+            return position ? { ...layer, x: position.x, y: position.y } : layer
+          })
           layersRef.current = next
           return next
         })
@@ -3386,6 +3410,50 @@ export default function VampireTable() {
 
   const getScenePoint = (event: React.PointerEvent<HTMLElement>) => getScenePointFromClient(event.clientX, event.clientY)
 
+  const prepareLayerDragPreview = (ids: Set<string>) => {
+    const elements = new Map<string, HTMLElement>()
+    sceneRef.current?.querySelectorAll<HTMLElement>('.scene-layer[data-layer-id]').forEach(element => {
+      const id = element.dataset.layerId
+      if (!id || !ids.has(id)) return
+      element.style.willChange = 'transform'
+      elements.set(id, element)
+    })
+    dragLayerElementsRef.current = elements
+    dragPreviewPositionsRef.current = new Map()
+    pendingDragPointerRef.current = null
+    lastDragBroadcastAtRef.current = 0
+  }
+
+  const applyLayerMovePreview = (drag: DragState, clientX: number, clientY: number, syncRemote = true) => {
+    const sceneDx = (clientX - drag.startClientX) / zoom
+    const sceneDy = (clientY - drag.startClientY) / zoom
+    const positions = new Map<string, { x: number; y: number }>()
+    positions.set(drag.id, {
+      x: Math.round(drag.startX + sceneDx),
+      y: Math.round(drag.startY + sceneDy),
+    })
+    drag.childStartPositions.forEach(child => {
+      positions.set(child.id, {
+        x: Math.round(child.x + sceneDx),
+        y: Math.round(child.y + sceneDy),
+      })
+    })
+    dragPreviewPositionsRef.current = positions
+
+    dragLayerElementsRef.current.forEach(element => {
+      element.style.transform = `translate3d(${sceneDx}px, ${sceneDy}px, 0)`
+    })
+
+    const now = performance.now()
+    if (syncRemote && now - lastDragBroadcastAtRef.current >= 66) {
+      lastDragBroadcastAtRef.current = now
+      broadcast('layer-move', {
+        room,
+        updates: Array.from(positions, ([id, position]) => ({ id, ...position })),
+      })
+    }
+  }
+
   const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize', corner: DragState['corner'] = 'se') => {
     if (event.button !== 0) return
     if (!canEditLayer(layer)) return
@@ -3435,6 +3503,7 @@ export default function VampireTable() {
         .filter(item => moveIds.has(item.id))
         .map(item => ({ id: item.id, x: item.x, y: item.y })),
     }
+    if (mode === 'move') prepareLayerDragPreview(new Set([layer.id, ...moveIds]))
   }
 
   const startPan = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -3515,27 +3584,16 @@ export default function VampireTable() {
     }
 
     if (drag.mode === 'move') {
-      const sceneDx = dx / zoom
-      const sceneDy = dy / zoom
-      const layerPatch = { x: Math.round(drag.startX + sceneDx), y: Math.round(drag.startY + sceneDy) }
-      const nextLayers = sortLayers(
-        layersRef.current.map(layer => {
-          if (layer.id === drag.id) return { ...layer, ...layerPatch }
-          const child = drag.childStartPositions.find(item => item.id === layer.id)
-          if (child) return { ...layer, x: Math.round(child.x + sceneDx), y: Math.round(child.y + sceneDy) }
-          return layer
+      pendingDragPointerRef.current = { clientX: event.clientX, clientY: event.clientY }
+      if (dragAnimationFrameRef.current === null) {
+        dragAnimationFrameRef.current = requestAnimationFrame(() => {
+          dragAnimationFrameRef.current = null
+          const pending = pendingDragPointerRef.current
+          const activeDrag = dragRef.current
+          if (!pending || !activeDrag || activeDrag.mode !== 'move') return
+          applyLayerMovePreview(activeDrag, pending.clientX, pending.clientY)
         })
-      )
-      layersRef.current = nextLayers
-      setLayers(nextLayers)
-      broadcast('layer-update', { id: drag.id, room, patch: layerPatch })
-      drag.childStartPositions.forEach(child => {
-        broadcast('layer-update', {
-          id: child.id,
-          room,
-          patch: { x: Math.round(child.x + sceneDx), y: Math.round(child.y + sceneDy) },
-        })
-      })
+      }
       return
     }
 
@@ -3557,12 +3615,59 @@ export default function VampireTable() {
     const drag = dragRef.current
     if (!drag) return
 
+    if (drag.mode === 'move' && pendingDragPointerRef.current) {
+      if (dragAnimationFrameRef.current !== null) cancelAnimationFrame(dragAnimationFrameRef.current)
+      dragAnimationFrameRef.current = null
+      applyLayerMovePreview(drag, pendingDragPointerRef.current.clientX, pendingDragPointerRef.current.clientY, false)
+    }
     dragRef.current = null
+    pendingDragPointerRef.current = null
     if (drag.mode === 'select') {
       setSelectionRect(null)
       return
     }
     if (drag.mode === 'pan') return
+    if (drag.mode === 'move') {
+      const positions = dragPreviewPositionsRef.current
+      dragPreviewPositionsRef.current = new Map()
+      if (positions.size === 0) {
+        dragLayerElementsRef.current.forEach(element => {
+          element.style.transform = ''
+          element.style.willChange = ''
+        })
+        dragLayerElementsRef.current = new Map()
+        return
+      }
+
+      const nextLayers = layersRef.current.map(layer => {
+        const position = positions.get(layer.id)
+        return position ? { ...layer, ...position } : layer
+      })
+      layersRef.current = nextLayers
+      dragLayerElementsRef.current.forEach((element, id) => {
+        const position = positions.get(id)
+        if (position) {
+          element.style.left = `${position.x}px`
+          element.style.top = `${position.y}px`
+        }
+        element.style.transform = ''
+        element.style.willChange = ''
+      })
+      dragLayerElementsRef.current = new Map()
+      setLayers(nextLayers)
+
+      const updates = Array.from(positions, ([id, position]) => ({ id, ...position }))
+      broadcast('layer-move', { room, updates })
+      const supabase = createClient()
+      const results = await Promise.all(updates.map(update => (
+        supabase.from(TABLE_IMAGES).update(toDbPatch({ x: update.x, y: update.y })).eq('id', update.id)
+      )))
+      if (results.some(result => result.error)) {
+        console.error('Не удалось сохранить перемещение слоёв:', results.filter(result => result.error).map(result => result.error))
+        setTableStatus('Позиция слоя не сохранилась')
+      }
+      return
+    }
     const layer = layersRef.current.find(item => item.id === drag.id)
     if (layer) {
       await patchLayer(layer.id, { x: layer.x, y: layer.y, width: layer.width, height: layer.height })
