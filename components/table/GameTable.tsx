@@ -42,6 +42,7 @@ import {
   mapRollRow,
   mapSceneMusicRow,
   mapSceneRow,
+  normalizeInventory,
   toDbPatch,
 } from '@/lib/table/mappers'
 import {
@@ -86,6 +87,7 @@ import type {
   DragState,
   ImageEditorDraft,
   ImageEditorState,
+  InventoryItem,
   JournalEntry,
   LayerContextMenu,
   LayerDropPlacement,
@@ -126,6 +128,8 @@ const SKILL_GROUPS = [
   { name: 'Социальные', traits: ['Запугивание', 'Исполнение', 'Лидерство', 'Обращение с животными', 'Проницательность', 'Убеждение', 'Уличное чутьё', 'Хитрость', 'Этикет'] },
   { name: 'Ментальные', traits: ['Гуманитарные науки', 'Естественные науки', 'Медицина', 'Наблюдательность', 'Оккультизм', 'Политика', 'Расследование', 'Техника', 'Финансы'] },
 ] as const
+
+const INVENTORY_CATEGORIES = ['Оружие', 'Одежда', 'Документы', 'Деньги', 'Артефакты', 'Расходники', 'Другое'] as const
 
 type DisciplinePowerRule = {
   description?: string
@@ -370,6 +374,11 @@ export default function VampireTable() {
   const [previewPowerName, setPreviewPowerName] = useState('')
   const [previewPowerPoolSelections, setPreviewPowerPoolSelections] = useState<string[]>([])
   const [previewPowerModifier, setPreviewPowerModifier] = useState(0)
+  const [quickInventoryName, setQuickInventoryName] = useState('')
+  const [quickInventoryCategory, setQuickInventoryCategory] = useState<(typeof INVENTORY_CATEGORIES)[number]>('Другое')
+  const [quickInventoryQuantity, setQuickInventoryQuantity] = useState(1)
+  const [quickInventoryStatus, setQuickInventoryStatus] = useState('')
+  const [isQuickInventoryBusy, setIsQuickInventoryBusy] = useState(false)
   const [journalEntries, setJournalEntries] = useState<JournalEntry[]>([])
   const [selectedJournalEntryId, setSelectedJournalEntryId] = useState('')
   const [journalSearch, setJournalSearch] = useState('')
@@ -469,6 +478,10 @@ export default function VampireTable() {
     setPreviewRollModifier(0)
     setPreviewDisciplineName('')
     setPreviewPowerName('')
+    setQuickInventoryName('')
+    setQuickInventoryCategory('Другое')
+    setQuickInventoryQuantity(1)
+    setQuickInventoryStatus('')
   }, [previewCharacter?.id])
 
   useEffect(() => {
@@ -1516,6 +1529,7 @@ export default function VampireTable() {
   const previewPoolBeforeLimit = previewAttributeDots + previewAttributeTwoDots + previewSkillDots + previewDisciplineDots + previewRollModifier
   const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit))
   const canRollPreview = Boolean(previewCharacter?.id && (isMaster || previewCharacter.id === selectedActiveCharacter?.id))
+  const canEditPreviewInventory = Boolean(chatUser && previewCharacter?.id && previewCharacter.id === selectedActiveCharacter?.id)
   const previewExtraAttributes = previewCharacter ? getExtraTraitNames(previewCharacter.attributes, ATTRIBUTE_GROUPS) : []
   const previewExtraSkills = previewCharacter ? getExtraTraitNames(previewCharacter.skills, SKILL_GROUPS) : []
   const previewDisciplineNames = previewCharacter
@@ -1751,6 +1765,76 @@ export default function VampireTable() {
       previewCharacter,
       'discipline-power',
     )
+  }
+
+  const addQuickInventoryItem = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    const name = quickInventoryName.trim()
+    if (!name || !previewCharacter?.id || !chatUser || !canEditPreviewInventory || isQuickInventoryBusy) return
+
+    setIsQuickInventoryBusy(true)
+    setQuickInventoryStatus('Сохраняю...')
+    const now = new Date().toISOString()
+    const item: InventoryItem = {
+      id: `inventory-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      name,
+      description: '',
+      quantity: Math.max(0, Math.floor(quickInventoryQuantity)),
+      category: quickInventoryCategory,
+      note: '',
+      createdAt: now,
+      updatedAt: now,
+      collapsed: true,
+    }
+
+    try {
+      const supabase = createClient()
+      const { data, error } = await supabase
+        .from('characters')
+        .select('data')
+        .eq('id', previewCharacter.id)
+        .eq('user_id', chatUser.id)
+        .single()
+      if (error || !data?.data) throw error || new Error('Данные персонажа не найдены')
+
+      const characterData = data.data as Record<string, unknown>
+      const nextInventory = [item, ...normalizeInventory(characterData.inventory)]
+      const { error: updateError } = await supabase
+        .from('characters')
+        .update({ data: { ...characterData, inventory: nextInventory, timestamp: now } })
+        .eq('id', previewCharacter.id)
+        .eq('user_id', chatUser.id)
+      if (updateError) throw updateError
+
+      setPreviewCharacter(current => current ? { ...current, inventory: nextInventory } : current)
+      setChatCharacters(current => current.map(character => character.id === previewCharacter.id ? { ...character, inventory: nextInventory } : character))
+      setQuickInventoryName('')
+      setQuickInventoryQuantity(1)
+      setQuickInventoryStatus('Предмет добавлен')
+    } catch (error) {
+      console.error('Не удалось добавить предмет в инвентарь:', error)
+      setQuickInventoryStatus('Не удалось сохранить предмет')
+    } finally {
+      setIsQuickInventoryBusy(false)
+    }
+  }
+
+  const showInventoryItemToMaster = (item: InventoryItem) => {
+    if (!previewCharacter || !chatUser) return
+    const reveal: MasterReveal = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      kind: 'Инвентарь',
+      title: item.name || 'Без названия',
+      body: item.description || item.note || 'Описание не указано',
+      meta: `${item.category || 'Другое'} · ${item.quantity ?? 1} шт.`,
+      characterName: previewCharacter.name || 'Безымянный',
+      userId: chatUser.id,
+      username: chatUser.username,
+      createdAt: new Date().toISOString(),
+    }
+    broadcast('master-reveal', reveal)
+    setQuickInventoryStatus(`«${reveal.title}» показано мастеру`)
   }
 
   const addExperienceToActiveCharacter = async () => {
@@ -4704,6 +4788,41 @@ export default function VampireTable() {
                     <div><span>Снаряжение персонажа</span><h3>Инвентарь</h3></div>
                     <strong>{previewCharacter.inventory.length}</strong>
                   </div>
+                  {canEditPreviewInventory ? (
+                    <form className="quick-inventory-form" onSubmit={addQuickInventoryItem}>
+                      <label className="quick-inventory-name">
+                        <span>Новый предмет</span>
+                        <input
+                          value={quickInventoryName}
+                          onChange={event => setQuickInventoryName(event.target.value)}
+                          placeholder="Название"
+                          maxLength={120}
+                        />
+                      </label>
+                      <label>
+                        <span>Категория</span>
+                        <select value={quickInventoryCategory} onChange={event => setQuickInventoryCategory(event.target.value as (typeof INVENTORY_CATEGORIES)[number])}>
+                          {INVENTORY_CATEGORIES.map(category => <option value={category} key={category}>{category}</option>)}
+                        </select>
+                      </label>
+                      <label className="quick-inventory-quantity">
+                        <span>Количество</span>
+                        <input
+                          type="number"
+                          min="0"
+                          max="999"
+                          value={quickInventoryQuantity}
+                          onChange={event => setQuickInventoryQuantity(Math.max(0, Math.min(999, Number(event.target.value) || 0)))}
+                        />
+                      </label>
+                      <button type="submit" disabled={!quickInventoryName.trim() || isQuickInventoryBusy}>
+                        {isQuickInventoryBusy ? 'Сохраняю...' : 'Добавить'}
+                      </button>
+                    </form>
+                  ) : (
+                    <p className="quick-inventory-readonly">Добавлять предметы может владелец активного персонажа.</p>
+                  )}
+                  {quickInventoryStatus ? <p className="quick-inventory-status" role="status">{quickInventoryStatus}</p> : null}
                   {previewCharacter.inventory.length === 0 ? (
                     <p className="character-preview-empty">Инвентарь пуст.</p>
                   ) : (
@@ -4716,6 +4835,11 @@ export default function VampireTable() {
                           </header>
                           {item.description ? <p>{item.description}</p> : null}
                           {item.note ? <aside><span>Заметка</span>{item.note}</aside> : null}
+                          {canEditPreviewInventory && !isMaster ? (
+                            <footer>
+                              <button type="button" onClick={() => showInventoryItemToMaster(item)}>Показать мастеру</button>
+                            </footer>
+                          ) : null}
                         </article>
                       ))}
                     </div>

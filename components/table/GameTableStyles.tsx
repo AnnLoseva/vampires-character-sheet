@@ -2335,6 +2335,73 @@ export default function GameTableStyles() {
           line-height: 1.45;
         }
 
+        .quick-inventory-form {
+          display: grid;
+          grid-template-columns: minmax(180px, 1fr) minmax(130px, 0.55fr) 92px 110px;
+          gap: 8px;
+          align-items: end;
+          margin-top: 12px;
+          border: 1px solid #303030;
+          border-radius: 6px;
+          background: #101010;
+          padding: 10px;
+        }
+
+        .quick-inventory-form label {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+        }
+
+        .quick-inventory-form label > span {
+          color: #929292;
+          font-size: 9px;
+          text-transform: uppercase;
+        }
+
+        .quick-inventory-form input,
+        .quick-inventory-form select {
+          width: 100%;
+          min-width: 0;
+          height: 36px;
+          box-sizing: border-box;
+          border: 1px solid #383838;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 0 8px;
+          font: inherit;
+          font-size: 11px;
+        }
+
+        .quick-inventory-form > button {
+          height: 36px;
+          border: 1px solid #8d3838;
+          border-radius: 5px;
+          background: #672121;
+          color: #fff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .quick-inventory-form > button:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
+        }
+
+        .quick-inventory-status,
+        .quick-inventory-readonly {
+          margin: 8px 0 0;
+          color: #9f9f9f;
+          font-size: 10px;
+        }
+
+        .quick-inventory-status {
+          color: #e9adad;
+        }
+
         .preview-inventory-list {
           display: grid;
           grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -2413,6 +2480,31 @@ export default function GameTableStyles() {
           font-size: 9px;
           font-weight: 700;
           text-transform: uppercase;
+        }
+
+        .preview-inventory-list article > footer {
+          display: flex;
+          justify-content: flex-end;
+          margin-top: 10px;
+          border-top: 1px solid #282828;
+          padding-top: 8px;
+        }
+
+        .preview-inventory-list article > footer button {
+          min-height: 30px;
+          border: 1px solid #694823;
+          border-radius: 5px;
+          background: #17130d;
+          color: #ffc572;
+          padding: 0 9px;
+          cursor: pointer;
+          font: inherit;
+          font-size: 10px;
+        }
+
+        .preview-inventory-list article > footer button:hover {
+          border-color: #a66a28;
+          background: #21180d;
         }
 
         .character-preview-actions {
@@ -3806,6 +3898,15 @@ export default function GameTableStyles() {
           .discipline-power-facts,
           .discipline-power-roll-controls {
             grid-template-columns: 1fr;
+          }
+
+          .quick-inventory-form {
+            grid-template-columns: minmax(0, 1fr) 90px;
+          }
+
+          .quick-inventory-name,
+          .quick-inventory-form label:nth-child(2) {
+            grid-column: 1 / -1;
           }
 
           .preview-trait-columns,
