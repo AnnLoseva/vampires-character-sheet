@@ -10,7 +10,7 @@ import {
   getEmbeddableVideoUrl,
   getFileLayerMeta,
 } from '@/lib/table/media-utils'
-import type { DragState, ImageEditorDraft, ImageEditorState, LayerContextMenu, LayerPatch, SelectionRect, TableLayer, TableScene } from '@/lib/table/types'
+import type { DragState, ImageEditorDraft, ImageEditorState, LayerContextMenu, SelectionRect, TableLayer, TableScene } from '@/lib/table/types'
 
 type TableCanvasProps = {
   tableStatus: string
@@ -53,7 +53,8 @@ type TableCanvasProps = {
   updateImageEditor: (updater: (state: ImageEditorState) => ImageEditorState, commit?: boolean) => void
   undoImageEditor: () => void
   redoImageEditor: () => void
-  patchLayer: (id: string, patch: LayerPatch) => Promise<void>
+  previewLayerOpacity: (id: string, opacity: number) => void
+  commitLayerOpacity: (id: string, input: HTMLInputElement) => void
 }
 
 export default function TableCanvas({
@@ -97,7 +98,8 @@ export default function TableCanvas({
   updateImageEditor,
   undoImageEditor,
   redoImageEditor,
-  patchLayer,
+  previewLayerOpacity,
+  commitLayerOpacity,
 }: TableCanvasProps) {
   return (
     <section className="play-surface" aria-label="Игровой стол">
@@ -314,12 +316,18 @@ export default function TableCanvas({
                 <label className="inline-opacity-control" onPointerDown={event => event.stopPropagation()}>
                   <span>Opacity</span>
                   <input
+                    key={`${layer.id}:${layer.opacity}`}
                     type="range"
                     min="0"
                     max="1"
                     step="0.05"
-                    value={layer.opacity}
-                    onChange={event => void patchLayer(layer.id, { opacity: Number(event.target.value) })}
+                    defaultValue={layer.opacity}
+                    data-committed-value={layer.opacity}
+                    onInput={event => previewLayerOpacity(layer.id, Number(event.currentTarget.value))}
+                    onPointerUp={event => commitLayerOpacity(layer.id, event.currentTarget)}
+                    onPointerCancel={event => commitLayerOpacity(layer.id, event.currentTarget)}
+                    onKeyUp={event => commitLayerOpacity(layer.id, event.currentTarget)}
+                    onBlur={event => commitLayerOpacity(layer.id, event.currentTarget)}
                   />
                 </label>
               ) : null}

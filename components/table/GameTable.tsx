@@ -447,6 +447,7 @@ export default function VampireTable() {
   const pendingDragPointerRef = useRef<{ clientX: number; clientY: number } | null>(null)
   const dragLayerElementsRef = useRef<Map<string, HTMLElement>>(new Map())
   const dragPreviewPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
+  const dragPreviewBoundsRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
   const touchGestureRef = useRef<TouchGestureState | null>(null)
   const layersRef = useRef<TableLayer[]>([])
   const scenesRef = useRef<TableScene[]>([])
@@ -2460,7 +2461,7 @@ export default function VampireTable() {
     return () => stopVoice()
   }, [])
 
-  const patchLayer = async (id: string, patch: LayerPatch, options: { persist?: boolean } = { persist: true }) => {
+  const patchLayer = async (id: string, patch: LayerPatch) => {
     const existingLayer = layersRef.current.find(layer => layer.id === id)
     if (existingLayer && !canEditLayer(existingLayer)) return
 
@@ -2469,13 +2470,24 @@ export default function VampireTable() {
     setLayers(nextLayers)
     broadcast('layer-update', { id, room, patch })
 
-    if (options.persist === false) return
-
     const { error } = await createClient().from(TABLE_IMAGES).update(toDbPatch(patch)).eq('id', id)
     if (error) {
       console.error('Не удалось обновить слой:', error)
       setTableStatus('Слой не сохранился')
     }
+  }
+
+  const previewLayerOpacity = (id: string, opacity: number) => {
+    const element = Array.from(sceneRef.current?.querySelectorAll<HTMLElement>('.scene-layer[data-layer-id]') || [])
+      .find(item => item.dataset.layerId === id)
+    if (element) element.style.opacity = String(opacity)
+  }
+
+  const commitLayerOpacity = (id: string, input: HTMLInputElement) => {
+    const opacity = Number(input.value)
+    if (!Number.isFinite(opacity) || input.dataset.committedValue === String(opacity)) return
+    input.dataset.committedValue = String(opacity)
+    void patchLayer(id, { opacity })
   }
 
   const addMediaLayer = async (
@@ -3493,16 +3505,17 @@ export default function VampireTable() {
 
   const getScenePoint = (event: React.PointerEvent<HTMLElement>) => getScenePointFromClient(event.clientX, event.clientY)
 
-  const prepareLayerDragPreview = (ids: Set<string>) => {
+  const prepareLayerDragPreview = (ids: Set<string>, mode: 'move' | 'resize') => {
     const elements = new Map<string, HTMLElement>()
     sceneRef.current?.querySelectorAll<HTMLElement>('.scene-layer[data-layer-id]').forEach(element => {
       const id = element.dataset.layerId
       if (!id || !ids.has(id)) return
-      element.style.willChange = 'transform'
+      element.style.willChange = mode === 'move' ? 'transform' : 'left, top, width, height'
       elements.set(id, element)
     })
     dragLayerElementsRef.current = elements
     dragPreviewPositionsRef.current = new Map()
+    dragPreviewBoundsRef.current = null
     pendingDragPointerRef.current = null
   }
 
@@ -3525,6 +3538,27 @@ export default function VampireTable() {
     dragLayerElementsRef.current.forEach(element => {
       element.style.transform = `translate3d(${sceneDx}px, ${sceneDy}px, 0)`
     })
+  }
+
+  const applyLayerResizePreview = (drag: DragState, clientX: number, clientY: number) => {
+    const sceneDx = (clientX - drag.startClientX) / zoom
+    const sceneDy = (clientY - drag.startClientY) / zoom
+    const horizontal = drag.corner?.includes('w') ? -sceneDx : sceneDx
+    const vertical = drag.corner?.includes('n') ? -sceneDy : sceneDy
+    const widthFromX = drag.startWidth + horizontal
+    const widthFromY = (drag.startHeight + vertical) * drag.aspectRatio
+    const width = Math.max(60, Math.round(Math.abs(horizontal) > Math.abs(vertical) ? widthFromX : widthFromY))
+    const height = Math.max(60, Math.round(width / drag.aspectRatio))
+    const x = drag.corner?.includes('w') ? Math.round(drag.startX + drag.startWidth - width) : drag.startX
+    const y = drag.corner?.includes('n') ? Math.round(drag.startY + drag.startHeight - height) : drag.startY
+    dragPreviewBoundsRef.current = { x, y, width, height }
+
+    const element = dragLayerElementsRef.current.get(drag.id)
+    if (!element) return
+    element.style.left = `${x}px`
+    element.style.top = `${y}px`
+    element.style.width = `${width}px`
+    element.style.height = `${height}px`
   }
 
   const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize', corner: DragState['corner'] = 'se') => {
@@ -3556,8 +3590,6 @@ export default function VampireTable() {
         getDescendantIds(id).forEach(childId => moveIds.add(childId))
       })
       moveIds.delete(layer.id)
-    } else {
-      getDescendantIds(layer.id).forEach(childId => moveIds.add(childId))
     }
     dragRef.current = {
       id: layer.id,
@@ -3576,7 +3608,7 @@ export default function VampireTable() {
         .filter(item => moveIds.has(item.id))
         .map(item => ({ id: item.id, x: item.x, y: item.y })),
     }
-    if (mode === 'move') prepareLayerDragPreview(new Set([layer.id, ...moveIds]))
+    prepareLayerDragPreview(new Set([layer.id, ...moveIds]), mode)
   }
 
   const startPan = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -3656,42 +3688,31 @@ export default function VampireTable() {
       return
     }
 
-    if (drag.mode === 'move') {
+    if (drag.mode === 'move' || drag.mode === 'resize') {
       pendingDragPointerRef.current = { clientX: event.clientX, clientY: event.clientY }
       if (dragAnimationFrameRef.current === null) {
         dragAnimationFrameRef.current = requestAnimationFrame(() => {
           dragAnimationFrameRef.current = null
           const pending = pendingDragPointerRef.current
           const activeDrag = dragRef.current
-          if (!pending || !activeDrag || activeDrag.mode !== 'move') return
-          applyLayerMovePreview(activeDrag, pending.clientX, pending.clientY)
+          if (!pending || !activeDrag) return
+          if (activeDrag.mode === 'move') applyLayerMovePreview(activeDrag, pending.clientX, pending.clientY)
+          if (activeDrag.mode === 'resize') applyLayerResizePreview(activeDrag, pending.clientX, pending.clientY)
         })
       }
       return
     }
-
-    const sceneDx = dx / zoom
-    const sceneDy = dy / zoom
-    const horizontal = drag.corner?.includes('w') ? -sceneDx : sceneDx
-    const vertical = drag.corner?.includes('n') ? -sceneDy : sceneDy
-    const widthFromX = drag.startWidth + horizontal
-    const widthFromY = (drag.startHeight + vertical) * drag.aspectRatio
-    const nextWidth = Math.max(60, Math.round(Math.abs(horizontal) > Math.abs(vertical) ? widthFromX : widthFromY))
-    const nextHeight = Math.max(60, Math.round(nextWidth / drag.aspectRatio))
-    const nextX = drag.corner?.includes('w') ? Math.round(drag.startX + drag.startWidth - nextWidth) : drag.startX
-    const nextY = drag.corner?.includes('n') ? Math.round(drag.startY + drag.startHeight - nextHeight) : drag.startY
-
-    patchLayer(drag.id, { x: nextX, y: nextY, width: nextWidth, height: nextHeight }, { persist: false })
   }
 
   const finishLayerDrag = async () => {
     const drag = dragRef.current
     if (!drag) return
 
-    if (drag.mode === 'move' && pendingDragPointerRef.current) {
+    if ((drag.mode === 'move' || drag.mode === 'resize') && pendingDragPointerRef.current) {
       if (dragAnimationFrameRef.current !== null) cancelAnimationFrame(dragAnimationFrameRef.current)
       dragAnimationFrameRef.current = null
-      applyLayerMovePreview(drag, pendingDragPointerRef.current.clientX, pendingDragPointerRef.current.clientY)
+      if (drag.mode === 'move') applyLayerMovePreview(drag, pendingDragPointerRef.current.clientX, pendingDragPointerRef.current.clientY)
+      if (drag.mode === 'resize') applyLayerResizePreview(drag, pendingDragPointerRef.current.clientX, pendingDragPointerRef.current.clientY)
     }
     dragRef.current = null
     pendingDragPointerRef.current = null
@@ -3741,14 +3762,13 @@ export default function VampireTable() {
       }
       return
     }
-    const layer = layersRef.current.find(item => item.id === drag.id)
-    if (layer) {
-      await patchLayer(layer.id, { x: layer.x, y: layer.y, width: layer.width, height: layer.height })
-      const childUpdates = drag.childStartPositions
-        .map(child => layersRef.current.find(item => item.id === child.id))
-        .filter(Boolean) as TableLayer[]
-      await Promise.all(childUpdates.map(child => patchLayer(child.id, { x: child.x, y: child.y })))
-    }
+    const bounds = dragPreviewBoundsRef.current
+    dragPreviewBoundsRef.current = null
+    dragLayerElementsRef.current.forEach(element => {
+      element.style.willChange = ''
+    })
+    dragLayerElementsRef.current = new Map()
+    if (bounds) await patchLayer(drag.id, bounds)
   }
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
@@ -4272,7 +4292,8 @@ export default function VampireTable() {
           updateImageEditor={updateImageEditor}
           undoImageEditor={undoImageEditor}
           redoImageEditor={redoImageEditor}
-          patchLayer={patchLayer}
+          previewLayerOpacity={previewLayerOpacity}
+          commitLayerOpacity={commitLayerOpacity}
         />
 
         <TableRightPanel
@@ -5087,12 +5108,18 @@ export default function VampireTable() {
                     <label>
                       <small>Opacity</small>
                       <input
+                        key={`${singleLayer.id}:${singleLayer.opacity}`}
                         type="range"
                         min="0"
                         max="1"
                         step="0.05"
-                        value={singleLayer.opacity}
-                        onChange={event => patchLayer(singleLayer.id, { opacity: Number(event.target.value) })}
+                        defaultValue={singleLayer.opacity}
+                        data-committed-value={singleLayer.opacity}
+                        onInput={event => previewLayerOpacity(singleLayer.id, Number(event.currentTarget.value))}
+                        onPointerUp={event => commitLayerOpacity(singleLayer.id, event.currentTarget)}
+                        onPointerCancel={event => commitLayerOpacity(singleLayer.id, event.currentTarget)}
+                        onKeyUp={event => commitLayerOpacity(singleLayer.id, event.currentTarget)}
+                        onBlur={event => commitLayerOpacity(singleLayer.id, event.currentTarget)}
                       />
                     </label>
                     <label>
