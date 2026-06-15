@@ -2457,6 +2457,7 @@ function updateBloodPotencyAndBonuses() {
 // ==================== ТРЕКЕРЫ И ВАЛИДАЦИЯ ====================
 
 const ATTR_LIMITS = { 4: 1, 3: 3, 2: 4, 1: 1 };
+const VAMPIRE_SPECIALTY_LIMIT = 5;
 const SKILL_PACKAGES = {
     specialist: { 4: 1, 3: 3, 2: 3, 1: 3 },
     balanced:   { 4: 0, 3: 3, 2: 5, 1: 7 },
@@ -2464,6 +2465,10 @@ const SKILL_PACKAGES = {
 };
 
 let counts = { attr: {4:0, 3:0, 2:0, 1:0}, skill: {4:0, 3:0, 2:0, 1:0} };
+
+function getSpecialtyCount() {
+    return document.querySelectorAll('.skill-spec-line').length;
+}
 
 // Основная функция обновления трекеров
 // Основная функция обновления трекеров
@@ -2496,7 +2501,7 @@ function updateTrackers() {
         if (tpl) {
             renderTracker('attr', tpl.attrLimits, 'attr-tracker');
             renderTracker('skill', tpl.skillLimits, 'skill-tracker');
-            const specCount = document.querySelectorAll('.spec-checkbox:checked').length;
+            const specCount = getSpecialtyCount();
             document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / ${tpl.specs}`;
         } else {
             document.getElementById('attr-tracker').innerHTML =
@@ -2510,12 +2515,12 @@ function updateTrackers() {
         if (!packageSelect.value) {
             document.getElementById('skill-tracker').innerHTML =
                 '<span style="color:#888; font-style:italic;">Выберите способ развития выше</span>';
-            document.getElementById('spec-tracker').textContent = 'Специализации (S): 0 / 1';
+            document.getElementById('spec-tracker').textContent = `Специализации (S): ${getSpecialtyCount()} / ${VAMPIRE_SPECIALTY_LIMIT}`;
         } else {
             renderTracker('attr', ATTR_LIMITS, 'attr-tracker');
             renderTracker('skill', SKILL_PACKAGES[packageSelect.value], 'skill-tracker');
-            const specCount = document.querySelectorAll('.spec-checkbox:checked').length;
-            document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / 1`;
+            const specCount = getSpecialtyCount();
+            document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / ${VAMPIRE_SPECIALTY_LIMIT}`;
         }
     }
 
@@ -2574,6 +2579,7 @@ function checkLimits() {
         Object.keys(counts.skill).forEach(v => {
             if (counts.skill[v] > (SKILL_PACKAGES[currentPackage]?.[v] ?? 0)) hasOver = true;
         });
+        if (getSpecialtyCount() > VAMPIRE_SPECIALTY_LIMIT) hasOver = true;
     }
 
     if (hasOver) {
@@ -3172,8 +3178,13 @@ function updateSpecUI(skillName = null) {
     }
 
     // Общий счётчик
-    const total = document.querySelectorAll('.skill-spec-line').length;
-    document.getElementById('spec-tracker').textContent = `Специализации (S): ${total} / 1`;
+    const total = getSpecialtyCount();
+    const isMortal = (currentCharType === 'mortal' || currentCharType === 'npc-mortal');
+    const mortalTemplate = isMortal && currentMortalTemplate
+        ? MORTAL_TEMPLATES.find(template => template.id === currentMortalTemplate)
+        : null;
+    const limit = mortalTemplate?.specs ?? (isMortal ? 0 : VAMPIRE_SPECIALTY_LIMIT);
+    document.getElementById('spec-tracker').textContent = `Специализации (S): ${total} / ${limit}`;
     
     checkLimits();
 }
@@ -3283,6 +3294,59 @@ function getTraitPoints(item) {
     return item?.points ?? item?.dots ?? item?.точки ?? 0;
 }
 
+function getTraitCategoryDefinition(item, isMerit = true) {
+    const source = isMerit
+        ? (RULES.advantages?.merits || {})
+        : (RULES.advantages?.flaws || RULES.flaws || {});
+    const categoryName = String(item?.category || item?.категория || '').toLowerCase();
+    return Object.values(source).find(category => String(category?.название || '').toLowerCase() === categoryName) || null;
+}
+
+function getPredatorBasePoints(item) {
+    if (!item?.fromPredator) return 0;
+    const stored = parseInt(item.predatorBasePoints, 10);
+    if (stored > 0) return stored;
+
+    const predatorData = RULES.predator_types?.[item.predatorType];
+    const rawItem = (predatorData?.advantages || []).find(raw => {
+        const sameCategory = String(raw?.category || '').toLowerCase() === String(item.category || '').toLowerCase();
+        const rawName = String(raw?.name || raw?.название_пункта || '').toLowerCase();
+        const baseName = String(item.predatorBaseName || item.name || '').toLowerCase();
+        return sameCategory && rawName === baseName;
+    });
+    return getTraitPoints(rawItem) || getTraitPoints(item);
+}
+
+function getPaidMeritPoints(item) {
+    const points = getTraitPoints(item);
+    return item?.fromPredator ? Math.max(0, points - getPredatorBasePoints(item)) : points;
+}
+
+function getTraitVariantAtPoints(item, points, isMerit = true) {
+    const category = getTraitCategoryDefinition(item, isMerit);
+    const variant = (category?.варианты || []).find(option => parseInt(option.точки, 10) === points);
+    return variant ? { category, variant } : null;
+}
+
+function applyTraitVariant(item, points, isMerit = true) {
+    const resolved = getTraitVariantAtPoints(item, points, isMerit);
+    if (!resolved) return null;
+    const predatorDetails = item.predatorDetails || '';
+    const descParts = [resolved.variant.полное_описание || ''];
+    if (predatorDetails) descParts.push(`<em>Уточнение от типа охоты:</em> ${predatorDetails}`);
+
+    return {
+        ...item,
+        category: resolved.category.название || item.category,
+        categoryDesc: resolved.category.описание || item.categoryDesc || '',
+        name: resolved.variant.название_пункта || item.name,
+        points,
+        dots: points,
+        desc: descParts.filter(Boolean).join('<br><br>'),
+        mechanic: resolved.variant.механика || item.mechanic || ''
+    };
+}
+
 function findTraitDefinition(rawItem, isMerit) {
     const source = isMerit
         ? (RULES.advantages?.merits || {})
@@ -3335,7 +3399,10 @@ function buildPredatorTrait(rawItem, isMerit, predName) {
         desc: descParts.join('<br><br>'),
         mechanic: rawItem?.mechanic || rawItem?.механика || variant?.механика || '',
         fromPredator: true,
-        predatorType: predName
+        predatorType: predName,
+        predatorBaseName: name,
+        predatorBasePoints: points,
+        predatorDetails: details
     };
 }
 
@@ -4599,7 +4666,7 @@ function renderSelectedMeritsFlaws() {
     const meritsContainer = document.getElementById('selected-merits-list');
     meritsContainer.innerHTML = '';
     selectedMerits.forEach((item, index) => {
-        if (!item.fromPredator) totalMerits += getTraitPoints(item);
+        totalMerits += getPaidMeritPoints(item);
         meritsContainer.appendChild(createSelectedItem(item, index, true));
     });
 
@@ -4641,6 +4708,8 @@ function renderDots(containerId, points, isMerit) {
 function createSelectedItem(item, index, isMerit) {
     const points = getTraitPoints(item);
     const isFromPredator = item.fromPredator === true;
+    const predatorBasePoints = isFromPredator ? getPredatorBasePoints(item) : 0;
+    const paidPoints = isMerit ? getPaidMeritPoints(item) : points;
     const baseKeys = isMerit ? getBaseMeritKeys() : getBaseFlawKeys();
     const snapshotItems = isMerit ? (expShopSnapshot?.merits || []) : (expShopSnapshot?.flaws || []);
     const snapshotKeys = new Set(snapshotItems.map(getItemKey));
@@ -4658,21 +4727,31 @@ function createSelectedItem(item, index, isMerit) {
 
     for (let i = 1; i <= maxDots; i++) {
         const filled = i <= points;
-        const dotColor = isPendingPurchase && filled ? '#ffcc00' : isFromExperience && filled ? '#ff9500' : '#ff3131';
-        const borderColor = isPendingPurchase && filled ? '#ffe066' : isFromExperience && filled ? '#ffb733' : '#ff6666';
+        const isPaidPredatorDot = isFromPredator && i > predatorBasePoints && filled;
+        const dotColor = isPaidPredatorDot ? '#ffae00' : isPendingPurchase && filled ? '#ffcc00' : isFromExperience && filled ? '#ff9500' : '#ff3131';
+        const borderColor = isPaidPredatorDot ? '#ffd166' : isPendingPurchase && filled ? '#ffe066' : isFromExperience && filled ? '#ffb733' : '#ff6666';
         const dotClass = isPendingPurchase && filled ? 'exp-pending' : isFromExperience && filled ? 'exp-purchased' : '';
+        const hasVariantAtLevel = Boolean(getTraitVariantAtPoints(item, i, true));
+        const editable = isMerit && isFromPredator && i >= predatorBasePoints && hasVariantAtLevel;
+        const title = i <= predatorBasePoints
+            ? `Точка от типа охоты (${i}/${predatorBasePoints})`
+            : filled
+                ? `Своя точка. Нажать, чтобы изменить уровень до ${i === points ? Math.max(predatorBasePoints, i - 1) : i}`
+                : `Добавить свои точки до уровня ${i}`;
         dotsHTML += `
-            <div class="merit-dot ${dotClass}" style="width:18px; height:18px; border-radius:50%; 
+            <button type="button" class="merit-dot ${dotClass}" title="${title}" aria-label="${title}"
+                    ${editable ? `onclick="event.stopImmediatePropagation(); setPredatorMeritPoints(${index}, ${i})"` : 'disabled'}
+                    style="width:18px; height:18px; min-width:18px; padding:0; border-radius:50%; cursor:${editable ? 'pointer' : 'default'};
                         background: ${filled ? dotColor : '#333'}; 
                         border: 2px solid ${filled ? borderColor : '#555'}; 
-                        margin-left: 3px;"></div>`;
+                        margin-left: 3px;"></button>`;
     }
 
     if (isFromPredator) {
         dotsHTML += `
             <span style="color:#ffae00; font-weight:bold; background:#1a1a1a; 
                          padding:4px 8px; border-radius:6px; border:1px solid #444; margin-left:6px; white-space:nowrap;">
-                Тип охоты: ${item.predatorType || ''} • не считается
+                Тип охоты: ${item.predatorType || ''} • ${predatorBasePoints} бесплатно${paidPoints ? ` • +${paidPoints} своих` : ''}
             </span>`;
     } else if (expShopMode && isPendingPurchase) {
         dotsHTML += `
@@ -4741,6 +4820,44 @@ function createSelectedItem(item, index, isMerit) {
 
     return div;
 }
+
+window.setPredatorMeritPoints = function(index, targetPoints) {
+    const item = selectedMerits[index];
+    if (!item?.fromPredator) return;
+    if (startingSheetFixed && !expShopMode) {
+        alert('Лист зафиксирован. Повышать преимущество можно через магазин опыта.');
+        return;
+    }
+
+    const basePoints = getPredatorBasePoints(item);
+    const currentPoints = getTraitPoints(item);
+    const nextPoints = targetPoints === currentPoints && currentPoints > basePoints
+        ? currentPoints - 1
+        : Math.max(basePoints, targetPoints);
+    if (nextPoints === currentPoints) return;
+
+    const currentPaidPoints = getPaidMeritPoints(item);
+    const nextPaidPoints = Math.max(0, nextPoints - basePoints);
+    const addedPoints = nextPaidPoints - currentPaidPoints;
+    if (addedPoints > 0 && !canAddMerit(addedPoints)) {
+        showLimitWarning(true);
+        return;
+    }
+
+    const upgraded = applyTraitVariant({
+        ...item,
+        predatorBasePoints: basePoints,
+        predatorBaseName: item.predatorBaseName || item.name
+    }, nextPoints, true);
+    if (!upgraded) {
+        alert(`Для преимущества «${item.category}» нет варианта на ${nextPoints} точек.`);
+        return;
+    }
+
+    selectedMerits[index] = upgraded;
+    renderSelectedMeritsFlaws();
+    if (expShopMode) renderExpShopPanel();
+};
 
 function getThinBloodCategory(isMerit) {
     return isMerit
@@ -5072,8 +5189,7 @@ function canAddMerit(newPoints) {
     if (expShopMode) return true;
 
     const currentTotal = selectedMerits.reduce((sum, item) => {
-        if (item.fromPredator) return sum;        // бесплатно от охоты — не считаем
-        return sum + getTraitPoints(item);
+        return sum + getPaidMeritPoints(item);
     }, 0);
 
     return currentTotal + newPoints <= getMeritsLimit();
@@ -6309,6 +6425,9 @@ function getExistingDisciplineModeLabel(name) {
 }
 
 function getItemKey(item) {
+    if (item?.fromPredator) {
+        return `predator::${item.predatorType || ''}::${item.category || ''}::${item.predatorBaseName || item.name || ''}`;
+    }
     return `${item?.category || ''}::${item?.name || item?.название_пункта || ''}`;
 }
 
@@ -6337,7 +6456,7 @@ function getTraitPurchaseCost(item) {
 }
 
 function getMeritPurchaseCost(item) {
-    return item?.fromPredator ? 0 : getTraitPoints(item) * 3;
+    return getPaidMeritPoints(item) * 3;
 }
 
 function getExpShopCart() {
@@ -6375,17 +6494,31 @@ function getExpShopCart() {
     });
 
     const snapshotMerits = expShopSnapshot?.merits || [];
-    const currentMeritKeys = new Set(selectedMerits.map(getItemKey));
-    const snapshotMeritKeys = new Set(snapshotMerits.map(getItemKey));
+    const currentMeritMap = new Map(selectedMerits.map(item => [getItemKey(item), item]));
+    const snapshotMeritMap = new Map(snapshotMerits.map(item => [getItemKey(item), item]));
     selectedMerits.forEach(item => {
         const key = getItemKey(item);
-        if (snapshotMeritKeys.has(key)) return;
+        const previous = snapshotMeritMap.get(key);
+        if (previous) {
+            const previousPaidPoints = getPaidMeritPoints(previous);
+            const currentPaidPoints = getPaidMeritPoints(item);
+            if (previousPaidPoints !== currentPaidPoints) {
+                cart.push({
+                    name: item.name,
+                    type: 'merit',
+                    from: getTraitPoints(previous),
+                    to: getTraitPoints(item),
+                    cost: (currentPaidPoints - previousPaidPoints) * 3
+                });
+            }
+            return;
+        }
         const points = getTraitPoints(item);
         cart.push({ name: item.name, type: 'merit', from: 0, to: points, cost: getMeritPurchaseCost(item) });
     });
     snapshotMerits.forEach(item => {
         const key = getItemKey(item);
-        if (currentMeritKeys.has(key)) return;
+        if (currentMeritMap.has(key)) return;
         const points = getTraitPoints(item);
         const cost = getMeritPurchaseCost(item);
         cart.push({ name: item.name, type: 'merit', from: points, to: 0, cost: cost ? -cost : 0 });
