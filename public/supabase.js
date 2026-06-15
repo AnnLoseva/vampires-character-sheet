@@ -265,8 +265,7 @@ async function fetchMyCharacters({ force = false } = {}) {
         .order('created_at', { ascending: false });
     if (error) {
         console.error(error);
-        alert("Ошибка загрузки списка");
-        return [];
+        return null;
     }
     charactersListCache = data || [];
     return charactersListCache;
@@ -284,8 +283,16 @@ async function showMyCharacters() {
     showModal(`<div style="padding:28px; width:min(420px,92vw); background:#111; border:2px solid #ff3131; border-radius:10px; color:#eee; text-align:center;">Загружаю персонажей...</div>`);
     const data = await fetchMyCharacters({ force: true });
 
-    if (!data || data.length === 0) {
-        return alert("У вас пока нет сохранённых персонажей.");
+    if (data === null) {
+        closeModal();
+        alert("Не удалось загрузить сохранённых персонажей. Вы возвращены на лист.");
+        return;
+    }
+
+    if (data.length === 0) {
+        closeModal();
+        alert("У вас пока нет сохранённых персонажей. Вы возвращены на лист.");
+        return;
     }
 
     let html = `<div style="position:relative;padding:24px; width:min(980px,96vw); max-height:86vh; overflow:auto; background:#111; border:2px solid #ff3131; border-radius:10px; color:#eee;">

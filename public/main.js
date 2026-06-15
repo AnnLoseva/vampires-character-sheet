@@ -435,6 +435,45 @@ function updateHumanity() {
 let disciplineSources = {}; 
 let selectedPowers = {};
 
+function getDisciplineDetailsHTML(name) {
+    const discipline = RULES.disciplines?.[name];
+    if (!discipline) {
+        return `<p>Описание дисциплины пока не добавлено.</p>`;
+    }
+
+    const system = discipline.system || {};
+    const facts = [
+        ['Тип', system.type],
+        ['Маскарад', system.masquerade],
+        ['Резонанс', system.resonance],
+        ['Ограничения', system.limitations]
+    ].filter(([, value]) => value);
+
+    return `
+        <p>${discipline.description || 'Описание дисциплины пока не добавлено.'}</p>
+        ${facts.length ? `
+            <dl>
+                ${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}
+            </dl>
+        ` : ''}
+    `;
+}
+
+function setupDisciplineDetails(item, name) {
+    const title = item.querySelector('.discipline-title');
+    const details = item.querySelector('.discipline-details');
+    if (!title || !details) return;
+
+    title.addEventListener('click', event => {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const expanded = title.getAttribute('aria-expanded') === 'true';
+        title.setAttribute('aria-expanded', String(!expanded));
+        details.hidden = expanded;
+    });
+    title.title = `Открыть описание дисциплины «${name}»`;
+}
+
 function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     if (!name) return;
     name = name.trim();
@@ -503,13 +542,16 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
 
     item.innerHTML = `
         <div class="discipline-heading">
-            <div class="discipline-title">${name}</div>
+            <button type="button" class="discipline-title" aria-expanded="false">${name}<span aria-hidden="true">⌄</span></button>
             <div class="dots-discipline">${dotsHTML}</div>
             <small class="discipline-source">${sources.join('<br>')}</small>
             <button class="remove-disc-btn" style="background:#222;color:#ff6666;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:20px;">×</button>
             <button type="button" class="show-master-btn" style="background:#111;color:#ffae00;border:1px solid #553500;border-radius:6px;padding:7px 10px;cursor:pointer;">Показать мастеру</button>
         </div>
+        <div class="discipline-details" hidden>${getDisciplineDetailsHTML(name)}</div>
     `;
+
+    setupDisciplineDetails(item, name);
 
     // Удаление всей дисциплины
     item.querySelector('.remove-disc-btn').addEventListener('click', () => {
@@ -578,11 +620,14 @@ function renderShopAvailableDisciplines() {
 
         item.innerHTML = `
             <div class="discipline-heading">
-                <div class="discipline-title" style="color:#777;">${name}</div>
+                <button type="button" class="discipline-title" aria-expanded="false" style="color:#777;">${name}<span aria-hidden="true">⌄</span></button>
                 <div class="dots-discipline">${dotsHTML}</div>
                 <small class="discipline-source" style="color:#664400;">доступно в магазине<br>${expShopDisciplineMode} • ×${getDisciplineMultiplier(name)}</small>
             </div>
+            <div class="discipline-details" hidden>${getDisciplineDetailsHTML(name)}</div>
         `;
+
+        setupDisciplineDetails(item, name);
 
         list.appendChild(item);
     });
