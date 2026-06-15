@@ -474,6 +474,55 @@ function setupDisciplineDetails(item, name) {
     title.title = `Открыть описание дисциплины «${name}»`;
 }
 
+function getSelectedPowerName(power) {
+    return typeof power === 'string' ? power : power?.name || power?.название || '';
+}
+
+function findDisciplinePower(disciplineName, powerName) {
+    const powers = RULES.disciplines?.[disciplineName]?.powers || {};
+    for (let level = 1; level <= 5; level++) {
+        const power = powers[level]?.[powerName];
+        if (power) return { level, power };
+    }
+    return null;
+}
+
+function getPowerDetailsHTML(disciplineName, powerName) {
+    const resolved = findDisciplinePower(disciplineName, powerName);
+    if (!resolved) return `<p>Описание способности пока не добавлено.</p>`;
+
+    const { level, power } = resolved;
+    const facts = [
+        ['Уровень', level],
+        ['Бросок', power.pool || power.roll],
+        ['Стоимость', power.cost],
+        ['Длительность', power.duration],
+        ['Эффект', power.effect]
+    ].filter(([, value]) => value !== undefined && value !== null && value !== '');
+
+    return `
+        <p>${power.description || 'Описание способности пока не добавлено.'}</p>
+        ${facts.length ? `
+            <dl>
+                ${facts.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}
+            </dl>
+        ` : ''}
+    `;
+}
+
+function setupPowerDetails(panel) {
+    panel.querySelectorAll('.power-title').forEach(title => {
+        title.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            const expanded = title.getAttribute('aria-expanded') === 'true';
+            title.setAttribute('aria-expanded', String(!expanded));
+            const details = title.closest('.power-entry')?.querySelector('.power-details');
+            if (details) details.hidden = expanded;
+        });
+    });
+}
+
 function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     if (!name) return;
     name = name.trim();
@@ -668,8 +717,21 @@ function renderDisciplines() {
             panel.className = 'powers-panel';
             panel.innerHTML = `
                 <strong>Способности</strong>
-                <div>${selectedPowers[discName].map(p => `<span>• ${typeof p === 'string' ? p : p.name || p.название || ''}</span>`).join('')}</div>
+                <div class="power-list">
+                    ${selectedPowers[discName].map(power => {
+                        const powerName = getSelectedPowerName(power);
+                        return `
+                            <section class="power-entry">
+                                <button type="button" class="power-title" aria-expanded="false">
+                                    <span>${powerName}</span><i aria-hidden="true">⌄</i>
+                                </button>
+                                <div class="power-details" hidden>${getPowerDetailsHTML(discName, powerName)}</div>
+                            </section>
+                        `;
+                    }).join('')}
+                </div>
             `;
+            setupPowerDetails(panel);
             item.appendChild(panel);
         }
     });
@@ -4542,13 +4604,126 @@ function closeMeritsFlawsModal() {
 function switchMeritsTab(tab) {
     document.getElementById('tab-merits').style.background = tab === 0 ? '#222' : '#111';
     document.getElementById('tab-flaws').style.background = tab === 1 ? '#222' : '#111';
+    document.getElementById('merits-flaws-modal').dataset.activeTab = String(tab);
     renderCategories(tab);
+}
+
+function normalizeTraitSearch(value) {
+    return String(value ?? '')
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/[^a-zа-я0-9]+/gi, ' ')
+        .trim();
+}
+
+function getPointSearchText(points) {
+    const words = ['', 'один одна первое', 'два две второе', 'три третье', 'четыре четвертое', 'пять пятое'];
+    return `${points} ${points} точка ${points} точки ${points} точек ${words[points] || ''}`;
+}
+
+function getTraitPointFilter(search) {
+    const normalized = normalizeTraitSearch(search);
+    const numeric = normalized.match(/(?:^| )(1|2|3|4|5)(?: |$)/);
+    if (numeric) return parseInt(numeric[1], 10);
+
+    const pointWords = {
+        один: 1, одна: 1, первое: 1,
+        два: 2, две: 2, второе: 2,
+        три: 3, третье: 3,
+        четыре: 4, четвертое: 4,
+        пять: 5, пятое: 5
+    };
+    const word = normalized.split(' ').find(token => pointWords[token]);
+    return word ? pointWords[word] : null;
+}
+
+function stemTraitSearchWord(word) {
+    if (word.length < 5) return word;
+    return word.replace(/(иями|ями|ами|ого|ему|ому|ыми|ими|ая|яя|ое|ее|ые|ие|ий|ый|ой|ам|ям|ах|ях|ом|ем|ов|ев|а|я|ы|и|е|у|ю)$/u, '');
+}
+
+function traitMatchesSearch(category, variant, search) {
+    const tokens = normalizeTraitSearch(search).split(' ').filter(Boolean);
+    if (tokens.length === 0) return true;
+
+    const pointFilter = getTraitPointFilter(search);
+    if (pointFilter !== null && (parseInt(variant.точки, 10) || 0) !== pointFilter) return false;
+
+    const haystack = normalizeTraitSearch([
+        category.название,
+        category.описание,
+        variant.название_пункта,
+        variant.полное_описание,
+        variant.механика,
+        getPointSearchText(parseInt(variant.точки, 10) || 0)
+    ].join(' '));
+    const haystackWords = haystack.split(' ');
+
+    return tokens.every(token => {
+        if (haystack.includes(token)) return true;
+        const stem = stemTraitSearchWord(token);
+        return stem.length >= 4 && haystackWords.some(word => stemTraitSearchWord(word) === stem);
+    });
+}
+
+function createTraitVariantCard(category, variant, tab, { showCategory = false } = {}) {
+    const name = variant.название_пункта;
+    const points = variant.точки || 0;
+    const alreadyTaken = tab === 0
+        ? selectedMerits.some(item => item.name === name && item.category === category.название)
+        : selectedFlaws.some(item => item.name === name && item.category === category.название);
+
+    const div = document.createElement('div');
+    div.style.cssText = `
+        background:#222;
+        padding:14px;
+        border-radius:6px;
+        margin-bottom:10px;
+        border:2px solid ${alreadyTaken ? '#555' : '#ff3131'};
+        cursor:${alreadyTaken ? 'default' : 'pointer'};
+        opacity:${alreadyTaken ? '0.6' : '1'};
+    `;
+    div.innerHTML = `
+        ${showCategory ? `<small style="display:block;color:#888;margin-bottom:5px;">${category.название}</small>` : ''}
+        <strong>${name} — ${points} точек</strong>
+        ${alreadyTaken ? '<span style="color:#888;margin-left:8px;">уже добавлено</span>' : ''}
+        ${expShopMode ? `<span style="color:#ffcc00;font-weight:bold;margin-left:8px;">${tab === 0 ? points * 3 : 0} XP</span>` : ''}<br>
+        <small style="display:block;color:#aaa;margin-top:7px;line-height:1.45;">${variant.полное_описание || ''}</small>
+        ${variant.механика ? `<small style="display:block;color:#ffae00;margin-top:7px;line-height:1.45;">${variant.механика}</small>` : ''}
+    `;
+
+    if (!alreadyTaken) {
+        div.addEventListener('click', () => {
+            const canAdd = tab === 0 ? canAddMerit(points) : canAddFlaw(points);
+            if (!canAdd) {
+                showLimitWarning(tab === 0);
+                return;
+            }
+
+            const item = {
+                category: category.название,
+                categoryDesc: category.описание || '',
+                name,
+                points,
+                desc: variant.полное_описание || '',
+                mechanic: variant.механика || ''
+            };
+            if (tab === 0) selectedMerits.push(item);
+            else selectedFlaws.push(item);
+            renderSelectedMeritsFlaws();
+            if (expShopMode) renderExpShopPanel();
+            closeMeritsFlawsModal();
+        });
+    }
+
+    return div;
 }
 
 function renderCategories(tab) {
     const container = document.getElementById('merits-list');
     container.innerHTML = '';
-    const search = document.getElementById('merits-search').value.toLowerCase().trim();
+    const search = document.getElementById('merits-search').value.trim();
 
     let source = tab === 0 
         ? (RULES.advantages?.merits || {}) 
@@ -4558,6 +4733,26 @@ function renderCategories(tab) {
         container.innerHTML = `<p style="color:#ff6666; text-align:center; padding:60px 20px;">
             Данные не загружены
         </p>`;
+        return;
+    }
+
+    if (search) {
+        const matches = [];
+        Object.keys(source).forEach(catKey => {
+            if (catKey === 'СЛАБОКРОВНЫЕ') return;
+            const category = source[catKey];
+            (category.варианты || []).forEach(variant => {
+                if (traitMatchesSearch(category, variant, search)) matches.push({ category, variant });
+            });
+        });
+
+        container.innerHTML = `<p style="color:#888;margin:0 0 12px;">Найдено: ${matches.length}</p>`;
+        matches.forEach(({ category, variant }) => {
+            container.appendChild(createTraitVariantCard(category, variant, tab, { showCategory: true }));
+        });
+        if (matches.length === 0) {
+            container.innerHTML = `<p style="color:#666;text-align:center;padding:60px;">Ничего не найдено. Попробуйте название, слово из описания или количество точек.</p>`;
+        }
         return;
     }
 
@@ -4605,62 +4800,7 @@ function renderVariantsInCategory(category, tab) {
         <h3 style="color:#ffae00; margin-bottom:15px;">${category.название}</h3>
     `;
 
-    category.варианты.forEach(variant => {
-        const name = variant.название_пункта;
-        const points = variant.точки || 0;
-
-        const alreadyTaken = tab === 0 
-            ? selectedMerits.some(m => m.name === name)
-            : selectedFlaws.some(f => f.name === name);
-
-        const div = document.createElement('div');
-        div.style.cssText = `
-            background:#222; 
-            padding:14px; 
-            border-radius:6px; 
-            margin-bottom:10px; 
-            border:2px solid ${alreadyTaken ? '#555' : '#ff3131'}; 
-            cursor: ${alreadyTaken ? 'default' : 'pointer'};
-            opacity: ${alreadyTaken ? '0.6' : '1'};
-        `;
-
-        div.innerHTML = `
-            <strong>${name} — ${points} точек</strong>
-            ${expShopMode ? `<span style="color:#ffcc00; font-weight:bold; margin-left:8px;">${tab === 0 ? points * 3 : 0} XP</span>` : ''}<br>
-            <small style="color:#aaa;">${variant.полное_описание || ''}</small><br>
-            <small style="color:#ffae00;">${variant.механика || ''}</small>
-        `;
-
-        // Клик только если ещё не взято
-        if (!alreadyTaken) {
-            div.addEventListener('click', () => {
-                const canAdd = tab === 0 ? canAddMerit(points) : canAddFlaw(points);
-                
-                if (!canAdd) {
-                    showLimitWarning(tab === 0);
-                    return;
-                }
-
-                const item = {
-                    category: category.название,
-                    categoryDesc: category.описание || '',
-                    name: name,
-                    points: points,
-                    desc: variant.полное_описание || '',
-                    mechanic: variant.механика || ''
-                };
-
-                if (tab === 0) selectedMerits.push(item);
-                else selectedFlaws.push(item);
-
-                renderSelectedMeritsFlaws();
-                if (expShopMode) renderExpShopPanel();
-                closeMeritsFlawsModal();
-            });
-        }
-
-        container.appendChild(div);
-    });
+    category.варианты.forEach(variant => container.appendChild(createTraitVariantCard(category, variant, tab)));
 }
 
 
@@ -5294,7 +5434,7 @@ window.removeFlaw = function(i) {
 
 // Поиск
 document.getElementById('merits-search').addEventListener('input', () => {
-    const activeTab = document.getElementById('tab-merits').style.backgroundColor === 'rgb(34, 34, 34)' ? 0 : 1;
+    const activeTab = parseInt(document.getElementById('merits-flaws-modal').dataset.activeTab || '0', 10);
     renderCategories(activeTab);
 });
 
