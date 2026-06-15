@@ -249,15 +249,20 @@
         }
         
         .discipline-item {
-    display: flex;
-    align-items: center;
-    gap: 25px;
+    display: block;
     background: #111;
     padding: 16px 20px;
     border-radius: 8px;
     margin-bottom: 12px;
     border: 1px solid #222;
     min-height: 58px;
+}
+
+.discipline-heading {
+    display: grid;
+    grid-template-columns: minmax(190px, 1fr) auto auto minmax(120px, 200px) auto auto;
+    align-items: center;
+    gap: 14px;
 }
 
 .discipline-item .dots-discipline {
@@ -285,13 +290,13 @@
 }
 
 /* Название */
-.discipline-item > div:first-child {
-    flex: 1;
-    font-size: 16.5px;
-    color: #eee;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+.discipline-title {
+    min-width: 0;
+    font-size: 22px;
+    line-height: 1.15;
+    font-weight: 700;
+    color: #f5f5f5;
+    overflow-wrap: anywhere;
 }
 
 /* Источник */
@@ -300,6 +305,58 @@
     font-size: 13.5px;
     min-width: 65px;
     text-align: right;
+}
+
+.powers-panel {
+    width: 100%;
+    margin-top: 14px;
+    padding: 12px 14px;
+    background: #1a1a1a;
+    border: 1px solid #5a2020;
+    border-radius: 6px;
+    color: #ddd;
+    font-size: 13.5px;
+}
+
+.powers-panel > strong {
+    display: block;
+    margin-bottom: 7px;
+    color: #ffae00;
+    font-size: 14px;
+}
+
+.powers-panel > div {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 18px;
+}
+
+.powers-panel span {
+    line-height: 1.45;
+}
+
+@media (max-width: 980px) {
+    .discipline-heading {
+        grid-template-columns: minmax(170px, 1fr) auto auto;
+        gap: 10px;
+    }
+}
+
+@media (max-width: 760px) {
+    .discipline-heading {
+        grid-template-columns: 1fr auto;
+    }
+
+    .discipline-title,
+    .discipline-source {
+        grid-column: 1 / -1;
+        width: 100%;
+    }
+
+    .discipline-item small {
+        min-width: 0;
+        text-align: left;
+    }
 }
         
         #btn-save { 

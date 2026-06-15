@@ -732,15 +732,20 @@
 
         /* ==================== ДИСЦИПЛИНЫ ==================== */
         .discipline-item {
-            display: flex;
-            align-items: center;
-            gap: 25px;
+            display: block;
             background: #111;
             padding: 16px 20px;
             border-radius: 8px;
             margin-bottom: 12px;
             border: 1px solid #222;
             min-height: 58px;
+        }
+
+        .discipline-heading {
+            display: grid;
+            grid-template-columns: minmax(190px, 1fr) auto auto minmax(120px, 200px) auto auto;
+            align-items: center;
+            gap: 14px;
         }
 
         .discipline-item .dots-discipline {
@@ -782,13 +787,13 @@
         }
 
         /* Название дисциплины */
-        .discipline-item > div:first-child {
-            flex: 1;
-            font-size: 16.5px;
-            color: #eee;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .discipline-title {
+            min-width: 0;
+            font-size: 22px;
+            line-height: 1.15;
+            font-weight: 700;
+            color: #f5f5f5;
+            overflow-wrap: anywhere;
         }
 
         /* Источник дисциплины */
@@ -797,6 +802,34 @@
             font-size: 13.5px;
             min-width: 65px;
             text-align: right;
+        }
+
+        .powers-panel {
+            width: 100%;
+            margin-top: 14px;
+            padding: 12px 14px;
+            background: #1a1a1a;
+            border: 1px solid #5a2020;
+            border-radius: 6px;
+            color: #ddd;
+            font-size: 13.5px;
+        }
+
+        .powers-panel > strong {
+            display: block;
+            margin-bottom: 7px;
+            color: #ffae00;
+            font-size: 14px;
+        }
+
+        .powers-panel > div {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px 18px;
+        }
+
+        .powers-panel span {
+            line-height: 1.45;
         }
 
         /* ==================== КНОПКА СОХРАНЕНИЯ ==================== */
@@ -1167,7 +1200,7 @@
 
         body.sheet-fixed:not(.xp-shop-active) #capture-area .skill-name,
         body.sheet-fixed:not(.xp-shop-active) #capture-area .attr-name,
-        body.sheet-fixed:not(.xp-shop-active) #capture-area .discipline-item > div:first-child {
+        body.sheet-fixed:not(.xp-shop-active) #capture-area .discipline-title {
             color: #f5f5f5;
             text-decoration: underline;
             text-decoration-color: rgba(255,49,49,0.45);
@@ -1517,13 +1550,16 @@
             }
 
             .discipline-item {
-                flex-wrap: wrap;
-                gap: 12px;
+                display: block;
             }
 
-            .discipline-item > div:first-child {
-                white-space: normal;
-                min-width: 180px;
+            .discipline-heading {
+                grid-template-columns: minmax(170px, 1fr) auto auto;
+                gap: 10px;
+            }
+
+            .discipline-title {
+                min-width: 170px;
             }
 
             .discipline-item small {
@@ -1652,11 +1688,21 @@
 
             .discipline-item {
                 padding: 14px 12px;
-                align-items: flex-start;
             }
 
-            .discipline-item > div:first-child {
+            .discipline-heading {
+                grid-template-columns: 1fr auto;
+                align-items: center;
+            }
+
+            .discipline-title {
+                grid-column: 1 / -1;
                 min-width: 0;
+                width: 100%;
+            }
+
+            .discipline-source {
+                grid-column: 1 / -1;
                 width: 100%;
             }
 

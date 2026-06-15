@@ -470,8 +470,7 @@ function updateDisciplineRow(name) {
 
     // Удаляем все старые строки с этим именем
     document.querySelectorAll('.discipline-item').forEach(item => {
-        const titleEl = item.querySelector('div:first-child');
-        if (titleEl && titleEl.textContent.trim() === name) {
+        if (item.dataset.disciplineName === name) {
             item.remove();
         }
     });
@@ -503,13 +502,13 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
     const sources = sourceText.split('+').map(s => s.trim()).filter(s => s);
 
     item.innerHTML = `
-        <div style="flex: 1; font-size:16.5px;">${name}</div>
-        <div class="dots-discipline" style="display:flex; gap:9px;">${dotsHTML}</div>
-        <small style="color:#777; min-width:200px; line-height:1.4; text-align:right; white-space:pre-line;">
-            ${sources.join('<br>')}
-        </small>
-        <button class="remove-disc-btn" style="background:#222;color:#ff6666;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:20px;">×</button>
-        <button type="button" class="show-master-btn" style="background:#111;color:#ffae00;border:1px solid #553500;border-radius:6px;padding:7px 10px;cursor:pointer;">Показать мастеру</button>
+        <div class="discipline-heading">
+            <div class="discipline-title">${name}</div>
+            <div class="dots-discipline">${dotsHTML}</div>
+            <small class="discipline-source">${sources.join('<br>')}</small>
+            <button class="remove-disc-btn" style="background:#222;color:#ff6666;border:none;width:28px;height:28px;border-radius:50%;cursor:pointer;font-size:20px;">×</button>
+            <button type="button" class="show-master-btn" style="background:#111;color:#ffae00;border:1px solid #553500;border-radius:6px;padding:7px 10px;cursor:pointer;">Показать мастеру</button>
+        </div>
     `;
 
     // Удаление всей дисциплины
@@ -551,7 +550,7 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
     };
 
     // Вставляем кнопку после названия
-    const nameDiv = item.querySelector('div:first-child');
+    const nameDiv = item.querySelector('.discipline-title');
     if (nameDiv) {
         nameDiv.parentNode.insertBefore(addBtn, nameDiv.nextSibling);
     }
@@ -578,9 +577,11 @@ function renderShopAvailableDisciplines() {
         }
 
         item.innerHTML = `
-            <div style="flex: 1; font-size:16.5px; color:#777;">${name}</div>
-            <div class="dots-discipline" style="display:flex; gap:9px;">${dotsHTML}</div>
-            <small style="color:#664400; min-width:200px; line-height:1.4; text-align:right;">доступно в магазине<br>${expShopDisciplineMode} • ×${getDisciplineMultiplier(name)}</small>
+            <div class="discipline-heading">
+                <div class="discipline-title" style="color:#777;">${name}</div>
+                <div class="dots-discipline">${dotsHTML}</div>
+                <small class="discipline-source" style="color:#664400;">доступно в магазине<br>${expShopDisciplineMode} • ×${getDisciplineMultiplier(name)}</small>
+            </div>
         `;
 
         list.appendChild(item);
@@ -591,9 +592,9 @@ function renderDisciplines() {
     document.querySelectorAll('.xp-shop-discipline-option').forEach(item => item.remove());
 
     document.querySelectorAll('.discipline-item').forEach(item => {
-        const nameEl = item.querySelector('div:first-child');
+        const nameEl = item.querySelector('.discipline-title');
         if (!nameEl) return;
-        const discName = nameEl.textContent.trim();
+        const discName = item.dataset.disciplineName || nameEl.textContent.trim();
 
         // Удаляем старые кнопки и панели
         item.querySelectorAll('.add-power-btn, .powers-panel').forEach(el => el.remove());
@@ -620,19 +621,9 @@ function renderDisciplines() {
         if (selectedPowers[discName] && selectedPowers[discName].length > 0) {
             const panel = document.createElement('div');
             panel.className = 'powers-panel';
-            panel.style.cssText = `
-                margin-left: auto; 
-                background: #1a1a1a; 
-                border: 1px solid #ff3131; 
-                border-radius: 6px; 
-                padding: 10px 14px; 
-                font-size: 13.5px; 
-                color: #ddd;
-                min-width: 220px;
-            `;
             panel.innerHTML = `
-                <strong style="color:#ffae00;">Способности :</strong><br>
-                ${selectedPowers[discName].map(p => `• ${p}`).join('<br>')}
+                <strong>Способности</strong>
+                <div>${selectedPowers[discName].map(p => `<span>• ${typeof p === 'string' ? p : p.name || p.название || ''}</span>`).join('')}</div>
             `;
             item.appendChild(panel);
         }
@@ -2758,7 +2749,7 @@ function setupDiceRollsFromLockedSheet() {
                 });
                 return;
             }
-            const disciplineName = disciplineItem?.dataset.disciplineName || disciplineDot?.closest('.discipline-item')?.dataset.disciplineName || disciplineItem?.querySelector('div:first-child')?.textContent.trim();
+            const disciplineName = disciplineItem?.dataset.disciplineName || disciplineDot?.closest('.discipline-item')?.dataset.disciplineName || disciplineItem?.querySelector('.discipline-title')?.textContent.trim();
             if (disciplineName) openDiceRollModal({ first: makeDicePart('discipline', disciplineName) });
             return;
         }
@@ -6884,7 +6875,7 @@ function setupExpShopDotEditing() {
         if (!dot) return;
 
         const item = dot.closest('.discipline-item');
-        const name = item?.dataset.disciplineName || item?.querySelector('div:first-child')?.textContent?.trim();
+        const name = item?.dataset.disciplineName || item?.querySelector('.discipline-title')?.textContent?.trim();
         if (!name) return;
 
         e.preventDefault();
