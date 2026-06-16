@@ -87,6 +87,10 @@ export class LocalAudioAdapter implements MusicSyncAdapter {
     if (this.state?.isPlaying) this.playAudio()
   }
 
+  getPosition() {
+    return Math.max(0, Math.floor(this.audio?.currentTime || 0))
+  }
+
   setVolume(volume: number) {
     this.options.volume = volume
     if (this.audio) this.audio.volume = volume / 100

@@ -1,6 +1,6 @@
 'use client'
 
-import { ChangeEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { LocalAudioAdapter } from './adapters/localAudioAdapter'
 import { YouTubeAdapter } from './adapters/youtubeAdapter'
@@ -28,8 +28,22 @@ const VISIBLE_MUSIC_ENGINE_ID = 'vtm-music-visible-engine'
 const VISIBLE_MUSIC_ENGINE_EVENT = 'vtm-music-visible-engine-updated'
 const MUSIC_UNLOCK_NEEDED_EVENT = 'vtm-music-unlock-needed'
 const MUSIC_UNLOCK_REQUEST_EVENT = 'vtm-music-unlock-request'
+const MUSIC_PLAYER_COMMAND_EVENT = 'vtm-player-command'
+const MUSIC_VOLUME_STORAGE_KEY = 'vtm-youtube-volume'
 let supportsExtendedMusicLoad = true
 let supportsMusicLibraryAutoplay = true
+
+type MusicPlayerCommand = {
+  room: string
+  command: 'play' | 'pause' | 'seek' | 'set-volume' | 'get-position'
+  positionSeconds?: number
+  volume?: number
+  respond?: (positionSeconds: number) => void
+}
+
+function clampMusicVolume(volume: number) {
+  return Math.min(100, Math.max(0, Math.round(volume)))
+}
 
 type MusicPanelProps = {
   room: string
@@ -79,6 +93,31 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   const musicProvider = musicState.provider || getMusicProvider(musicState.url)
   const musicTree = useMemo(() => buildMusicTree(musicLibrary), [musicLibrary])
   const [visibleEngineMountVersion, setVisibleEngineMountVersion] = useState(0)
+
+  const dispatchPlayerCommand = useCallback((command: Omit<MusicPlayerCommand, 'room'>) => {
+    window.dispatchEvent(new CustomEvent(MUSIC_PLAYER_COMMAND_EVENT, { detail: { ...command, room } }))
+  }, [room])
+
+  const applyPlayerLocalVolume = useCallback((volume: number, options: { broadcast?: boolean } = {}) => {
+    const nextVolume = clampMusicVolume(volume)
+    setLocalVolume(nextVolume)
+    window.localStorage.setItem(MUSIC_VOLUME_STORAGE_KEY, String(nextVolume))
+    adapterRef.current?.setVolume?.(nextVolume)
+    if (options.broadcast) {
+      dispatchPlayerCommand({ command: 'set-volume', volume: nextVolume })
+    }
+  }, [dispatchPlayerCommand])
+
+  const getCurrentPlaybackPosition = useCallback(() => {
+    let position = adapterRef.current?.getPosition?.()
+    dispatchPlayerCommand({
+      command: 'get-position',
+      respond: nextPosition => {
+        if (Number.isFinite(nextPosition)) position = nextPosition
+      },
+    })
+    return Math.max(0, Math.floor(Number.isFinite(position) ? position as number : engineRef.current?.getEffectivePosition() ?? 0))
+  }, [dispatchPlayerCommand])
 
   const getAutoplayTrack = () => {
     const flattened: MusicLibraryItem[] = []
@@ -134,8 +173,8 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   }, [hidden, playbackEnabled, musicProvider])
 
   useEffect(() => {
-    const savedVolume = Number(window.localStorage.getItem('vtm-youtube-volume'))
-    if (Number.isFinite(savedVolume)) setLocalVolume(Math.min(100, Math.max(0, savedVolume)))
+    const savedVolume = Number(window.localStorage.getItem(MUSIC_VOLUME_STORAGE_KEY))
+    if (Number.isFinite(savedVolume)) setLocalVolume(clampMusicVolume(savedVolume))
   }, [])
 
   useEffect(() => {
@@ -465,12 +504,48 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     const onVolume = (e: Event) => {
       const v = (e as CustomEvent<number>).detail
       if (!Number.isFinite(v)) return
-      const clamped = Math.min(100, Math.max(0, Math.round(v)))
-      adapterRef.current?.setVolume?.(clamped)
+      applyPlayerLocalVolume(v)
     }
     window.addEventListener('vtm-player-volume', onVolume)
     return () => window.removeEventListener('vtm-player-volume', onVolume)
-  }, [playbackEnabled])
+  }, [applyPlayerLocalVolume, playbackEnabled])
+
+  useEffect(() => {
+    if (!playbackEnabled) return
+    const onPlayerCommand = (event: Event) => {
+      const detail = (event as CustomEvent<MusicPlayerCommand>).detail
+      if (!detail || detail.room !== room) return
+
+      if (detail.command === 'get-position') {
+        const adapterPosition = adapterRef.current?.getPosition?.()
+        const fallbackPosition = engineRef.current?.getEffectivePosition() ?? 0
+        detail.respond?.(Math.max(0, Math.floor(Number.isFinite(adapterPosition) ? adapterPosition as number : fallbackPosition)))
+        return
+      }
+
+      if (detail.command === 'set-volume') {
+        if (Number.isFinite(detail.volume)) applyPlayerLocalVolume(detail.volume as number)
+        return
+      }
+
+      if (detail.command === 'play') {
+        adapterRef.current?.play()
+        return
+      }
+
+      if (detail.command === 'pause') {
+        adapterRef.current?.pause()
+        return
+      }
+
+      if (detail.command === 'seek' && Number.isFinite(detail.positionSeconds)) {
+        adapterRef.current?.seek(detail.positionSeconds as number)
+      }
+    }
+
+    window.addEventListener(MUSIC_PLAYER_COMMAND_EVENT, onPlayerCommand)
+    return () => window.removeEventListener(MUSIC_PLAYER_COMMAND_EVENT, onPlayerCommand)
+  }, [applyPlayerLocalVolume, playbackEnabled, room])
 
   useEffect(() => {
     if (!playbackEnabled) return
@@ -567,30 +642,33 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       return
     }
     if (!musicStateRef.current.url) return
+    const positionSeconds = getCurrentPlaybackPosition()
     publishMusicState({
       isPlaying: true,
-      positionSeconds: Math.max(0, Math.floor(engineRef.current?.getEffectivePosition() ?? 0)),
+      positionSeconds,
     })
+    dispatchPlayerCommand({ command: 'play' })
   }
 
   const pauseCurrentMusic = () => {
     if (!isMaster || !musicStateRef.current.url) return
+    const positionSeconds = getCurrentPlaybackPosition()
     publishMusicState({
       isPlaying: false,
-      positionSeconds: Math.max(0, Math.floor(engineRef.current?.getEffectivePosition() ?? 0)),
+      positionSeconds,
     })
+    dispatchPlayerCommand({ command: 'pause' })
   }
 
   const stopCurrentMusic = () => {
     if (!isMaster || !musicStateRef.current.url) return
     publishMusicState({ isPlaying: false, positionSeconds: 0 })
+    dispatchPlayerCommand({ command: 'pause' })
+    dispatchPlayerCommand({ command: 'seek', positionSeconds: 0 })
   }
 
   const setPlayerLocalVolume = (volume: number) => {
-    const nextVolume = Math.min(100, Math.max(0, Math.round(volume)))
-    setLocalVolume(nextVolume)
-    window.localStorage.setItem('vtm-youtube-volume', String(nextVolume))
-    adapterRef.current?.setVolume?.(nextVolume)
+    applyPlayerLocalVolume(volume, { broadcast: !playbackEnabled })
   }
 
   const createMusicFolder = async () => {
@@ -1021,7 +1099,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         </>
       ) : null}
 
-      {!isMaster && musicProvider === 'youtube' && musicState.url ? (
+      {!isMaster && (musicProvider === 'youtube' || musicProvider === 'file') && musicState.url ? (
         <div className="player-local-controls" aria-label="Локальные настройки плеера">
           <label>
             <span>Громкость</span>
@@ -1031,13 +1109,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
               max="100"
               value={localVolume}
               onChange={event => {
-                const v = Math.min(100, Math.max(0, Math.round(Number(event.target.value))))
-                setLocalVolume(v)
-                window.localStorage.setItem('vtm-youtube-volume', String(v))
-                // Propagate to the always-hidden playbackEnabled panel that owns the adapter
-                window.dispatchEvent(new CustomEvent('vtm-player-volume', { detail: v }))
-                // Also set directly if this panel owns the adapter
-                adapterRef.current?.setVolume?.(v)
+                setPlayerLocalVolume(Number(event.target.value))
               }}
             />
             <strong>{localVolume}%</strong>

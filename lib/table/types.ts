@@ -13,6 +13,7 @@ export type RollMessage = {
   dice: Die[]
   successes: number
   createdAt: string
+  hidden?: boolean
 }
 
 export type RollRow = {

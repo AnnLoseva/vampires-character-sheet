@@ -61,7 +61,7 @@ export default function TableRightPanel({
             className={rightRailTab === 'diary' ? 'active' : ''}
             onClick={() => setRightRailTab('diary')}
           >
-            Дневник
+            {isMaster ? 'Персонажи' : 'Дневник'}
           </button>
           <button
             type="button"

@@ -368,6 +368,13 @@ export default function VampireTable() {
   const [previewRollSkill, setPreviewRollSkill] = useState('')
   const [previewRollDiscipline, setPreviewRollDiscipline] = useState('')
   const [previewRollModifier, setPreviewRollModifier] = useState(0)
+  const [selectedMasterRollCharacterId, setSelectedMasterRollCharacterId] = useState('')
+  const [masterRollVisibility, setMasterRollVisibility] = useState<'public' | 'hidden'>('hidden')
+  const [masterRollAttribute, setMasterRollAttribute] = useState('')
+  const [masterRollAttributeTwo, setMasterRollAttributeTwo] = useState('')
+  const [masterRollSkill, setMasterRollSkill] = useState('')
+  const [masterRollDiscipline, setMasterRollDiscipline] = useState('')
+  const [masterRollModifier, setMasterRollModifier] = useState(0)
   const [previewDisciplineName, setPreviewDisciplineName] = useState('')
   const [disciplineRules, setDisciplineRules] = useState<Record<string, DisciplineRule> | null>(null)
   const [disciplineRulesStatus, setDisciplineRulesStatus] = useState('')
@@ -608,6 +615,7 @@ export default function VampireTable() {
     if (!chatUser) {
       setChatCharacters([])
       setSelectedChatCharacterId('')
+      setSelectedMasterRollCharacterId('')
       return
     }
 
@@ -632,10 +640,20 @@ export default function VampireTable() {
         const nextId = savedId && characters.some(character => character.id === savedId)
           ? savedId
           : characters[0]?.id || ''
+        const savedMasterRollId = window.localStorage.getItem(`vtm-master-roll-character:${chatUser.id}:${roomRef.current}`)
+          || window.localStorage.getItem(`vtm-master-roll-character:${chatUser.id}`)
+        const nextMasterRollId = savedMasterRollId && characters.some(character => character.id === savedMasterRollId)
+          ? savedMasterRollId
+          : nextId
         setSelectedChatCharacterId(nextId)
+        setSelectedMasterRollCharacterId(nextMasterRollId)
         if (nextId) {
           window.localStorage.setItem(`vtm-chat-character:${chatUser.id}:${roomRef.current}`, nextId)
           window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, nextId)
+        }
+        if (nextMasterRollId) {
+          window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}:${roomRef.current}`, nextMasterRollId)
+          window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}`, nextMasterRollId)
         }
       })
 
@@ -1504,6 +1522,7 @@ export default function VampireTable() {
   }, [])
 
   const selectedActiveCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId) || null
+  const selectedMasterRollCharacter = chatCharacters.find(item => item.id === selectedMasterRollCharacterId) || selectedActiveCharacter
   const journalStorageKey = chatUser ? `vtm-journal:${chatUser.id}:${room}` : ''
   const selectedJournalEntry = journalEntries.find(entry => entry.id === selectedJournalEntryId) || journalEntries[0] || null
   const filteredJournalEntries = journalEntries.filter(entry => {
@@ -1522,6 +1541,26 @@ export default function VampireTable() {
   const getSkillDots = (value: number | { dots?: number }) => getSkillDotValue(value)
   const getSkillSpecs = (value: number | { specs?: string[] }) => typeof value === 'object' && Array.isArray(value.specs) ? value.specs : []
   const getDisciplineDots = (sources: Record<string, number>) => Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
+  const masterRollAttributeDots = selectedMasterRollCharacter ? Number(selectedMasterRollCharacter.attributes[masterRollAttribute] || 0) : 0
+  const masterRollAttributeTwoDots = selectedMasterRollCharacter ? Number(selectedMasterRollCharacter.attributes[masterRollAttributeTwo] || 0) : 0
+  const masterRollSkillDots = selectedMasterRollCharacter ? getSkillDots(selectedMasterRollCharacter.skills[masterRollSkill] || 0) : 0
+  const masterRollDisciplineDots = selectedMasterRollCharacter ? getDisciplineDots(selectedMasterRollCharacter.disciplines[masterRollDiscipline] || {}) : 0
+  const masterRollPoolBeforeLimit = masterRollAttributeDots + masterRollAttributeTwoDots + masterRollSkillDots + masterRollDisciplineDots + masterRollModifier
+  const masterRollDiceCount = Math.max(0, Math.min(20, masterRollPoolBeforeLimit))
+  const masterRollExtraAttributes = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.attributes, ATTRIBUTE_GROUPS) : []
+  const masterRollExtraSkills = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.skills, SKILL_GROUPS) : []
+  const masterRollDisciplineNames = selectedMasterRollCharacter
+    ? Array.from(new Set([...Object.keys(selectedMasterRollCharacter.disciplines), ...Object.keys(selectedMasterRollCharacter.selectedPowers)])).sort((a, b) => a.localeCompare(b, 'ru'))
+    : []
+  const masterRollPoolParts = [
+    masterRollAttribute ? `${masterRollAttribute} ${masterRollAttributeDots}` : '',
+    masterRollAttributeTwo ? `${masterRollAttributeTwo} ${masterRollAttributeTwoDots}` : '',
+    masterRollSkill ? `${masterRollSkill} ${masterRollSkillDots}` : '',
+    masterRollDiscipline ? `${masterRollDiscipline} ${masterRollDisciplineDots}` : '',
+    masterRollModifier ? `модификатор ${masterRollModifier > 0 ? '+' : ''}${masterRollModifier}` : '',
+  ].filter(Boolean)
+  const masterRollPoolName = masterRollPoolParts.join(' + ') || `${masterRollDiceCount || 1}к10`
+  const masterRollHidden = masterRollVisibility === 'hidden'
   const previewAttributeDots = previewCharacter ? Number(previewCharacter.attributes[previewRollAttribute] || 0) : 0
   const previewAttributeTwoDots = previewCharacter ? Number(previewCharacter.attributes[previewRollAttributeTwo] || 0) : 0
   const previewSkillDots = previewCharacter ? getSkillDots(previewCharacter.skills[previewRollSkill] || 0) : 0
@@ -1573,6 +1612,14 @@ export default function VampireTable() {
     setPreviewPowerModifier(0)
   }, [previewPowerName, resolvedPreviewPowerPool])
 
+  useEffect(() => {
+    setMasterRollAttribute('')
+    setMasterRollAttributeTwo('')
+    setMasterRollSkill('')
+    setMasterRollDiscipline('')
+    setMasterRollModifier(0)
+  }, [selectedMasterRollCharacterId])
+
   const saveJournalEntries = (entries: JournalEntry[], status = 'Сохранено') => {
     setJournalEntries(entries)
     if (journalStorageKey) window.localStorage.setItem(journalStorageKey, JSON.stringify(entries))
@@ -1620,6 +1667,13 @@ export default function VampireTable() {
     window.localStorage.setItem(`vtm-chat-character:${chatUser.id}:${room}`, characterId)
     window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, characterId)
     window.localStorage.setItem(`vtm-home-character:${chatUser.id}`, characterId)
+  }
+
+  const chooseMasterRollCharacter = (characterId: string) => {
+    setSelectedMasterRollCharacterId(characterId)
+    if (!chatUser) return
+    window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}:${room}`, characterId)
+    window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}`, characterId)
   }
 
   const openParticipantPreview = async (participant: ActiveParticipant) => {
@@ -1671,6 +1725,7 @@ export default function VampireTable() {
     poolName = 'Быстрый бросок',
     characterOverride?: CharacterOption,
     poolType = 'quick',
+    options: { hidden?: boolean } = {},
   ) => {
     const character = characterOverride || selectedActiveCharacter
     if (!character) {
@@ -1696,8 +1751,14 @@ export default function VampireTable() {
       dice,
       successes,
       createdAt: new Date().toISOString(),
+      hidden: options.hidden && isMaster ? true : undefined,
     }
     setRolls(prev => mergeRoll(prev, roll))
+    if (roll.hidden) {
+      setConnectionText('Скрытый бросок')
+      return
+    }
+
     broadcast('roll', roll)
     const { error } = await createClient().from(TABLE_ROLLS).insert({
       id: roll.id,
@@ -1712,6 +1773,51 @@ export default function VampireTable() {
     })
     if (error) setConnectionText('Бросок отправлен онлайн, но не сохранился')
     else setConnectionText('Онлайн')
+  }
+
+  const rollMasterPool = async () => {
+    if (!selectedMasterRollCharacter) {
+      window.alert('Выбери персонажа мастера.')
+      return
+    }
+    if (masterRollDiceCount < 1) {
+      window.alert('Выбери характеристику, навык, дисциплину или положительный модификатор.')
+      return
+    }
+    await rollQuickDice(
+      masterRollDiceCount,
+      masterRollPoolName,
+      selectedMasterRollCharacter,
+      'master-character',
+      { hidden: masterRollHidden },
+    )
+  }
+
+  const rollMasterQuick = async (diceCount: number) => {
+    if (!selectedMasterRollCharacter) {
+      window.alert('Выбери персонажа мастера.')
+      return
+    }
+    await rollQuickDice(
+      diceCount,
+      `${diceCount}к10`,
+      selectedMasterRollCharacter,
+      'master-quick',
+      { hidden: masterRollHidden },
+    )
+  }
+
+  const toggleMasterRollAttribute = (name: string) => {
+    if (masterRollAttribute === name) {
+      setMasterRollAttribute('')
+      return
+    }
+    if (masterRollAttributeTwo === name) {
+      setMasterRollAttributeTwo('')
+      return
+    }
+    if (!masterRollAttribute) setMasterRollAttribute(name)
+    else setMasterRollAttributeTwo(name)
   }
 
   const rollPreviewPool = async () => {
@@ -4450,9 +4556,10 @@ export default function VampireTable() {
                 <p className="panel-empty">Бросков пока нет.</p>
               ) : (
                 rolls.map(roll => (
-                  <article className="roll-card" key={roll.id}>
+                  <article className={`roll-card ${roll.hidden ? 'hidden-roll' : ''}`} key={roll.id}>
                     <div className="roll-meta">
                       <strong>{roll.characterName}</strong>
+                      {roll.hidden ? <span className="roll-hidden-badge">скрытый</span> : null}
                       <time dateTime={roll.createdAt}>{formatTime(roll.createdAt)}</time>
                     </div>
                     <span className="roll-pool">{roll.poolName}</span>
@@ -4518,22 +4625,225 @@ export default function VampireTable() {
             setChatDraft={setChatDraft}
           />
 
-          <JournalPanel
-            rightRailTab={rightRailTab}
-            journalEntries={journalEntries}
-            journalSaveStatus={journalSaveStatus}
-            chatUser={chatUser}
-            journalSearch={journalSearch}
-            filteredJournalEntries={filteredJournalEntries}
-            selectedJournalEntry={selectedJournalEntry}
-            setJournalSearch={setJournalSearch}
-            createJournalEntry={createJournalEntry}
-            setSelectedJournalEntryId={setSelectedJournalEntryId}
-            updateJournalEntry={updateJournalEntry}
-            persistCurrentJournal={persistCurrentJournal}
-            deleteJournalEntry={deleteJournalEntry}
-            addLayerToJournal={addLayerToJournal}
-          />
+          {isMaster ? (
+            <section className={`master-roll-sidebar table-right-panel ${rightRailTab === 'diary' ? '' : 'table-right-panel-hidden'}`} aria-label="Персонажи мастера">
+              <header>
+                <div>
+                  <span>Персонажи</span>
+                  <strong>{chatCharacters.length}</strong>
+                </div>
+                <div>
+                  <span>Бросок</span>
+                  <strong>{masterRollHidden ? 'скрытый' : 'открытый'}</strong>
+                </div>
+              </header>
+
+              {!chatUser ? (
+                <div className="master-roll-empty">
+                  <p>Войди в чат, чтобы увидеть своих персонажей.</p>
+                  <button type="button" onClick={() => setRightRailTab('chat')}>Открыть чат</button>
+                </div>
+              ) : chatCharacters.length === 0 ? (
+                <div className="master-roll-empty">
+                  <p>Сохранённых персонажей пока нет.</p>
+                  <a href={getCharacterSheetHref()}>Создать лист</a>
+                </div>
+              ) : (
+                <div className="master-roll-layout">
+                  <aside className="master-roll-character-list" aria-label="Персонажи для бросков">
+                    {chatCharacters.map(character => (
+                      <button
+                        type="button"
+                        key={character.id}
+                        className={character.id === selectedMasterRollCharacter?.id ? 'active' : ''}
+                        onClick={() => chooseMasterRollCharacter(character.id)}
+                      >
+                        <span className="chat-avatar" aria-hidden="true">
+                          {character.image ? <img src={character.image} alt="" /> : <i>{(character.name || '?').slice(0, 1).toUpperCase()}</i>}
+                        </span>
+                        <span>
+                          <strong>{character.name || 'Безымянный'}</strong>
+                          <small>{character.clan || 'без клана'}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </aside>
+
+                  <section className="master-roll-builder" aria-label="Бросок персонажа мастера">
+                    {selectedMasterRollCharacter ? (
+                      <>
+                        <div className="master-roll-current">
+                          <div className="chat-avatar large" aria-hidden="true">
+                            {selectedMasterRollCharacter.image ? (
+                              <img src={selectedMasterRollCharacter.image} alt="" />
+                            ) : (
+                              <span>{(selectedMasterRollCharacter.name || '?').slice(0, 1).toUpperCase()}</span>
+                            )}
+                          </div>
+                          <div>
+                            <span>Выбран</span>
+                            <strong>{selectedMasterRollCharacter.name}</strong>
+                            <small>{selectedMasterRollCharacter.clan || 'без клана'}</small>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPreviewCharacter(selectedMasterRollCharacter)
+                              setPreviewCharacterTab('mechanics')
+                            }}
+                          >
+                            Просмотр
+                          </button>
+                          <a href={getCharacterSheetHref(selectedMasterRollCharacter.id)}>Лист</a>
+                        </div>
+
+                        <div className="master-roll-mode" aria-label="Видимость броска">
+                          <button
+                            type="button"
+                            className={masterRollVisibility === 'public' ? 'active' : ''}
+                            onClick={() => setMasterRollVisibility('public')}
+                          >
+                            Открытый
+                          </button>
+                          <button
+                            type="button"
+                            className={masterRollVisibility === 'hidden' ? 'active' : ''}
+                            onClick={() => setMasterRollVisibility('hidden')}
+                          >
+                            Скрытый
+                          </button>
+                        </div>
+
+                        <div className="preview-roll-controls master-roll-controls">
+                          <label>
+                            <span>Характеристика 1</span>
+                            <select value={masterRollAttribute} onChange={event => setMasterRollAttribute(event.target.value)}>
+                              <option value="">Без характеристики</option>
+                              {ATTRIBUTE_GROUPS.map(group => (
+                                <optgroup key={group.name} label={group.name}>
+                                  {group.traits.map(name => <option key={name} value={name} disabled={masterRollAttributeTwo === name}>{name} · {Number(selectedMasterRollCharacter.attributes[name] || 0)}</option>)}
+                                </optgroup>
+                              ))}
+                              {masterRollExtraAttributes.length ? (
+                                <optgroup label="Другие">
+                                  {masterRollExtraAttributes.map(name => <option key={name} value={name} disabled={masterRollAttributeTwo === name}>{name} · {Number(selectedMasterRollCharacter.attributes[name] || 0)}</option>)}
+                                </optgroup>
+                              ) : null}
+                            </select>
+                          </label>
+                          <label>
+                            <span>Характеристика 2</span>
+                            <select value={masterRollAttributeTwo} onChange={event => setMasterRollAttributeTwo(event.target.value)}>
+                              <option value="">Без второй характеристики</option>
+                              {ATTRIBUTE_GROUPS.map(group => (
+                                <optgroup key={group.name} label={group.name}>
+                                  {group.traits.map(name => <option key={name} value={name} disabled={masterRollAttribute === name}>{name} · {Number(selectedMasterRollCharacter.attributes[name] || 0)}</option>)}
+                                </optgroup>
+                              ))}
+                              {masterRollExtraAttributes.length ? (
+                                <optgroup label="Другие">
+                                  {masterRollExtraAttributes.map(name => <option key={name} value={name} disabled={masterRollAttribute === name}>{name} · {Number(selectedMasterRollCharacter.attributes[name] || 0)}</option>)}
+                                </optgroup>
+                              ) : null}
+                            </select>
+                          </label>
+                          <label>
+                            <span>Навык</span>
+                            <select value={masterRollSkill} onChange={event => setMasterRollSkill(event.target.value)}>
+                              <option value="">Без навыка</option>
+                              {SKILL_GROUPS.map(group => (
+                                <optgroup key={group.name} label={group.name}>
+                                  {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(selectedMasterRollCharacter.skills[name] || 0)}</option>)}
+                                </optgroup>
+                              ))}
+                              {masterRollExtraSkills.length ? (
+                                <optgroup label="Другие">
+                                  {masterRollExtraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(selectedMasterRollCharacter.skills[name] || 0)}</option>)}
+                                </optgroup>
+                              ) : null}
+                            </select>
+                          </label>
+                          <label>
+                            <span>Дисциплина</span>
+                            <select value={masterRollDiscipline} onChange={event => setMasterRollDiscipline(event.target.value)}>
+                              <option value="">Без дисциплины</option>
+                              {masterRollDisciplineNames.map(name => (
+                                <option key={name} value={name}>{name} · {getDisciplineDots(selectedMasterRollCharacter.disciplines[name] || {})}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            <span>Модификатор</span>
+                            <input
+                              type="number"
+                              min="-20"
+                              max="20"
+                              value={masterRollModifier}
+                              onChange={event => setMasterRollModifier(Math.max(-20, Math.min(20, Number(event.target.value) || 0)))}
+                            />
+                          </label>
+                          <button type="button" className="preview-roll-submit" onClick={rollMasterPool} disabled={masterRollDiceCount < 1}>
+                            Бросить {masterRollDiceCount || 0}к10
+                          </button>
+                        </div>
+
+                        <div className="quick-roll-grid master-quick-rolls" aria-label="Быстрые броски мастера">
+                          {[1, 3, 5, 7, 10].map(count => (
+                            <button type="button" key={count} onClick={() => rollMasterQuick(count)}>
+                              {count}к10
+                            </button>
+                          ))}
+                        </div>
+
+                        <div className="master-roll-traits">
+                          {ATTRIBUTE_GROUPS.map(group => (
+                            <section key={group.name}>
+                              <strong>{group.name}</strong>
+                              {group.traits.map(name => {
+                                const dots = Number(selectedMasterRollCharacter.attributes[name] || 0)
+                                return (
+                                  <button
+                                    type="button"
+                                    key={name}
+                                    className={masterRollAttribute === name || masterRollAttributeTwo === name ? 'active' : ''}
+                                    onClick={() => toggleMasterRollAttribute(name)}
+                                  >
+                                    <span>{name}</span>
+                                    <i>{getDotDisplay(dots)}</i>
+                                  </button>
+                                )
+                              })}
+                            </section>
+                          ))}
+                        </div>
+
+                        {masterRollPoolBeforeLimit > 20 ? <p className="preview-roll-notice">Пул ограничен двадцатью костями.</p> : null}
+                      </>
+                    ) : (
+                      <p className="panel-empty">Выбери персонажа.</p>
+                    )}
+                  </section>
+                </div>
+              )}
+            </section>
+          ) : (
+            <JournalPanel
+              rightRailTab={rightRailTab}
+              journalEntries={journalEntries}
+              journalSaveStatus={journalSaveStatus}
+              chatUser={chatUser}
+              journalSearch={journalSearch}
+              filteredJournalEntries={filteredJournalEntries}
+              selectedJournalEntry={selectedJournalEntry}
+              setJournalSearch={setJournalSearch}
+              createJournalEntry={createJournalEntry}
+              setSelectedJournalEntryId={setSelectedJournalEntryId}
+              updateJournalEntry={updateJournalEntry}
+              persistCurrentJournal={persistCurrentJournal}
+              deleteJournalEntry={deleteJournalEntry}
+              addLayerToJournal={addLayerToJournal}
+            />
+          )}
 
           <MasterPanel
             rightRailTab={rightRailTab}

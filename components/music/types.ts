@@ -115,6 +115,7 @@ export type MusicSyncAdapter = {
   play: () => void
   pause: () => void
   seek: (seconds: number) => void
+  getPosition?: () => number
   setVolume?: (volume: number) => void
   destroy: () => void
   onStateChange: (callback: (patch: MusicAdapterStateChange) => void) => () => void

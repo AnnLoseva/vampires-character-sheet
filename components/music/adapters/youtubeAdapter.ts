@@ -103,6 +103,10 @@ export class YouTubeAdapter implements MusicSyncAdapter {
     if (this.state?.isPlaying) this.player?.playVideo?.()
   }
 
+  getPosition() {
+    return Math.max(0, Math.floor(this.getPlayerTime()))
+  }
+
   setVolume(volume: number) {
     this.options.volume = volume
     this.player?.setVolume?.(volume)
