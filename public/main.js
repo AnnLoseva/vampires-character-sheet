@@ -487,14 +487,34 @@ function findDisciplinePower(disciplineName, powerName) {
     return null;
 }
 
+function getPowerRollSummary(power) {
+    return [
+        power.pool || power.roll || '',
+        power.extra_roll ? `Дополнительно: ${power.extra_roll}` : '',
+        power.control_roll ? `Контроль: ${power.control_roll}` : '',
+        power.resistance ? `Сопротивление: ${power.resistance}` : ''
+    ].filter(Boolean).join(' · ');
+}
+
+function getPowerDifficultySummary(power) {
+    return [
+        power.difficulty || '',
+        power.difficulty_for_victim ? `для цели: ${power.difficulty_for_victim}` : '',
+        power.soak_difficulty ? `прочность: ${power.soak_difficulty}` : ''
+    ].filter(Boolean).join(' · ');
+}
+
 function getPowerDetailsHTML(disciplineName, powerName) {
     const resolved = findDisciplinePower(disciplineName, powerName);
     if (!resolved) return `<p>Описание способности пока не добавлено.</p>`;
 
     const { level, power } = resolved;
+    const rollSummary = getPowerRollSummary(power);
+    const difficultySummary = getPowerDifficultySummary(power);
     const facts = [
         ['Уровень', level],
-        ['Бросок', power.pool || power.roll],
+        ['Бросок', rollSummary],
+        ['Сложность', difficultySummary],
         ['Стоимость', power.cost],
         ['Длительность', power.duration],
         ['Эффект', power.effect]
@@ -1161,7 +1181,10 @@ function openPowerSelectionModal(discName, maxLevel) {
                         <div style="line-height:1.65;">${power.description || 'Описание отсутствует'}</div>
                     `;
                     if (power.effect) html += `<p style="margin-top:12px;"><strong>Эффект:</strong> ${power.effect}</p>`;
-                    if (power.pool) html += `<p style="margin-top:12px;"><strong>Бросок:</strong> ${power.pool}</p>`;
+                    const rollSummary = getPowerRollSummary(power);
+                    const difficultySummary = getPowerDifficultySummary(power);
+                    if (rollSummary) html += `<p style="margin-top:12px;"><strong>Бросок:</strong> ${rollSummary}</p>`;
+                    if (difficultySummary) html += `<p><strong>Сложность:</strong> ${difficultySummary}</p>`;
                     if (power.cost) html += `<p><strong>Стоимость:</strong> ${power.cost}</p>`;
                     if (power.duration) html += `<p><strong>Длительность:</strong> ${power.duration}</p>`;
 
@@ -3441,7 +3464,10 @@ function applyTraitVariant(item, points, isMerit = true) {
         points,
         dots: points,
         desc: descParts.filter(Boolean).join('<br><br>'),
-        mechanic: resolved.variant.механика || item.mechanic || ''
+        mechanic: resolved.variant.механика || item.mechanic || '',
+        roll: resolved.variant.roll || item.roll || '',
+        difficulty: resolved.variant.difficulty || item.difficulty || '',
+        bonus: resolved.variant.bonus || item.bonus || ''
     };
 }
 
@@ -3496,6 +3522,9 @@ function buildPredatorTrait(rawItem, isMerit, predName) {
         dots: points,
         desc: descParts.join('<br><br>'),
         mechanic: rawItem?.mechanic || rawItem?.механика || variant?.механика || '',
+        roll: rawItem?.roll || variant?.roll || '',
+        difficulty: rawItem?.difficulty || variant?.difficulty || '',
+        bonus: rawItem?.bonus || variant?.bonus || '',
         fromPredator: true,
         predatorType: predName,
         predatorBaseName: name,
@@ -4656,6 +4685,9 @@ function traitMatchesSearch(category, variant, search) {
         variant.название_пункта,
         variant.полное_описание,
         variant.механика,
+        variant.roll,
+        variant.difficulty,
+        variant.bonus,
         getPointSearchText(parseInt(variant.точки, 10) || 0)
     ].join(' '));
     const haystackWords = haystack.split(' ');
@@ -4667,9 +4699,18 @@ function traitMatchesSearch(category, variant, search) {
     });
 }
 
+function formatTraitRollLine(item) {
+    return [
+        item?.roll || '',
+        item?.difficulty ? `сложность: ${item.difficulty}` : '',
+        item?.bonus ? `бонус: ${item.bonus}` : ''
+    ].filter(Boolean).join(' · ');
+}
+
 function createTraitVariantCard(category, variant, tab, { showCategory = false } = {}) {
     const name = variant.название_пункта;
     const points = variant.точки || 0;
+    const rollLine = formatTraitRollLine(variant);
     const alreadyTaken = tab === 0
         ? selectedMerits.some(item => item.name === name && item.category === category.название)
         : selectedFlaws.some(item => item.name === name && item.category === category.название);
@@ -4690,6 +4731,7 @@ function createTraitVariantCard(category, variant, tab, { showCategory = false }
         ${alreadyTaken ? '<span style="color:#888;margin-left:8px;">уже добавлено</span>' : ''}
         ${expShopMode ? `<span style="color:#ffcc00;font-weight:bold;margin-left:8px;">${tab === 0 ? points * 3 : 0} XP</span>` : ''}<br>
         <small style="display:block;color:#aaa;margin-top:7px;line-height:1.45;">${variant.полное_описание || ''}</small>
+        ${rollLine ? `<small style="display:block;color:#ffd166;margin-top:7px;line-height:1.45;"><strong>Бросок:</strong> ${rollLine}</small>` : ''}
         ${variant.механика ? `<small style="display:block;color:#ffae00;margin-top:7px;line-height:1.45;">${variant.механика}</small>` : ''}
     `;
 
@@ -4707,7 +4749,10 @@ function createTraitVariantCard(category, variant, tab, { showCategory = false }
                 name,
                 points,
                 desc: variant.полное_описание || '',
-                mechanic: variant.механика || ''
+                mechanic: variant.механика || '',
+                roll: variant.roll || '',
+                difficulty: variant.difficulty || '',
+                bonus: variant.bonus || ''
             };
             if (tab === 0) selectedMerits.push(item);
             else selectedFlaws.push(item);
@@ -4897,6 +4942,7 @@ function createSelectedItem(item, index, isMerit) {
     if (categoryName && !displayName.toLowerCase().includes(categoryName.toLowerCase().slice(0, 15))) {
         displayName = `${categoryName} • ${displayName}`;
     }
+    const rollLine = formatTraitRollLine(item);
 
     const maxDots = 5;
     let dotsHTML = '';
@@ -4975,6 +5021,12 @@ function createSelectedItem(item, index, isMerit) {
                 ${item.desc || item.полное_описание || '—'}
             </div>
             
+            ${rollLine ? `
+            <div style="margin-top:16px;">
+                <strong style="color:#ffae00;">Бросок:</strong><br>
+                ${rollLine}
+            </div>` : ''}
+
             ${item.mechanic ? `
             <div style="margin-top:16px;">
                 <strong style="color:#ffae00;">Механика:</strong><br>
@@ -4991,7 +5043,11 @@ function createSelectedItem(item, index, isMerit) {
 
     div.querySelector('.selected-item-show-master')?.addEventListener('click', (event) => {
         event.stopImmediatePropagation();
-        showMasterItem(isMerit ? 'Преимущество' : 'Недостаток', displayName, item.mechanic || item.desc || item.полное_описание || 'Описание не указано', `${item.category || ''}${points ? ` · ${points} точек` : ''}`);
+        const masterDescription = [
+            rollLine ? `Бросок: ${rollLine}` : '',
+            item.mechanic || item.desc || item.полное_описание || 'Описание не указано'
+        ].filter(Boolean).join('\n\n');
+        showMasterItem(isMerit ? 'Преимущество' : 'Недостаток', displayName, masterDescription, `${item.category || ''}${points ? ` · ${points} точек` : ''}`);
     });
 
     return div;

@@ -134,6 +134,13 @@ const INVENTORY_CATEGORIES = ['Оружие', 'Одежда', 'Документ�
 type DisciplinePowerRule = {
   description?: string
   pool?: string
+  roll?: string
+  extra_roll?: string
+  control_roll?: string
+  resistance?: string
+  difficulty?: string | number
+  difficulty_for_victim?: string | number
+  soak_difficulty?: string | number
   cost?: string
   effect?: string
   duration?: string
@@ -202,20 +209,44 @@ function resolvePowerPool(pool: string, rules: Record<string, DisciplineRule>) {
   return trimmed
 }
 
+function getPowerRollFormula(rule?: DisciplinePowerRule | null) {
+  return rule?.pool || rule?.roll || ''
+}
+
+function getPowerRollSummary(rule?: DisciplinePowerRule | null) {
+  const rows = [
+    getPowerRollFormula(rule),
+    rule?.extra_roll ? `Дополнительно: ${rule.extra_roll}` : '',
+    rule?.control_roll ? `Контроль: ${rule.control_roll}` : '',
+    rule?.resistance ? `Сопротивление: ${rule.resistance}` : '',
+  ].filter(Boolean)
+  return rows.join(' · ')
+}
+
+function getPowerDifficultySummary(rule?: DisciplinePowerRule | null) {
+  const rows = [
+    rule?.difficulty ? formatRuleValue(rule.difficulty) : '',
+    rule?.difficulty_for_victim ? `для цели: ${formatRuleValue(rule.difficulty_for_victim)}` : '',
+    rule?.soak_difficulty ? `прочность: ${formatRuleValue(rule.soak_difficulty)}` : '',
+  ].filter(Boolean)
+  return rows.join(' · ')
+}
+
 function parsePowerPool(pool: string, disciplineNames: string[]) {
   const normalizedPool = pool.trim()
   if (!normalizedPool || normalizedPool === '—' || /^(зависит|как применяемая)/i.test(normalizedPool)) return []
-  const playerSide = normalizedPool.split(/\s+vs\s+/i)[0].split(';')[0].replace(/\s*\([^)]*\)\s*/g, '').trim()
+  const playerSide = normalizedPool.split(/\s+(?:vs|против)\s+/i)[0].split(';')[0].replace(/\s*\([^)]*\)\s*/g, '').trim()
   if (!playerSide) return []
   const knownNames = [...ATTRIBUTE_NAMES, ...SKILL_NAMES, ...disciplineNames]
 
-  return playerSide.split(/\s*\+\s*/).map(source => {
+  const choices = playerSide.split(/\s*\+\s*/).map(source => {
     const options = source
       .split(/\s+или\s+|\//i)
       .map(option => findCaseInsensitiveName(option, knownNames))
       .filter(Boolean)
     return { source: source.trim(), options } as PowerPoolChoice
-  }).filter(choice => choice.options.length > 0)
+  })
+  return choices.every(choice => choice.options.length > 0) ? choices : []
 }
 
 function getSelectedPowerNames(value: unknown) {
@@ -1586,11 +1617,14 @@ export default function VampireTable() {
     ? allPreviewDisciplinePowers.filter(power => previewLearnedPowers.includes(power.name))
     : allPreviewDisciplinePowers.filter(power => power.level <= previewOpenedDisciplineDots)
   const selectedPreviewPower = previewDisciplinePowers.find(power => power.name === previewPowerName) || null
-  const resolvedPreviewPowerPool = selectedPreviewPower?.rule.pool && disciplineRules
-    ? resolvePowerPool(selectedPreviewPower.rule.pool, disciplineRules)
-    : selectedPreviewPower?.rule.pool || ''
+  const selectedPreviewPowerRollFormula = getPowerRollFormula(selectedPreviewPower?.rule)
+  const selectedPreviewPowerRollSummary = getPowerRollSummary(selectedPreviewPower?.rule)
+  const selectedPreviewPowerDifficultySummary = getPowerDifficultySummary(selectedPreviewPower?.rule)
+  const resolvedPreviewPowerPool = selectedPreviewPowerRollFormula && disciplineRules
+    ? resolvePowerPool(selectedPreviewPowerRollFormula, disciplineRules)
+    : selectedPreviewPowerRollFormula
   const previewPowerPoolChoices = parsePowerPool(resolvedPreviewPowerPool, previewDisciplineNames)
-  const previewPowerOpposition = resolvedPreviewPowerPool.split(/\s+vs\s+/i)[1]?.trim() || ''
+  const previewPowerOpposition = resolvedPreviewPowerPool.split(/\s+(?:vs|против)\s+/i)[1]?.trim() || ''
   const previewPowerPoolBeforeLimit = previewCharacter
     ? previewPowerPoolSelections.reduce((sum, name) => sum + getCharacterPoolPartDots(previewCharacter, name), 0) + previewPowerModifier
     : 0
@@ -5235,7 +5269,8 @@ export default function VampireTable() {
                       </div>
                       <p className="discipline-power-description">{selectedPreviewPower.rule.description || 'Описание отсутствует.'}</p>
                       <dl className="discipline-power-facts">
-                        <div><dt>Бросок</dt><dd>{selectedPreviewPower.rule.pool || '—'}</dd></div>
+                        <div><dt>Бросок</dt><dd>{selectedPreviewPowerRollSummary || '—'}</dd></div>
+                        <div><dt>Сложность</dt><dd>{selectedPreviewPowerDifficultySummary || '—'}</dd></div>
                         <div><dt>Стоимость</dt><dd>{selectedPreviewPower.rule.cost || '—'}</dd></div>
                         <div><dt>Длительность</dt><dd>{selectedPreviewPower.rule.duration || '—'}</dd></div>
                       </dl>
@@ -5282,7 +5317,7 @@ export default function VampireTable() {
                               </button>
                             </div>
                             {previewPowerOpposition ? <p className="discipline-roll-opposition">Сопротивление цели: {previewPowerOpposition}</p> : null}
-                            {selectedPreviewPower.rule.pool !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">Используется формула силы «{selectedPreviewPower.rule.pool?.replace(/^как\s+/i, '')}».</p> : null}
+                            {selectedPreviewPowerRollFormula !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">Используется формула силы «{selectedPreviewPowerRollFormula.replace(/^как\s+/i, '')}».</p> : null}
                           </>
                         ) : (
                           <p className="discipline-no-roll">Для этой силы отдельный автоматический бросок не требуется или его пул зависит от ситуации. При необходимости используй конструктор броска в кратком листе.</p>
