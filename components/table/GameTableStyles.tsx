@@ -1664,6 +1664,152 @@ export default function GameTableStyles() {
           overflow: hidden;
         }
 
+        .opposed-proposal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 1950;
+          display: grid;
+          place-items: center;
+          padding: 20px;
+          background: rgba(0,0,0,0.78);
+        }
+
+        .opposed-proposal-modal {
+          width: min(680px, 100%);
+          max-height: min(760px, 92vh);
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr) auto;
+          border: 1px solid #3a3a3a;
+          border-radius: 8px;
+          background: #0b0b0b;
+          box-shadow: 0 24px 70px rgba(0,0,0,0.65), 0 0 28px rgba(255,49,49,0.18);
+          overflow: hidden;
+        }
+
+        .opposed-proposal-modal > header {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          align-items: center;
+          padding: 12px 14px;
+          border-bottom: 1px solid #2b2b2b;
+          background: #111;
+        }
+
+        .opposed-proposal-modal > header div {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .opposed-proposal-modal > header span,
+        .opposed-proposal-summary span,
+        .opposed-proposal-active span {
+          color: #9c9c9c;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .opposed-proposal-modal > header strong,
+        .opposed-proposal-summary strong,
+        .opposed-proposal-active strong {
+          min-width: 0;
+          color: #f4f4f4;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .opposed-proposal-modal > header button {
+          width: 34px;
+          height: 34px;
+          border: 1px solid #3a3a3a;
+          border-radius: 5px;
+          background: #181818;
+          color: #fff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 22px;
+          line-height: 1;
+        }
+
+        .opposed-proposal-body {
+          min-height: 0;
+          display: grid;
+          gap: 10px;
+          padding: 12px;
+          overflow-y: auto;
+        }
+
+        .opposed-proposal-summary,
+        .opposed-proposal-active {
+          min-width: 0;
+          display: grid;
+          gap: 6px;
+          border: 1px solid #303030;
+          border-radius: 7px;
+          background: #151515;
+          padding: 10px;
+        }
+
+        .opposed-proposal-summary {
+          grid-template-columns: minmax(0, 1fr) auto;
+          align-items: center;
+        }
+
+        .opposed-proposal-summary div {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .opposed-proposal-summary p {
+          grid-column: 1 / -1;
+          margin: 0;
+          color: #b8b8b8;
+          font-size: 12px;
+          line-height: 1.35;
+        }
+
+        .opposed-proposal-summary b {
+          color: #36d675;
+          font-size: 14px;
+          white-space: nowrap;
+        }
+
+        .opposed-proposal-actions {
+          display: flex;
+          justify-content: flex-end;
+          gap: 8px;
+          padding: 12px;
+          border-top: 1px solid #2b2b2b;
+          background: #101010;
+        }
+
+        .opposed-proposal-actions button {
+          min-height: 34px;
+          border: 1px solid #3a3a3a;
+          border-radius: 6px;
+          background: #181818;
+          color: #f4f4f4;
+          cursor: pointer;
+          padding: 0 12px;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .opposed-proposal-actions button.primary {
+          border-color: #2f7650;
+          background: #164b2b;
+          color: #fff;
+        }
+
+        .opposed-proposal-actions button:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
+        }
+
         .character-preview-modal {
           width: min(1040px, 100%);
           height: min(840px, 92vh);

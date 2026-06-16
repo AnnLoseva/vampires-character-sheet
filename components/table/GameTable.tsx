@@ -187,7 +187,18 @@ type OpposedActorOption = {
   characterId: string | null
   character?: CharacterOption
   username?: string
+  userId?: string
   manual?: boolean
+}
+
+type OpposedRollProposal = {
+  id: string
+  room: string
+  fromUserId: string
+  fromUsername: string
+  toUserId: string
+  createdAt: string
+  initiator: OpposedRollSide
 }
 
 const DEFAULT_OPPOSED_SIDE: OpposedSideBuilder = {
@@ -463,6 +474,8 @@ export default function VampireTable() {
     left: { ...DEFAULT_OPPOSED_SIDE, manualName: 'НПС 1' },
     right: { ...DEFAULT_OPPOSED_SIDE, manualName: 'НПС 2' },
   })
+  const [incomingOpposedProposal, setIncomingOpposedProposal] = useState<OpposedRollProposal | null>(null)
+  const [opposedResponseSide, setOpposedResponseSide] = useState<OpposedSideBuilder>({ ...DEFAULT_OPPOSED_SIDE })
   const [opposedCharacterCache, setOpposedCharacterCache] = useState<Record<string, CharacterOption>>({})
   const [previewDisciplineName, setPreviewDisciplineName] = useState('')
   const [disciplineRules, setDisciplineRules] = useState<Record<string, DisciplineRule> | null>(null)
@@ -1344,6 +1357,14 @@ export default function VampireTable() {
         setRolls(prev => mergeRoll(prev, roll))
         setConnectionText('Онлайн')
       })
+      .on('broadcast', { event: 'opposed-roll-proposal' }, payload => {
+        const proposal = payload.payload as OpposedRollProposal
+        const currentUser = chatUserRef.current
+        if (!proposal || proposal.room !== currentRoom || !currentUser) return
+        if (proposal.toUserId !== currentUser.id || proposal.fromUserId === currentUser.id) return
+        setIncomingOpposedProposal(proposal)
+        setRightRailTab('rolls')
+      })
       .on('broadcast', { event: 'layer' }, payload => {
         const layer = payload.payload as TableLayer
         if (!layer || layer.room !== currentRoom || layer.sceneId !== activeSceneIdRef.current) return
@@ -1643,6 +1664,7 @@ export default function VampireTable() {
             characterId,
             character: localCharacter,
             username: participant.username,
+            userId: participant.userId,
           })
         })
 
@@ -1672,6 +1694,7 @@ export default function VampireTable() {
           characterId: selectedActiveCharacter.id,
           character: selectedActiveCharacter,
           username: chatUser?.username,
+          userId: chatUser?.id,
         })
       }
 
@@ -1686,6 +1709,7 @@ export default function VampireTable() {
             characterId,
             character: opposedCharacterCache[characterId],
             username: participant.username,
+            userId: participant.userId,
           })
         })
     }
@@ -1722,6 +1746,11 @@ export default function VampireTable() {
   ].filter(Boolean)
   const masterRollPoolName = masterRollPoolParts.join(' + ') || `${masterRollDiceCount || 1}к10`
   const masterRollHidden = masterRollVisibility === 'hidden'
+
+  useEffect(() => {
+    if (!incomingOpposedProposal) return
+    setOpposedResponseSide({ ...DEFAULT_OPPOSED_SIDE })
+  }, [incomingOpposedProposal?.id, selectedActiveCharacter?.id])
 
   useEffect(() => {
     setOpposedRoll(current => {
@@ -1955,11 +1984,41 @@ export default function VampireTable() {
     }))
   }
 
+  const updateOpposedResponseSide = (patch: Partial<OpposedSideBuilder>) => {
+    setOpposedResponseSide(current => ({ ...current, ...patch }))
+  }
+
   const getOpposedActor = (actorId: string) => opposedActorOptions.find(option => option.id === actorId) || null
 
   const getOpposedActorCharacter = (actor: OpposedActorOption | null) => {
     if (!actor || actor.manual || !actor.characterId) return null
     return actor.character || opposedCharacterCache[actor.characterId] || null
+  }
+
+  const getOpposedCharacterPool = (character: CharacterOption | null, sideState: OpposedSideBuilder) => {
+    const attributeDots = character ? Number(character.attributes[sideState.attribute] || 0) : 0
+    const attributeTwoDots = character ? Number(character.attributes[sideState.attributeTwo] || 0) : 0
+    const skillDots = character ? getSkillDots(character.skills[sideState.skill] || 0) : 0
+    const disciplineDots = character ? getDisciplineDots(character.disciplines[sideState.discipline] || {}) : 0
+    const diceCount = Math.max(0, Math.min(20, attributeDots + attributeTwoDots + skillDots + disciplineDots + sideState.modifier))
+    const poolParts = [
+      sideState.attribute ? `${sideState.attribute} ${attributeDots}` : '',
+      sideState.attributeTwo ? `${sideState.attributeTwo} ${attributeTwoDots}` : '',
+      sideState.skill ? `${sideState.skill} ${skillDots}` : '',
+      sideState.discipline ? `${sideState.discipline} ${disciplineDots}` : '',
+      sideState.modifier ? `модификатор ${sideState.modifier > 0 ? '+' : ''}${sideState.modifier}` : '',
+    ].filter(Boolean)
+
+    return {
+      diceCount,
+      poolName: poolParts.join(' + ') || `${diceCount || 0}к10`,
+      poolParts,
+      extraAttributes: character ? getExtraTraitNames(character.attributes, ATTRIBUTE_GROUPS) : [],
+      extraSkills: character ? getExtraTraitNames(character.skills, SKILL_GROUPS) : [],
+      disciplineNames: character
+        ? Array.from(new Set([...Object.keys(character.disciplines), ...Object.keys(character.selectedPowers)])).sort((a, b) => a.localeCompare(b, 'ru'))
+        : [],
+    }
   }
 
   const getOpposedSidePool = (side: OpposedSideKey) => {
@@ -1984,34 +2043,34 @@ export default function VampireTable() {
     }
 
     const character = getOpposedActorCharacter(actor)
-    const attributeDots = character ? Number(character.attributes[sideState.attribute] || 0) : 0
-    const attributeTwoDots = character ? Number(character.attributes[sideState.attributeTwo] || 0) : 0
-    const skillDots = character ? getSkillDots(character.skills[sideState.skill] || 0) : 0
-    const disciplineDots = character ? getDisciplineDots(character.disciplines[sideState.discipline] || {}) : 0
-    const diceCount = Math.max(0, Math.min(20, attributeDots + attributeTwoDots + skillDots + disciplineDots + sideState.modifier))
-    const poolParts = [
-      sideState.attribute ? `${sideState.attribute} ${attributeDots}` : '',
-      sideState.attributeTwo ? `${sideState.attributeTwo} ${attributeTwoDots}` : '',
-      sideState.skill ? `${sideState.skill} ${skillDots}` : '',
-      sideState.discipline ? `${sideState.discipline} ${disciplineDots}` : '',
-      sideState.modifier ? `модификатор ${sideState.modifier > 0 ? '+' : ''}${sideState.modifier}` : '',
-    ].filter(Boolean)
+    const characterPool = getOpposedCharacterPool(character, sideState)
 
     return {
       actor,
       character,
       actorName: character?.name || actor?.label || 'Сторона',
       actorKind: actor?.actorKind || 'player',
-      diceCount,
-      poolName: poolParts.join(' + ') || `${diceCount || 0}к10`,
-      poolParts,
+      ...characterPool,
       loading: Boolean(actor?.characterId && !character),
-      extraAttributes: character ? getExtraTraitNames(character.attributes, ATTRIBUTE_GROUPS) : [],
-      extraSkills: character ? getExtraTraitNames(character.skills, SKILL_GROUPS) : [],
-      disciplineNames: character
-        ? Array.from(new Set([...Object.keys(character.disciplines), ...Object.keys(character.selectedPowers)])).sort((a, b) => a.localeCompare(b, 'ru'))
-        : [],
     }
+  }
+
+  const publishOpposedRoll = async (roll: RollMessage, opposed: OpposedRollResult) => {
+    setRolls(prev => mergeRoll(prev, roll))
+    broadcast('roll', roll)
+    const { error } = await createClient().from(TABLE_ROLLS).insert({
+      id: roll.id,
+      room: roll.room,
+      character_name: roll.characterName,
+      pool_name: roll.poolName,
+      pool_type: roll.poolType,
+      dice_count: roll.diceCount,
+      dice: opposed,
+      successes: roll.successes,
+      created_at: roll.createdAt,
+    })
+    if (error) setConnectionText('Встречная проверка отправлена онлайн, но не сохранилась')
+    else setConnectionText('Онлайн')
   }
 
   const rollOpposedCheck = async () => {
@@ -2079,21 +2138,119 @@ export default function VampireTable() {
       opposed,
     }
 
-    setRolls(prev => mergeRoll(prev, roll))
-    broadcast('roll', roll)
-    const { error } = await createClient().from(TABLE_ROLLS).insert({
-      id: roll.id,
-      room: roll.room,
-      character_name: roll.characterName,
-      pool_name: roll.poolName,
-      pool_type: roll.poolType,
-      dice_count: roll.diceCount,
-      dice: opposed,
-      successes: roll.successes,
-      created_at: roll.createdAt,
-    })
-    if (error) setConnectionText('Встречная проверка отправлена онлайн, но не сохранилась')
-    else setConnectionText('Онлайн')
+    await publishOpposedRoll(roll, opposed)
+  }
+
+  const sendOpposedProposal = async () => {
+    const currentUser = chatUser
+    const leftPool = getOpposedSidePool('left')
+    const target = getOpposedActor(opposedRoll.right.actorId)
+    if (!currentUser) {
+      window.alert('Сначала войди в чат стола.')
+      return
+    }
+    if (!selectedActiveCharacter) {
+      window.alert('Сначала выбери активного персонажа.')
+      return
+    }
+    if (!leftPool.actor) {
+      window.alert('Выбери своего участника встречной проверки.')
+      return
+    }
+    if (leftPool.loading) {
+      window.alert('Твой лист ещё загружается.')
+      return
+    }
+    if (leftPool.diceCount < 1) {
+      window.alert('Твой пул должен быть хотя бы 1к10.')
+      return
+    }
+    if (!target || target.actorKind !== 'player' || !target.userId || target.userId === currentUser.id) {
+      window.alert('Выбери другого игрока для встречной проверки.')
+      return
+    }
+
+    const dice = rollD10Pool(leftPool.diceCount)
+    const proposal: OpposedRollProposal = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      fromUserId: currentUser.id,
+      fromUsername: currentUser.username,
+      toUserId: target.userId,
+      createdAt: new Date().toISOString(),
+      initiator: {
+        id: 'left',
+        actorName: leftPool.actorName,
+        actorKind: leftPool.actorKind,
+        poolName: leftPool.poolName,
+        diceCount: dice.length,
+        dice,
+        successes: countD10Successes(dice),
+      },
+    }
+
+    await broadcast('opposed-roll-proposal', proposal)
+    setConnectionText(`Предложение отправлено: ${target.label}`)
+  }
+
+  const answerOpposedProposal = async () => {
+    const proposal = incomingOpposedProposal
+    if (!proposal || !chatUser || proposal.toUserId !== chatUser.id) return
+    if (!selectedActiveCharacter) {
+      window.alert('Сначала выбери активного персонажа.')
+      return
+    }
+
+    const responsePool = getOpposedCharacterPool(selectedActiveCharacter, opposedResponseSide)
+    if (responsePool.diceCount < 1) {
+      window.alert('Твой ответный пул должен быть хотя бы 1к10.')
+      return
+    }
+
+    const rightDice = rollD10Pool(responsePool.diceCount)
+    const rightSide: OpposedRollSide = {
+      id: 'right',
+      actorName: selectedActiveCharacter.name || 'Ответчик',
+      actorKind: 'player',
+      poolName: responsePool.poolName,
+      diceCount: rightDice.length,
+      dice: rightDice,
+      successes: countD10Successes(rightDice),
+    }
+    const leftSide = proposal.initiator
+    const winnerSideId: OpposedRollSide['id'] | null = leftSide.successes === rightSide.successes
+      ? null
+      : leftSide.successes > rightSide.successes
+        ? 'left'
+        : 'right'
+    const outcome: OpposedRollResult['outcome'] = winnerSideId ?? 'tie'
+    const summary = winnerSideId === 'left'
+      ? `Победа: ${leftSide.actorName}`
+      : winnerSideId === 'right'
+        ? `Победа: ${rightSide.actorName}`
+        : 'Ничья'
+    const opposed: OpposedRollResult = { sides: [leftSide, rightSide], winnerSideId, outcome, summary }
+    const roll: RollMessage = {
+      id: proposal.id,
+      room,
+      characterName: 'Встречная проверка',
+      poolName: `${leftSide.actorName} против ${rightSide.actorName}`,
+      poolType: 'opposed',
+      diceCount: leftSide.diceCount + rightSide.diceCount,
+      dice: [],
+      successes: Math.max(leftSide.successes, rightSide.successes),
+      createdAt: new Date().toISOString(),
+      opposed,
+    }
+
+    setIncomingOpposedProposal(null)
+    setOpposedResponseSide({ ...DEFAULT_OPPOSED_SIDE })
+    await publishOpposedRoll(roll, opposed)
+  }
+
+  const dismissOpposedProposal = () => {
+    setIncomingOpposedProposal(null)
+    setOpposedResponseSide({ ...DEFAULT_OPPOSED_SIDE })
   }
 
   const rollQuickDice = async (
@@ -4614,8 +4771,111 @@ export default function VampireTable() {
     )
   }
 
+  const renderOpposedResponseControls = () => {
+    const character = selectedActiveCharacter
+    const pool = getOpposedCharacterPool(character, opposedResponseSide)
+
+    return (
+      <section className="opposed-side-builder opposed-response-builder">
+        <div className="opposed-side-heading">
+          <span>Твой ответ</span>
+          <strong>{pool.diceCount || 0}к10</strong>
+        </div>
+
+        {!character ? (
+          <p className="opposed-side-status">Выбери активного персонажа.</p>
+        ) : (
+          <div className="opposed-trait-controls">
+            <label>
+              <span>Характеристика 1</span>
+              <select
+                value={opposedResponseSide.attribute}
+                onChange={event => updateOpposedResponseSide({ attribute: event.target.value })}
+              >
+                <option value="">Без характеристики</option>
+                {ATTRIBUTE_GROUPS.map(group => (
+                  <optgroup key={group.name} label={group.name}>
+                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{name} · {Number(character.attributes[name] || 0)}</option>)}
+                  </optgroup>
+                ))}
+                {pool.extraAttributes.length ? (
+                  <optgroup label="Другие">
+                    {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{name} · {Number(character.attributes[name] || 0)}</option>)}
+                  </optgroup>
+                ) : null}
+              </select>
+            </label>
+            <label>
+              <span>Характеристика 2</span>
+              <select
+                value={opposedResponseSide.attributeTwo}
+                onChange={event => updateOpposedResponseSide({ attributeTwo: event.target.value })}
+              >
+                <option value="">Без второй характеристики</option>
+                {ATTRIBUTE_GROUPS.map(group => (
+                  <optgroup key={group.name} label={group.name}>
+                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{name} · {Number(character.attributes[name] || 0)}</option>)}
+                  </optgroup>
+                ))}
+                {pool.extraAttributes.length ? (
+                  <optgroup label="Другие">
+                    {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{name} · {Number(character.attributes[name] || 0)}</option>)}
+                  </optgroup>
+                ) : null}
+              </select>
+            </label>
+            <label>
+              <span>Навык</span>
+              <select
+                value={opposedResponseSide.skill}
+                onChange={event => updateOpposedResponseSide({ skill: event.target.value })}
+              >
+                <option value="">Без навыка</option>
+                {SKILL_GROUPS.map(group => (
+                  <optgroup key={group.name} label={group.name}>
+                    {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(character.skills[name] || 0)}</option>)}
+                  </optgroup>
+                ))}
+                {pool.extraSkills.length ? (
+                  <optgroup label="Другие">
+                    {pool.extraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(character.skills[name] || 0)}</option>)}
+                  </optgroup>
+                ) : null}
+              </select>
+            </label>
+            <label>
+              <span>Дисциплина</span>
+              <select
+                value={opposedResponseSide.discipline}
+                onChange={event => updateOpposedResponseSide({ discipline: event.target.value })}
+              >
+                <option value="">Без дисциплины</option>
+                {pool.disciplineNames.map(name => (
+                  <option key={name} value={name}>{name} · {getDisciplineDots(character.disciplines[name] || {})}</option>
+                ))}
+              </select>
+            </label>
+            <label>
+              <span>Модификатор</span>
+              <input
+                type="number"
+                min="-20"
+                max="20"
+                value={opposedResponseSide.modifier}
+                onChange={event => updateOpposedResponseSide({ modifier: Math.max(-20, Math.min(20, Number(event.target.value) || 0)) })}
+              />
+            </label>
+          </div>
+        )}
+      </section>
+    )
+  }
+
   const opposedLeftPool = getOpposedSidePool('left')
   const opposedRightPool = getOpposedSidePool('right')
+  const opposedTargetActor = getOpposedActor(opposedRoll.right.actorId)
+  const playerOpposedTargetOptions = opposedActorOptions.filter(option => option.actorKind === 'player' && option.userId && option.userId !== chatUser?.id)
+  const opposedResponsePool = getOpposedCharacterPool(selectedActiveCharacter, opposedResponseSide)
   const canRollOpposed = Boolean(
     opposedLeftPool.actor
     && opposedRightPool.actor
@@ -4624,6 +4884,17 @@ export default function VampireTable() {
     && !opposedLeftPool.loading
     && !opposedRightPool.loading
   )
+  const canSendOpposedProposal = Boolean(
+    chatUser
+    && selectedActiveCharacter
+    && opposedLeftPool.actor
+    && opposedLeftPool.diceCount > 0
+    && !opposedLeftPool.loading
+    && opposedTargetActor?.actorKind === 'player'
+    && opposedTargetActor.userId
+    && opposedTargetActor.userId !== chatUser?.id
+  )
+  const canAnswerOpposedProposal = Boolean(incomingOpposedProposal && selectedActiveCharacter && opposedResponsePool.diceCount > 0)
 
   return (
     <main className="table-page-shell">
@@ -5082,16 +5353,56 @@ export default function VampireTable() {
               <header>
                 <div>
                   <span>Встречная</span>
-                  <strong>{opposedLeftPool.diceCount || 0}к10 vs {opposedRightPool.diceCount || 0}к10</strong>
+                  <strong>
+                    {isMaster
+                      ? `${opposedLeftPool.diceCount || 0}к10 vs ${opposedRightPool.diceCount || 0}к10`
+                      : `${opposedLeftPool.diceCount || 0}к10 -> ${opposedTargetActor?.label || 'игрок'}`}
+                  </strong>
                 </div>
               </header>
-              <div className="opposed-roll-builders">
-                {renderOpposedSideControls('left', 'Сторона A')}
-                {renderOpposedSideControls('right', 'Сторона B')}
-              </div>
-              <button type="button" className="opposed-roll-submit" onClick={rollOpposedCheck} disabled={!canRollOpposed}>
-                Бросить встречную
-              </button>
+              {isMaster ? (
+                <>
+                  <div className="opposed-roll-builders">
+                    {renderOpposedSideControls('left', 'Сторона A')}
+                    {renderOpposedSideControls('right', 'Сторона B')}
+                  </div>
+                  <button type="button" className="opposed-roll-submit" onClick={rollOpposedCheck} disabled={!canRollOpposed}>
+                    Бросить встречную
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="opposed-roll-builders player-opposed-builders">
+                    {renderOpposedSideControls('left', 'Твой бросок')}
+                    <section className="opposed-side-builder opposed-target-builder">
+                      <div className="opposed-side-heading">
+                        <span>Адресат</span>
+                        <strong>{opposedTargetActor?.username || 'Игрок'}</strong>
+                      </div>
+                      <label>
+                        <span>Игрок</span>
+                        <select
+                          value={opposedRoll.right.actorId}
+                          onChange={event => updateOpposedSide('right', { actorId: event.target.value })}
+                        >
+                          <option value="">Выбрать</option>
+                          {playerOpposedTargetOptions.map(option => (
+                            <option key={option.id} value={option.id}>{option.label}</option>
+                          ))}
+                        </select>
+                      </label>
+                      {playerOpposedTargetOptions.length === 0 ? (
+                        <p className="opposed-side-status">Других игроков в комнате сейчас нет.</p>
+                      ) : (
+                        <p className="opposed-side-status">Второй пул выберет адресат.</p>
+                      )}
+                    </section>
+                  </div>
+                  <button type="button" className="opposed-roll-submit" onClick={sendOpposedProposal} disabled={!canSendOpposedProposal}>
+                    Отправить предложение
+                  </button>
+                </>
+              )}
             </section>
 
             <section className="roll-list">
@@ -5435,6 +5746,45 @@ export default function VampireTable() {
           />
         </TableRightPanel>
       </section>
+
+      {incomingOpposedProposal ? (
+        <div className="opposed-proposal-backdrop" role="dialog" aria-modal="true" aria-label="Встречная проверка">
+          <section className="opposed-proposal-modal">
+            <header>
+              <div>
+                <span>Встречная проверка</span>
+                <strong>{incomingOpposedProposal.fromUsername || 'Игрок'}</strong>
+              </div>
+              <button type="button" onClick={dismissOpposedProposal} aria-label="Закрыть предложение">×</button>
+            </header>
+
+            <div className="opposed-proposal-body">
+              <section className="opposed-proposal-summary">
+                <div>
+                  <span>Заявленный бросок</span>
+                  <strong>{incomingOpposedProposal.initiator.actorName}</strong>
+                </div>
+                <p>{incomingOpposedProposal.initiator.poolName}</p>
+                <b>{incomingOpposedProposal.initiator.diceCount}к10</b>
+              </section>
+
+              <section className="opposed-proposal-active">
+                <span>Отвечает</span>
+                <strong>{selectedActiveCharacter?.name || 'Активный персонаж не выбран'}</strong>
+              </section>
+
+              {renderOpposedResponseControls()}
+            </div>
+
+            <footer className="opposed-proposal-actions">
+              <button type="button" onClick={dismissOpposedProposal}>Отклонить</button>
+              <button type="button" className="primary" onClick={answerOpposedProposal} disabled={!canAnswerOpposedProposal}>
+                Бросить ответ {opposedResponsePool.diceCount || 0}к10
+              </button>
+            </footer>
+          </section>
+        </div>
+      ) : null}
 
       {previewCharacter ? (
         <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label="Быстрый просмотр персонажа" onMouseDown={() => setPreviewCharacter(null)}>
