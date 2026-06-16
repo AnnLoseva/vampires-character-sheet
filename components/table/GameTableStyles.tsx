@@ -3045,6 +3045,11 @@ export default function GameTableStyles() {
           padding: 10px;
         }
 
+        .roll-card.hidden-roll {
+          border-color: rgba(214, 170, 101, 0.48);
+          background: #191611;
+        }
+
         .roll-meta,
         .roll-card footer {
           display: flex;
@@ -3055,9 +3060,19 @@ export default function GameTableStyles() {
 
         .roll-meta strong {
           font-size: 14px;
+          flex: 1;
           min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .roll-hidden-badge {
+          border: 1px solid rgba(214, 170, 101, 0.48);
+          border-radius: 999px;
+          color: #e5c17f;
+          font-size: 10px;
+          padding: 2px 7px;
           white-space: nowrap;
         }
 
@@ -3515,6 +3530,7 @@ export default function GameTableStyles() {
         }
 
         .diary-sidebar,
+        .master-roll-sidebar,
         .master-sidebar {
           display: grid;
           grid-template-rows: auto minmax(0, 1fr);
@@ -3522,6 +3538,7 @@ export default function GameTableStyles() {
         }
 
         .diary-sidebar > header,
+        .master-roll-sidebar > header,
         .master-sidebar > header,
         .character-preview-modal header {
           display: flex;
@@ -3534,6 +3551,7 @@ export default function GameTableStyles() {
         }
 
         .diary-sidebar header span,
+        .master-roll-sidebar header span,
         .master-sidebar header span,
         .character-preview-modal header span,
         .character-preview-modal small {
@@ -3542,10 +3560,232 @@ export default function GameTableStyles() {
         }
 
         .diary-sidebar header strong,
+        .master-roll-sidebar header strong,
         .master-sidebar header strong,
         .character-preview-modal header strong {
           color: #f4f4f4;
           font-size: 13px;
+        }
+
+        .master-roll-layout {
+          min-height: 0;
+          display: grid;
+          grid-template-columns: 145px minmax(0, 1fr);
+          overflow: hidden;
+        }
+
+        .master-roll-character-list {
+          min-height: 0;
+          overflow-y: auto;
+          display: grid;
+          align-content: start;
+          gap: 6px;
+          padding: 8px;
+          border-right: 1px solid #292929;
+          background: #111;
+        }
+
+        .master-roll-character-list button {
+          min-width: 0;
+          border: 1px solid #303030;
+          border-radius: 6px;
+          background: #171717;
+          color: #eee;
+          cursor: pointer;
+          display: grid;
+          grid-template-columns: 34px minmax(0, 1fr);
+          gap: 8px;
+          align-items: center;
+          padding: 7px;
+          text-align: left;
+          font: inherit;
+        }
+
+        .master-roll-character-list button.active {
+          border-color: rgba(54, 214, 117, 0.52);
+          background: #142019;
+        }
+
+        .master-roll-character-list .chat-avatar {
+          width: 34px;
+          height: 34px;
+          font-size: 13px;
+        }
+
+        .chat-avatar i {
+          font-style: normal;
+        }
+
+        .master-roll-character-list button > span:last-child,
+        .master-roll-current > div {
+          min-width: 0;
+          display: grid;
+          gap: 3px;
+        }
+
+        .master-roll-character-list strong,
+        .master-roll-current strong {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #f4f4f4;
+          font-size: 12px;
+        }
+
+        .master-roll-character-list small,
+        .master-roll-current small,
+        .master-roll-current span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #9c9c9c;
+          font-size: 11px;
+        }
+
+        .master-roll-builder {
+          min-height: 0;
+          overflow-y: auto;
+          padding: 10px;
+          display: grid;
+          align-content: start;
+          gap: 10px;
+        }
+
+        .master-roll-current {
+          display: grid;
+          grid-template-columns: 52px minmax(0, 1fr);
+          gap: 8px;
+          align-items: center;
+          border: 1px solid #292929;
+          border-radius: 7px;
+          background: #141414;
+          padding: 8px;
+        }
+
+        .master-roll-current button,
+        .master-roll-current a,
+        .master-roll-empty button,
+        .master-roll-empty a {
+          min-width: 0;
+          min-height: 30px;
+          border: 1px solid #333;
+          border-radius: 5px;
+          background: #1d1d1d;
+          color: #f4f4f4;
+          cursor: pointer;
+          display: grid;
+          place-items: center;
+          padding: 0 8px;
+          text-decoration: none;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .master-roll-mode {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 4px;
+          padding: 4px;
+          border: 1px solid #292929;
+          border-radius: 7px;
+          background: #101010;
+        }
+
+        .master-roll-mode button {
+          min-width: 0;
+          height: 30px;
+          border: 1px solid transparent;
+          border-radius: 5px;
+          background: transparent;
+          color: #aaa;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+        }
+
+        .master-roll-mode button.active {
+          border-color: #4a3f25;
+          background: #2a2111;
+          color: #f2d08c;
+        }
+
+        .master-roll-controls {
+          grid-template-columns: minmax(0, 1fr);
+          margin-top: 0;
+        }
+
+        .master-quick-rolls {
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          margin-top: 0;
+        }
+
+        .master-roll-traits {
+          display: grid;
+          gap: 8px;
+        }
+
+        .master-roll-traits section {
+          display: grid;
+          gap: 4px;
+        }
+
+        .master-roll-traits section > strong {
+          color: #bdbdbd;
+          font-size: 11px;
+        }
+
+        .master-roll-traits button {
+          min-width: 0;
+          min-height: 28px;
+          border: 1px solid #303030;
+          border-radius: 5px;
+          background: #171717;
+          color: #e8e8e8;
+          cursor: pointer;
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) auto;
+          gap: 6px;
+          align-items: center;
+          padding: 0 7px;
+          text-align: left;
+          font: inherit;
+          font-size: 11px;
+        }
+
+        .master-roll-traits button.active {
+          border-color: #773030;
+          background: #241414;
+        }
+
+        .master-roll-traits span {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .master-roll-traits i {
+          color: #d6aa65;
+          font-style: normal;
+          font-size: 10px;
+          white-space: nowrap;
+        }
+
+        .master-roll-empty {
+          min-height: 0;
+          display: grid;
+          place-content: center;
+          gap: 10px;
+          padding: 18px;
+          text-align: center;
+          color: #aaa;
+          font-size: 13px;
+        }
+
+        .master-roll-empty p {
+          margin: 0;
         }
 
         .diary-layout {

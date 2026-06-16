@@ -5369,7 +5369,7 @@ export default function VampireTable() {
             {singleLayer && singleLayer.layerType !== 'folder' ? (
               <>
                 {/* Add to journal — available to all players for any visible layer */}
-                {chatUser && singleLayer.layerType === 'image' ? (
+                {chatUser && !isMaster && singleLayer.layerType === 'image' ? (
                   <button
                     type="button"
                     style={{ fontWeight: 600, color: '#ffd89a', borderColor: 'rgba(214,170,101,0.5)' }}
