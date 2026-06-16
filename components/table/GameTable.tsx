@@ -292,12 +292,24 @@ function getPowerDifficultySummary(rule?: DisciplinePowerRule | null) {
   return rows.join(' · ')
 }
 
-function rollD10Pool(diceCount: number) {
-  return Array.from({ length: Math.max(1, Math.min(20, diceCount)) }, () => {
+function getDieKind(value: number, isHunger: boolean): Die['kind'] {
+  if (isHunger) {
+    if (value === 1) return 'hunger-critical-fail'
+    if (value === 10) return 'hunger-critical-success'
+    return value >= 6 ? 'hunger-success' : 'hunger-fail'
+  }
+  return value === 10 ? 'critical' : value >= 6 ? 'success' : 'fail'
+}
+
+function rollD10Pool(diceCount: number, hungerDiceCount = 0) {
+  const safeDiceCount = Math.max(1, Math.min(20, diceCount))
+  const safeHungerDiceCount = Math.max(0, Math.min(5, safeDiceCount, hungerDiceCount))
+  return Array.from({ length: safeDiceCount }, (_, index) => {
     const value = Math.floor(Math.random() * 10) + 1
+    const isHunger = index < safeHungerDiceCount
     return {
       value,
-      kind: value === 10 ? 'critical' : value >= 6 ? 'success' : 'fail',
+      kind: getDieKind(value, isHunger),
     } as Die
   })
 }
@@ -305,6 +317,10 @@ function rollD10Pool(diceCount: number) {
 function countD10Successes(dice: Die[]) {
   const criticals = dice.filter(die => die.value === 10).length
   return dice.filter(die => die.value >= 6).length + Math.floor(criticals / 2) * 2
+}
+
+function getCharacterHunger(character?: CharacterOption | null) {
+  return Math.max(0, Math.min(5, Number(character?.vitalTrackers?.hunger || 0) || 0))
 }
 
 function getDieImage(die: Die) {
@@ -2108,8 +2124,8 @@ export default function VampireTable() {
       return
     }
 
-    const leftDice = rollD10Pool(leftPool.diceCount)
-    const rightDice = rollD10Pool(rightPool.diceCount)
+    const leftDice = rollD10Pool(leftPool.diceCount, getCharacterHunger(leftPool.character))
+    const rightDice = rollD10Pool(rightPool.diceCount, getCharacterHunger(rightPool.character))
     const leftSuccesses = countD10Successes(leftDice)
     const rightSuccesses = countD10Successes(rightDice)
     const winnerSideId = leftSuccesses === rightSuccesses ? null : leftSuccesses > rightSuccesses ? 'left' : 'right'
@@ -2185,7 +2201,7 @@ export default function VampireTable() {
       return
     }
 
-    const dice = rollD10Pool(leftPool.diceCount)
+    const dice = rollD10Pool(leftPool.diceCount, getCharacterHunger(leftPool.character))
     const proposal: OpposedRollProposal = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       room,
@@ -2222,7 +2238,7 @@ export default function VampireTable() {
       return
     }
 
-    const rightDice = rollD10Pool(responsePool.diceCount)
+    const rightDice = rollD10Pool(responsePool.diceCount, getCharacterHunger(selectedActiveCharacter))
     const rightSide: OpposedRollSide = {
       id: 'right',
       actorName: selectedActiveCharacter.name || 'Ответчик',
@@ -2280,7 +2296,7 @@ export default function VampireTable() {
       window.alert('Сначала выбери активного персонажа.')
       return
     }
-    const dice = rollD10Pool(diceCount)
+    const dice = rollD10Pool(diceCount, getCharacterHunger(character))
     const successes = countD10Successes(dice)
     const roll: RollMessage = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,

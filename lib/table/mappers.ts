@@ -95,6 +95,7 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     appearance: data.appearance || '',
     backstory: data.backstory || '',
     freeExp: Number(data.freeExp ?? data.experience ?? 0) || 0,
+    vitalTrackers: data.vitalTrackers || {},
     inventory: normalizeInventory(data.inventory),
     attributes: data.attributes || {},
     skills: data.skills || {},

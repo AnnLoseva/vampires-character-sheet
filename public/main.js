@@ -2912,6 +2912,16 @@ const DICE_SUPABASE_URL = 'https://klhxbaagarqxaqnrvurr.supabase.co';
 const DICE_SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtsaHhiYWFnYXJxeGFxbnJ2dXJyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzgwNzkwNjAsImV4cCI6MjA5MzY1NTA2MH0.Cy2496DJgJhqZkERL9h19FkiiTfkcW2pauPaJU5r5oY';
 const DICE_ATTRIBUTES = ["Сила", "Ловкость", "Выносливость", "Обаяние", "Манипуляция", "Самообладание", "Интеллект", "Смекалка", "Упорство"];
 const DICE_SKILLS = ["Атлетика", "Вождение", "Воровство", "Выживание", "Драка", "Ремесло", "Скрытность", "Стрельба", "Фехтование", "Запугивание", "Исполнение", "Лидерство", "Обращение с животными", "Проницательность", "Убеждение", "Уличное чутьё", "Хитрость", "Этикет", "Гуманитарные науки", "Естественные науки", "Медицина", "Наблюдательность", "Оккультизм", "Политика", "Расследование", "Техника", "Финансы"];
+const DICE_ROLL_IMAGES = {
+    fail: { src: '/static/dice/fail.png', label: 'провал' },
+    success: { src: '/static/dice/success.png', label: 'успех' },
+    critical: { src: '/static/dice/critical-success.png', label: 'критический успех' },
+    botch: { src: '/static/dice/fail.png', label: 'провал' },
+    'hunger-fail': { src: '/static/dice/hunger-fail.png', label: 'провал Голода' },
+    'hunger-success': { src: '/static/dice/hunger-success.png', label: 'успех Голода' },
+    'hunger-critical-success': { src: '/static/dice/hunger-critical-success.png', label: 'критический успех Голода' },
+    'hunger-critical-fail': { src: '/static/dice/hunger-critical-fail.png', label: 'критический провал Голода' }
+};
 let pendingDicePool = null;
 let diceRollChannel = null;
 let diceSupabaseClient = null;
@@ -3214,13 +3224,14 @@ function updateDiceRollPoolPreview() {
     if (!preview) return;
 
     const pool = readDiceRollPool();
+    const hungerDiceCount = getCurrentHungerDiceCount(pool.diceCount);
     const modifierText = pool.modifier
         ? ` ${pool.modifier > 0 ? '+' : '-'} ${Math.abs(pool.modifier)}${pool.modifierLabel ? ` (${pool.modifierLabel})` : ''}`
         : '';
 
     preview.innerHTML = `
         <strong>${pool.diceCount}к10</strong>
-        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}`)}</span>
+        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}`)}${hungerDiceCount ? ` · Голод: ${hungerDiceCount}` : ''}</span>
     `;
 }
 
@@ -3230,13 +3241,27 @@ function closeDiceRollModal() {
     pendingDicePool = null;
 }
 
-function rollD10Pool(count) {
-    return Array.from({ length: count }, () => {
+function getCurrentHungerDiceCount(diceCount = Infinity) {
+    const hunger = Math.max(0, Math.min(5, parseInt(vitalTrackers.hunger || 0, 10) || 0));
+    return Math.max(0, Math.min(hunger, Math.max(0, parseInt(diceCount, 10) || 0)));
+}
+
+function getDiceKind(value, isHunger) {
+    if (isHunger) {
+        if (value === 1) return 'hunger-critical-fail';
+        if (value === 10) return 'hunger-critical-success';
+        return value >= 6 ? 'hunger-success' : 'hunger-fail';
+    }
+    if (value === 10) return 'critical';
+    return value >= 6 ? 'success' : 'fail';
+}
+
+function rollD10Pool(count, hungerDiceCount = 0) {
+    const safeCount = Math.max(0, Math.min(20, parseInt(count, 10) || 0));
+    const safeHungerDiceCount = Math.max(0, Math.min(5, safeCount, parseInt(hungerDiceCount, 10) || 0));
+    return Array.from({ length: safeCount }, (_, index) => {
         const value = Math.floor(Math.random() * 10) + 1;
-        let kind = 'fail';
-        if (value === 1) kind = 'botch';
-        if (value >= 6) kind = 'success';
-        if (value === 10) kind = 'critical';
+        const kind = getDiceKind(value, index < safeHungerDiceCount);
         return { value, kind };
     });
 }
@@ -3250,7 +3275,10 @@ function countV5Successes(dice) {
 function renderDicePreview(dice, successes) {
     return `
         <div class="dice-roll-dice">
-            ${dice.map(die => `<span class="dice-roll-die dice-roll-${die.kind}">${die.value}</span>`).join('')}
+            ${dice.map(die => {
+                const image = DICE_ROLL_IMAGES[die.kind] || DICE_ROLL_IMAGES.fail;
+                return `<span class="dice-roll-die dice-roll-${die.kind}" aria-label="${escapeDiceHtml(`${image.label}: ${die.value}`)}" title="${escapeDiceHtml(`${die.value} - ${image.label}`)}"><img src="${image.src}" alt="" draggable="false"></span>`;
+            }).join('')}
         </div>
         <div class="dice-roll-successes">Успехов: ${successes}</div>
     `;
@@ -3269,7 +3297,7 @@ function confirmDiceRoll() {
         return;
     }
 
-    const dice = rollD10Pool(pool.diceCount);
+    const dice = rollD10Pool(pool.diceCount, getCurrentHungerDiceCount(pool.diceCount));
     const successes = countV5Successes(dice);
     const roll = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,

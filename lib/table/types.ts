@@ -66,6 +66,12 @@ export type CharacterOption = {
   appearance?: string
   backstory?: string
   freeExp?: number
+  vitalTrackers?: {
+    health?: number
+    willpower?: number
+    humanity?: number
+    hunger?: number
+  }
   inventory: InventoryItem[]
   attributes: Record<string, number>
   skills: Record<string, number | { dots?: number; specs?: string[] }>
@@ -92,6 +98,12 @@ export type CharacterRow = {
     backstory?: string
     freeExp?: number
     experience?: number
+    vitalTrackers?: {
+      health?: number
+      willpower?: number
+      humanity?: number
+      hunger?: number
+    }
     inventory?: InventoryItem[]
     attributes?: Record<string, number>
     skills?: Record<string, number | { dots?: number; specs?: string[] }>
