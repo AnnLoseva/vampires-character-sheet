@@ -365,14 +365,16 @@ function renderSkills() {
 const VITAL_TRACKER_CONFIG = {
     health: { valueId: 'val-hp', trackId: 'track-health', captionId: 'track-health-caption', label: 'Здоровье' },
     willpower: { valueId: 'val-wp', trackId: 'track-willpower', captionId: 'track-willpower-caption', label: 'Сила воли' },
-    humanity: { valueId: 'val-humanity', trackId: 'track-humanity', captionId: 'track-humanity-caption', label: 'Человечность' }
+    humanity: { valueId: 'val-humanity', trackId: 'track-humanity', captionId: 'track-humanity-caption', label: 'Человечность' },
+    hunger: { valueId: 'val-hunger', trackId: 'track-hunger', captionId: 'track-hunger-caption', label: 'Голод', max: 5, displayCurrent: true }
 };
 
-let vitalTrackers = { health: 0, willpower: 0, humanity: 0 };
+let vitalTrackers = { health: 0, willpower: 0, humanity: 0, hunger: 0 };
 
 function getVitalMax(key) {
     const config = VITAL_TRACKER_CONFIG[key];
     if (!config) return 0;
+    if (Number.isFinite(config.max)) return config.max;
     return Math.max(0, parseInt(document.getElementById(config.valueId)?.textContent || '0', 10) || 0);
 }
 
@@ -380,7 +382,8 @@ function getVitalTrackerData() {
     return {
         health: Math.max(0, Math.min(getVitalMax('health'), parseInt(vitalTrackers.health || 0, 10) || 0)),
         willpower: Math.max(0, Math.min(getVitalMax('willpower'), parseInt(vitalTrackers.willpower || 0, 10) || 0)),
-        humanity: Math.max(0, Math.min(getVitalMax('humanity'), parseInt(vitalTrackers.humanity || 0, 10) || 0))
+        humanity: Math.max(0, Math.min(getVitalMax('humanity'), parseInt(vitalTrackers.humanity || 0, 10) || 0)),
+        hunger: Math.max(0, Math.min(getVitalMax('hunger'), parseInt(vitalTrackers.hunger || 0, 10) || 0))
     };
 }
 
@@ -394,7 +397,8 @@ function normalizeVitalTrackerData(data = {}) {
     return {
         health: Math.max(0, parseInt(data.health || 0, 10) || 0),
         willpower: Math.max(0, parseInt(data.willpower || 0, 10) || 0),
-        humanity: Math.max(0, parseInt(data.humanity || 0, 10) || 0)
+        humanity: Math.max(0, parseInt(data.humanity || 0, 10) || 0),
+        hunger: Math.max(0, parseInt(data.hunger || 0, 10) || 0)
     };
 }
 
@@ -408,12 +412,19 @@ function renderVitalTracker(key) {
     const max = getVitalMax(key);
     const current = Math.max(0, Math.min(max, parseInt(vitalTrackers[key] || 0, 10) || 0));
     vitalTrackers[key] = current;
+    if (config.displayCurrent) {
+        const valueEl = document.getElementById(config.valueId);
+        if (valueEl) {
+            valueEl.textContent = current;
+            valueEl.setAttribute('data-tooltip', `${config.label} = ${current} из ${max}`);
+        }
+    }
 
     track.innerHTML = '';
     for (let index = 1; index <= max; index++) {
         const button = document.createElement('button');
         button.type = 'button';
-        button.className = `vital-box${index <= current ? ' filled' : ''}`;
+        button.className = `vital-box vital-${key}${index <= current ? ' filled' : ''}`;
         button.setAttribute('aria-label', `${config.label}: ${index} из ${max}`);
         button.setAttribute('aria-pressed', index <= current ? 'true' : 'false');
         button.title = `${config.label}: ${index} / ${max}`;
@@ -460,6 +471,7 @@ function updateVitals() {
 
     // Сила крови
     updateBloodPotencyVital();
+    renderVitalTracker('hunger');
 }
 
 function updateBloodPotencyVital() {
@@ -5674,7 +5686,7 @@ function resetCharacterSheetForLoad() {
     selectedFlaws = [];
     selectedThinBloodMerits = [];
     selectedThinBloodFlaws = [];
-    vitalTrackers = { health: 0, willpower: 0, humanity: 0 };
+    vitalTrackers = { health: 0, willpower: 0, humanity: 0, hunger: 0 };
     clanProvidedDisciplines = {};
     predatorProvidedDisciplines = {};
     currentPredatorSpecialty = null;
@@ -6335,6 +6347,7 @@ function getSheetPdfData() {
             ['Здоровье', getVitalTrackerSummary('health')],
             ['Сила воли', getVitalTrackerSummary('willpower')],
             ['Человечность', getVitalTrackerSummary('humanity')],
+            ['Голод', getVitalTrackerSummary('hunger')],
             ['Сила крови', getTextValue('val-blood-potency')],
             ['Свободный опыт', getInputValue('free-exp')]
         ],

@@ -780,6 +780,12 @@
             box-shadow: 0 0 10px rgba(255, 49, 49, 0.65);
         }
 
+        .vital-box.vital-hunger.filled {
+            background: #760000;
+            border-color: #b00000;
+            box-shadow: 0 0 12px rgba(176, 0, 0, 0.75);
+        }
+
         .vital-track-caption {
             color: #777;
             font-size: 10px;
@@ -2338,6 +2344,14 @@
                 <option value="7" selected>Старт 7</option>
                 <option value="8">Старт 8</option>
             </select>
+        </div>
+    </div>
+    <div class="vital-item vampire-only">
+        <span>Голод</span>
+        <div class="vital-stack">
+            <div id="val-hunger" class="vital-value" style="color:white" data-tooltip="Голод = текущий уровень голода">0</div>
+            <div id="track-hunger" class="vital-track" aria-label="Закрашенные клетки голода"></div>
+            <small id="track-hunger-caption" class="vital-track-caption">0 / 5</small>
         </div>
     </div>
     <div class="vital-item vampire-only">
