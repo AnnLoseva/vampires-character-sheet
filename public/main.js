@@ -180,6 +180,7 @@ async function initializeApp() {
         const savedMortalTpl = localStorage.getItem('vtm-mortal-template');
         if (savedMortalTpl) currentMortalTemplate = savedMortalTpl;
         setCharacterType(savedType);
+        renderVitalTrackers();
 
         // Обновлять морталь-трекер при смене характеристик/навыков
         document.addEventListener('change', function(e) {
@@ -361,6 +362,78 @@ function renderSkills() {
 
 
 // ==================== ОБНОВЛЕНИЕ ВИТАЛОВ + ПОДСКАЗКИ ====================
+const VITAL_TRACKER_CONFIG = {
+    health: { valueId: 'val-hp', trackId: 'track-health', captionId: 'track-health-caption', label: 'Здоровье' },
+    willpower: { valueId: 'val-wp', trackId: 'track-willpower', captionId: 'track-willpower-caption', label: 'Сила воли' },
+    humanity: { valueId: 'val-humanity', trackId: 'track-humanity', captionId: 'track-humanity-caption', label: 'Человечность' }
+};
+
+let vitalTrackers = { health: 0, willpower: 0, humanity: 0 };
+
+function getVitalMax(key) {
+    const config = VITAL_TRACKER_CONFIG[key];
+    if (!config) return 0;
+    return Math.max(0, parseInt(document.getElementById(config.valueId)?.textContent || '0', 10) || 0);
+}
+
+function getVitalTrackerData() {
+    return {
+        health: Math.max(0, Math.min(getVitalMax('health'), parseInt(vitalTrackers.health || 0, 10) || 0)),
+        willpower: Math.max(0, Math.min(getVitalMax('willpower'), parseInt(vitalTrackers.willpower || 0, 10) || 0)),
+        humanity: Math.max(0, Math.min(getVitalMax('humanity'), parseInt(vitalTrackers.humanity || 0, 10) || 0))
+    };
+}
+
+function getVitalTrackerSummary(key) {
+    const max = getVitalMax(key);
+    const current = getVitalTrackerData()[key] || 0;
+    return `${max} (закрашено ${current}/${max})`;
+}
+
+function normalizeVitalTrackerData(data = {}) {
+    return {
+        health: Math.max(0, parseInt(data.health || 0, 10) || 0),
+        willpower: Math.max(0, parseInt(data.willpower || 0, 10) || 0),
+        humanity: Math.max(0, parseInt(data.humanity || 0, 10) || 0)
+    };
+}
+
+function renderVitalTracker(key) {
+    const config = VITAL_TRACKER_CONFIG[key];
+    if (!config) return;
+    const track = document.getElementById(config.trackId);
+    const caption = document.getElementById(config.captionId);
+    if (!track) return;
+
+    const max = getVitalMax(key);
+    const current = Math.max(0, Math.min(max, parseInt(vitalTrackers[key] || 0, 10) || 0));
+    vitalTrackers[key] = current;
+
+    track.innerHTML = '';
+    for (let index = 1; index <= max; index++) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = `vital-box${index <= current ? ' filled' : ''}`;
+        button.setAttribute('aria-label', `${config.label}: ${index} из ${max}`);
+        button.setAttribute('aria-pressed', index <= current ? 'true' : 'false');
+        button.title = `${config.label}: ${index} / ${max}`;
+        button.addEventListener('click', () => setVitalTrackerValue(key, index));
+        track.appendChild(button);
+    }
+    if (caption) caption.textContent = `${current} / ${max}`;
+}
+
+function renderVitalTrackers() {
+    Object.keys(VITAL_TRACKER_CONFIG).forEach(renderVitalTracker);
+}
+
+function setVitalTrackerValue(key, value) {
+    const max = getVitalMax(key);
+    const next = vitalTrackers[key] === value ? value - 1 : value;
+    vitalTrackers[key] = Math.max(0, Math.min(max, next));
+    renderVitalTracker(key);
+}
+
 function updateVitals() {
     // Здоровье
     const staminaInput = document.querySelector('input[name="Выносливость"]:checked');
@@ -379,6 +452,8 @@ function updateVitals() {
     document.getElementById('val-wp').textContent = wp;
     document.getElementById('val-wp').setAttribute('data-tooltip', 
         `Сила воли = Самообладание(${composure}) + Упорство(${resolve}) = ${wp}`);
+    renderVitalTracker('health');
+    renderVitalTracker('willpower');
 
     // Человечность
     updateHumanity();
@@ -425,6 +500,7 @@ function updateHumanity() {
         el.setAttribute('data-tooltip',
             `Человечность = старт(${baseHumanity}) + тип(${typeMod >= 0 ? '+' : ''}${typeMod}) + стиль охоты(${predatorMod >= 0 ? '+' : ''}${predatorMod}) = ${humanity}`);
     }
+    renderVitalTracker('humanity');
 }
 
 
@@ -2615,6 +2691,8 @@ function updateTrackers() {
 
     document.getElementById('val-hp').textContent = stamina + 3;
     document.getElementById('val-wp').textContent = composure + resolve;
+    renderVitalTracker('health');
+    renderVitalTracker('willpower');
 
     if (isMortal) {
         // Режим смертного: используем лимиты шаблона
@@ -5529,6 +5607,7 @@ function getFullCharacterData() {
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
+        vitalTrackers: getVitalTrackerData(),
         freeExp: getCurrentXP(),
         expHistory: JSON.parse(JSON.stringify(expHistory || [])),
         skillPackage: document.getElementById('skill-package').value,
@@ -5595,6 +5674,7 @@ function resetCharacterSheetForLoad() {
     selectedFlaws = [];
     selectedThinBloodMerits = [];
     selectedThinBloodFlaws = [];
+    vitalTrackers = { health: 0, willpower: 0, humanity: 0 };
     clanProvidedDisciplines = {};
     predatorProvidedDisciplines = {};
     currentPredatorSpecialty = null;
@@ -5610,6 +5690,7 @@ function resetCharacterSheetForLoad() {
     renderCharacterImage();
     renderTouchstones();
     renderInventory();
+    renderVitalTrackers();
 }
 
 function applyCharacterData(d, sourceName = 'JSON') {
@@ -5646,6 +5727,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         if (document.getElementById('generation-input')) document.getElementById('generation-input').value = d.generation || '';
         if (document.getElementById('type-input')) document.getElementById('type-input').value = d.type || '';
         if (document.getElementById('base-humanity')) document.getElementById('base-humanity').value = d.baseHumanity || '7';
+        vitalTrackers = normalizeVitalTrackerData(d.vitalTrackers || {});
         if (document.getElementById('free-exp')) document.getElementById('free-exp').value = parseInt(d.freeExp ?? d.experience ?? 0, 10) || 0;
         expHistory = Array.isArray(d.expHistory) ? JSON.parse(JSON.stringify(d.expHistory)) : [];
         renderExpHistory();
@@ -6250,9 +6332,9 @@ function getSheetPdfData() {
         attrValues: Object.values(attrGroups).flat().reduce((acc, name) => ({ ...acc, [name]: getCheckedDots(name, 1) }), {}),
         skillValues: Object.values(skillGroups).flat().reduce((acc, name) => ({ ...acc, [name]: getCheckedDots(name, 0) }), {}),
         vitals: [
-            ['Здоровье', getTextValue('val-hp')],
-            ['Сила воли', getTextValue('val-wp')],
-            ['Человечность', getTextValue('val-humanity')],
+            ['Здоровье', getVitalTrackerSummary('health')],
+            ['Сила воли', getVitalTrackerSummary('willpower')],
+            ['Человечность', getVitalTrackerSummary('humanity')],
             ['Сила крови', getTextValue('val-blood-potency')],
             ['Свободный опыт', getInputValue('free-exp')]
         ],
@@ -7380,6 +7462,7 @@ function captureSheetSnapshot() {
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
+        vitalTrackers: getVitalTrackerData(),
         skillPackage: document.getElementById('skill-package')?.value || '',
         levels: captureCurrentLevels(),
         skills: JSON.parse(JSON.stringify(getFullCharacterData().skills || {})),

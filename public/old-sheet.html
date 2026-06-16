@@ -690,7 +690,8 @@
         /* ==================== ВСПЛЫВАЮЩИЕ ПОДСКАЗКИ ==================== */
         .tooltip-trigger:hover::after,
         .dot-label:hover::after,
-        .vital-item div:hover::after {
+        .vital-item .vital-value:hover::after,
+        .vital-item .blood-potency:hover::after {
             content: none !important;
             display: none !important;
             position: absolute !important;
@@ -724,10 +725,66 @@
             margin-bottom: 6px; 
         }
 
-        .vital-item div { 
+        .vital-item .vital-value,
+        .vital-item .blood-potency {
             font-size: 32px; 
             color: var(--v-red); 
             font-weight: bold; 
+        }
+
+        .vital-stack {
+            display: grid;
+            gap: 8px;
+            justify-items: center;
+        }
+
+        .vital-humanity-stack {
+            display: grid;
+            gap: 6px;
+            justify-items: end;
+        }
+
+        .vital-track {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 5px;
+            max-width: 188px;
+            min-height: 19px;
+            font-size: 0;
+        }
+
+        .vital-humanity-stack .vital-track {
+            justify-content: flex-end;
+        }
+
+        .vital-box {
+            width: 18px;
+            height: 18px;
+            border: 2px solid #555;
+            border-radius: 4px;
+            background: #111;
+            cursor: pointer;
+            padding: 0;
+            transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+        }
+
+        .vital-box:hover {
+            border-color: #ff7777;
+            transform: translateY(-1px);
+        }
+
+        .vital-box.filled {
+            background: var(--v-red);
+            border-color: var(--v-red);
+            box-shadow: 0 0 10px rgba(255, 49, 49, 0.65);
+        }
+
+        .vital-track-caption {
+            color: #777;
+            font-size: 10px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
 
         /* ==================== ДИСЦИПЛИНЫ ==================== */
@@ -2257,16 +2314,26 @@
 <div class="vitals">
     <div class="vital-item">
         <span>Здоровье</span>
-        <div id="val-hp" style="color:white" data-tooltip="Здоровье = Выносливость + 3">4</div>
+        <div class="vital-stack">
+            <div id="val-hp" class="vital-value" style="color:white" data-tooltip="Здоровье = Выносливость + 3">4</div>
+            <div id="track-health" class="vital-track" aria-label="Закрашенные клетки здоровья"></div>
+            <small id="track-health-caption" class="vital-track-caption">0 / 4</small>
+        </div>
     </div>
     <div class="vital-item">
         <span>Сила воли</span>
-        <div id="val-wp" style="color:white" data-tooltip="Сила воли = Самообладание + Упорство">2</div>
+        <div class="vital-stack">
+            <div id="val-wp" class="vital-value" style="color:white" data-tooltip="Сила воли = Самообладание + Упорство">2</div>
+            <div id="track-willpower" class="vital-track" aria-label="Закрашенные клетки силы воли"></div>
+            <small id="track-willpower-caption" class="vital-track-caption">0 / 2</small>
+        </div>
     </div>
     <div class="vital-item vampire-only">
         <span>Человечность</span>
-        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
-            <div id="val-humanity" style="color:white" data-tooltip="Базовая Человечность = старт (7 или 8) + модификатор от типа и стиля охоты">7</div>
+        <div class="vital-humanity-stack">
+            <div id="val-humanity" class="vital-value" style="color:white" data-tooltip="Базовая Человечность = старт (7 или 8) + модификатор от типа и стиля охоты">7</div>
+            <div id="track-humanity" class="vital-track" aria-label="Закрашенные клетки человечности"></div>
+            <small id="track-humanity-caption" class="vital-track-caption">0 / 7</small>
             <select id="base-humanity" style="background:#111; color:#fff; border:1px solid #444; border-radius:4px; padding:2px 6px; font-size:12px;">
                 <option value="7" selected>Старт 7</option>
                 <option value="8">Старт 8</option>
