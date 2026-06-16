@@ -3,6 +3,23 @@ export type Die = {
   kind: 'fail' | 'success' | 'critical' | 'botch'
 }
 
+export type OpposedRollSide = {
+  id: 'left' | 'right'
+  actorName: string
+  actorKind: 'player' | 'npc'
+  poolName: string
+  diceCount: number
+  dice: Die[]
+  successes: number
+}
+
+export type OpposedRollResult = {
+  sides: [OpposedRollSide, OpposedRollSide]
+  winnerSideId: 'left' | 'right' | null
+  outcome: 'left' | 'right' | 'tie'
+  summary: string
+}
+
 export type RollMessage = {
   id: string
   room: string
@@ -14,6 +31,7 @@ export type RollMessage = {
   successes: number
   createdAt: string
   hidden?: boolean
+  opposed?: OpposedRollResult
 }
 
 export type RollRow = {
@@ -23,7 +41,7 @@ export type RollRow = {
   pool_name: string
   pool_type: string
   dice_count: number
-  dice: Die[]
+  dice: unknown
   successes: number
   created_at: string
 }

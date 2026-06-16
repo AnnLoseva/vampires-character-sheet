@@ -1881,6 +1881,7 @@ export default function GameTableStyles() {
         }
 
         .preview-roll-submit:disabled,
+        .opposed-roll-submit:disabled,
         .quick-roll-grid button:disabled,
         .discipline-power-roll-controls button:disabled {
           cursor: not-allowed;
@@ -3038,6 +3039,111 @@ export default function GameTableStyles() {
           font-size: 19px;
         }
 
+        .opposed-roll-panel {
+          display: grid;
+          gap: 10px;
+          padding: 10px;
+          border-bottom: 1px solid #292929;
+          background: #101010;
+        }
+
+        .opposed-roll-panel header {
+          display: block;
+        }
+
+        .opposed-roll-panel header div {
+          border: 0;
+          padding: 0;
+        }
+
+        .opposed-roll-panel header span,
+        .opposed-side-heading span,
+        .opposed-side-builder label > span,
+        .opposed-side-status {
+          color: #9c9c9c;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .opposed-roll-panel header strong {
+          color: #f4f4f4;
+          font-size: 13px;
+        }
+
+        .opposed-roll-builders {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 8px;
+        }
+
+        .opposed-side-builder {
+          min-width: 0;
+          display: grid;
+          gap: 8px;
+          border: 1px solid #303030;
+          border-radius: 7px;
+          background: #151515;
+          padding: 8px;
+        }
+
+        .opposed-side-heading {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .opposed-side-heading strong {
+          color: #36d675;
+          font-size: 13px;
+          white-space: nowrap;
+        }
+
+        .opposed-side-builder label,
+        .opposed-manual-controls,
+        .opposed-trait-controls {
+          min-width: 0;
+          display: grid;
+          gap: 6px;
+        }
+
+        .opposed-manual-controls,
+        .opposed-trait-controls {
+          grid-template-columns: minmax(0, 1fr);
+        }
+
+        .opposed-side-builder select,
+        .opposed-side-builder input {
+          width: 100%;
+          min-width: 0;
+          height: 32px;
+          box-sizing: border-box;
+          border: 1px solid #353535;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 0 8px;
+          font: inherit;
+          font-size: 11px;
+        }
+
+        .opposed-side-status {
+          margin: 0;
+          text-transform: none;
+        }
+
+        .opposed-roll-submit {
+          min-height: 34px;
+          border: 1px solid #2f7650;
+          border-radius: 6px;
+          background: #164b2b;
+          color: #fff;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
         .roll-card {
           border: 1px solid #303030;
           border-radius: 8px;
@@ -3129,6 +3235,68 @@ export default function GameTableStyles() {
         .roll-card footer strong {
           color: #36d675;
           font-size: 18px;
+        }
+
+        .opposed-roll-result {
+          display: grid;
+          gap: 8px;
+          margin-top: 10px;
+        }
+
+        .opposed-result-badge {
+          width: fit-content;
+          border: 1px solid rgba(54, 214, 117, 0.42);
+          border-radius: 999px;
+          background: #102017;
+          color: #6df0a0;
+          padding: 4px 9px;
+          font-size: 11px;
+        }
+
+        .opposed-result-badge.outcome-tie {
+          border-color: #4a4a4a;
+          background: #1a1a1a;
+          color: #d0d0d0;
+        }
+
+        .opposed-result-side {
+          display: grid;
+          gap: 6px;
+          border: 1px solid #303030;
+          border-radius: 7px;
+          background: #111;
+          padding: 8px;
+        }
+
+        .opposed-result-side.winner {
+          border-color: rgba(54, 214, 117, 0.42);
+          background: #111b15;
+        }
+
+        .opposed-result-side.loser {
+          opacity: 0.72;
+        }
+
+        .opposed-result-side > div:first-child,
+        .opposed-result-side footer {
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          align-items: center;
+        }
+
+        .opposed-result-side > div:first-child strong,
+        .opposed-result-side footer strong {
+          color: #f4f4f4;
+          font-size: 13px;
+        }
+
+        .opposed-result-side > div:first-child span,
+        .opposed-result-side footer span {
+          min-width: 0;
+          color: #aaa;
+          font-size: 11px;
+          text-align: right;
         }
 
         .chat-sidebar {
@@ -4114,6 +4282,10 @@ export default function GameTableStyles() {
 
           .preview-roll-controls label:nth-child(-n+4) {
             grid-column: 1 / -1;
+          }
+
+          .opposed-roll-builders {
+            grid-template-columns: minmax(0, 1fr);
           }
 
           .discipline-detail-modal {

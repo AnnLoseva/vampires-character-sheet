@@ -98,6 +98,8 @@ import type {
   MasterReveal,
   MasterWhisper,
   MediaTab,
+  OpposedRollResult,
+  OpposedRollSide,
   RightRailTab,
   RollMessage,
   RollRow,
@@ -161,6 +163,42 @@ type DisciplinePowerEntry = {
 type PowerPoolChoice = {
   source: string
   options: string[]
+}
+
+type OpposedSideKey = 'left' | 'right'
+
+type OpposedSideBuilder = {
+  actorId: string
+  attribute: string
+  attributeTwo: string
+  skill: string
+  discipline: string
+  modifier: number
+  manualName: string
+  manualDice: number
+}
+
+type OpposedRollBuilder = Record<OpposedSideKey, OpposedSideBuilder>
+
+type OpposedActorOption = {
+  id: string
+  label: string
+  actorKind: 'player' | 'npc'
+  characterId: string | null
+  character?: CharacterOption
+  username?: string
+  manual?: boolean
+}
+
+const DEFAULT_OPPOSED_SIDE: OpposedSideBuilder = {
+  actorId: '',
+  attribute: '',
+  attributeTwo: '',
+  skill: '',
+  discipline: '',
+  modifier: 0,
+  manualName: '',
+  manualDice: 5,
 }
 
 const ATTRIBUTE_NAMES = ATTRIBUTE_GROUPS.flatMap(group => [...group.traits])
@@ -230,6 +268,21 @@ function getPowerDifficultySummary(rule?: DisciplinePowerRule | null) {
     rule?.soak_difficulty ? `прочность: ${formatRuleValue(rule.soak_difficulty)}` : '',
   ].filter(Boolean)
   return rows.join(' · ')
+}
+
+function rollD10Pool(diceCount: number) {
+  return Array.from({ length: Math.max(1, Math.min(20, diceCount)) }, () => {
+    const value = Math.floor(Math.random() * 10) + 1
+    return {
+      value,
+      kind: value === 1 ? 'botch' : value === 10 ? 'critical' : value >= 6 ? 'success' : 'fail',
+    } as Die
+  })
+}
+
+function countD10Successes(dice: Die[]) {
+  const criticals = dice.filter(die => die.value === 10).length
+  return dice.filter(die => die.value >= 6).length + Math.floor(criticals / 2) * 2
 }
 
 function parsePowerPool(pool: string, disciplineNames: string[]) {
@@ -406,6 +459,11 @@ export default function VampireTable() {
   const [masterRollSkill, setMasterRollSkill] = useState('')
   const [masterRollDiscipline, setMasterRollDiscipline] = useState('')
   const [masterRollModifier, setMasterRollModifier] = useState(0)
+  const [opposedRoll, setOpposedRoll] = useState<OpposedRollBuilder>({
+    left: { ...DEFAULT_OPPOSED_SIDE, manualName: 'НПС 1' },
+    right: { ...DEFAULT_OPPOSED_SIDE, manualName: 'НПС 2' },
+  })
+  const [opposedCharacterCache, setOpposedCharacterCache] = useState<Record<string, CharacterOption>>({})
   const [previewDisciplineName, setPreviewDisciplineName] = useState('')
   const [disciplineRules, setDisciplineRules] = useState<Record<string, DisciplineRule> | null>(null)
   const [disciplineRulesStatus, setDisciplineRulesStatus] = useState('')
@@ -1562,6 +1620,78 @@ export default function VampireTable() {
     return `${entry.title} ${entry.text}`.toLowerCase().includes(query)
   })
   const masterChatPlayers = roomParticipants.filter(participant => participant.userId !== chatUser?.id)
+  const opposedActorOptions = useMemo(() => {
+    const options: OpposedActorOption[] = []
+    const seen = new Set<string>()
+    const addOption = (option: OpposedActorOption) => {
+      if (seen.has(option.id)) return
+      seen.add(option.id)
+      options.push(option)
+    }
+
+    if (isMaster) {
+      roomParticipants
+        .filter(participant => participant.characterId)
+        .forEach(participant => {
+          const characterId = participant.characterId || ''
+          const localCharacter = chatCharacters.find(character => character.id === characterId)
+            || opposedCharacterCache[characterId]
+          addOption({
+            id: `player:${characterId}`,
+            label: `${participant.characterName} · ${participant.username}`,
+            actorKind: 'player',
+            characterId,
+            character: localCharacter,
+            username: participant.username,
+          })
+        })
+
+      chatCharacters.forEach(character => {
+        addOption({
+          id: `npc:${character.id}`,
+          label: `${character.name} · НПС`,
+          actorKind: 'npc',
+          characterId: character.id,
+          character,
+        })
+      })
+
+      addOption({
+        id: 'manual:npc',
+        label: 'НПС без листа',
+        actorKind: 'npc',
+        characterId: null,
+        manual: true,
+      })
+    } else {
+      if (selectedActiveCharacter) {
+        addOption({
+          id: `player:${selectedActiveCharacter.id}`,
+          label: `${selectedActiveCharacter.name} · ты`,
+          actorKind: 'player',
+          characterId: selectedActiveCharacter.id,
+          character: selectedActiveCharacter,
+          username: chatUser?.username,
+        })
+      }
+
+      roomParticipants
+        .filter(participant => participant.characterId && participant.userId !== chatUser?.id)
+        .forEach(participant => {
+          const characterId = participant.characterId || ''
+          addOption({
+            id: `player:${characterId}`,
+            label: `${participant.characterName} · ${participant.username}`,
+            actorKind: 'player',
+            characterId,
+            character: opposedCharacterCache[characterId],
+            username: participant.username,
+          })
+        })
+    }
+
+    return options
+  }, [chatCharacters, chatUser?.id, chatUser?.username, isMaster, opposedCharacterCache, roomParticipants, selectedActiveCharacter])
   const visibleMasterWhispers = masterWhispers.filter(message => {
     if (!chatUser) return false
     if (isMaster) return !selectedMasterChatUserId
@@ -1592,6 +1722,70 @@ export default function VampireTable() {
   ].filter(Boolean)
   const masterRollPoolName = masterRollPoolParts.join(' + ') || `${masterRollDiceCount || 1}к10`
   const masterRollHidden = masterRollVisibility === 'hidden'
+
+  useEffect(() => {
+    setOpposedRoll(current => {
+      const fallbackLeft = !isMaster && selectedActiveCharacter
+        ? `player:${selectedActiveCharacter.id}`
+        : opposedActorOptions[0]?.id || ''
+      let nextLeftActorId = current.left.actorId
+      let nextRightActorId = current.right.actorId
+
+      if (!isMaster && selectedActiveCharacter) nextLeftActorId = `player:${selectedActiveCharacter.id}`
+      if (!opposedActorOptions.some(option => option.id === nextLeftActorId)) nextLeftActorId = fallbackLeft
+      const nextLeftActor = opposedActorOptions.find(option => option.id === nextLeftActorId)
+      const sameActorForbidden = nextRightActorId === nextLeftActorId && !nextLeftActor?.manual
+      const rightActorMissing = !opposedActorOptions.some(option => option.id === nextRightActorId)
+      if (rightActorMissing || sameActorForbidden) {
+        nextRightActorId = opposedActorOptions.find(option => option.id !== nextLeftActorId)?.id
+          || (nextLeftActor?.manual ? nextLeftActorId : '')
+      }
+
+      if (current.left.actorId === nextLeftActorId && current.right.actorId === nextRightActorId) return current
+      return {
+        ...current,
+        left: { ...current.left, actorId: nextLeftActorId },
+        right: { ...current.right, actorId: nextRightActorId },
+      }
+    })
+  }, [isMaster, opposedActorOptions, selectedActiveCharacter])
+
+  useEffect(() => {
+    const selectedActorIds = [opposedRoll.left.actorId, opposedRoll.right.actorId].filter(Boolean)
+    const missingCharacterIds = Array.from(new Set(selectedActorIds.flatMap(actorId => {
+      const actor = opposedActorOptions.find(option => option.id === actorId)
+      if (!actor?.characterId || actor.character || opposedCharacterCache[actor.characterId]) return []
+      return [actor.characterId]
+    })))
+    if (!missingCharacterIds.length) return
+
+    let cancelled = false
+    Promise.all(missingCharacterIds.map(async characterId => {
+      const { data, error } = await createClient()
+        .from('characters')
+        .select('id, user_id, name, clan, data')
+        .eq('id', characterId)
+        .single()
+      if (error || !data) return null
+      return mapCharacterRow(data as CharacterRow)
+    })).then(characters => {
+      if (cancelled) return
+      const loaded = characters.filter((character): character is CharacterOption => Boolean(character?.id))
+      if (!loaded.length) return
+      setOpposedCharacterCache(current => {
+        const next = { ...current }
+        loaded.forEach(character => {
+          next[character.id] = character
+        })
+        return next
+      })
+    })
+
+    return () => {
+      cancelled = true
+    }
+  }, [opposedActorOptions, opposedCharacterCache, opposedRoll.left.actorId, opposedRoll.right.actorId])
+
   const previewAttributeDots = previewCharacter ? Number(previewCharacter.attributes[previewRollAttribute] || 0) : 0
   const previewAttributeTwoDots = previewCharacter ? Number(previewCharacter.attributes[previewRollAttributeTwo] || 0) : 0
   const previewSkillDots = previewCharacter ? getSkillDots(previewCharacter.skills[previewRollSkill] || 0) : 0
@@ -1754,6 +1948,154 @@ export default function VampireTable() {
     setPreviewCharacter({ ...mapCharacterRow(data as CharacterRow), username: participant.username })
   }
 
+  const updateOpposedSide = (side: OpposedSideKey, patch: Partial<OpposedSideBuilder>) => {
+    setOpposedRoll(current => ({
+      ...current,
+      [side]: { ...current[side], ...patch },
+    }))
+  }
+
+  const getOpposedActor = (actorId: string) => opposedActorOptions.find(option => option.id === actorId) || null
+
+  const getOpposedActorCharacter = (actor: OpposedActorOption | null) => {
+    if (!actor || actor.manual || !actor.characterId) return null
+    return actor.character || opposedCharacterCache[actor.characterId] || null
+  }
+
+  const getOpposedSidePool = (side: OpposedSideKey) => {
+    const sideState = opposedRoll[side]
+    const actor = getOpposedActor(sideState.actorId)
+    const manualDice = Math.max(0, Math.min(20, Math.floor(Number(sideState.manualDice) || 0)))
+    if (actor?.manual) {
+      const actorName = sideState.manualName.trim() || actor.label
+      return {
+        actor,
+        character: null,
+        actorName,
+        actorKind: actor.actorKind,
+        diceCount: manualDice,
+        poolName: `${manualDice || 0}к10`,
+        poolParts: manualDice > 0 ? [`${manualDice}к10`] : [],
+        loading: false,
+        extraAttributes: [] as string[],
+        extraSkills: [] as string[],
+        disciplineNames: [] as string[],
+      }
+    }
+
+    const character = getOpposedActorCharacter(actor)
+    const attributeDots = character ? Number(character.attributes[sideState.attribute] || 0) : 0
+    const attributeTwoDots = character ? Number(character.attributes[sideState.attributeTwo] || 0) : 0
+    const skillDots = character ? getSkillDots(character.skills[sideState.skill] || 0) : 0
+    const disciplineDots = character ? getDisciplineDots(character.disciplines[sideState.discipline] || {}) : 0
+    const diceCount = Math.max(0, Math.min(20, attributeDots + attributeTwoDots + skillDots + disciplineDots + sideState.modifier))
+    const poolParts = [
+      sideState.attribute ? `${sideState.attribute} ${attributeDots}` : '',
+      sideState.attributeTwo ? `${sideState.attributeTwo} ${attributeTwoDots}` : '',
+      sideState.skill ? `${sideState.skill} ${skillDots}` : '',
+      sideState.discipline ? `${sideState.discipline} ${disciplineDots}` : '',
+      sideState.modifier ? `модификатор ${sideState.modifier > 0 ? '+' : ''}${sideState.modifier}` : '',
+    ].filter(Boolean)
+
+    return {
+      actor,
+      character,
+      actorName: character?.name || actor?.label || 'Сторона',
+      actorKind: actor?.actorKind || 'player',
+      diceCount,
+      poolName: poolParts.join(' + ') || `${diceCount || 0}к10`,
+      poolParts,
+      loading: Boolean(actor?.characterId && !character),
+      extraAttributes: character ? getExtraTraitNames(character.attributes, ATTRIBUTE_GROUPS) : [],
+      extraSkills: character ? getExtraTraitNames(character.skills, SKILL_GROUPS) : [],
+      disciplineNames: character
+        ? Array.from(new Set([...Object.keys(character.disciplines), ...Object.keys(character.selectedPowers)])).sort((a, b) => a.localeCompare(b, 'ru'))
+        : [],
+    }
+  }
+
+  const rollOpposedCheck = async () => {
+    const leftPool = getOpposedSidePool('left')
+    const rightPool = getOpposedSidePool('right')
+    if (!leftPool.actor || !rightPool.actor) {
+      window.alert('Выбери две стороны встречной проверки.')
+      return
+    }
+    if (leftPool.actor.id === rightPool.actor.id && !leftPool.actor.manual) {
+      window.alert('Для встречной проверки нужны две разные стороны.')
+      return
+    }
+    if (leftPool.loading || rightPool.loading) {
+      window.alert('Лист выбранного участника ещё загружается.')
+      return
+    }
+    if (leftPool.diceCount < 1 || rightPool.diceCount < 1) {
+      window.alert('У каждой стороны должен быть пул хотя бы 1к10.')
+      return
+    }
+
+    const leftDice = rollD10Pool(leftPool.diceCount)
+    const rightDice = rollD10Pool(rightPool.diceCount)
+    const leftSuccesses = countD10Successes(leftDice)
+    const rightSuccesses = countD10Successes(rightDice)
+    const winnerSideId = leftSuccesses === rightSuccesses ? null : leftSuccesses > rightSuccesses ? 'left' : 'right'
+    const outcome = winnerSideId || 'tie'
+    const summary = winnerSideId === 'left'
+      ? `Победа: ${leftPool.actorName}`
+      : winnerSideId === 'right'
+        ? `Победа: ${rightPool.actorName}`
+        : 'Ничья'
+    const sides: [OpposedRollSide, OpposedRollSide] = [
+      {
+        id: 'left',
+        actorName: leftPool.actorName,
+        actorKind: leftPool.actorKind,
+        poolName: leftPool.poolName,
+        diceCount: leftDice.length,
+        dice: leftDice,
+        successes: leftSuccesses,
+      },
+      {
+        id: 'right',
+        actorName: rightPool.actorName,
+        actorKind: rightPool.actorKind,
+        poolName: rightPool.poolName,
+        diceCount: rightDice.length,
+        dice: rightDice,
+        successes: rightSuccesses,
+      },
+    ]
+    const opposed: OpposedRollResult = { sides, winnerSideId, outcome, summary }
+    const roll: RollMessage = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      characterName: 'Встречная проверка',
+      poolName: `${leftPool.actorName} против ${rightPool.actorName}`,
+      poolType: 'opposed',
+      diceCount: leftDice.length + rightDice.length,
+      dice: [],
+      successes: Math.max(leftSuccesses, rightSuccesses),
+      createdAt: new Date().toISOString(),
+      opposed,
+    }
+
+    setRolls(prev => mergeRoll(prev, roll))
+    broadcast('roll', roll)
+    const { error } = await createClient().from(TABLE_ROLLS).insert({
+      id: roll.id,
+      room: roll.room,
+      character_name: roll.characterName,
+      pool_name: roll.poolName,
+      pool_type: roll.poolType,
+      dice_count: roll.diceCount,
+      dice: opposed,
+      successes: roll.successes,
+      created_at: roll.createdAt,
+    })
+    if (error) setConnectionText('Встречная проверка отправлена онлайн, но не сохранилась')
+    else setConnectionText('Онлайн')
+  }
+
   const rollQuickDice = async (
     diceCount = 1,
     poolName = 'Быстрый бросок',
@@ -1766,15 +2108,8 @@ export default function VampireTable() {
       window.alert('Сначала выбери активного персонажа.')
       return
     }
-    const dice = Array.from({ length: Math.max(1, Math.min(20, diceCount)) }, () => {
-      const value = Math.floor(Math.random() * 10) + 1
-      return {
-        value,
-        kind: value === 1 ? 'botch' : value === 10 ? 'critical' : value >= 6 ? 'success' : 'fail',
-      } as Die
-    })
-    const criticals = dice.filter(die => die.value === 10).length
-    const successes = dice.filter(die => die.value >= 6).length + Math.floor(criticals / 2) * 2
+    const dice = rollD10Pool(diceCount)
+    const successes = countD10Successes(dice)
     const roll: RollMessage = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       room,
@@ -4132,6 +4467,164 @@ export default function VampireTable() {
     return `/character-sheet?${params.toString()}`
   }
 
+  const renderOpposedSideControls = (side: OpposedSideKey, title: string) => {
+    const sideState = opposedRoll[side]
+    const otherSide = side === 'left' ? 'right' : 'left'
+    const otherActorId = opposedRoll[otherSide].actorId
+    const pool = getOpposedSidePool(side)
+    const actor = pool.actor
+    const character = pool.character
+    const actorLocked = !isMaster && side === 'left'
+
+    return (
+      <section className="opposed-side-builder">
+        <div className="opposed-side-heading">
+          <span>{title}</span>
+          <strong>{pool.diceCount || 0}к10</strong>
+        </div>
+
+        <label>
+          <span>Участник</span>
+          <select
+            value={sideState.actorId}
+            onChange={event => updateOpposedSide(side, { actorId: event.target.value })}
+            disabled={actorLocked}
+          >
+            <option value="">Выбрать</option>
+            {opposedActorOptions.map(option => (
+              <option key={option.id} value={option.id} disabled={option.id === otherActorId && !option.manual}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        {actor?.manual ? (
+          <div className="opposed-manual-controls">
+            <label>
+              <span>Имя</span>
+              <input
+                value={sideState.manualName}
+                onChange={event => updateOpposedSide(side, { manualName: event.target.value })}
+              />
+            </label>
+            <label>
+              <span>Пул</span>
+              <input
+                type="number"
+                min="1"
+                max="20"
+                value={sideState.manualDice}
+                onChange={event => updateOpposedSide(side, { manualDice: Math.max(0, Math.min(20, Number(event.target.value) || 0)) })}
+              />
+            </label>
+          </div>
+        ) : (
+          <>
+            {pool.loading ? <p className="opposed-side-status">Лист загружается.</p> : null}
+            <div className="opposed-trait-controls">
+              <label>
+                <span>Характеристика 1</span>
+                <select
+                  value={sideState.attribute}
+                  onChange={event => updateOpposedSide(side, { attribute: event.target.value })}
+                  disabled={!character}
+                >
+                  <option value="">Без характеристики</option>
+                  {ATTRIBUTE_GROUPS.map(group => (
+                    <optgroup key={group.name} label={group.name}>
+                      {group.traits.map(name => <option key={name} value={name} disabled={sideState.attributeTwo === name}>{name} · {Number(character?.attributes[name] || 0)}</option>)}
+                    </optgroup>
+                  ))}
+                  {pool.extraAttributes.length ? (
+                    <optgroup label="Другие">
+                      {pool.extraAttributes.map(name => <option key={name} value={name} disabled={sideState.attributeTwo === name}>{name} · {Number(character?.attributes[name] || 0)}</option>)}
+                    </optgroup>
+                  ) : null}
+                </select>
+              </label>
+              <label>
+                <span>Характеристика 2</span>
+                <select
+                  value={sideState.attributeTwo}
+                  onChange={event => updateOpposedSide(side, { attributeTwo: event.target.value })}
+                  disabled={!character}
+                >
+                  <option value="">Без второй характеристики</option>
+                  {ATTRIBUTE_GROUPS.map(group => (
+                    <optgroup key={group.name} label={group.name}>
+                      {group.traits.map(name => <option key={name} value={name} disabled={sideState.attribute === name}>{name} · {Number(character?.attributes[name] || 0)}</option>)}
+                    </optgroup>
+                  ))}
+                  {pool.extraAttributes.length ? (
+                    <optgroup label="Другие">
+                      {pool.extraAttributes.map(name => <option key={name} value={name} disabled={sideState.attribute === name}>{name} · {Number(character?.attributes[name] || 0)}</option>)}
+                    </optgroup>
+                  ) : null}
+                </select>
+              </label>
+              <label>
+                <span>Навык</span>
+                <select
+                  value={sideState.skill}
+                  onChange={event => updateOpposedSide(side, { skill: event.target.value })}
+                  disabled={!character}
+                >
+                  <option value="">Без навыка</option>
+                  {SKILL_GROUPS.map(group => (
+                    <optgroup key={group.name} label={group.name}>
+                      {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(character?.skills[name] || 0)}</option>)}
+                    </optgroup>
+                  ))}
+                  {pool.extraSkills.length ? (
+                    <optgroup label="Другие">
+                      {pool.extraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(character?.skills[name] || 0)}</option>)}
+                    </optgroup>
+                  ) : null}
+                </select>
+              </label>
+              <label>
+                <span>Дисциплина</span>
+                <select
+                  value={sideState.discipline}
+                  onChange={event => updateOpposedSide(side, { discipline: event.target.value })}
+                  disabled={!character}
+                >
+                  <option value="">Без дисциплины</option>
+                  {pool.disciplineNames.map(name => (
+                    <option key={name} value={name}>{name} · {getDisciplineDots(character?.disciplines[name] || {})}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span>Модификатор</span>
+                <input
+                  type="number"
+                  min="-20"
+                  max="20"
+                  value={sideState.modifier}
+                  onChange={event => updateOpposedSide(side, { modifier: Math.max(-20, Math.min(20, Number(event.target.value) || 0)) })}
+                  disabled={!character}
+                />
+              </label>
+            </div>
+          </>
+        )}
+      </section>
+    )
+  }
+
+  const opposedLeftPool = getOpposedSidePool('left')
+  const opposedRightPool = getOpposedSidePool('right')
+  const canRollOpposed = Boolean(
+    opposedLeftPool.actor
+    && opposedRightPool.actor
+    && opposedLeftPool.diceCount > 0
+    && opposedRightPool.diceCount > 0
+    && !opposedLeftPool.loading
+    && !opposedRightPool.loading
+  )
+
   return (
     <main className="table-page-shell">
       <section className="table-topbar">
@@ -4585,6 +5078,22 @@ export default function VampireTable() {
           </section>
 
           <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label="История бросков">
+            <section className="opposed-roll-panel" aria-label="Встречная проверка">
+              <header>
+                <div>
+                  <span>Встречная</span>
+                  <strong>{opposedLeftPool.diceCount || 0}к10 vs {opposedRightPool.diceCount || 0}к10</strong>
+                </div>
+              </header>
+              <div className="opposed-roll-builders">
+                {renderOpposedSideControls('left', 'Сторона A')}
+                {renderOpposedSideControls('right', 'Сторона B')}
+              </div>
+              <button type="button" className="opposed-roll-submit" onClick={rollOpposedCheck} disabled={!canRollOpposed}>
+                Бросить встречную
+              </button>
+            </section>
+
             <section className="roll-list">
               {rolls.length === 0 ? (
                 <p className="panel-empty">Бросков пока нет.</p>
@@ -4598,18 +5107,48 @@ export default function VampireTable() {
                     </div>
                     <span className="roll-pool">{roll.poolName}</span>
 
-                    <div className="dice-row" aria-label={`Результаты кубиков: ${roll.dice.map(die => die.value).join(', ')}`}>
-                      {roll.dice.map((die, index) => (
-                        <span className={`die die-${die.kind}`} key={`${roll.id}-${index}`}>
-                          {die.value}
-                        </span>
-                      ))}
-                    </div>
+                    {roll.opposed ? (
+                      <div className="opposed-roll-result">
+                        <strong className={`opposed-result-badge outcome-${roll.opposed.outcome}`}>{roll.opposed.summary}</strong>
+                        {roll.opposed.sides.map(side => {
+                          const sideOutcome = roll.opposed?.winnerSideId === side.id ? 'winner' : roll.opposed?.winnerSideId ? 'loser' : 'tie'
+                          return (
+                            <section className={`opposed-result-side ${sideOutcome}`} key={`${roll.id}-${side.id}`}>
+                              <div>
+                                <strong>{side.actorName}</strong>
+                                <span>{side.poolName}</span>
+                              </div>
+                              <div className="dice-row" aria-label={`Результаты кубиков ${side.actorName}: ${side.dice.map(die => die.value).join(', ')}`}>
+                                {side.dice.map((die, index) => (
+                                  <span className={`die die-${die.kind}`} key={`${roll.id}-${side.id}-${index}`}>
+                                    {die.value}
+                                  </span>
+                                ))}
+                              </div>
+                              <footer>
+                                <span>{side.diceCount}к10</span>
+                                <strong>{side.successes}</strong>
+                              </footer>
+                            </section>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <>
+                        <div className="dice-row" aria-label={`Результаты кубиков: ${roll.dice.map(die => die.value).join(', ')}`}>
+                          {roll.dice.map((die, index) => (
+                            <span className={`die die-${die.kind}`} key={`${roll.id}-${index}`}>
+                              {die.value}
+                            </span>
+                          ))}
+                        </div>
 
-                    <footer>
-                      <span>{roll.diceCount}к10</span>
-                      <strong>{roll.successes}</strong>
-                    </footer>
+                        <footer>
+                          <span>{roll.diceCount}к10</span>
+                          <strong>{roll.successes}</strong>
+                        </footer>
+                      </>
+                    )}
                   </article>
                 ))
               )}

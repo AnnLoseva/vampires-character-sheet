@@ -1,7 +1,25 @@
-import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, InventoryItem, LayerPatch, RollMessage, RollRow, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow } from './types'
+import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, Die, InventoryItem, LayerPatch, OpposedRollResult, RollMessage, RollRow, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow } from './types'
 import { getMusicProvider } from '@/components/music/utils'
 
+function isDie(value: unknown): value is Die {
+  if (!value || typeof value !== 'object') return false
+  const die = value as Partial<Die>
+  return typeof die.value === 'number'
+    && (die.kind === 'fail' || die.kind === 'success' || die.kind === 'critical' || die.kind === 'botch')
+}
+
+function isOpposedRollResult(value: unknown): value is OpposedRollResult {
+  if (!value || typeof value !== 'object') return false
+  const result = value as Partial<OpposedRollResult>
+  return Array.isArray(result.sides)
+    && result.sides.length === 2
+    && (result.outcome === 'left' || result.outcome === 'right' || result.outcome === 'tie')
+}
+
 export function mapRollRow(row: RollRow): RollMessage {
+  const dicePayload = row.dice
+  const dice = Array.isArray(dicePayload) ? dicePayload.filter(isDie) : []
+  const opposed = isOpposedRollResult(dicePayload) ? dicePayload : undefined
   return {
     id: row.id,
     room: row.room,
@@ -9,9 +27,10 @@ export function mapRollRow(row: RollRow): RollMessage {
     poolName: row.pool_name,
     poolType: row.pool_type,
     diceCount: row.dice_count,
-    dice: row.dice || [],
+    dice,
     successes: row.successes,
     createdAt: row.created_at,
+    opposed,
   }
 }
 
