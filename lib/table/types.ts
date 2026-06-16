@@ -1,6 +1,6 @@
 export type Die = {
   value: number
-  kind: 'fail' | 'success' | 'critical' | 'botch'
+  kind: 'fail' | 'success' | 'critical' | 'botch' | 'hunger-fail' | 'hunger-success' | 'hunger-critical-success' | 'hunger-critical-fail'
 }
 
 export type OpposedRollSide = {

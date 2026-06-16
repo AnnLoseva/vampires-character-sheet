@@ -212,6 +212,17 @@ const DEFAULT_OPPOSED_SIDE: OpposedSideBuilder = {
   manualDice: 5,
 }
 
+const DIE_IMAGES: Record<Die['kind'], { src: string; label: string }> = {
+  fail: { src: '/static/dice/fail.png', label: 'провал' },
+  success: { src: '/static/dice/success.png', label: 'успех' },
+  critical: { src: '/static/dice/critical-success.png', label: 'критический успех' },
+  botch: { src: '/static/dice/fail.png', label: 'провал' },
+  'hunger-fail': { src: '/static/dice/hunger-fail.png', label: 'провал Голода' },
+  'hunger-success': { src: '/static/dice/hunger-success.png', label: 'успех Голода' },
+  'hunger-critical-success': { src: '/static/dice/hunger-critical-success.png', label: 'критический успех Голода' },
+  'hunger-critical-fail': { src: '/static/dice/hunger-critical-fail.png', label: 'критический провал Голода' },
+}
+
 const ATTRIBUTE_NAMES = ATTRIBUTE_GROUPS.flatMap(group => [...group.traits])
 const SKILL_NAMES = SKILL_GROUPS.flatMap(group => [...group.traits])
 
@@ -286,7 +297,7 @@ function rollD10Pool(diceCount: number) {
     const value = Math.floor(Math.random() * 10) + 1
     return {
       value,
-      kind: value === 1 ? 'botch' : value === 10 ? 'critical' : value >= 6 ? 'success' : 'fail',
+      kind: value === 10 ? 'critical' : value >= 6 ? 'success' : 'fail',
     } as Die
   })
 }
@@ -294,6 +305,10 @@ function rollD10Pool(diceCount: number) {
 function countD10Successes(dice: Die[]) {
   const criticals = dice.filter(die => die.value === 10).length
   return dice.filter(die => die.value >= 6).length + Math.floor(criticals / 2) * 2
+}
+
+function getDieImage(die: Die) {
+  return DIE_IMAGES[die.kind] || DIE_IMAGES.fail
 }
 
 function parsePowerPool(pool: string, disciplineNames: string[]) {
@@ -5430,11 +5445,19 @@ export default function VampireTable() {
                                 <span>{side.poolName}</span>
                               </div>
                               <div className="dice-row" aria-label={`Результаты кубиков ${side.actorName}: ${side.dice.map(die => die.value).join(', ')}`}>
-                                {side.dice.map((die, index) => (
-                                  <span className={`die die-${die.kind}`} key={`${roll.id}-${side.id}-${index}`}>
-                                    {die.value}
-                                  </span>
-                                ))}
+                                {side.dice.map((die, index) => {
+                                  const dieImage = getDieImage(die)
+                                  return (
+                                    <span
+                                      className={`die die-${die.kind}`}
+                                      key={`${roll.id}-${side.id}-${index}`}
+                                      aria-label={`${dieImage.label}: ${die.value}`}
+                                      title={`${die.value} - ${dieImage.label}`}
+                                    >
+                                      <img src={dieImage.src} alt="" draggable={false} />
+                                    </span>
+                                  )
+                                })}
                               </div>
                               <footer>
                                 <span>{side.diceCount}к10</span>
@@ -5447,11 +5470,19 @@ export default function VampireTable() {
                     ) : (
                       <>
                         <div className="dice-row" aria-label={`Результаты кубиков: ${roll.dice.map(die => die.value).join(', ')}`}>
-                          {roll.dice.map((die, index) => (
-                            <span className={`die die-${die.kind}`} key={`${roll.id}-${index}`}>
-                              {die.value}
-                            </span>
-                          ))}
+                          {roll.dice.map((die, index) => {
+                            const dieImage = getDieImage(die)
+                            return (
+                              <span
+                                className={`die die-${die.kind}`}
+                                key={`${roll.id}-${index}`}
+                                aria-label={`${dieImage.label}: ${die.value}`}
+                                title={`${die.value} - ${dieImage.label}`}
+                              >
+                                <img src={dieImage.src} alt="" draggable={false} />
+                              </span>
+                            )
+                          })}
                         </div>
 
                         <footer>

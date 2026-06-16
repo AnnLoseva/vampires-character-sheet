@@ -3349,33 +3349,28 @@ export default function GameTableStyles() {
         }
 
         .die {
-          width: 31px;
-          height: 31px;
-          border-radius: 6px;
-          border: 1px solid #555;
+          width: 38px;
+          height: 38px;
+          border: 0;
           display: inline-grid;
           place-items: center;
-          font-weight: 700;
-          font-size: 14px;
-          background: #090909;
-          color: #f3f3f3;
+          background: transparent;
+          padding: 0;
+          overflow: hidden;
         }
 
-        .die-success,
-        .die-critical {
-          color: #101810;
-          background: #36d675;
-          border-color: #6df0a0;
-          box-shadow: 0 0 12px rgba(54, 214, 117, 0.2);
+        .die img {
+          width: 100%;
+          height: 100%;
+          display: block;
+          object-fit: contain;
+          filter: drop-shadow(0 2px 5px rgba(0,0,0,0.45));
         }
 
-        .die-critical {
-          outline: 2px solid #f2ff7a;
-        }
-
-        .die-botch {
-          border-color: #f3f3f3;
-          color: #fff;
+        .die-critical img,
+        .die-hunger-critical-success img,
+        .die-hunger-critical-fail img {
+          filter: drop-shadow(0 2px 5px rgba(0,0,0,0.55)) drop-shadow(0 0 8px rgba(214, 0, 24, 0.28));
         }
 
         .roll-card footer strong {

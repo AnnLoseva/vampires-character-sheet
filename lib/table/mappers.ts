@@ -1,11 +1,22 @@
 import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, Die, InventoryItem, LayerPatch, OpposedRollResult, RollMessage, RollRow, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow } from './types'
 import { getMusicProvider } from '@/components/music/utils'
 
+const DIE_KINDS = new Set<Die['kind']>([
+  'fail',
+  'success',
+  'critical',
+  'botch',
+  'hunger-fail',
+  'hunger-success',
+  'hunger-critical-success',
+  'hunger-critical-fail',
+])
+
 function isDie(value: unknown): value is Die {
   if (!value || typeof value !== 'object') return false
   const die = value as Partial<Die>
   return typeof die.value === 'number'
-    && (die.kind === 'fail' || die.kind === 'success' || die.kind === 'critical' || die.kind === 'botch')
+    && Boolean(die.kind && DIE_KINDS.has(die.kind))
 }
 
 function isOpposedRollResult(value: unknown): value is OpposedRollResult {
