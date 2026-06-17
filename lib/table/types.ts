@@ -1,6 +1,8 @@
 export type Die = {
+  id?: string
   value: number
   kind: 'fail' | 'success' | 'critical' | 'botch' | 'hunger-fail' | 'hunger-success' | 'hunger-critical-success' | 'hunger-critical-fail'
+  rerolled?: boolean
 }
 
 export type OpposedRollSide = {
@@ -30,7 +32,33 @@ export type RouseCheckResult = {
   maxHungerWarning?: boolean
 }
 
+export type WillpowerTracker = {
+  superficial: number
+  aggravated: number
+}
+
+export type NormalizedWillpower = WillpowerTracker & {
+  max: number
+  current: number
+  impaired: boolean
+}
+
+export type VitalTrackers = {
+  health?: number
+  willpower?: number | WillpowerTracker
+  humanity?: number
+  hunger?: number
+}
+
+export type WillpowerMetaState = {
+  max: number
+  superficial: number
+  aggravated: number
+  current: number
+}
+
 export type RollMeta = {
+  characterId?: string
   hungerBefore?: number
   hungerAfter?: number
   hungerDice?: number
@@ -40,9 +68,21 @@ export type RollMeta = {
     enabled: boolean
     bonusDice: number
   }
+  willpowerBefore?: WillpowerMetaState
+  willpowerAfter?: WillpowerMetaState
+  spentWillpower?: number
+  recoveredWillpower?: number
+  willpowerReroll?: {
+    used: boolean
+    selectedDieIds: string[]
+    oldDice: Die[]
+    newDice: Die[]
+  }
+  willpowerImpaired?: boolean
+  impairmentPenaltyApplied?: number
   messyCritical?: boolean
   bestialFailure?: boolean
-  source?: 'manual' | 'discipline' | 'blood_surge' | 'rouse_check' | 'character_sheet'
+  source?: 'manual' | 'discipline' | 'blood_surge' | 'rouse_check' | 'character_sheet' | 'willpower'
   warnings?: string[]
   discipline?: {
     name: string
@@ -97,16 +137,12 @@ export type CharacterOption = {
   generation?: string
   type?: string
   bloodPotency?: number
+  willpower?: NormalizedWillpower
   notes?: string
   appearance?: string
   backstory?: string
   freeExp?: number
-  vitalTrackers?: {
-    health?: number
-    willpower?: number
-    humanity?: number
-    hunger?: number
-  }
+  vitalTrackers?: VitalTrackers
   inventory: InventoryItem[]
   attributes: Record<string, number>
   skills: Record<string, number | { dots?: number; specs?: string[] }>
@@ -137,12 +173,7 @@ export type CharacterRow = {
     backstory?: string
     freeExp?: number
     experience?: number
-    vitalTrackers?: {
-      health?: number
-      willpower?: number
-      humanity?: number
-      hunger?: number
-    }
+    vitalTrackers?: VitalTrackers
     inventory?: InventoryItem[]
     attributes?: Record<string, number>
     skills?: Record<string, number | { dots?: number; specs?: string[] }>

@@ -802,6 +802,25 @@
             box-shadow: 0 0 12px rgba(176, 0, 0, 0.75);
         }
 
+        .vital-box.vital-willpower {
+            color: #ffd9d9;
+            font-size: 13px;
+            font-weight: 900;
+            line-height: 1;
+        }
+
+        .vital-box.vital-willpower.wp-superficial {
+            background: #261515;
+            border-color: #b66b6b;
+            box-shadow: 0 0 8px rgba(255, 120, 120, 0.28);
+        }
+
+        .vital-box.vital-willpower.wp-aggravated {
+            background: #710000;
+            border-color: #ff3131;
+            box-shadow: 0 0 11px rgba(255, 49, 49, 0.58);
+        }
+
         .vital-track-caption {
             color: #777;
             font-size: 10px;
@@ -823,6 +842,25 @@
         .rouse-check-btn:hover {
             border-color: #ff3131;
             background: #2a1212;
+        }
+
+        .willpower-controls {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 5px;
+            max-width: 210px;
+        }
+
+        .willpower-controls .rouse-check-btn {
+            padding: 6px 7px;
+            font-size: 10px;
+        }
+
+        .willpower-manual {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 4px;
+            grid-column: 1 / -1;
         }
 
         .autosave-status {
@@ -2415,6 +2453,19 @@
             <div id="val-wp" class="vital-value" style="color:white" data-tooltip="Сила воли = Самообладание + Упорство">2</div>
             <div id="track-willpower" class="vital-track" aria-label="Закрашенные клетки силы воли"></div>
             <small id="track-willpower-caption" class="vital-track-caption">0 / 2</small>
+            <div class="willpower-controls" aria-label="Управление Волей">
+                <button type="button" class="rouse-check-btn" onclick="spendSheetWillpower()">Потратить</button>
+                <button type="button" class="rouse-check-btn" onclick="performSheetWillpowerCheck()">Проверка</button>
+                <button type="button" class="rouse-check-btn" onclick="recoverSheetWillpowerSessionStart()">Встреча</button>
+                <button type="button" class="rouse-check-btn" onclick="recoverSheetWillpowerDesire()">Прихоть +1</button>
+                <button type="button" class="rouse-check-btn" onclick="recoverSheetWillpowerAggravated()">Снять X</button>
+                <div class="willpower-manual">
+                    <button type="button" class="rouse-check-btn" onclick="adjustSheetWillpowerStress('superficial', 1)">+ /</button>
+                    <button type="button" class="rouse-check-btn" onclick="adjustSheetWillpowerStress('superficial', -1)">- /</button>
+                    <button type="button" class="rouse-check-btn" onclick="adjustSheetWillpowerStress('aggravated', 1)">+ X</button>
+                    <button type="button" class="rouse-check-btn" onclick="adjustSheetWillpowerStress('aggravated', -1)">- X</button>
+                </div>
+            </div>
         </div>
     </div>
     <div class="vital-item vampire-only">

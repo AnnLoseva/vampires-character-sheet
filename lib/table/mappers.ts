@@ -1,4 +1,4 @@
-import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, Die, InventoryItem, LayerPatch, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow } from './types'
+import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, Die, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
 import { getMusicProvider } from '@/components/music/utils'
 
 const DIE_KINDS = new Set<Die['kind']>([
@@ -23,6 +23,80 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value && typeof value === 'object' && !Array.isArray(value))
 }
 
+function clampInteger(value: unknown, min: number, max: number) {
+  const number = Math.floor(Number(value) || 0)
+  return Math.max(min, Math.min(max, number))
+}
+
+export function getWillpowerMaxFromAttributes(attributes: Record<string, number> = {}) {
+  const composure = Number(attributes['Самообладание'] || 0) || 0
+  const resolve = Number(attributes['Упорство'] || 0) || 0
+  return Math.max(0, Math.floor(composure + resolve))
+}
+
+function isWillpowerTracker(value: unknown): value is WillpowerTracker {
+  return isRecord(value) && (typeof value.superficial === 'number' || typeof value.aggravated === 'number')
+}
+
+export function normalizeWillpowerTracker(value: unknown, max: number): NormalizedWillpower {
+  const safeMax = Math.max(0, Math.floor(Number(max) || 0))
+  if (typeof value === 'number') {
+    const current = clampInteger(value, 0, safeMax)
+    return {
+      superficial: safeMax - current,
+      aggravated: 0,
+      max: safeMax,
+      current,
+      impaired: safeMax > 0 && current <= 0,
+    }
+  }
+
+  if (isWillpowerTracker(value)) {
+    const aggravated = clampInteger(value.aggravated, 0, safeMax)
+    const superficial = clampInteger(value.superficial, 0, Math.max(0, safeMax - aggravated))
+    const current = Math.max(0, safeMax - superficial - aggravated)
+    return {
+      superficial,
+      aggravated,
+      max: safeMax,
+      current,
+      impaired: safeMax > 0 && current <= 0,
+    }
+  }
+
+  return {
+    superficial: 0,
+    aggravated: 0,
+    max: safeMax,
+    current: safeMax,
+    impaired: false,
+  }
+}
+
+function normalizeVitalTrackers(value: unknown, willpowerMax: number): VitalTrackers {
+  const source = isRecord(value) ? value : {}
+  const willpower = normalizeWillpowerTracker(source.willpower, willpowerMax)
+  return {
+    health: Math.max(0, Number(source.health || 0) || 0),
+    willpower: {
+      superficial: willpower.superficial,
+      aggravated: willpower.aggravated,
+    },
+    humanity: Math.max(0, Number(source.humanity || 0) || 0),
+    hunger: Math.max(0, Math.min(5, Number(source.hunger || 0) || 0)),
+  }
+}
+
+function normalizeWillpowerMetaState(value: unknown): WillpowerMetaState | undefined {
+  if (!isRecord(value)) return undefined
+  const max = Math.max(0, Math.floor(Number(value.max) || 0))
+  const aggravated = clampInteger(value.aggravated, 0, max)
+  const superficial = clampInteger(value.superficial, 0, Math.max(0, max - aggravated))
+  const fallbackCurrent = max - superficial - aggravated
+  const current = clampInteger(value.current ?? fallbackCurrent, 0, max)
+  return { max, superficial, aggravated, current }
+}
+
 function isOpposedRollResult(value: unknown): value is OpposedRollResult {
   if (!value || typeof value !== 'object') return false
   const result = value as Partial<OpposedRollResult>
@@ -45,15 +119,36 @@ function normalizeRollMeta(value: unknown): RollMeta | undefined {
   if (!isRecord(value)) return undefined
   const meta: RollMeta = {}
 
+  if (typeof value.characterId === 'string') meta.characterId = value.characterId
   if (typeof value.hungerBefore === 'number') meta.hungerBefore = value.hungerBefore
   if (typeof value.hungerAfter === 'number') meta.hungerAfter = value.hungerAfter
   if (typeof value.hungerDice === 'number') meta.hungerDice = value.hungerDice
   if (typeof value.bloodPotency === 'number') meta.bloodPotency = value.bloodPotency
+  if (typeof value.spentWillpower === 'number') meta.spentWillpower = value.spentWillpower
+  if (typeof value.recoveredWillpower === 'number') meta.recoveredWillpower = value.recoveredWillpower
+  if (typeof value.willpowerImpaired === 'boolean') meta.willpowerImpaired = value.willpowerImpaired
+  if (typeof value.impairmentPenaltyApplied === 'number') meta.impairmentPenaltyApplied = value.impairmentPenaltyApplied
   if (typeof value.messyCritical === 'boolean') meta.messyCritical = value.messyCritical
   if (typeof value.bestialFailure === 'boolean') meta.bestialFailure = value.bestialFailure
   if (typeof value.source === 'string') meta.source = value.source as RollMeta['source']
   if (Array.isArray(value.warnings)) meta.warnings = value.warnings.filter((warning): warning is string => typeof warning === 'string')
   if (Array.isArray(value.rouseChecks)) meta.rouseChecks = value.rouseChecks.filter(isRouseCheckResult)
+
+  const willpowerBefore = normalizeWillpowerMetaState(value.willpowerBefore)
+  const willpowerAfter = normalizeWillpowerMetaState(value.willpowerAfter)
+  if (willpowerBefore) meta.willpowerBefore = willpowerBefore
+  if (willpowerAfter) meta.willpowerAfter = willpowerAfter
+
+  if (isRecord(value.willpowerReroll)) {
+    meta.willpowerReroll = {
+      used: Boolean(value.willpowerReroll.used),
+      selectedDieIds: Array.isArray(value.willpowerReroll.selectedDieIds)
+        ? value.willpowerReroll.selectedDieIds.filter((id): id is string => typeof id === 'string')
+        : [],
+      oldDice: Array.isArray(value.willpowerReroll.oldDice) ? value.willpowerReroll.oldDice.filter(isDie) : [],
+      newDice: Array.isArray(value.willpowerReroll.newDice) ? value.willpowerReroll.newDice.filter(isDie) : [],
+    }
+  }
 
   if (isRecord(value.bloodSurge)) {
     meta.bloodSurge = {
@@ -130,6 +225,7 @@ export function normalizeInventory(items: unknown): InventoryItem[] {
 export function mapCharacterRow(row: CharacterRow): CharacterOption {
   const data = row.data || {}
   const bloodPotency = Number(data.bloodPotency ?? data.blood?.potency ?? 0) || 0
+  const willpower = normalizeWillpowerTracker(data.vitalTrackers?.willpower, getWillpowerMaxFromAttributes(data.attributes || {}))
   return {
     id: row.id,
     userId: row.user_id || undefined,
@@ -146,7 +242,8 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     appearance: data.appearance || '',
     backstory: data.backstory || '',
     freeExp: Number(data.freeExp ?? data.experience ?? 0) || 0,
-    vitalTrackers: data.vitalTrackers || {},
+    willpower,
+    vitalTrackers: normalizeVitalTrackers(data.vitalTrackers, willpower.max),
     inventory: normalizeInventory(data.inventory),
     attributes: data.attributes || {},
     skills: data.skills || {},

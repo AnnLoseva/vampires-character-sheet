@@ -372,7 +372,9 @@ const VITAL_TRACKER_CONFIG = {
     hunger: { valueId: 'val-hunger', trackId: 'track-hunger', captionId: 'track-hunger-caption', label: 'Голод', max: 5, displayCurrent: true }
 };
 
-let vitalTrackers = { health: 0, willpower: 0, humanity: 0, hunger: 0 };
+let vitalTrackers = { health: 0, willpower: { superficial: 0, aggravated: 0 }, humanity: 0, hunger: 0 };
+
+const WILLPOWER_IMPAIRED_ATTRIBUTES = ['Обаяние', 'Манипуляция', 'Самообладание', 'Интеллект', 'Смекалка', 'Упорство'];
 
 function getVitalMax(key) {
     const config = VITAL_TRACKER_CONFIG[key];
@@ -381,10 +383,62 @@ function getVitalMax(key) {
     return Math.max(0, parseInt(document.getElementById(config.valueId)?.textContent || '0', 10) || 0);
 }
 
+function normalizeWillpowerTracker(value, max = getVitalMax('willpower')) {
+    const safeMax = Math.max(0, parseInt(max, 10) || 0);
+    if (typeof value === 'number') {
+        const current = Math.max(0, Math.min(safeMax, parseInt(value, 10) || 0));
+        return { superficial: safeMax - current, aggravated: 0 };
+    }
+    if (value && typeof value === 'object') {
+        const aggravated = Math.max(0, Math.min(safeMax, parseInt(value.aggravated || 0, 10) || 0));
+        const superficial = Math.max(0, Math.min(Math.max(0, safeMax - aggravated), parseInt(value.superficial || 0, 10) || 0));
+        return { superficial, aggravated };
+    }
+    return { superficial: 0, aggravated: 0 };
+}
+
+function getWillpowerTracker(max = getVitalMax('willpower')) {
+    const tracker = normalizeWillpowerTracker(vitalTrackers.willpower, max);
+    vitalTrackers.willpower = tracker;
+    return tracker;
+}
+
+function getWillpowerState(max = getVitalMax('willpower')) {
+    const tracker = getWillpowerTracker(max);
+    const current = Math.max(0, max - tracker.superficial - tracker.aggravated);
+    return {
+        ...tracker,
+        max,
+        current,
+        impaired: max > 0 && current <= 0
+    };
+}
+
+function getWillpowerMetaState(state = getWillpowerState()) {
+    return {
+        max: state.max,
+        superficial: state.superficial,
+        aggravated: state.aggravated,
+        current: state.current
+    };
+}
+
+function getWillpowerRecoveryPool() {
+    const composureInput = document.querySelector('input[name="Самообладание"]:checked');
+    const resolveInput = document.querySelector('input[name="Упорство"]:checked');
+    const composure = composureInput ? parseInt(composureInput.value, 10) || 0 : 0;
+    const resolve = resolveInput ? parseInt(resolveInput.value, 10) || 0 : 0;
+    return Math.max(composure, resolve);
+}
+
 function getVitalTrackerData() {
+    const willpower = getWillpowerTracker();
     return {
         health: Math.max(0, Math.min(getVitalMax('health'), parseInt(vitalTrackers.health || 0, 10) || 0)),
-        willpower: Math.max(0, Math.min(getVitalMax('willpower'), parseInt(vitalTrackers.willpower || 0, 10) || 0)),
+        willpower: {
+            superficial: willpower.superficial,
+            aggravated: willpower.aggravated
+        },
         humanity: Math.max(0, Math.min(getVitalMax('humanity'), parseInt(vitalTrackers.humanity || 0, 10) || 0)),
         hunger: Math.max(0, Math.min(getVitalMax('hunger'), parseInt(vitalTrackers.hunger || 0, 10) || 0))
     };
@@ -392,14 +446,26 @@ function getVitalTrackerData() {
 
 function getVitalTrackerSummary(key) {
     const max = getVitalMax(key);
+    if (key === 'willpower') {
+        const state = getWillpowerState(max);
+        return `${state.max} (доступно ${state.current}/${state.max}; / ${state.superficial}, X ${state.aggravated})`;
+    }
     const current = getVitalTrackerData()[key] || 0;
     return `${max} (закрашено ${current}/${max})`;
 }
 
 function normalizeVitalTrackerData(data = {}) {
+    const sourceWillpower = data && Object.prototype.hasOwnProperty.call(data, 'willpower')
+        ? data.willpower
+        : { superficial: 0, aggravated: 0 };
     return {
         health: Math.max(0, parseInt(data.health || 0, 10) || 0),
-        willpower: Math.max(0, parseInt(data.willpower || 0, 10) || 0),
+        willpower: sourceWillpower && typeof sourceWillpower === 'object'
+            ? {
+                superficial: Math.max(0, parseInt(sourceWillpower.superficial || 0, 10) || 0),
+                aggravated: Math.max(0, parseInt(sourceWillpower.aggravated || 0, 10) || 0)
+            }
+            : Math.max(0, parseInt(sourceWillpower || 0, 10) || 0),
         humanity: Math.max(0, parseInt(data.humanity || 0, 10) || 0),
         hunger: Math.max(0, parseInt(data.hunger || 0, 10) || 0)
     };
@@ -470,6 +536,31 @@ function renderVitalTracker(key) {
     if (!track) return;
 
     const max = getVitalMax(key);
+    if (key === 'willpower') {
+        const state = getWillpowerState(max);
+        track.innerHTML = '';
+        for (let index = 1; index <= max; index++) {
+            const status = index <= state.aggravated
+                ? 'aggravated'
+                : index <= state.aggravated + state.superficial
+                    ? 'superficial'
+                    : 'empty';
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `vital-box vital-willpower wp-${status}`;
+            button.textContent = status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : '';
+            button.setAttribute('aria-label', `Сила воли: клетка ${index} из ${max}, ${status === 'aggravated' ? 'тяжёлый стресс' : status === 'superficial' ? 'поверхностный стресс' : 'пусто'}`);
+            button.setAttribute('aria-pressed', status === 'empty' ? 'false' : 'true');
+            button.title = 'Пусто → / → X → пусто';
+            button.addEventListener('click', () => cycleWillpowerCell(index));
+            track.appendChild(button);
+        }
+        if (caption) {
+            caption.textContent = `Доступно ${state.current} / ${state.max} · / ${state.superficial} · X ${state.aggravated}${state.impaired ? ' · -2' : ''}`;
+        }
+        return;
+    }
+
     const current = Math.max(0, Math.min(max, parseInt(vitalTrackers[key] || 0, 10) || 0));
     vitalTrackers[key] = current;
     if (config.displayCurrent) {
@@ -499,11 +590,193 @@ function renderVitalTrackers() {
 }
 
 function setVitalTrackerValue(key, value) {
+    if (key === 'willpower') {
+        cycleWillpowerCell(value);
+        return;
+    }
     const max = getVitalMax(key);
     const next = vitalTrackers[key] === value ? value - 1 : value;
     vitalTrackers[key] = Math.max(0, Math.min(max, next));
     renderVitalTracker(key);
     if (key === 'hunger') autoSaveVitalState();
+}
+
+function setWillpowerTracker(nextTracker, { autosave = true, publish = false, reason = 'Воля обновлена', before = null, meta = {} } = {}) {
+    const max = getVitalMax('willpower');
+    vitalTrackers.willpower = normalizeWillpowerTracker(nextTracker, max);
+    renderVitalTracker('willpower');
+    if (autosave) autoSaveVitalState({ immediate: true });
+    if (publish) {
+        publishWillpowerEvent(reason, before || getWillpowerState(max), getWillpowerState(max), meta);
+    }
+}
+
+function getWillpowerCellStatuses(state = getWillpowerState()) {
+    return Array.from({ length: state.max }, (_, index) => {
+        const cell = index + 1;
+        if (cell <= state.aggravated) return 'aggravated';
+        if (cell <= state.aggravated + state.superficial) return 'superficial';
+        return 'empty';
+    });
+}
+
+function trackerFromWillpowerStatuses(statuses) {
+    return {
+        superficial: statuses.filter(status => status === 'superficial').length,
+        aggravated: statuses.filter(status => status === 'aggravated').length
+    };
+}
+
+function cycleWillpowerCell(index) {
+    const before = getWillpowerState();
+    const statuses = getWillpowerCellStatuses(before);
+    const current = statuses[index - 1] || 'empty';
+    statuses[index - 1] = current === 'empty' ? 'superficial' : current === 'superficial' ? 'aggravated' : 'empty';
+    setWillpowerTracker(trackerFromWillpowerStatuses(statuses), {
+        before,
+        meta: { warnings: getWillpowerState().impaired ? ['Трек Воли заполнен: ментальные и социальные проверки получают -2к10.'] : [] }
+    });
+}
+
+function applyWillpowerStress(tracker, amount = 1) {
+    const max = getVitalMax('willpower');
+    const next = normalizeWillpowerTracker(tracker, max);
+    let applied = 0;
+    const warnings = [];
+
+    for (let index = 0; index < amount; index++) {
+        if (next.aggravated >= max) {
+            warnings.push('Воля полностью заполнена тяжёлым стрессом: потратить Волю нельзя.');
+            break;
+        }
+        if (next.superficial + next.aggravated < max) {
+            next.superficial += 1;
+            applied += 1;
+            continue;
+        }
+        if (next.superficial > 0) {
+            next.superficial -= 1;
+            next.aggravated += 1;
+            applied += 1;
+            warnings.push('Трек Воли был заполнен: один поверхностный стресс превращён в тяжёлый.');
+            continue;
+        }
+        warnings.push('Воля полностью заполнена: потратить Волю нельзя.');
+        break;
+    }
+
+    if (max > 0 && next.superficial + next.aggravated >= max) {
+        warnings.push('Трек Воли заполнен: ментальные и социальные проверки получают -2к10.');
+    }
+    return { tracker: next, applied, warnings };
+}
+
+function recoverWillpowerStress(tracker, amount = 1, severity = 'superficial') {
+    const next = normalizeWillpowerTracker(tracker, getVitalMax('willpower'));
+    let recovered = 0;
+    for (let index = 0; index < amount; index++) {
+        if (severity === 'aggravated') {
+            if (next.aggravated <= 0) break;
+            next.aggravated -= 1;
+            recovered += 1;
+        } else {
+            if (next.superficial <= 0) break;
+            next.superficial -= 1;
+            recovered += 1;
+        }
+    }
+    return { tracker: next, recovered };
+}
+
+function publishWillpowerEvent(reason, beforeState, afterState, meta = {}) {
+    if (typeof publishDiceRoll !== 'function') return;
+    const spent = typeof meta.spentWillpower === 'number' ? meta.spentWillpower : undefined;
+    const recovered = typeof meta.recoveredWillpower === 'number' ? meta.recoveredWillpower : undefined;
+    const roll = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        room: getDiceRoom(),
+        characterName: document.getElementById('char-name')?.value?.trim() || 'Безымянный',
+        poolName: reason,
+        poolType: 'willpower',
+        diceCount: 0,
+        dice: [],
+        successes: 0,
+        createdAt: new Date().toISOString(),
+        meta: {
+            source: 'willpower',
+            willpowerBefore: getWillpowerMetaState(beforeState),
+            willpowerAfter: getWillpowerMetaState(afterState),
+            spentWillpower: spent,
+            recoveredWillpower: recovered,
+            willpowerImpaired: afterState.impaired,
+            warnings: meta.warnings || []
+        }
+    };
+    publishDiceRoll(roll);
+}
+
+function spendSheetWillpower(reason = 'Потратить Волю') {
+    const before = getWillpowerState();
+    const result = applyWillpowerStress(before, 1);
+    if (result.applied < 1) {
+        alert(result.warnings[0] || 'Волю сейчас потратить нельзя.');
+        return false;
+    }
+    setWillpowerTracker(result.tracker, {
+        before,
+        publish: true,
+        reason,
+        meta: { spentWillpower: 1, warnings: result.warnings }
+    });
+    return true;
+}
+
+function recoverSheetWillpowerSessionStart() {
+    const before = getWillpowerState();
+    const amount = getWillpowerRecoveryPool();
+    const result = recoverWillpowerStress(before, amount, 'superficial');
+    setWillpowerTracker(result.tracker, {
+        before,
+        publish: result.recovered > 0,
+        reason: 'Воля: начало встречи',
+        meta: { recoveredWillpower: result.recovered }
+    });
+}
+
+function recoverSheetWillpowerDesire() {
+    const before = getWillpowerState();
+    const result = recoverWillpowerStress(before, 1, 'superficial');
+    setWillpowerTracker(result.tracker, {
+        before,
+        publish: result.recovered > 0,
+        reason: 'Воля: Прихоть',
+        meta: { recoveredWillpower: result.recovered }
+    });
+}
+
+function recoverSheetWillpowerAggravated() {
+    const before = getWillpowerState();
+    if (before.aggravated <= 0) return;
+    if (!confirm('Снять один тяжёлый стресс Воли?')) return;
+    const result = recoverWillpowerStress(before, 1, 'aggravated');
+    setWillpowerTracker(result.tracker, {
+        before,
+        publish: result.recovered > 0,
+        reason: 'Воля: восстановление тяжёлого стресса',
+        meta: { recoveredWillpower: result.recovered }
+    });
+}
+
+function adjustSheetWillpowerStress(severity, delta) {
+    const before = getWillpowerState();
+    const next = { superficial: before.superficial, aggravated: before.aggravated };
+    if (severity === 'aggravated') {
+        next.aggravated = Math.max(0, Math.min(before.max, next.aggravated + delta));
+        if (next.superficial + next.aggravated > before.max) next.superficial = Math.max(0, before.max - next.aggravated);
+    } else {
+        next.superficial = Math.max(0, Math.min(Math.max(0, before.max - next.aggravated), next.superficial + delta));
+    }
+    setWillpowerTracker(next, { before });
 }
 
 function updateVitals() {
@@ -3194,6 +3467,13 @@ function getDiceRoom() {
     }
 }
 
+function getWillpowerImpairmentPenaltyForDiceParts(parts = []) {
+    const state = getWillpowerState();
+    if (!state.impaired) return 0;
+    const names = parts.filter(Boolean).map(getDicePartName);
+    return names.some(name => WILLPOWER_IMPAIRED_ATTRIBUTES.includes(name)) ? -2 : 0;
+}
+
 function openDiceRollModal(pool = {}) {
     pendingDicePool = {
         first: pool.first || '',
@@ -3271,7 +3551,8 @@ function readDiceRollPool() {
     const bloodSurgeBonus = useBloodSurge ? getBloodSurgeBonus(bloodPotency) : 0;
     const firstDots = getDicePartDots(first);
     const secondDots = getDicePartDots(second);
-    const baseDiceCount = Math.max(0, firstDots + secondDots + modifier);
+    const willpowerPenalty = getWillpowerImpairmentPenaltyForDiceParts([first, second]);
+    const baseDiceCount = Math.max(0, firstDots + secondDots + modifier + willpowerPenalty);
     const diceCount = Math.max(0, Math.min(20, baseDiceCount + bloodSurgeBonus));
     const parts = [first, second]
         .filter(Boolean)
@@ -3290,6 +3571,7 @@ function readDiceRollPool() {
         useBloodSurge,
         bloodPotency,
         bloodSurgeBonus,
+        willpowerPenalty,
         firstDots,
         secondDots,
         baseDiceCount,
@@ -3313,10 +3595,11 @@ function updateDiceRollPoolPreview() {
         ? ` ${pool.modifier > 0 ? '+' : '-'} ${Math.abs(pool.modifier)}${pool.modifierLabel ? ` (${pool.modifierLabel})` : ''}`
         : '';
     const surgeText = pool.useBloodSurge ? ` + Прилив Крови ${pool.bloodSurgeBonus}` : '';
+    const willpowerText = pool.willpowerPenalty ? ` · Воля: ${pool.willpowerPenalty}к10` : '';
 
     preview.innerHTML = `
         <strong>${pool.diceCount}к10</strong>
-        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}${surgeText}`)}${hungerDiceCount ? ` · Голод: ${hungerDiceCount}` : ''}</span>
+        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}${surgeText}`)}${willpowerText}${hungerDiceCount ? ` · Голод: ${hungerDiceCount}` : ''}</span>
     `;
 }
 
@@ -3442,6 +3725,21 @@ function renderDicePreview(dice, successes, meta = {}) {
     if (typeof meta.hungerBefore === 'number' && typeof meta.hungerAfter === 'number' && meta.hungerBefore !== meta.hungerAfter) {
         callouts.push({ kind: 'warning', text: `Голод: ${meta.hungerBefore} → ${meta.hungerAfter}` });
     }
+    if (typeof meta.spentWillpower === 'number' && meta.spentWillpower > 0) {
+        callouts.push({ kind: 'warning', text: `Воля потрачена: ${meta.spentWillpower}` });
+    }
+    if (typeof meta.recoveredWillpower === 'number' && meta.recoveredWillpower > 0) {
+        callouts.push({ kind: 'warning', text: `Воля восстановлена: ${meta.recoveredWillpower}` });
+    }
+    if (meta.willpowerBefore && meta.willpowerAfter) {
+        callouts.push({
+            kind: meta.willpowerAfter.current <= 0 ? 'danger' : 'warning',
+            text: `Воля: ${meta.willpowerBefore.current} → ${meta.willpowerAfter.current} / ${meta.willpowerAfter.max}`
+        });
+    }
+    if (meta.impairmentPenaltyApplied) {
+        callouts.push({ kind: 'warning', text: `Истощение Воли: ${meta.impairmentPenaltyApplied}к10 к ментальной/социальной проверке.` });
+    }
     if (meta.messyCritical) {
         callouts.push({ kind: 'danger', text: 'Кровавый триумф: успех достигнут через Зверя. Рассказчик должен добавить зверское/опасное осложнение.' });
     }
@@ -3476,6 +3774,7 @@ async function confirmDiceRoll() {
     }
 
     const hungerBefore = clampHunger(vitalTrackers.hunger);
+    const willpowerBefore = getWillpowerState();
     const rouseChecks = [];
     if (pool.useBloodSurge) {
         const result = await performRouseCheck('Прилив Крови', { publish: false });
@@ -3483,17 +3782,25 @@ async function confirmDiceRoll() {
     }
 
     const hungerAfterRouse = clampHunger(vitalTrackers.hunger);
+    const willpowerAfter = getWillpowerState();
     const hungerDice = getCurrentHungerDiceCount(pool.diceCount);
     const dice = rollD10Pool(pool.diceCount, hungerDice);
     const successes = countV5Successes(dice);
     const outcomeMeta = getRollOutcomeMeta(dice, successes);
-    const warnings = rouseChecks.map(getRouseWarning).filter(Boolean);
+    const warnings = [
+        ...rouseChecks.map(getRouseWarning).filter(Boolean),
+        ...(pool.willpowerPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : [])
+    ];
     const meta = {
         source: pool.useBloodSurge ? 'blood_surge' : 'character_sheet',
         hungerBefore,
         hungerAfter: hungerAfterRouse,
         hungerDice,
         bloodPotency: pool.bloodPotency,
+        willpowerBefore: getWillpowerMetaState(willpowerBefore),
+        willpowerAfter: getWillpowerMetaState(willpowerAfter),
+        willpowerImpaired: willpowerAfter.impaired,
+        impairmentPenaltyApplied: pool.willpowerPenalty || undefined,
         rouseChecks,
         bloodSurge: pool.useBloodSurge ? {
             enabled: true,
@@ -3609,10 +3916,53 @@ async function publishDiceRoll(roll) {
     broadcastDiceRoll(roll);
 }
 
+async function performSheetWillpowerCheck() {
+    const state = getWillpowerState();
+    if (state.current < 1) {
+        alert('Доступной Воли нет: проверку Воли бросить нельзя.');
+        return;
+    }
+
+    const dice = rollD10Pool(state.current, 0);
+    const successes = countV5Successes(dice);
+    const meta = {
+        source: 'willpower',
+        hungerDice: 0,
+        willpowerBefore: getWillpowerMetaState(state),
+        willpowerAfter: getWillpowerMetaState(state),
+        willpowerImpaired: state.impaired,
+        warnings: ['Проверка Воли бросает текущую доступную Волю и не использует кубики Голода.']
+    };
+    const roll = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        room: getDiceRoom(),
+        characterName: document.getElementById('char-name')?.value?.trim() || 'Безымянный',
+        poolName: 'Проверка Воли',
+        poolType: 'willpower-check',
+        diceCount: dice.length,
+        dice,
+        successes,
+        createdAt: new Date().toISOString(),
+        meta
+    };
+    const modal = getDiceRollModal();
+    modal.querySelector('#dice-roll-title').textContent = 'Проверка Воли';
+    modal.querySelector('#dice-roll-subtitle').textContent = 'Бросается текущая доступная Воля. Кубики Голода не добавляются.';
+    modal.querySelector('#dice-roll-result').innerHTML = renderDicePreview(dice, successes, meta);
+    modal.style.display = 'flex';
+    await publishDiceRoll(roll);
+}
+
 window.openDiceRollModal = openDiceRollModal;
 window.closeDiceRollModal = closeDiceRollModal;
 window.confirmDiceRoll = confirmDiceRoll;
 window.updateDiceRollPoolPreview = updateDiceRollPoolPreview;
+window.spendSheetWillpower = spendSheetWillpower;
+window.recoverSheetWillpowerSessionStart = recoverSheetWillpowerSessionStart;
+window.recoverSheetWillpowerDesire = recoverSheetWillpowerDesire;
+window.recoverSheetWillpowerAggravated = recoverSheetWillpowerAggravated;
+window.adjustSheetWillpowerStress = adjustSheetWillpowerStress;
+window.performSheetWillpowerCheck = performSheetWillpowerCheck;
 window.performSheetRouseCheck = async () => {
     const modal = getDiceRollModal();
     modal.querySelector('#dice-roll-title').textContent = 'Проверка Голода';
@@ -5936,7 +6286,7 @@ function resetCharacterSheetForLoad() {
     selectedFlaws = [];
     selectedThinBloodMerits = [];
     selectedThinBloodFlaws = [];
-    vitalTrackers = { health: 0, willpower: 0, humanity: 0, hunger: 0 };
+    vitalTrackers = { health: 0, willpower: { superficial: 0, aggravated: 0 }, humanity: 0, hunger: 0 };
     clanProvidedDisciplines = {};
     predatorProvidedDisciplines = {};
     currentPredatorSpecialty = null;

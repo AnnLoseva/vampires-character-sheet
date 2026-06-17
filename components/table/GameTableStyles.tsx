@@ -2011,6 +2011,7 @@ export default function GameTableStyles() {
         }
 
         .preview-blood-grid button,
+        .preview-willpower-actions button,
         .discipline-activation-only button {
           min-height: 36px;
           border: 1px solid #8c3434;
@@ -2021,6 +2022,52 @@ export default function GameTableStyles() {
           font: inherit;
           font-size: 12px;
           font-weight: 700;
+        }
+
+        .preview-willpower-panel {
+          border: 1px solid #292929;
+          border-radius: 6px;
+          background: #080808;
+          padding: 12px;
+        }
+
+        .preview-willpower-track {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 5px;
+          margin-top: 10px;
+        }
+
+        .preview-willpower-cell {
+          width: 20px;
+          height: 20px;
+          display: inline-grid;
+          place-items: center;
+          border: 1px solid #555;
+          border-radius: 4px;
+          background: #111;
+          color: #ffd9d9;
+          font-size: 13px;
+          font-weight: 900;
+          line-height: 1;
+        }
+
+        .preview-willpower-cell.superficial {
+          border-color: #b66b6b;
+          background: #241414;
+        }
+
+        .preview-willpower-cell.aggravated {
+          border-color: #ff3131;
+          background: #710000;
+          box-shadow: 0 0 9px rgba(255, 49, 49, 0.45);
+        }
+
+        .preview-willpower-actions {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 6px;
+          margin-top: 10px;
         }
 
         .preview-roll-controls {
@@ -2075,6 +2122,7 @@ export default function GameTableStyles() {
         .quick-roll-grid button:disabled,
         .discipline-power-roll-controls button:disabled,
         .discipline-activation-only button:disabled,
+        .preview-willpower-actions button:disabled,
         .preview-blood-grid button:disabled {
           cursor: not-allowed;
           opacity: 0.45;
@@ -3429,6 +3477,24 @@ export default function GameTableStyles() {
           overflow: hidden;
         }
 
+        .die.reroll-selectable {
+          cursor: pointer;
+          border-radius: 8px;
+          outline: 1px solid transparent;
+          transition: outline-color 0.15s, transform 0.15s, background 0.15s;
+        }
+
+        .die.reroll-selectable:hover,
+        .die.reroll-selected {
+          outline-color: #ff7777;
+          background: rgba(255, 119, 119, 0.08);
+          transform: translateY(-1px);
+        }
+
+        .die.die-rerolled img {
+          filter: drop-shadow(0 2px 5px rgba(0,0,0,0.45)) drop-shadow(0 0 8px rgba(255, 119, 119, 0.35));
+        }
+
         .die img {
           width: 100%;
           height: 100%;
@@ -3446,6 +3512,37 @@ export default function GameTableStyles() {
         .roll-card footer strong {
           color: #36d675;
           font-size: 18px;
+        }
+
+        .roll-reroll-actions {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: center;
+          gap: 6px;
+          margin: 4px 0 8px;
+        }
+
+        .roll-reroll-actions span {
+          color: #aaa;
+          font-size: 11px;
+        }
+
+        .roll-reroll-actions button {
+          min-height: 28px;
+          border: 1px solid #6d3030;
+          border-radius: 5px;
+          background: #1b1111;
+          color: #f2f2f2;
+          cursor: pointer;
+          font: inherit;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 4px 8px;
+        }
+
+        .roll-reroll-actions button:disabled {
+          cursor: not-allowed;
+          opacity: 0.5;
         }
 
         .roll-v5-meta {
@@ -4480,6 +4577,10 @@ export default function GameTableStyles() {
 
           .preview-blood-grid button {
             grid-column: 1 / -1;
+          }
+
+          .preview-willpower-actions {
+            grid-template-columns: repeat(3, minmax(0, 1fr));
           }
 
           .discipline-power-roll-controls {

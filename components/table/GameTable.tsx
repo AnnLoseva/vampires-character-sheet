@@ -42,7 +42,9 @@ import {
   mapRollRow,
   mapSceneMusicRow,
   mapSceneRow,
+  normalizeWillpowerTracker,
   normalizeInventory,
+  getWillpowerMaxFromAttributes,
   toDbPatch,
 } from '@/lib/table/mappers'
 import {
@@ -97,6 +99,7 @@ import type {
   LeftToolbarTab,
   MasterReveal,
   MasterWhisper,
+  NormalizedWillpower,
   MediaTab,
   OpposedRollResult,
   OpposedRollSide,
@@ -149,6 +152,11 @@ type DisciplinePowerRule = {
   mechanics?: {
     rouse_checks?: number
     variable_rouse_checks?: boolean
+    willpower_cost?: number | {
+      spend?: number
+      reduce_rating?: number
+      manual_choice?: boolean
+    }
   }
   effect?: string
   duration?: string
@@ -171,6 +179,13 @@ type RouseCost = {
   variable: boolean
 }
 
+type WillpowerCost = {
+  spendWillpower: number
+  reduceWillpowerRating: number
+  manualChoice: boolean
+  warnings: string[]
+}
+
 type DisciplineRollContext = {
   name: string
   power: string
@@ -185,6 +200,17 @@ type QuickRollOptions = {
   source?: RollMeta['source']
   disciplineContext?: DisciplineRollContext
   rouseChecks?: RouseCheckResult[]
+  warnings?: string[]
+  willpowerBefore?: RollMeta['willpowerBefore']
+  willpowerAfter?: RollMeta['willpowerAfter']
+  spentWillpower?: number
+  recoveredWillpower?: number
+  impairmentPenaltyApplied?: number
+}
+
+type WillpowerRerollDraft = {
+  rollId: string
+  selectedDieIds: string[]
 }
 
 type PowerPoolChoice = {
@@ -252,6 +278,7 @@ const DIE_IMAGES: Record<Die['kind'], { src: string; label: string }> = {
 
 const ATTRIBUTE_NAMES = ATTRIBUTE_GROUPS.flatMap(group => [...group.traits])
 const SKILL_NAMES = SKILL_GROUPS.flatMap(group => [...group.traits])
+const WILLPOWER_IMPAIRED_ATTRIBUTES = ['Обаяние', 'Манипуляция', 'Самообладание', 'Интеллект', 'Смекалка', 'Упорство']
 
 function getSkillDotValue(value: unknown) {
   if (typeof value === 'number') return value
@@ -328,6 +355,10 @@ function getDieKind(value: number, isHunger: boolean): Die['kind'] {
   return value === 10 ? 'critical' : value >= 6 ? 'success' : 'fail'
 }
 
+function makeDieId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
+}
+
 function rollD10Pool(diceCount: number, hungerDiceCount = 0) {
   const safeDiceCount = Math.max(1, Math.min(20, diceCount))
   const safeHungerDiceCount = Math.max(0, Math.min(5, safeDiceCount, hungerDiceCount))
@@ -335,6 +366,7 @@ function rollD10Pool(diceCount: number, hungerDiceCount = 0) {
     const value = Math.floor(Math.random() * 10) + 1
     const isHunger = index < safeHungerDiceCount
     return {
+      id: makeDieId(),
       value,
       kind: getDieKind(value, isHunger),
     } as Die
@@ -362,6 +394,99 @@ function getCharacterHunger(character?: CharacterOption | null) {
 
 function getCharacterBloodPotency(character?: CharacterOption | null) {
   return Math.max(0, Math.min(10, Number(character?.bloodPotency || 0) || 0))
+}
+
+function getCharacterWillpower(character?: CharacterOption | null): NormalizedWillpower {
+  if (!character) return { superficial: 0, aggravated: 0, max: 0, current: 0, impaired: false }
+  return character.willpower || normalizeWillpowerTracker(
+    character.vitalTrackers?.willpower,
+    getWillpowerMaxFromAttributes(character.attributes || {}),
+  )
+}
+
+function getWillpowerMetaState(willpower: NormalizedWillpower): NonNullable<RollMeta['willpowerBefore']> {
+  return {
+    max: willpower.max,
+    superficial: willpower.superficial,
+    aggravated: willpower.aggravated,
+    current: willpower.current,
+  }
+}
+
+function applyWillpowerStressValue(willpower: NormalizedWillpower, amount = 1) {
+  const next = {
+    superficial: willpower.superficial,
+    aggravated: willpower.aggravated,
+  }
+  let applied = 0
+  const warnings: string[] = []
+
+  for (let index = 0; index < amount; index += 1) {
+    if (next.aggravated >= willpower.max) {
+      warnings.push('Воля полностью заполнена тяжёлым стрессом: потратить Волю нельзя.')
+      break
+    }
+    if (next.superficial + next.aggravated < willpower.max) {
+      next.superficial += 1
+      applied += 1
+      continue
+    }
+    if (next.superficial > 0) {
+      next.superficial -= 1
+      next.aggravated += 1
+      applied += 1
+      warnings.push('Трек Воли был заполнен: один поверхностный стресс превращён в тяжёлый.')
+      continue
+    }
+    warnings.push('Воля полностью заполнена: потратить Волю нельзя.')
+    break
+  }
+
+  const normalized = normalizeWillpowerTracker(next, willpower.max)
+  if (normalized.impaired) warnings.push('Трек Воли заполнен: ментальные и социальные проверки получают -2к10.')
+  return { tracker: normalized, applied, warnings }
+}
+
+function recoverWillpowerStressValue(willpower: NormalizedWillpower, amount = 1, severity: 'superficial' | 'aggravated' = 'superficial') {
+  const next = {
+    superficial: willpower.superficial,
+    aggravated: willpower.aggravated,
+  }
+  let recovered = 0
+  for (let index = 0; index < amount; index += 1) {
+    if (severity === 'aggravated') {
+      if (next.aggravated <= 0) break
+      next.aggravated -= 1
+      recovered += 1
+      continue
+    }
+    if (next.superficial <= 0) break
+    next.superficial -= 1
+    recovered += 1
+  }
+  return { tracker: normalizeWillpowerTracker(next, willpower.max), recovered }
+}
+
+function getWillpowerRecoveryPool(character?: CharacterOption | null) {
+  if (!character) return 0
+  return Math.max(
+    Number(character.attributes['Самообладание'] || 0) || 0,
+    Number(character.attributes['Упорство'] || 0) || 0,
+  )
+}
+
+function getWillpowerImpairmentPenalty(parts: string[], character?: CharacterOption | null) {
+  const willpower = getCharacterWillpower(character)
+  if (!willpower.impaired) return 0
+  return parts.some(part => WILLPOWER_IMPAIRED_ATTRIBUTES.includes(part)) ? -2 : 0
+}
+
+function isWillpowerRerollExcluded(roll: RollMessage) {
+  const text = `${roll.poolType} ${roll.poolName}`.toLocaleLowerCase('ru')
+  return roll.poolType === 'rouse-check'
+    || roll.poolType === 'willpower'
+    || roll.poolType === 'willpower-check'
+    || /проверка воли|вол[яи]|человеч/.test(text)
 }
 
 function getBloodSurgeBonus(bloodPotency: number) {
@@ -396,6 +521,47 @@ function parseRouseCost(cost?: string, mechanics?: DisciplinePowerRule['mechanic
     rouseChecks: Math.max(1, Math.floor(amount) || 1),
     variable: /\+/.test(normalized),
   }
+}
+
+function parseWillpowerCost(cost?: string, mechanics?: DisciplinePowerRule['mechanics']): WillpowerCost {
+  const result: WillpowerCost = {
+    spendWillpower: 0,
+    reduceWillpowerRating: 0,
+    manualChoice: false,
+    warnings: [],
+  }
+
+  const mechanicsCost = mechanics?.willpower_cost
+  if (typeof mechanicsCost === 'number' && Number.isFinite(mechanicsCost) && mechanicsCost > 0) {
+    result.spendWillpower = Math.max(0, Math.floor(mechanicsCost))
+  } else if (mechanicsCost && typeof mechanicsCost === 'object') {
+    result.spendWillpower = Math.max(0, Math.floor(Number(mechanicsCost.spend) || 0))
+    result.reduceWillpowerRating = Math.max(0, Math.floor(Number(mechanicsCost.reduce_rating) || 0))
+    result.manualChoice = Boolean(mechanicsCost.manual_choice)
+  }
+
+  const normalized = String(cost || '').trim().toLocaleLowerCase('ru')
+  if (!normalized || normalized === '—' || normalized === '-' || normalized === 'нет') return result
+  if (!/вол/.test(normalized)) return result
+
+  const amount = Math.max(1, Math.floor(Number(normalized.match(/\d+/)?.[0]) || 1))
+  const mentionsPoint = /пункт|очк/.test(normalized)
+  const mentionsSpend = /потрат|стоим|расход|треб/.test(normalized)
+  const mentionsReduction = /сниж|уменьш|теря|постоян/.test(normalized) && /рейтинг|максим|значени|вол/.test(normalized)
+
+  if (mentionsReduction) {
+    result.reduceWillpowerRating = Math.max(result.reduceWillpowerRating, amount)
+    result.warnings.push('Стоимость силы похожа на снижение рейтинга/максимума Воли. Автоматически снимается только стресс; проверь цену с Рассказчиком.')
+  } else if (mentionsPoint || mentionsSpend) {
+    result.spendWillpower = Math.max(result.spendWillpower, amount)
+  }
+
+  if (/может|добровольн|по желани|выбор|цель/.test(normalized)) {
+    result.manualChoice = true
+    result.warnings.push('В тексте есть добровольная трата Воли. Автотрата применяется только если это указано как цена силы.')
+  }
+
+  return result
 }
 
 function getRouseWarning(result: RouseCheckResult) {
@@ -596,6 +762,7 @@ export default function VampireTable() {
   const [previewPowerModifier, setPreviewPowerModifier] = useState(0)
   const [previewUseBloodSurge, setPreviewUseBloodSurge] = useState(false)
   const [masterUseBloodSurge, setMasterUseBloodSurge] = useState(false)
+  const [willpowerRerollDraft, setWillpowerRerollDraft] = useState<WillpowerRerollDraft | null>(null)
   const [quickInventoryName, setQuickInventoryName] = useState('')
   const [quickInventoryCategory, setQuickInventoryCategory] = useState<(typeof INVENTORY_CATEGORIES)[number]>('Другое')
   const [quickInventoryQuantity, setQuickInventoryQuantity] = useState(1)
@@ -1861,7 +2028,8 @@ export default function VampireTable() {
   const masterRollSkillDots = selectedMasterRollCharacter ? getSkillDots(selectedMasterRollCharacter.skills[masterRollSkill] || 0) : 0
   const masterRollDisciplineDots = selectedMasterRollCharacter ? getDisciplineDots(selectedMasterRollCharacter.disciplines[masterRollDiscipline] || {}) : 0
   const masterRollPoolBeforeLimit = masterRollAttributeDots + masterRollAttributeTwoDots + masterRollSkillDots + masterRollDisciplineDots + masterRollModifier
-  const masterRollDiceCount = Math.max(0, Math.min(20, masterRollPoolBeforeLimit))
+  const masterWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([masterRollAttribute, masterRollAttributeTwo], selectedMasterRollCharacter)
+  const masterRollDiceCount = Math.max(0, Math.min(20, masterRollPoolBeforeLimit + masterWillpowerImpairmentPenalty))
   const masterBloodPotency = getCharacterBloodPotency(selectedMasterRollCharacter)
   const masterBloodSurgeBonus = getBloodSurgeBonus(masterBloodPotency)
   const masterRollExtraAttributes = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.attributes, ATTRIBUTE_GROUPS) : []
@@ -1952,10 +2120,12 @@ export default function VampireTable() {
   const previewSkillDots = previewCharacter ? getSkillDots(previewCharacter.skills[previewRollSkill] || 0) : 0
   const previewDisciplineDots = previewCharacter ? getDisciplineDots(previewCharacter.disciplines[previewRollDiscipline] || {}) : 0
   const previewPoolBeforeLimit = previewAttributeDots + previewAttributeTwoDots + previewSkillDots + previewDisciplineDots + previewRollModifier
-  const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit))
+  const previewWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewCharacter)
+  const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit + previewWillpowerImpairmentPenalty))
   const previewBloodPotency = getCharacterBloodPotency(previewCharacter)
   const previewBloodSurgeBonus = getBloodSurgeBonus(previewBloodPotency)
   const previewHunger = getCharacterHunger(previewCharacter)
+  const previewWillpower = getCharacterWillpower(previewCharacter)
   const canRollPreview = Boolean(previewCharacter?.id && (isMaster || previewCharacter.id === selectedActiveCharacter?.id))
   const canEditPreviewInventory = Boolean(chatUser && previewCharacter?.id && previewCharacter.id === selectedActiveCharacter?.id)
   const previewExtraAttributes = previewCharacter ? getExtraTraitNames(previewCharacter.attributes, ATTRIBUTE_GROUPS) : []
@@ -1986,8 +2156,10 @@ export default function VampireTable() {
   const previewPowerPoolBeforeLimit = previewCharacter
     ? previewPowerPoolSelections.reduce((sum, name) => sum + getCharacterPoolPartDots(previewCharacter, name), 0) + previewPowerModifier
     : 0
-  const previewPowerDiceCount = Math.max(0, Math.min(20, previewPowerPoolBeforeLimit))
+  const previewPowerWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty(previewPowerPoolSelections, previewCharacter)
+  const previewPowerDiceCount = Math.max(0, Math.min(20, previewPowerPoolBeforeLimit + previewPowerWillpowerImpairmentPenalty))
   const selectedPreviewPowerRouseCost = parseRouseCost(selectedPreviewPower?.rule.cost, selectedPreviewPower?.rule.mechanics)
+  const selectedPreviewPowerWillpowerCost = parseWillpowerCost(selectedPreviewPower?.rule.cost, selectedPreviewPower?.rule.mechanics)
 
   useEffect(() => {
     if (!previewDisciplineName || !disciplineRules) return
@@ -2286,6 +2458,152 @@ export default function VampireTable() {
     return updatedCharacter
   }
 
+  const updateCharacterWillpower = async (
+    characterId: string,
+    nextTracker: { superficial: number; aggravated: number },
+    reason = 'Воля обновлена',
+  ) => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id, user_id, name, clan, data')
+      .eq('id', characterId)
+      .single()
+
+    if (error || !data?.data) {
+      console.error('Не удалось прочитать персонажа для обновления Воли:', error)
+      setConnectionText('Воля не сохранилась')
+      return null
+    }
+
+    const characterData = data.data as NonNullable<CharacterRow['data']>
+    const willpowerMax = getWillpowerMaxFromAttributes(characterData.attributes || {})
+    const normalized = normalizeWillpowerTracker(nextTracker, willpowerMax)
+    const nextData = {
+      ...characterData,
+      vitalTrackers: {
+        ...(characterData.vitalTrackers || {}),
+        willpower: {
+          superficial: normalized.superficial,
+          aggravated: normalized.aggravated,
+        },
+      },
+      timestamp: new Date().toISOString(),
+    }
+    const { error: updateError } = await supabase
+      .from('characters')
+      .update({ data: nextData })
+      .eq('id', characterId)
+
+    if (updateError) {
+      console.error('Не удалось сохранить Волю персонажа:', updateError)
+      setConnectionText('Воля не сохранилась')
+      return null
+    }
+
+    const updatedCharacter = mapCharacterRow({ ...(data as CharacterRow), data: nextData })
+    setChatCharacters(current => current.map(character => (
+      character.id === characterId ? { ...updatedCharacter, username: character.username } : character
+    )))
+    setPreviewCharacter(current => current?.id === characterId ? { ...updatedCharacter, username: current.username } : current)
+    setOpposedCharacterCache(current => {
+      if (!current[characterId]) return current
+      return { ...current, [characterId]: { ...updatedCharacter, username: current[characterId].username } }
+    })
+
+    setConnectionText(reason)
+    return updatedCharacter
+  }
+
+  const publishWillpowerEvent = async (
+    character: CharacterOption,
+    reason: string,
+    before: NormalizedWillpower,
+    after: NormalizedWillpower,
+    meta: Partial<RollMeta> = {},
+  ) => {
+    const roll: RollMessage = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      characterName: character.name,
+      poolName: reason,
+      poolType: 'willpower',
+      diceCount: 0,
+      dice: [],
+      successes: 0,
+      createdAt: new Date().toISOString(),
+      meta: {
+        source: 'willpower',
+        characterId: character.id,
+        willpowerBefore: getWillpowerMetaState(before),
+        willpowerAfter: getWillpowerMetaState(after),
+        willpowerImpaired: after.impaired,
+        ...meta,
+      },
+    }
+    await publishRoll(roll)
+  }
+
+  const spendWillpower = async (character: CharacterOption, amount = 1, reason = 'Воля: трата') => {
+    const before = getCharacterWillpower(character)
+    const result = applyWillpowerStressValue(before, amount)
+    if (result.applied < amount) {
+      window.alert(result.warnings[0] || 'Волю сейчас потратить нельзя.')
+      return null
+    }
+    const updatedCharacter = await updateCharacterWillpower(character.id, result.tracker, 'Воля сохранена')
+    if (!updatedCharacter) return null
+    const after = getCharacterWillpower(updatedCharacter)
+    await publishWillpowerEvent(updatedCharacter, reason, before, after, {
+      spentWillpower: result.applied,
+      warnings: result.warnings,
+    })
+    return { character: updatedCharacter, before, after, spent: result.applied, warnings: result.warnings }
+  }
+
+  const recoverWillpower = async (
+    character: CharacterOption,
+    amount: number,
+    severity: 'superficial' | 'aggravated',
+    reason: string,
+  ) => {
+    const before = getCharacterWillpower(character)
+    const result = recoverWillpowerStressValue(before, amount, severity)
+    if (result.recovered < 1) return null
+    const updatedCharacter = await updateCharacterWillpower(character.id, result.tracker, 'Воля сохранена')
+    if (!updatedCharacter) return null
+    const after = getCharacterWillpower(updatedCharacter)
+    await publishWillpowerEvent(updatedCharacter, reason, before, after, {
+      recoveredWillpower: result.recovered,
+    })
+    return { character: updatedCharacter, before, after, recovered: result.recovered }
+  }
+
+  const adjustWillpowerStress = async (character: CharacterOption, severity: 'superficial' | 'aggravated', delta: number) => {
+    const before = getCharacterWillpower(character)
+    const next = { superficial: before.superficial, aggravated: before.aggravated }
+    if (severity === 'aggravated') {
+      next.aggravated = Math.max(0, Math.min(before.max, next.aggravated + delta))
+      if (next.superficial + next.aggravated > before.max) next.superficial = Math.max(0, before.max - next.aggravated)
+    } else {
+      next.superficial = Math.max(0, Math.min(Math.max(0, before.max - next.aggravated), next.superficial + delta))
+    }
+    await updateCharacterWillpower(character.id, next, 'Воля сохранена')
+  }
+
+  const rollWillpowerCheck = async (character: CharacterOption) => {
+    const willpower = getCharacterWillpower(character)
+    if (willpower.current < 1) {
+      window.alert('Доступной Воли нет: проверку Воли бросить нельзя.')
+      return
+    }
+    await rollQuickDice(willpower.current, 'Проверка Воли', character, 'willpower-check', {
+      skipHungerDice: true,
+      source: 'willpower',
+      warnings: ['Проверка Воли бросает текущую доступную Волю и не использует кубики Голода.'],
+    })
+  }
+
   const performRouseCheck = async (
     character: CharacterOption,
     reason: string,
@@ -2556,6 +2874,7 @@ export default function VampireTable() {
       return
     }
     const hungerBefore = getCharacterHunger(character)
+    const willpowerBefore = getCharacterWillpower(character)
     let currentHunger = hungerBefore
     const rouseChecks: RouseCheckResult[] = [...(options.rouseChecks || [])]
     if (rouseChecks.length) {
@@ -2575,13 +2894,24 @@ export default function VampireTable() {
     const dice = rollD10Pool(finalDiceCount, hungerDice)
     const successes = countD10Successes(dice)
     const outcomeMeta = getRollOutcomeMeta(dice, successes)
-    const warnings = rouseChecks.map(getRouseWarning).filter(Boolean)
+    const willpowerAfter = getCharacterWillpower(character)
+    const warnings = [
+      ...(options.warnings || []),
+      ...rouseChecks.map(getRouseWarning).filter(Boolean),
+    ]
     const meta: RollMeta = {
+      characterId: character.id,
       source: options.source || (options.useBloodSurge ? 'blood_surge' : 'manual'),
       hungerBefore,
       hungerAfter: currentHunger,
       hungerDice,
       bloodPotency,
+      willpowerBefore: options.willpowerBefore || getWillpowerMetaState(willpowerBefore),
+      willpowerAfter: options.willpowerAfter || getWillpowerMetaState(willpowerAfter),
+      spentWillpower: options.spentWillpower,
+      recoveredWillpower: options.recoveredWillpower,
+      willpowerImpaired: willpowerAfter.impaired,
+      impairmentPenaltyApplied: options.impairmentPenaltyApplied,
       rouseChecks,
       bloodSurge: options.useBloodSurge ? {
         enabled: true,
@@ -2607,6 +2937,125 @@ export default function VampireTable() {
     await publishRoll(roll)
   }
 
+  const getRollDieId = (roll: RollMessage, index: number) => roll.dice[index]?.id || `${roll.id}:${index}`
+
+  const getRollCharacter = (roll: RollMessage) => {
+    const characterId = roll.meta?.characterId
+    if (characterId) return chatCharacters.find(character => character.id === characterId) || null
+    return chatCharacters.find(character => character.name === roll.characterName) || null
+  }
+
+  const getWillpowerRerollEligibleDieIds = (roll: RollMessage) => roll.dice
+    .map((die, index) => ({ die, id: getRollDieId(roll, index) }))
+    .filter(({ die }) => !String(die.kind).startsWith('hunger'))
+    .map(({ id }) => id)
+
+  const canUseWillpowerReroll = (roll: RollMessage) => {
+    if (roll.opposed || (roll.hidden && !isMaster) || roll.meta?.willpowerReroll?.used || isWillpowerRerollExcluded(roll)) return false
+    if (!getWillpowerRerollEligibleDieIds(roll).length) return false
+    const character = getRollCharacter(roll)
+    if (!character) return false
+    const willpower = getCharacterWillpower(character)
+    return willpower.max > 0 && willpower.aggravated < willpower.max
+  }
+
+  const toggleWillpowerRerollDie = (roll: RollMessage, dieId: string) => {
+    if (!canUseWillpowerReroll(roll)) return
+    setWillpowerRerollDraft(current => {
+      const selected = current?.rollId === roll.id ? current.selectedDieIds : []
+      if (selected.includes(dieId)) {
+        return { rollId: roll.id, selectedDieIds: selected.filter(id => id !== dieId) }
+      }
+      if (selected.length >= 3) return { rollId: roll.id, selectedDieIds: selected }
+      return { rollId: roll.id, selectedDieIds: [...selected, dieId] }
+    })
+  }
+
+  const publishRollReplacement = async (roll: RollMessage) => {
+    setRolls(prev => mergeRoll(prev, roll))
+    broadcast('roll', roll)
+    const payload = {
+      pool_name: roll.poolName,
+      pool_type: roll.poolType,
+      dice_count: roll.diceCount,
+      dice: roll.dice,
+      successes: roll.successes,
+      meta: roll.meta || {},
+    }
+    let { error } = await createClient()
+      .from(TABLE_ROLLS)
+      .update(payload)
+      .eq('id', roll.id)
+
+    if (error && /meta/i.test(error.message || '')) {
+      const { meta, ...legacyPayload } = payload
+      const fallback = await createClient()
+        .from(TABLE_ROLLS)
+        .update(legacyPayload)
+        .eq('id', roll.id)
+      error = fallback.error
+    }
+
+    if (error) setConnectionText('Переброс отправлен онлайн, но не сохранился')
+    else setConnectionText('Онлайн')
+  }
+
+  const confirmWillpowerReroll = async (roll: RollMessage) => {
+    const draft = willpowerRerollDraft?.rollId === roll.id ? willpowerRerollDraft : null
+    if (!draft || draft.selectedDieIds.length < 1) {
+      window.alert('Выбери от одного до трёх обычных кубиков.')
+      return
+    }
+    const character = getRollCharacter(roll)
+    if (!character) {
+      window.alert('Не удалось найти персонажа для траты Воли.')
+      return
+    }
+    const spendResult = await spendWillpower(character, 1, `Воля: переброс · ${roll.poolName}`)
+    if (!spendResult) return
+
+    const selected = new Set(draft.selectedDieIds)
+    const oldDice: Die[] = []
+    const newDice: Die[] = []
+    const rerolledDice = roll.dice.map((die, index) => {
+      const id = getRollDieId(roll, index)
+      const normalizedDie = { ...die, id }
+      if (!selected.has(id)) return normalizedDie
+      oldDice.push(normalizedDie)
+      const value = Math.floor(Math.random() * 10) + 1
+      const nextDie = { id, value, kind: getDieKind(value, false), rerolled: true } as Die
+      newDice.push(nextDie)
+      return nextDie
+    })
+    const successes = countD10Successes(rerolledDice)
+    const outcomeMeta = getRollOutcomeMeta(rerolledDice, successes)
+    const previousWarnings = roll.meta?.warnings || []
+    const updatedRoll: RollMessage = {
+      ...roll,
+      dice: rerolledDice,
+      diceCount: rerolledDice.length,
+      successes,
+      meta: {
+        ...(roll.meta || {}),
+        characterId: character.id,
+        willpowerBefore: getWillpowerMetaState(spendResult.before),
+        willpowerAfter: getWillpowerMetaState(spendResult.after),
+        spentWillpower: (roll.meta?.spentWillpower || 0) + spendResult.spent,
+        willpowerImpaired: spendResult.after.impaired,
+        willpowerReroll: {
+          used: true,
+          selectedDieIds: draft.selectedDieIds,
+          oldDice,
+          newDice,
+        },
+        warnings: [...previousWarnings, ...spendResult.warnings],
+        ...outcomeMeta,
+      },
+    }
+    setWillpowerRerollDraft(null)
+    await publishRollReplacement(updatedRoll)
+  }
+
   const rollMasterPool = async () => {
     if (!selectedMasterRollCharacter) {
       window.alert('Выбери персонажа мастера.')
@@ -2625,6 +3074,8 @@ export default function VampireTable() {
         hidden: masterRollHidden,
         useBloodSurge: masterUseBloodSurge,
         source: masterUseBloodSurge ? 'blood_surge' : 'manual',
+        impairmentPenaltyApplied: masterWillpowerImpairmentPenalty || undefined,
+        warnings: masterWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : [],
       },
     )
   }
@@ -2679,6 +3130,8 @@ export default function VampireTable() {
     await rollQuickDice(previewDiceCount, poolParts.join(' + ') || `${previewDiceCount}к10`, previewCharacter, 'character-sheet', {
       useBloodSurge: previewUseBloodSurge,
       source: previewUseBloodSurge ? 'blood_surge' : 'manual',
+      impairmentPenaltyApplied: previewWillpowerImpairmentPenalty || undefined,
+      warnings: previewWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : [],
     })
   }
 
@@ -2732,6 +3185,7 @@ export default function VampireTable() {
     power: DisciplinePowerEntry,
     context: DisciplineRollContext,
     rouseChecks: RouseCheckResult[],
+    willpowerMeta: Partial<RollMeta> = {},
   ) => {
     const dice = rouseChecks.map(result => ({ value: result.value, kind: getDieKind(result.value, false) } as Die))
     const hungerBefore = rouseChecks[0]?.hungerBefore ?? getCharacterHunger(character)
@@ -2755,7 +3209,13 @@ export default function VampireTable() {
         bloodPotency: getCharacterBloodPotency(character),
         rouseChecks,
         discipline: context,
-        warnings,
+        warnings: [...warnings, ...(willpowerMeta.warnings || [])],
+        characterId: character.id,
+        willpowerBefore: willpowerMeta.willpowerBefore || getWillpowerMetaState(getCharacterWillpower(character)),
+        willpowerAfter: willpowerMeta.willpowerAfter || getWillpowerMetaState(getCharacterWillpower(character)),
+        spentWillpower: willpowerMeta.spentWillpower,
+        recoveredWillpower: willpowerMeta.recoveredWillpower,
+        willpowerImpaired: getCharacterWillpower(character).impaired,
       },
     }
     await publishRoll(roll)
@@ -2763,36 +3223,73 @@ export default function VampireTable() {
 
   const rollPreviewPower = async () => {
     if (!previewCharacter || !selectedPreviewPower || !canRollPreview) return
+    let activeCharacter = previewCharacter
+    let willpowerMeta: Partial<RollMeta> = {}
     const context: DisciplineRollContext = {
       name: previewDisciplineName,
       power: selectedPreviewPower.name,
       level: selectedPreviewPower.level,
       cost: selectedPreviewPower.rule.cost || '—',
     }
+
+    if (selectedPreviewPowerWillpowerCost.reduceWillpowerRating > 0) {
+      window.alert('Эта цена похожа на снижение рейтинга/максимума Воли. Автоматически списывать её нельзя: проверь эффект с Рассказчиком.')
+      return
+    }
+
+    if (selectedPreviewPowerWillpowerCost.spendWillpower > 0 && !selectedPreviewPowerWillpowerCost.manualChoice) {
+      const willpowerResult = await spendWillpower(
+        activeCharacter,
+        selectedPreviewPowerWillpowerCost.spendWillpower,
+        `${previewDisciplineName}: ${selectedPreviewPower.name} · Воля`,
+      )
+      if (!willpowerResult) return
+      activeCharacter = willpowerResult.character
+      willpowerMeta = {
+        willpowerBefore: getWillpowerMetaState(willpowerResult.before),
+        willpowerAfter: getWillpowerMetaState(willpowerResult.after),
+        spentWillpower: willpowerResult.spent,
+        warnings: [
+          ...willpowerResult.warnings,
+          ...selectedPreviewPowerWillpowerCost.warnings,
+        ],
+      }
+    } else if (selectedPreviewPowerWillpowerCost.warnings.length) {
+      willpowerMeta = { warnings: selectedPreviewPowerWillpowerCost.warnings }
+    }
+
     const rouseChecks = selectedPreviewPowerRouseCost.rouseChecks > 0
-      ? await performDisciplineRouseChecks(previewCharacter, selectedPreviewPower, selectedPreviewPowerRouseCost)
+      ? await performDisciplineRouseChecks(activeCharacter, selectedPreviewPower, selectedPreviewPowerRouseCost)
       : []
     if (rouseChecks === null) return
 
     if (previewPowerDiceCount < 1 || previewPowerPoolChoices.length === 0) {
-      if (rouseChecks.length > 0) {
-        await publishDisciplineActivation(previewCharacter, selectedPreviewPower, context, rouseChecks)
+      if (rouseChecks.length > 0 || willpowerMeta.spentWillpower) {
+        await publishDisciplineActivation(activeCharacter, selectedPreviewPower, context, rouseChecks, willpowerMeta)
         return
       }
       window.alert('Для этой силы автоматический бросок не указан. Используй обычный конструктор пула.')
       return
     }
-    const selectedParts = previewPowerPoolSelections.map(name => `${name} ${getCharacterPoolPartDots(previewCharacter, name)}`)
+    const selectedParts = previewPowerPoolSelections.map(name => `${name} ${getCharacterPoolPartDots(activeCharacter, name)}`)
     if (previewPowerModifier) selectedParts.push(`модификатор ${previewPowerModifier > 0 ? '+' : ''}${previewPowerModifier}`)
     await rollQuickDice(
       previewPowerDiceCount,
       `${previewDisciplineName}: ${selectedPreviewPower.name} · ${selectedParts.join(' + ')}`,
-      previewCharacter,
+      activeCharacter,
       'discipline-power',
       {
         source: 'discipline',
         disciplineContext: context,
         rouseChecks,
+        willpowerBefore: willpowerMeta.willpowerBefore,
+        willpowerAfter: willpowerMeta.willpowerAfter,
+        spentWillpower: willpowerMeta.spentWillpower,
+        warnings: [
+          ...(willpowerMeta.warnings || []),
+          ...(previewPowerWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : []),
+        ],
+        impairmentPenaltyApplied: previewPowerWillpowerImpairmentPenalty || undefined,
       },
     )
   }
@@ -5030,8 +5527,14 @@ export default function VampireTable() {
     const hasHungerChange = typeof meta.hungerBefore === 'number'
       && typeof meta.hungerAfter === 'number'
       && meta.hungerBefore !== meta.hungerAfter
+    const hasWillpowerChange = Boolean(meta.willpowerBefore && meta.willpowerAfter && meta.willpowerBefore.current !== meta.willpowerAfter.current)
+    const hasWillpowerMeta = hasWillpowerChange
+      || Boolean(meta.spentWillpower)
+      || Boolean(meta.recoveredWillpower)
+      || Boolean(meta.willpowerReroll?.used)
+      || Boolean(meta.impairmentPenaltyApplied)
 
-    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline) {
+    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !hasWillpowerMeta && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline) {
       return null
     }
 
@@ -5049,6 +5552,15 @@ export default function VampireTable() {
           </span>
         ))}
         {hasHungerChange ? <span className="roll-note">Голод: {meta.hungerBefore} → {meta.hungerAfter}</span> : null}
+        {meta.spentWillpower ? <span className="roll-note">Воля потрачена: {meta.spentWillpower}</span> : null}
+        {meta.recoveredWillpower ? <span className="roll-note">Воля восстановлена: {meta.recoveredWillpower}</span> : null}
+        {hasWillpowerChange && meta.willpowerBefore && meta.willpowerAfter ? (
+          <span className="roll-note">Воля: {meta.willpowerBefore.current} → {meta.willpowerAfter.current} / {meta.willpowerAfter.max}</span>
+        ) : null}
+        {meta.willpowerReroll?.used ? (
+          <span className="roll-note">Переброс Воли: {meta.willpowerReroll.oldDice.map(die => die.value).join(', ')} → {meta.willpowerReroll.newDice.map(die => die.value).join(', ')}</span>
+        ) : null}
+        {meta.impairmentPenaltyApplied ? <span className="roll-note">Истощение Воли: {meta.impairmentPenaltyApplied}к10</span> : null}
         {meta.messyCritical ? <strong className="roll-alert">Кровавый триумф</strong> : null}
         {meta.bestialFailure ? <strong className="roll-alert">Кровавый провал</strong> : null}
         {warnings.map((warning, index) => <span className="roll-warning" key={`${roll.id}-warning-${index}`}>{warning}</span>)}
@@ -5841,7 +6353,10 @@ export default function VampireTable() {
               {rolls.length === 0 ? (
                 <p className="panel-empty">Бросков пока нет.</p>
               ) : (
-                rolls.map(roll => (
+                rolls.map(roll => {
+                  const rerollDraftForRoll = willpowerRerollDraft?.rollId === roll.id ? willpowerRerollDraft : null
+                  const canRerollWithWillpower = canUseWillpowerReroll(roll)
+                  return (
                   <article className={`roll-card ${roll.hidden ? 'hidden-roll' : ''}`} key={roll.id}>
                     <div className="roll-meta">
                       <strong>{roll.characterName}</strong>
@@ -5889,12 +6404,16 @@ export default function VampireTable() {
                         <div className="dice-row" aria-label={`Результаты кубиков: ${roll.dice.map(die => die.value).join(', ')}`}>
                           {roll.dice.map((die, index) => {
                             const dieImage = getDieImage(die)
+                            const dieId = getRollDieId(roll, index)
+                            const rerollSelectable = canRerollWithWillpower && !String(die.kind).startsWith('hunger')
+                            const rerollSelected = Boolean(rerollDraftForRoll?.selectedDieIds.includes(dieId))
                             return (
                               <span
-                                className={`die die-${die.kind}`}
+                                className={`die die-${die.kind}${die.rerolled ? ' die-rerolled' : ''}${rerollSelectable ? ' reroll-selectable' : ''}${rerollSelected ? ' reroll-selected' : ''}`}
                                 key={`${roll.id}-${index}`}
                                 aria-label={`${dieImage.label}: ${die.value}`}
-                                title={`${die.value} - ${dieImage.label}`}
+                                title={rerollSelectable ? `${die.value} - ${dieImage.label}. Выбрать для переброса Воли` : `${die.value} - ${dieImage.label}`}
+                                onClick={rerollSelectable ? () => toggleWillpowerRerollDie(roll, dieId) : undefined}
                               >
                                 <img src={dieImage.src} alt="" draggable={false} />
                               </span>
@@ -5906,11 +6425,30 @@ export default function VampireTable() {
                           <span>{roll.diceCount}к10</span>
                           <strong>{roll.successes}</strong>
                         </footer>
+                        {canRerollWithWillpower ? (
+                          <div className="roll-reroll-actions">
+                            {rerollDraftForRoll ? (
+                              <>
+                                <span>Выбрано {rerollDraftForRoll.selectedDieIds.length} / 3</span>
+                                <button type="button" onClick={() => confirmWillpowerReroll(roll)} disabled={rerollDraftForRoll.selectedDieIds.length < 1}>
+                                  Перебросить за Волю
+                                </button>
+                                <button type="button" onClick={() => setWillpowerRerollDraft(null)}>
+                                  Отмена
+                                </button>
+                              </>
+                            ) : (
+                              <button type="button" onClick={() => setWillpowerRerollDraft({ rollId: roll.id, selectedDieIds: [] })}>
+                                Переброс Воли
+                              </button>
+                            )}
+                          </div>
+                        ) : null}
                       </>
                     )}
                     {renderRollMeta(roll)}
                   </article>
-                ))
+                )})
               )}
             </section>
           </section>
@@ -6016,7 +6554,7 @@ export default function VampireTable() {
                           <div>
                             <span>Выбран</span>
                             <strong>{selectedMasterRollCharacter.name}</strong>
-                            <small>{selectedMasterRollCharacter.clan || 'без клана'} · Голод {getCharacterHunger(selectedMasterRollCharacter)}/5 · Сила Крови {masterBloodPotency}</small>
+                            <small>{selectedMasterRollCharacter.clan || 'без клана'} · Голод {getCharacterHunger(selectedMasterRollCharacter)}/5 · Воля {getCharacterWillpower(selectedMasterRollCharacter).current}/{getCharacterWillpower(selectedMasterRollCharacter).max} · Сила Крови {masterBloodPotency}</small>
                           </div>
                           <button
                             type="button"
@@ -6159,6 +6697,7 @@ export default function VampireTable() {
                         </div>
 
                         {masterRollPoolBeforeLimit > 20 ? <p className="preview-roll-notice">Пул ограничен двадцатью костями.</p> : null}
+                        {masterWillpowerImpairmentPenalty ? <p className="preview-roll-notice">Истощение Воли: -2к10 к этому пулу.</p> : null}
                       </>
                     ) : (
                       <p className="panel-empty">Выбери персонажа.</p>
@@ -6282,6 +6821,7 @@ export default function VampireTable() {
                 <div><dt>Тип</dt><dd>{previewCharacter.type || '—'}</dd></div>
                 <div><dt>Стиль охоты</dt><dd>{previewCharacter.predator || '—'}</dd></div>
                 <div><dt>Голод</dt><dd>{previewHunger} / 5</dd></div>
+                <div><dt>Воля</dt><dd>{previewWillpower.current} / {previewWillpower.max}</dd></div>
                 <div><dt>Сила Крови</dt><dd>{previewBloodPotency}</dd></div>
                 <div><dt>Свободный опыт</dt><dd>{previewCharacter.freeExp ?? 0}</dd></div>
               </dl>
@@ -6308,6 +6848,58 @@ export default function VampireTable() {
                       <button type="button" onClick={() => rollRouseCheck(previewCharacter)} disabled={!canRollPreview}>
                         Проверить Голод
                       </button>
+                    </div>
+                  </section>
+                  <section className="preview-willpower-panel">
+                    <div className="preview-section-heading">
+                      <div>
+                        <span>Воля</span>
+                        <h3>Стресс</h3>
+                      </div>
+                      <strong>{previewWillpower.current} / {previewWillpower.max}</strong>
+                    </div>
+                    <div className="preview-willpower-track" aria-label="Трек Воли">
+                      {Array.from({ length: previewWillpower.max }, (_, index) => {
+                        const cell = index + 1
+                        const status = cell <= previewWillpower.aggravated
+                          ? 'aggravated'
+                          : cell <= previewWillpower.aggravated + previewWillpower.superficial
+                            ? 'superficial'
+                            : 'empty'
+                        return (
+                          <span className={`preview-willpower-cell ${status}`} key={`preview-wp-${cell}`}>
+                            {status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : ''}
+                          </span>
+                        )
+                      })}
+                    </div>
+                    {previewWillpower.impaired ? <p className="preview-roll-notice">Трек заполнен: ментальные и социальные проверки получают -2к10.</p> : null}
+                    <div className="preview-willpower-actions">
+                      <button type="button" onClick={() => spendWillpower(previewCharacter, 1, 'Воля: трата')} disabled={!canRollPreview || previewWillpower.aggravated >= previewWillpower.max}>
+                        Потратить
+                      </button>
+                      <button type="button" onClick={() => rollWillpowerCheck(previewCharacter)} disabled={!canRollPreview || previewWillpower.current < 1}>
+                        Проверка Воли
+                      </button>
+                      <button type="button" onClick={() => recoverWillpower(previewCharacter, getWillpowerRecoveryPool(previewCharacter), 'superficial', 'Воля: начало встречи')} disabled={!canRollPreview || previewWillpower.superficial < 1}>
+                        Встреча
+                      </button>
+                      <button type="button" onClick={() => recoverWillpower(previewCharacter, 1, 'superficial', 'Воля: Прихоть')} disabled={!canRollPreview || previewWillpower.superficial < 1}>
+                        Прихоть +1
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Снять один тяжёлый стресс Воли?')) void recoverWillpower(previewCharacter, 1, 'aggravated', 'Воля: восстановление тяжёлого стресса')
+                        }}
+                        disabled={!canRollPreview || previewWillpower.aggravated < 1}
+                      >
+                        Снять X
+                      </button>
+                      <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'superficial', 1)} disabled={!canRollPreview}>+ /</button>
+                      <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'superficial', -1)} disabled={!canRollPreview}>- /</button>
+                      <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'aggravated', 1)} disabled={!canRollPreview}>+ X</button>
+                      <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'aggravated', -1)} disabled={!canRollPreview}>- X</button>
                     </div>
                   </section>
                   <section className="preview-roll-builder">
@@ -6415,6 +7007,7 @@ export default function VampireTable() {
                     </div>
                     {!canRollPreview ? <p className="preview-roll-notice">Бросать может мастер или владелец активного персонажа.</p> : null}
                     {previewPoolBeforeLimit > 20 ? <p className="preview-roll-notice">Пул ограничен двадцатью костями.</p> : null}
+                    {previewWillpowerImpairmentPenalty ? <p className="preview-roll-notice">Истощение Воли: -2к10 к этому пулу.</p> : null}
                   </section>
 
                   <section className="preview-trait-section">
@@ -6653,6 +7246,18 @@ export default function VampireTable() {
                         <div><dt>Бросок</dt><dd>{selectedPreviewPowerRollSummary || '—'}</dd></div>
                         <div><dt>Сложность</dt><dd>{selectedPreviewPowerDifficultySummary || '—'}</dd></div>
                         <div><dt>Стоимость</dt><dd>{selectedPreviewPower.rule.cost || '—'}</dd></div>
+                        {selectedPreviewPowerWillpowerCost.spendWillpower || selectedPreviewPowerWillpowerCost.reduceWillpowerRating || selectedPreviewPowerWillpowerCost.manualChoice ? (
+                          <div>
+                            <dt>Воля</dt>
+                            <dd>
+                              {selectedPreviewPowerWillpowerCost.reduceWillpowerRating
+                                ? `проверь снижение рейтинга: ${selectedPreviewPowerWillpowerCost.reduceWillpowerRating}`
+                                : selectedPreviewPowerWillpowerCost.manualChoice
+                                  ? 'добровольная трата'
+                                  : `${selectedPreviewPowerWillpowerCost.spendWillpower} пункт`}
+                            </dd>
+                          </div>
+                        ) : null}
                         <div><dt>Длительность</dt><dd>{selectedPreviewPower.rule.duration || '—'}</dd></div>
                       </dl>
                       {selectedPreviewPower.rule.effect ? (
@@ -6699,9 +7304,11 @@ export default function VampireTable() {
                             </div>
                             {previewPowerOpposition ? <p className="discipline-roll-opposition">Сопротивление цели: {previewPowerOpposition}</p> : null}
                             {selectedPreviewPowerRollFormula !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">Используется формула силы «{selectedPreviewPowerRollFormula.replace(/^как\s+/i, '')}».</p> : null}
+                            {previewPowerWillpowerImpairmentPenalty ? <p className="discipline-roll-opposition">Истощение Воли: -2к10 к этому пулу.</p> : null}
+                            {selectedPreviewPowerWillpowerCost.warnings.map((warning, index) => <p className="discipline-roll-opposition" key={`wp-cost-warning-${index}`}>{warning}</p>)}
                           </>
                         ) : (
-                          selectedPreviewPowerRouseCost.rouseChecks > 0 ? (
+                          selectedPreviewPowerRouseCost.rouseChecks > 0 || (selectedPreviewPowerWillpowerCost.spendWillpower > 0 && !selectedPreviewPowerWillpowerCost.manualChoice) ? (
                             <div className="discipline-activation-only">
                               <button type="button" onClick={rollPreviewPower} disabled={!canRollPreview}>
                                 Активировать силу

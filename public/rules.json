@@ -1,4 +1,33 @@
 {
+  "willpower": {
+    "max_formula": ["Самообладание", "Упорство"],
+    "tracker": {
+      "superficial_mark": "/",
+      "aggravated_mark": "X",
+      "legacy_numeric_means": "current_available"
+    },
+    "spend": {
+      "amount": 1,
+      "when_full_convert_superficial_to_aggravated": true,
+      "blocked_when_all_aggravated": true
+    },
+    "recovery": {
+      "session_start": "max_of_composure_or_resolve_superficial",
+      "desire": 1,
+      "aggravated_requires_confirmation": true
+    },
+    "reroll": {
+      "cost": 1,
+      "max_normal_dice": 3,
+      "exclude_hunger_dice": true,
+      "once_per_roll": true,
+      "exclude_from": ["rouse_check", "willpower", "humanity"]
+    },
+    "impairment": {
+      "when_tracker_full": -2,
+      "attributes": ["Обаяние", "Манипуляция", "Самообладание", "Интеллект", "Смекалка", "Упорство"]
+    }
+  },
   "rolls": {
     "success_threshold": 6,
     "critical_value": 10,
