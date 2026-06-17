@@ -1,4 +1,4 @@
-import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, Die, InventoryItem, LayerPatch, OpposedRollResult, RollMessage, RollRow, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow } from './types'
+import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, Die, InventoryItem, LayerPatch, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow } from './types'
 import { getMusicProvider } from '@/components/music/utils'
 
 const DIE_KINDS = new Set<Die['kind']>([
@@ -19,6 +19,10 @@ function isDie(value: unknown): value is Die {
     && Boolean(die.kind && DIE_KINDS.has(die.kind))
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value))
+}
+
 function isOpposedRollResult(value: unknown): value is OpposedRollResult {
   if (!value || typeof value !== 'object') return false
   const result = value as Partial<OpposedRollResult>
@@ -27,10 +31,54 @@ function isOpposedRollResult(value: unknown): value is OpposedRollResult {
     && (result.outcome === 'left' || result.outcome === 'right' || result.outcome === 'tie')
 }
 
+function isRouseCheckResult(value: unknown): value is RouseCheckResult {
+  if (!isRecord(value)) return false
+  return typeof value.id === 'string'
+    && typeof value.reason === 'string'
+    && typeof value.value === 'number'
+    && typeof value.success === 'boolean'
+    && typeof value.hungerBefore === 'number'
+    && typeof value.hungerAfter === 'number'
+}
+
+function normalizeRollMeta(value: unknown): RollMeta | undefined {
+  if (!isRecord(value)) return undefined
+  const meta: RollMeta = {}
+
+  if (typeof value.hungerBefore === 'number') meta.hungerBefore = value.hungerBefore
+  if (typeof value.hungerAfter === 'number') meta.hungerAfter = value.hungerAfter
+  if (typeof value.hungerDice === 'number') meta.hungerDice = value.hungerDice
+  if (typeof value.bloodPotency === 'number') meta.bloodPotency = value.bloodPotency
+  if (typeof value.messyCritical === 'boolean') meta.messyCritical = value.messyCritical
+  if (typeof value.bestialFailure === 'boolean') meta.bestialFailure = value.bestialFailure
+  if (typeof value.source === 'string') meta.source = value.source as RollMeta['source']
+  if (Array.isArray(value.warnings)) meta.warnings = value.warnings.filter((warning): warning is string => typeof warning === 'string')
+  if (Array.isArray(value.rouseChecks)) meta.rouseChecks = value.rouseChecks.filter(isRouseCheckResult)
+
+  if (isRecord(value.bloodSurge)) {
+    meta.bloodSurge = {
+      enabled: Boolean(value.bloodSurge.enabled),
+      bonusDice: Math.max(0, Number(value.bloodSurge.bonusDice) || 0),
+    }
+  }
+
+  if (isRecord(value.discipline)) {
+    meta.discipline = {
+      name: String(value.discipline.name || ''),
+      power: String(value.discipline.power || ''),
+      level: Number(value.discipline.level) || 0,
+      cost: String(value.discipline.cost || ''),
+    }
+  }
+
+  return Object.keys(meta).length ? meta : undefined
+}
+
 export function mapRollRow(row: RollRow): RollMessage {
   const dicePayload = row.dice
   const dice = Array.isArray(dicePayload) ? dicePayload.filter(isDie) : []
   const opposed = isOpposedRollResult(dicePayload) ? dicePayload : undefined
+  const meta = normalizeRollMeta(row.meta)
   return {
     id: row.id,
     room: row.room,
@@ -42,6 +90,7 @@ export function mapRollRow(row: RollRow): RollMessage {
     successes: row.successes,
     createdAt: row.created_at,
     opposed,
+    meta,
   }
 }
 
@@ -80,6 +129,7 @@ export function normalizeInventory(items: unknown): InventoryItem[] {
 
 export function mapCharacterRow(row: CharacterRow): CharacterOption {
   const data = row.data || {}
+  const bloodPotency = Number(data.bloodPotency ?? data.blood?.potency ?? 0) || 0
   return {
     id: row.id,
     userId: row.user_id || undefined,
@@ -91,6 +141,7 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     predator: data.predator || '',
     generation: data.generation || '',
     type: data.type || '',
+    bloodPotency,
     notes: data.notes || data.backstory || '',
     appearance: data.appearance || '',
     backstory: data.backstory || '',

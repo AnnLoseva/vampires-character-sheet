@@ -36,6 +36,8 @@ let lastAutoExperienceBonus = null;
 let characterImageData = '';
 let touchstones = [];
 let inventory = [];
+let explicitBloodPotency = null;
+let vitalAutoSaveTimeout = null;
 const THIN_BLOOD_CLAN = 'Слабокровные';
 const CAITIFF_CLAN = 'Каитиф';
 const THIN_BLOOD_ALCHEMY = 'Алхимия слабокровных';
@@ -164,6 +166,7 @@ async function initializeApp() {
         setupSheetTabs();
         setupInventoryEditor();
         setupCharacterDetails();
+        setupBloodPotencyField();
         renderInventory();
 
         // Дополнительные настройки
@@ -402,6 +405,63 @@ function normalizeVitalTrackerData(data = {}) {
     };
 }
 
+function clampHunger(value) {
+    return Math.max(0, Math.min(5, parseInt(value, 10) || 0));
+}
+
+function clampBloodPotency(value) {
+    return Math.max(0, Math.min(10, parseInt(value, 10) || 0));
+}
+
+function getCalculatedBloodPotency() {
+    const predatorName = document.getElementById('predator-input')?.value || '';
+    const base = getCurrentBloodPotencyEstimate();
+    const predBonus = predatorName && RULES?.predator_types?.[predatorName]
+        ? Number(RULES.predator_types[predatorName].blood_potency || 0)
+        : 0;
+    return clampBloodPotency(base + predBonus);
+}
+
+function getCurrentBloodPotencyValue() {
+    const el = document.getElementById('val-blood-potency');
+    if (el && 'value' in el) return clampBloodPotency(el.value);
+    return clampBloodPotency(el?.textContent || getCalculatedBloodPotency());
+}
+
+function getBloodSurgeBonus(bloodPotency = getCurrentBloodPotencyValue()) {
+    const bp = clampBloodPotency(bloodPotency);
+    if (bp <= 0) return 1;
+    if (bp <= 2) return 2;
+    if (bp <= 4) return 3;
+    if (bp <= 6) return 4;
+    if (bp <= 8) return 5;
+    return 6;
+}
+
+function getVitalAutosavePatch() {
+    return {
+        vitalTrackers: getVitalTrackerData(),
+        bloodPotency: getCurrentBloodPotencyValue()
+    };
+}
+
+function autoSaveVitalState({ immediate = false } = {}) {
+    if (isApplyingCharacterData) return;
+    if (!window.autoSaveCharacterPatch) return;
+    const run = () => window.autoSaveCharacterPatch(getVitalAutosavePatch());
+
+    if (vitalAutoSaveTimeout) {
+        clearTimeout(vitalAutoSaveTimeout);
+        vitalAutoSaveTimeout = null;
+    }
+
+    if (immediate) {
+        return run();
+    }
+
+    vitalAutoSaveTimeout = setTimeout(run, 650);
+}
+
 function renderVitalTracker(key) {
     const config = VITAL_TRACKER_CONFIG[key];
     if (!config) return;
@@ -443,6 +503,7 @@ function setVitalTrackerValue(key, value) {
     const next = vitalTrackers[key] === value ? value - 1 : value;
     vitalTrackers[key] = Math.max(0, Math.min(max, next));
     renderVitalTracker(key);
+    if (key === 'hunger') autoSaveVitalState();
 }
 
 function updateVitals() {
@@ -481,13 +542,16 @@ function updateBloodPotencyVital() {
     if (predatorName && RULES?.predator_types?.[predatorName]) {
         predBonus = RULES.predator_types[predatorName].blood_potency || 0;
     }
-    const total = base + predBonus;
+    const calculated = clampBloodPotency(base + predBonus);
+    const total = explicitBloodPotency === null ? calculated : clampBloodPotency(explicitBloodPotency);
     const el = document.getElementById('val-blood-potency');
     if (!el) return;
-    el.textContent = total;
+    if ('value' in el) el.value = String(total);
+    else el.textContent = total;
     let tip = `Сила крови: ${base} (от поколения/типа)`;
     if (predBonus) tip += ` + ${predBonus} (${predatorName})`;
-    tip += ` = ${total}`;
+    tip += ` = ${calculated}`;
+    if (explicitBloodPotency !== null && total !== calculated) tip += `; вручную: ${total}`;
     el.setAttribute('data-tooltip', tip);
 }
 
@@ -3139,10 +3203,14 @@ function openDiceRollModal(pool = {}) {
     };
 
     const modal = getDiceRollModal();
+    modal.querySelector('#dice-roll-title').textContent = 'Собрать пул';
+    modal.querySelector('#dice-roll-subtitle').textContent = 'Выбери два параметра и добавь модификатор, если он нужен.';
     modal.querySelector('#dice-roll-part-1').innerHTML = getDicePoolOptions(pendingDicePool.first);
     modal.querySelector('#dice-roll-part-2').innerHTML = getDicePoolOptions(pendingDicePool.second);
     modal.querySelector('#dice-roll-modifier').value = String(pendingDicePool.modifier);
     modal.querySelector('#dice-roll-modifier-label').value = pendingDicePool.modifierLabel;
+    const bloodSurge = modal.querySelector('#dice-roll-blood-surge');
+    if (bloodSurge) bloodSurge.checked = Boolean(pool.useBloodSurge);
     modal.querySelector('#dice-roll-result').innerHTML = '';
     updateDiceRollPoolPreview();
     modal.style.display = 'flex';
@@ -3177,6 +3245,10 @@ function getDiceRollModal() {
                     <span>Источник модификатора</span>
                     <input id="dice-roll-modifier-label" type="text" placeholder="специальность, кровь, сложность..." oninput="updateDiceRollPoolPreview()">
                 </label>
+                <label class="dice-roll-toggle">
+                    <span id="dice-roll-blood-surge-label">Прилив Крови</span>
+                    <input id="dice-roll-blood-surge" type="checkbox" onchange="updateDiceRollPoolPreview()">
+                </label>
             </div>
             <div id="dice-roll-pool-preview"></div>
             <div id="dice-roll-result"></div>
@@ -3194,9 +3266,13 @@ function readDiceRollPool() {
     const second = document.getElementById('dice-roll-part-2')?.value || '';
     const modifier = parseInt(document.getElementById('dice-roll-modifier')?.value || '0', 10) || 0;
     const modifierLabel = document.getElementById('dice-roll-modifier-label')?.value?.trim() || '';
+    const useBloodSurge = Boolean(document.getElementById('dice-roll-blood-surge')?.checked);
+    const bloodPotency = getCurrentBloodPotencyValue();
+    const bloodSurgeBonus = useBloodSurge ? getBloodSurgeBonus(bloodPotency) : 0;
     const firstDots = getDicePartDots(first);
     const secondDots = getDicePartDots(second);
-    const diceCount = Math.max(0, firstDots + secondDots + modifier);
+    const baseDiceCount = Math.max(0, firstDots + secondDots + modifier);
+    const diceCount = Math.max(0, Math.min(20, baseDiceCount + bloodSurgeBonus));
     const parts = [first, second]
         .filter(Boolean)
         .map(part => getDicePartDots(part));
@@ -3211,8 +3287,12 @@ function readDiceRollPool() {
         second,
         modifier,
         modifierLabel,
+        useBloodSurge,
+        bloodPotency,
+        bloodSurgeBonus,
         firstDots,
         secondDots,
+        baseDiceCount,
         diceCount,
         poolName: poolName || 'Свободный бросок',
         poolType: parts.join(' + ') || 'Свободный пул'
@@ -3225,13 +3305,18 @@ function updateDiceRollPoolPreview() {
 
     const pool = readDiceRollPool();
     const hungerDiceCount = getCurrentHungerDiceCount(pool.diceCount);
+    const bloodSurgeLabel = document.getElementById('dice-roll-blood-surge-label');
+    if (bloodSurgeLabel) {
+        bloodSurgeLabel.textContent = `Прилив Крови +${getBloodSurgeBonus()}к10`;
+    }
     const modifierText = pool.modifier
         ? ` ${pool.modifier > 0 ? '+' : '-'} ${Math.abs(pool.modifier)}${pool.modifierLabel ? ` (${pool.modifierLabel})` : ''}`
         : '';
+    const surgeText = pool.useBloodSurge ? ` + Прилив Крови ${pool.bloodSurgeBonus}` : '';
 
     preview.innerHTML = `
         <strong>${pool.diceCount}к10</strong>
-        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}`)}${hungerDiceCount ? ` · Голод: ${hungerDiceCount}` : ''}</span>
+        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}${surgeText}`)}${hungerDiceCount ? ` · Голод: ${hungerDiceCount}` : ''}</span>
     `;
 }
 
@@ -3272,7 +3357,99 @@ function countV5Successes(dice) {
     return regularSuccesses + Math.floor(criticals / 2) * 4 + (criticals % 2);
 }
 
-function renderDicePreview(dice, successes) {
+function getRollOutcomeMeta(dice, successes) {
+    const totalCriticals = dice.filter(die => die.value === 10).length;
+    const hungerCriticals = dice.filter(die => die.value === 10 && String(die.kind).startsWith('hunger')).length;
+    const hungerOnes = dice.filter(die => die.value === 1 && String(die.kind).startsWith('hunger')).length;
+    return {
+        messyCritical: successes > 0 && totalCriticals >= 2 && hungerCriticals > 0,
+        bestialFailure: successes <= 0 && hungerOnes > 0
+    };
+}
+
+function getRouseWarning(result) {
+    if (!result?.maxHungerWarning) return '';
+    return 'Голод уже 5. Неудачное Испытание Крови на максимальном Голоде: нужна реакция Рассказчика / риск голодной ярости.';
+}
+
+async function performRouseCheck(reason = 'Испытание Крови / Проверка Голода', options = {}) {
+    const hungerBefore = clampHunger(vitalTrackers.hunger);
+    const value = Math.floor(Math.random() * 10) + 1;
+    const success = value >= 6;
+    const hungerAfter = success ? hungerBefore : clampHunger(hungerBefore + 1);
+    const result = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        reason,
+        value,
+        success,
+        hungerBefore,
+        hungerAfter,
+        maxHungerWarning: !success && hungerBefore >= 5
+    };
+
+    if (hungerAfter !== hungerBefore) {
+        vitalTrackers.hunger = hungerAfter;
+        renderVitalTracker('hunger');
+    }
+    await autoSaveVitalState({ immediate: true });
+
+    if (options.publish !== false) {
+        const die = { value, kind: getDiceKind(value, false) };
+        const warning = getRouseWarning(result);
+        const roll = {
+            id: result.id,
+            room: getDiceRoom(),
+            characterName: document.getElementById('char-name')?.value?.trim() || 'Безымянный',
+            poolName: reason,
+            poolType: 'rouse-check',
+            diceCount: 1,
+            dice: [die],
+            successes: success ? 1 : 0,
+            createdAt: new Date().toISOString(),
+            meta: {
+                source: 'rouse_check',
+                hungerBefore,
+                hungerAfter,
+                bloodPotency: getCurrentBloodPotencyValue(),
+                rouseChecks: [result],
+                warnings: warning ? [warning] : []
+            }
+        };
+        publishDiceRoll(roll);
+        const container = document.getElementById('dice-roll-result');
+        if (container) container.innerHTML = renderDicePreview([die], roll.successes, roll.meta);
+    }
+
+    return result;
+}
+
+function renderDicePreview(dice, successes, meta = {}) {
+    const callouts = [];
+    if (meta.bloodSurge?.enabled) {
+        callouts.push({
+            kind: 'warning',
+            text: `Прилив Крови: +${meta.bloodSurge.bonusDice}к10. Испытание Крови: ${(meta.rouseChecks || []).map(result => result.success ? 'успех' : 'провал').join(', ') || 'проведено'}.`
+        });
+    }
+    (meta.rouseChecks || []).forEach(result => {
+        if (!meta.bloodSurge?.enabled) {
+            callouts.push({
+                kind: result.success ? 'warning' : 'warning',
+                text: `${result.reason}: ${result.value} — ${result.success ? 'успех, Голод не меняется' : 'провал, Голод растёт'}`
+            });
+        }
+    });
+    if (typeof meta.hungerBefore === 'number' && typeof meta.hungerAfter === 'number' && meta.hungerBefore !== meta.hungerAfter) {
+        callouts.push({ kind: 'warning', text: `Голод: ${meta.hungerBefore} → ${meta.hungerAfter}` });
+    }
+    if (meta.messyCritical) {
+        callouts.push({ kind: 'danger', text: 'Кровавый триумф: успех достигнут через Зверя. Рассказчик должен добавить зверское/опасное осложнение.' });
+    }
+    if (meta.bestialFailure) {
+        callouts.push({ kind: 'danger', text: 'Кровавый провал: Зверь вмешивается. Рассказчик должен добавить осложнение.' });
+    }
+    (meta.warnings || []).forEach(text => callouts.push({ kind: 'warning', text }));
+
     return `
         <div class="dice-roll-dice">
             ${dice.map(die => {
@@ -3281,10 +3458,11 @@ function renderDicePreview(dice, successes) {
             }).join('')}
         </div>
         <div class="dice-roll-successes">Успехов: ${successes}</div>
+        ${callouts.length ? `<div class="dice-roll-callouts">${callouts.map(callout => `<div class="dice-roll-callout ${callout.kind === 'danger' ? '' : 'warning'}">${escapeDiceHtml(callout.text)}</div>`).join('')}</div>` : ''}
     `;
 }
 
-function confirmDiceRoll() {
+async function confirmDiceRoll() {
     if (!pendingDicePool) return;
 
     const pool = readDiceRollPool();
@@ -3297,8 +3475,33 @@ function confirmDiceRoll() {
         return;
     }
 
-    const dice = rollD10Pool(pool.diceCount, getCurrentHungerDiceCount(pool.diceCount));
+    const hungerBefore = clampHunger(vitalTrackers.hunger);
+    const rouseChecks = [];
+    if (pool.useBloodSurge) {
+        const result = await performRouseCheck('Прилив Крови', { publish: false });
+        rouseChecks.push(result);
+    }
+
+    const hungerAfterRouse = clampHunger(vitalTrackers.hunger);
+    const hungerDice = getCurrentHungerDiceCount(pool.diceCount);
+    const dice = rollD10Pool(pool.diceCount, hungerDice);
     const successes = countV5Successes(dice);
+    const outcomeMeta = getRollOutcomeMeta(dice, successes);
+    const warnings = rouseChecks.map(getRouseWarning).filter(Boolean);
+    const meta = {
+        source: pool.useBloodSurge ? 'blood_surge' : 'character_sheet',
+        hungerBefore,
+        hungerAfter: hungerAfterRouse,
+        hungerDice,
+        bloodPotency: pool.bloodPotency,
+        rouseChecks,
+        bloodSurge: pool.useBloodSurge ? {
+            enabled: true,
+            bonusDice: pool.bloodSurgeBonus
+        } : undefined,
+        ...outcomeMeta,
+        warnings
+    };
     const roll = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         room: getDiceRoom(),
@@ -3308,11 +3511,12 @@ function confirmDiceRoll() {
         diceCount: pool.diceCount,
         dice,
         successes,
-        createdAt: new Date().toISOString()
+        createdAt: new Date().toISOString(),
+        meta
     };
 
     publishDiceRoll(roll);
-    document.getElementById('dice-roll-result').innerHTML = renderDicePreview(dice, successes);
+    document.getElementById('dice-roll-result').innerHTML = renderDicePreview(dice, successes, meta);
 }
 
 function getDiceSupabaseClient() {
@@ -3368,19 +3572,28 @@ async function publishDiceRoll(roll) {
         return;
     }
 
-    const { error } = await client
+    const payload = {
+        id: roll.id,
+        room: roll.room,
+        character_name: roll.characterName,
+        pool_name: roll.poolName,
+        pool_type: roll.poolType,
+        dice_count: roll.diceCount,
+        dice: roll.dice,
+        successes: roll.successes,
+        meta: roll.meta || {},
+        created_at: roll.createdAt
+    };
+
+    let { error } = await client
         .from('table_rolls')
-        .insert({
-            id: roll.id,
-            room: roll.room,
-            character_name: roll.characterName,
-            pool_name: roll.poolName,
-            pool_type: roll.poolType,
-            dice_count: roll.diceCount,
-            dice: roll.dice,
-            successes: roll.successes,
-            created_at: roll.createdAt
-        });
+        .insert(payload);
+
+    if (error && /meta/i.test(error.message || '')) {
+        const { meta, ...legacyPayload } = payload;
+        const fallback = await client.from('table_rolls').insert(legacyPayload);
+        error = fallback.error;
+    }
 
     if (error) {
         console.error('Не удалось отправить бросок на общий стол:', error);
@@ -3400,6 +3613,14 @@ window.openDiceRollModal = openDiceRollModal;
 window.closeDiceRollModal = closeDiceRollModal;
 window.confirmDiceRoll = confirmDiceRoll;
 window.updateDiceRollPoolPreview = updateDiceRollPoolPreview;
+window.performSheetRouseCheck = async () => {
+    const modal = getDiceRollModal();
+    modal.querySelector('#dice-roll-title').textContent = 'Проверка Голода';
+    modal.querySelector('#dice-roll-subtitle').textContent = 'Испытание Крови бросает один обычный d10. На 1–5 Голод растёт на 1.';
+    modal.querySelector('#dice-roll-result').innerHTML = '';
+    modal.style.display = 'flex';
+    await performRouseCheck('Испытание Крови / Проверка Голода');
+};
 
 function updateSpecUI(skillName = null) {
     if (skillName) {
@@ -5646,6 +5867,7 @@ function getFullCharacterData() {
         predator: document.getElementById('predator-input').value,
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
+        bloodPotency: getCurrentBloodPotencyValue(),
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
         vitalTrackers: getVitalTrackerData(),
         freeExp: getCurrentXP(),
@@ -5721,6 +5943,7 @@ function resetCharacterSheetForLoad() {
     characterImageData = '';
     touchstones = [];
     inventory = [];
+    explicitBloodPotency = null;
     expShopMode = false;
     expShopSnapshot = null;
     expShopStartLevels = {};
@@ -5767,6 +5990,8 @@ function applyCharacterData(d, sourceName = 'JSON') {
         if (document.getElementById('generation-input')) document.getElementById('generation-input').value = d.generation || '';
         if (document.getElementById('type-input')) document.getElementById('type-input').value = d.type || '';
         if (document.getElementById('base-humanity')) document.getElementById('base-humanity').value = d.baseHumanity || '7';
+        const savedBloodPotency = d.bloodPotency ?? d.blood?.potency;
+        explicitBloodPotency = savedBloodPotency === undefined || savedBloodPotency === null ? null : clampBloodPotency(savedBloodPotency);
         vitalTrackers = normalizeVitalTrackerData(d.vitalTrackers || {});
         if (document.getElementById('free-exp')) document.getElementById('free-exp').value = parseInt(d.freeExp ?? d.experience ?? 0, 10) || 0;
         expHistory = Array.isArray(d.expHistory) ? JSON.parse(JSON.stringify(d.expHistory)) : [];
@@ -5915,6 +6140,22 @@ function setupGenerationHint() {
     });
     if (genSelect) genSelect.addEventListener('change', updateBloodPotencyAndBonuses);
     if (baseHumanitySelect) baseHumanitySelect.addEventListener('change', updateHumanity);
+}
+
+function setupBloodPotencyField() {
+    const input = document.getElementById('val-blood-potency');
+    if (!input || input.dataset.ready === 'true') return;
+    input.dataset.ready = 'true';
+    input.addEventListener('change', () => {
+        explicitBloodPotency = clampBloodPotency(input.value);
+        input.value = String(explicitBloodPotency);
+        updateBloodPotencyVital();
+        autoSaveVitalState();
+    });
+    input.addEventListener('input', () => {
+        explicitBloodPotency = clampBloodPotency(input.value);
+        autoSaveVitalState();
+    });
 }
 
 
@@ -6321,7 +6562,10 @@ function getInputValue(id) {
 }
 
 function getTextValue(id) {
-    return (document.getElementById(id)?.textContent || '').trim();
+    const element = document.getElementById(id);
+    if (!element) return '';
+    if ('value' in element) return String(element.value || '').trim();
+    return (element.textContent || '').trim();
 }
 
 function getCheckedDots(name, fallback = 0) {
@@ -7416,6 +7660,9 @@ function spendModalBloodPotency() {
     if (!assertEnoughXP(cost)) return;
     if (confirm(`Повысить Силу Крови до ${target} за ${cost} XP?`)) {
         runExperiencePurchase(() => {
+            explicitBloodPotency = clampBloodPotency(target);
+            updateBloodPotencyVital();
+            autoSaveVitalState();
             logModal(`Сила Крови ${current}→${target}`, cost);
         });
     }
@@ -7502,6 +7749,7 @@ function captureSheetSnapshot() {
         predator: document.getElementById('predator-input')?.value || '',
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
+        bloodPotency: getCurrentBloodPotencyValue(),
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
         vitalTrackers: getVitalTrackerData(),
         skillPackage: document.getElementById('skill-package')?.value || '',

@@ -13,6 +13,9 @@ create table if not exists public.table_rolls (
 create index if not exists table_rolls_room_created_at_idx
   on public.table_rolls (room, created_at desc);
 
+alter table public.table_rolls
+  add column if not exists meta jsonb not null default '{}'::jsonb;
+
 alter table public.table_rolls enable row level security;
 
 drop policy if exists "Anyone can read table rolls" on public.table_rolls;

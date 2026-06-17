@@ -732,6 +732,22 @@
             font-weight: bold; 
         }
 
+        .vital-item input.blood-potency {
+            width: 74px;
+            min-height: 43px;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            background: #070707;
+            text-align: center;
+            font-family: inherit;
+            outline: none;
+        }
+
+        .vital-item input.blood-potency:focus {
+            border-color: var(--v-red);
+            box-shadow: 0 0 0 2px rgba(255, 49, 49, 0.18);
+        }
+
         .vital-stack {
             display: grid;
             gap: 8px;
@@ -792,6 +808,34 @@
             letter-spacing: 0.5px;
             text-transform: uppercase;
         }
+
+        .rouse-check-btn {
+            border: 1px solid #7b2525;
+            border-radius: 5px;
+            background: #1b1111;
+            color: #ffd9d9;
+            cursor: pointer;
+            font: inherit;
+            font-size: 11px;
+            padding: 7px 9px;
+        }
+
+        .rouse-check-btn:hover {
+            border-color: #ff3131;
+            background: #2a1212;
+        }
+
+        .autosave-status {
+            min-height: 18px;
+            color: #888;
+            font-size: 11px;
+            text-align: center;
+            margin: 8px 0 0;
+        }
+
+        .autosave-status[data-kind="saving"] { color: #ffae00; }
+        .autosave-status[data-kind="saved"] { color: #36d675; }
+        .autosave-status[data-kind="error"] { color: #ff6666; }
 
         /* ==================== ДИСЦИПЛИНЫ ==================== */
         .discipline-item {
@@ -1505,6 +1549,48 @@
             font: inherit;
             letter-spacing: 0;
             text-transform: none;
+        }
+
+        .dice-roll-toggle {
+            grid-column: 1 / -1;
+            display: flex !important;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            border: 1px solid #3a2424;
+            border-radius: 7px;
+            background: #100909;
+            padding: 10px 12px;
+            text-transform: none !important;
+            letter-spacing: 0 !important;
+        }
+
+        .dice-roll-toggle input {
+            width: 18px;
+            height: 18px;
+            accent-color: #ff3131;
+        }
+
+        .dice-roll-callouts {
+            display: grid;
+            gap: 7px;
+            margin-top: 10px;
+        }
+
+        .dice-roll-callout {
+            border: 1px solid #5c2424;
+            border-radius: 6px;
+            background: #170b0b;
+            color: #ffd6d6;
+            padding: 9px 10px;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .dice-roll-callout.warning {
+            border-color: #825b18;
+            background: #1a1307;
+            color: #ffd98a;
         }
 
         #dice-roll-pool-preview {
@@ -2349,11 +2435,12 @@
             <div id="val-hunger" class="vital-value" style="color:white" data-tooltip="Голод = текущий уровень голода">0</div>
             <div id="track-hunger" class="vital-track" aria-label="Закрашенные клетки голода"></div>
             <small id="track-hunger-caption" class="vital-track-caption">0 / 5</small>
+            <button type="button" class="rouse-check-btn" onclick="performSheetRouseCheck()">Проверить Голод</button>
         </div>
     </div>
     <div class="vital-item vampire-only">
         <span>Сила крови</span>
-        <div id="val-blood-potency" class="blood-potency" data-tooltip="Сила крови = от поколения + тип + стиль охоты">0</div>
+        <input id="val-blood-potency" class="blood-potency" type="number" min="0" max="10" value="0" data-tooltip="Сила крови = от поколения + тип + стиль охоты">
     </div>
 </div>
 
@@ -2530,6 +2617,7 @@
             <button onclick="saveCharacter()" style="padding:16px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
                 💾 Сохранить в Личный кабинет
             </button>
+            <div id="autosave-status" class="autosave-status" role="status" aria-live="polite"></div>
 
             <button onclick="showMyCharacters()" style="padding:16px; font-size:16px; background:#444; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
                 📋 Мои персонажи

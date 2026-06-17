@@ -100,9 +100,11 @@ import type {
   MediaTab,
   OpposedRollResult,
   OpposedRollSide,
+  RollMeta,
   RightRailTab,
   RollMessage,
   RollRow,
+  RouseCheckResult,
   SceneMusicRow,
   SceneMusicTrack,
   SelectionRect,
@@ -144,6 +146,10 @@ type DisciplinePowerRule = {
   difficulty_for_victim?: string | number
   soak_difficulty?: string | number
   cost?: string
+  mechanics?: {
+    rouse_checks?: number
+    variable_rouse_checks?: boolean
+  }
   effect?: string
   duration?: string
 }
@@ -158,6 +164,27 @@ type DisciplinePowerEntry = {
   level: number
   name: string
   rule: DisciplinePowerRule
+}
+
+type RouseCost = {
+  rouseChecks: number
+  variable: boolean
+}
+
+type DisciplineRollContext = {
+  name: string
+  power: string
+  level: number
+  cost: string
+}
+
+type QuickRollOptions = {
+  hidden?: boolean
+  useBloodSurge?: boolean
+  skipHungerDice?: boolean
+  source?: RollMeta['source']
+  disciplineContext?: DisciplineRollContext
+  rouseChecks?: RouseCheckResult[]
 }
 
 type PowerPoolChoice = {
@@ -319,8 +346,61 @@ function countD10Successes(dice: Die[]) {
   return dice.filter(die => die.value >= 6).length + Math.floor(criticals / 2) * 2
 }
 
+function getRollOutcomeMeta(dice: Die[], successes: number) {
+  const criticals = dice.filter(die => die.value === 10).length
+  const hungerCriticals = dice.filter(die => die.value === 10 && die.kind.startsWith('hunger')).length
+  const hungerOnes = dice.filter(die => die.value === 1 && die.kind.startsWith('hunger')).length
+  return {
+    messyCritical: successes > 0 && criticals >= 2 && hungerCriticals > 0,
+    bestialFailure: successes <= 0 && hungerOnes > 0,
+  }
+}
+
 function getCharacterHunger(character?: CharacterOption | null) {
   return Math.max(0, Math.min(5, Number(character?.vitalTrackers?.hunger || 0) || 0))
+}
+
+function getCharacterBloodPotency(character?: CharacterOption | null) {
+  return Math.max(0, Math.min(10, Number(character?.bloodPotency || 0) || 0))
+}
+
+function getBloodSurgeBonus(bloodPotency: number) {
+  const potency = Math.max(0, Math.min(10, Math.floor(Number(bloodPotency) || 0)))
+  if (potency <= 0) return 1
+  if (potency <= 2) return 2
+  if (potency <= 4) return 3
+  if (potency <= 6) return 4
+  if (potency <= 8) return 5
+  return 6
+}
+
+function parseRouseCost(cost?: string, mechanics?: DisciplinePowerRule['mechanics']): RouseCost {
+  const mechanicsChecks = Number(mechanics?.rouse_checks)
+  if (Number.isFinite(mechanicsChecks) && mechanicsChecks > 0) {
+    return {
+      rouseChecks: Math.max(0, Math.floor(mechanicsChecks)),
+      variable: Boolean(mechanics?.variable_rouse_checks),
+    }
+  }
+
+  const normalized = String(cost || '').trim().toLocaleLowerCase('ru')
+  if (!normalized || normalized === '—' || normalized === '-' || normalized === 'нет') {
+    return { rouseChecks: 0, variable: false }
+  }
+  if (!/испытан/.test(normalized) || !/кров/.test(normalized)) {
+    return { rouseChecks: 0, variable: false }
+  }
+
+  const amount = Number(normalized.match(/\d+/)?.[0] || 1)
+  return {
+    rouseChecks: Math.max(1, Math.floor(amount) || 1),
+    variable: /\+/.test(normalized),
+  }
+}
+
+function getRouseWarning(result: RouseCheckResult) {
+  if (!result.maxHungerWarning) return ''
+  return 'Голод уже 5. Неудачное Испытание Крови на максимальном Голоде: нужна реакция Рассказчика / риск голодной ярости.'
 }
 
 function getDieImage(die: Die) {
@@ -514,6 +594,8 @@ export default function VampireTable() {
   const [previewPowerName, setPreviewPowerName] = useState('')
   const [previewPowerPoolSelections, setPreviewPowerPoolSelections] = useState<string[]>([])
   const [previewPowerModifier, setPreviewPowerModifier] = useState(0)
+  const [previewUseBloodSurge, setPreviewUseBloodSurge] = useState(false)
+  const [masterUseBloodSurge, setMasterUseBloodSurge] = useState(false)
   const [quickInventoryName, setQuickInventoryName] = useState('')
   const [quickInventoryCategory, setQuickInventoryCategory] = useState<(typeof INVENTORY_CATEGORIES)[number]>('Другое')
   const [quickInventoryQuantity, setQuickInventoryQuantity] = useState(1)
@@ -618,6 +700,7 @@ export default function VampireTable() {
     setPreviewRollModifier(0)
     setPreviewDisciplineName('')
     setPreviewPowerName('')
+    setPreviewUseBloodSurge(false)
     setQuickInventoryName('')
     setQuickInventoryCategory('Другое')
     setQuickInventoryQuantity(1)
@@ -1337,23 +1420,39 @@ export default function VampireTable() {
     setRoom(currentRoom)
     window.localStorage.setItem('vtm-table-room', currentRoom)
 
-    supabase
-      .from(TABLE_ROLLS)
-      .select('id, room, character_name, pool_name, pool_type, dice_count, dice, successes, created_at')
-      .eq('room', currentRoom)
-      .order('created_at', { ascending: false })
-      .limit(80)
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error('Не удалось загрузить историю бросков:', error)
-          setConnectionText('Нет общей истории')
-          return
-        }
+    const loadRollHistory = async () => {
+      const initialResult = await supabase
+        .from(TABLE_ROLLS)
+        .select('id, room, character_name, pool_name, pool_type, dice_count, dice, successes, meta, created_at')
+        .eq('room', currentRoom)
+        .order('created_at', { ascending: false })
+        .limit(80)
+      let rollRows: unknown[] | null = initialResult.data
+      let error = initialResult.error
 
-        setRolls((data || []).map(row => mapRollRow(row as RollRow)))
-        setConnectionText('Онлайн')
-      })
+      if (error && /meta/i.test(error.message || '')) {
+        const fallback = await supabase
+          .from(TABLE_ROLLS)
+          .select('id, room, character_name, pool_name, pool_type, dice_count, dice, successes, created_at')
+          .eq('room', currentRoom)
+          .order('created_at', { ascending: false })
+          .limit(80)
+        rollRows = fallback.data
+        error = fallback.error
+      }
+
+      if (cancelled) return
+      if (error) {
+        console.error('Не удалось загрузить историю бросков:', error)
+        setConnectionText('Нет общей истории')
+        return
+      }
+
+      setRolls((rollRows || []).map(row => mapRollRow(row as RollRow)))
+      setConnectionText('Онлайн')
+    }
+
+    void loadRollHistory()
 
     ensureDefaultScene(currentRoom).then(sceneId => {
       if (cancelled || !sceneId) return
@@ -1763,6 +1862,8 @@ export default function VampireTable() {
   const masterRollDisciplineDots = selectedMasterRollCharacter ? getDisciplineDots(selectedMasterRollCharacter.disciplines[masterRollDiscipline] || {}) : 0
   const masterRollPoolBeforeLimit = masterRollAttributeDots + masterRollAttributeTwoDots + masterRollSkillDots + masterRollDisciplineDots + masterRollModifier
   const masterRollDiceCount = Math.max(0, Math.min(20, masterRollPoolBeforeLimit))
+  const masterBloodPotency = getCharacterBloodPotency(selectedMasterRollCharacter)
+  const masterBloodSurgeBonus = getBloodSurgeBonus(masterBloodPotency)
   const masterRollExtraAttributes = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.attributes, ATTRIBUTE_GROUPS) : []
   const masterRollExtraSkills = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.skills, SKILL_GROUPS) : []
   const masterRollDisciplineNames = selectedMasterRollCharacter
@@ -1852,6 +1953,9 @@ export default function VampireTable() {
   const previewDisciplineDots = previewCharacter ? getDisciplineDots(previewCharacter.disciplines[previewRollDiscipline] || {}) : 0
   const previewPoolBeforeLimit = previewAttributeDots + previewAttributeTwoDots + previewSkillDots + previewDisciplineDots + previewRollModifier
   const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit))
+  const previewBloodPotency = getCharacterBloodPotency(previewCharacter)
+  const previewBloodSurgeBonus = getBloodSurgeBonus(previewBloodPotency)
+  const previewHunger = getCharacterHunger(previewCharacter)
   const canRollPreview = Boolean(previewCharacter?.id && (isMaster || previewCharacter.id === selectedActiveCharacter?.id))
   const canEditPreviewInventory = Boolean(chatUser && previewCharacter?.id && previewCharacter.id === selectedActiveCharacter?.id)
   const previewExtraAttributes = previewCharacter ? getExtraTraitNames(previewCharacter.attributes, ATTRIBUTE_GROUPS) : []
@@ -1883,6 +1987,7 @@ export default function VampireTable() {
     ? previewPowerPoolSelections.reduce((sum, name) => sum + getCharacterPoolPartDots(previewCharacter, name), 0) + previewPowerModifier
     : 0
   const previewPowerDiceCount = Math.max(0, Math.min(20, previewPowerPoolBeforeLimit))
+  const selectedPreviewPowerRouseCost = parseRouseCost(selectedPreviewPower?.rule.cost, selectedPreviewPower?.rule.mechanics)
 
   useEffect(() => {
     if (!previewDisciplineName || !disciplineRules) return
@@ -2086,10 +2191,157 @@ export default function VampireTable() {
     }
   }
 
+  const publishRoll = async (roll: RollMessage) => {
+    setRolls(prev => mergeRoll(prev, roll))
+    if (roll.hidden) {
+      setConnectionText('Скрытый бросок')
+      return
+    }
+
+    broadcast('roll', roll)
+    const payload = {
+      id: roll.id,
+      room: roll.room,
+      character_name: roll.characterName,
+      pool_name: roll.poolName,
+      pool_type: roll.poolType,
+      dice_count: roll.diceCount,
+      dice: roll.dice,
+      successes: roll.successes,
+      meta: roll.meta || {},
+      created_at: roll.createdAt,
+    }
+
+    let { error } = await createClient().from(TABLE_ROLLS).insert(payload)
+    if (error && /meta/i.test(error.message || '')) {
+      const { meta, ...legacyPayload } = payload
+      const fallback = await createClient().from(TABLE_ROLLS).insert(legacyPayload)
+      error = fallback.error
+    }
+
+    if (error) setConnectionText('Бросок отправлен онлайн, но не сохранился')
+    else setConnectionText('Онлайн')
+  }
+
+  const updateCharacterHunger = async (characterId: string, nextHunger: number, reason = 'Голод обновлён') => {
+    const safeHunger = Math.max(0, Math.min(5, Math.floor(Number(nextHunger) || 0)))
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id, user_id, name, clan, data')
+      .eq('id', characterId)
+      .single()
+
+    if (error || !data?.data) {
+      console.error('Не удалось прочитать персонажа для обновления Голода:', error)
+      setConnectionText('Голод не сохранился')
+      return null
+    }
+
+    const characterData = data.data as NonNullable<CharacterRow['data']>
+    const nextData = {
+      ...characterData,
+      bloodPotency: Number(characterData.bloodPotency ?? characterData.blood?.potency ?? 0) || 0,
+      vitalTrackers: {
+        ...(characterData.vitalTrackers || {}),
+        hunger: safeHunger,
+      },
+      timestamp: new Date().toISOString(),
+    }
+    const { error: updateError } = await supabase
+      .from('characters')
+      .update({ data: nextData })
+      .eq('id', characterId)
+
+    if (updateError) {
+      console.error('Не удалось сохранить Голод персонажа:', updateError)
+      setConnectionText('Голод не сохранился')
+      return null
+    }
+
+    const updatedCharacter = mapCharacterRow({ ...(data as CharacterRow), data: nextData })
+    setChatCharacters(current => current.map(character => (
+      character.id === characterId ? { ...updatedCharacter, username: character.username } : character
+    )))
+    setPreviewCharacter(current => current?.id === characterId ? { ...updatedCharacter, username: current.username } : current)
+    setOpposedCharacterCache(current => {
+      if (!current[characterId]) return current
+      return { ...current, [characterId]: { ...updatedCharacter, username: current[characterId].username } }
+    })
+
+    if (chatUser && selectedActiveCharacter?.id === characterId) {
+      const participant: ActiveParticipant = {
+        userId: chatUser.id,
+        username: chatUser.username,
+        characterId,
+        characterName: updatedCharacter.name || 'без персонажа',
+        characterClan: updatedCharacter.clan || null,
+        characterImage: updatedCharacter.image || '',
+        updatedAt: new Date().toISOString(),
+      }
+      broadcast('active-character', { room, participant })
+    }
+
+    setConnectionText(reason)
+    return updatedCharacter
+  }
+
+  const performRouseCheck = async (
+    character: CharacterOption,
+    reason: string,
+    hungerBefore = getCharacterHunger(character),
+  ): Promise<RouseCheckResult> => {
+    const safeBefore = Math.max(0, Math.min(5, Math.floor(Number(hungerBefore) || 0)))
+    const value = Math.floor(Math.random() * 10) + 1
+    const success = value >= 6
+    const hungerAfter = success ? safeBefore : Math.max(0, Math.min(5, safeBefore + 1))
+    const result: RouseCheckResult = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      reason,
+      value,
+      success,
+      hungerBefore: safeBefore,
+      hungerAfter,
+      maxHungerWarning: !success && safeBefore >= 5,
+    }
+
+    if (hungerAfter !== safeBefore) {
+      await updateCharacterHunger(character.id, hungerAfter, 'Голод сохранён')
+    }
+
+    return result
+  }
+
+  const rollRouseCheck = async (character: CharacterOption, reason = 'Испытание Крови / Проверка Голода') => {
+    const result = await performRouseCheck(character, reason)
+    const die = { value: result.value, kind: getDieKind(result.value, false) } as Die
+    const warning = getRouseWarning(result)
+    const roll: RollMessage = {
+      id: result.id,
+      room,
+      characterName: character.name,
+      poolName: reason,
+      poolType: 'rouse-check',
+      diceCount: 1,
+      dice: [die],
+      successes: result.success ? 1 : 0,
+      createdAt: new Date().toISOString(),
+      meta: {
+        source: 'rouse_check',
+        hungerBefore: result.hungerBefore,
+        hungerAfter: result.hungerAfter,
+        bloodPotency: getCharacterBloodPotency(character),
+        rouseChecks: [result],
+        warnings: warning ? [warning] : [],
+      },
+    }
+    await publishRoll(roll)
+  }
+
   const publishOpposedRoll = async (roll: RollMessage, opposed: OpposedRollResult) => {
     setRolls(prev => mergeRoll(prev, roll))
     broadcast('roll', roll)
-    const { error } = await createClient().from(TABLE_ROLLS).insert({
+    const payload = {
       id: roll.id,
       room: roll.room,
       character_name: roll.characterName,
@@ -2098,8 +2350,15 @@ export default function VampireTable() {
       dice_count: roll.diceCount,
       dice: opposed,
       successes: roll.successes,
+      meta: roll.meta || {},
       created_at: roll.createdAt,
-    })
+    }
+    let { error } = await createClient().from(TABLE_ROLLS).insert(payload)
+    if (error && /meta/i.test(error.message || '')) {
+      const { meta, ...legacyPayload } = payload
+      const fallback = await createClient().from(TABLE_ROLLS).insert(legacyPayload)
+      error = fallback.error
+    }
     if (error) setConnectionText('Встречная проверка отправлена онлайн, но не сохранилась')
     else setConnectionText('Онлайн')
   }
@@ -2289,15 +2548,49 @@ export default function VampireTable() {
     poolName = 'Быстрый бросок',
     characterOverride?: CharacterOption,
     poolType = 'quick',
-    options: { hidden?: boolean } = {},
+    options: QuickRollOptions = {},
   ) => {
     const character = characterOverride || selectedActiveCharacter
     if (!character) {
       window.alert('Сначала выбери активного персонажа.')
       return
     }
-    const dice = rollD10Pool(diceCount, getCharacterHunger(character))
+    const hungerBefore = getCharacterHunger(character)
+    let currentHunger = hungerBefore
+    const rouseChecks: RouseCheckResult[] = [...(options.rouseChecks || [])]
+    if (rouseChecks.length) {
+      currentHunger = rouseChecks[rouseChecks.length - 1]?.hungerAfter ?? currentHunger
+    }
+
+    const bloodPotency = getCharacterBloodPotency(character)
+    const bloodSurgeBonus = options.useBloodSurge ? getBloodSurgeBonus(bloodPotency) : 0
+    if (options.useBloodSurge) {
+      const result = await performRouseCheck(character, 'Прилив Крови', currentHunger)
+      rouseChecks.push(result)
+      currentHunger = result.hungerAfter
+    }
+
+    const finalDiceCount = Math.max(1, Math.min(20, Math.floor(Number(diceCount) || 0) + bloodSurgeBonus))
+    const hungerDice = options.skipHungerDice ? 0 : Math.min(currentHunger, finalDiceCount)
+    const dice = rollD10Pool(finalDiceCount, hungerDice)
     const successes = countD10Successes(dice)
+    const outcomeMeta = getRollOutcomeMeta(dice, successes)
+    const warnings = rouseChecks.map(getRouseWarning).filter(Boolean)
+    const meta: RollMeta = {
+      source: options.source || (options.useBloodSurge ? 'blood_surge' : 'manual'),
+      hungerBefore,
+      hungerAfter: currentHunger,
+      hungerDice,
+      bloodPotency,
+      rouseChecks,
+      bloodSurge: options.useBloodSurge ? {
+        enabled: true,
+        bonusDice: bloodSurgeBonus,
+      } : undefined,
+      discipline: options.disciplineContext,
+      warnings,
+      ...outcomeMeta,
+    }
     const roll: RollMessage = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       room,
@@ -2309,27 +2602,9 @@ export default function VampireTable() {
       successes,
       createdAt: new Date().toISOString(),
       hidden: options.hidden && isMaster ? true : undefined,
+      meta,
     }
-    setRolls(prev => mergeRoll(prev, roll))
-    if (roll.hidden) {
-      setConnectionText('Скрытый бросок')
-      return
-    }
-
-    broadcast('roll', roll)
-    const { error } = await createClient().from(TABLE_ROLLS).insert({
-      id: roll.id,
-      room: roll.room,
-      character_name: roll.characterName,
-      pool_name: roll.poolName,
-      pool_type: roll.poolType,
-      dice_count: roll.diceCount,
-      dice: roll.dice,
-      successes: roll.successes,
-      created_at: roll.createdAt,
-    })
-    if (error) setConnectionText('Бросок отправлен онлайн, но не сохранился')
-    else setConnectionText('Онлайн')
+    await publishRoll(roll)
   }
 
   const rollMasterPool = async () => {
@@ -2346,7 +2621,11 @@ export default function VampireTable() {
       masterRollPoolName,
       selectedMasterRollCharacter,
       'master-character',
-      { hidden: masterRollHidden },
+      {
+        hidden: masterRollHidden,
+        useBloodSurge: masterUseBloodSurge,
+        source: masterUseBloodSurge ? 'blood_surge' : 'manual',
+      },
     )
   }
 
@@ -2360,7 +2639,11 @@ export default function VampireTable() {
       `${diceCount}к10`,
       selectedMasterRollCharacter,
       'master-quick',
-      { hidden: masterRollHidden },
+      {
+        hidden: masterRollHidden,
+        useBloodSurge: masterUseBloodSurge,
+        source: masterUseBloodSurge ? 'blood_surge' : 'manual',
+      },
     )
   }
 
@@ -2393,7 +2676,10 @@ export default function VampireTable() {
     if (previewRollSkill) poolParts.push(`${previewRollSkill} ${previewSkillDots}`)
     if (previewRollDiscipline) poolParts.push(`${previewRollDiscipline} ${previewDisciplineDots}`)
     if (previewRollModifier) poolParts.push(`модификатор ${previewRollModifier > 0 ? '+' : ''}${previewRollModifier}`)
-    await rollQuickDice(previewDiceCount, poolParts.join(' + ') || `${previewDiceCount}к10`, previewCharacter, 'character-sheet')
+    await rollQuickDice(previewDiceCount, poolParts.join(' + ') || `${previewDiceCount}к10`, previewCharacter, 'character-sheet', {
+      useBloodSurge: previewUseBloodSurge,
+      source: previewUseBloodSurge ? 'blood_surge' : 'manual',
+    })
   }
 
   const togglePreviewAttribute = (name: string) => {
@@ -2414,9 +2700,85 @@ export default function VampireTable() {
     setPreviewPowerName('')
   }
 
+  const performDisciplineRouseChecks = async (
+    character: CharacterOption,
+    power: DisciplinePowerEntry,
+    cost: RouseCost,
+  ) => {
+    // TODO: add the one-time Blood Potency discipline rouse reroll action from rules.rolls.blood_potency.
+    let checksCount = cost.rouseChecks
+    if (cost.variable) {
+      const answer = window.prompt('Сколько Испытаний Крови сделать для этой силы?', String(Math.max(1, checksCount)))
+      if (answer === null) return null
+      checksCount = Math.max(1, Math.min(5, Math.floor(Number(answer) || checksCount || 1)))
+    }
+
+    const rouseChecks: RouseCheckResult[] = []
+    let currentHunger = getCharacterHunger(character)
+    for (let index = 0; index < checksCount; index += 1) {
+      const result = await performRouseCheck(
+        character,
+        `${previewDisciplineName}: ${power.name} · Испытание Крови ${checksCount > 1 ? index + 1 : ''}`.trim(),
+        currentHunger,
+      )
+      rouseChecks.push(result)
+      currentHunger = result.hungerAfter
+    }
+    return rouseChecks
+  }
+
+  const publishDisciplineActivation = async (
+    character: CharacterOption,
+    power: DisciplinePowerEntry,
+    context: DisciplineRollContext,
+    rouseChecks: RouseCheckResult[],
+  ) => {
+    const dice = rouseChecks.map(result => ({ value: result.value, kind: getDieKind(result.value, false) } as Die))
+    const hungerBefore = rouseChecks[0]?.hungerBefore ?? getCharacterHunger(character)
+    const hungerAfter = rouseChecks[rouseChecks.length - 1]?.hungerAfter ?? hungerBefore
+    const warnings = rouseChecks.map(getRouseWarning).filter(Boolean)
+    const roll: RollMessage = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      characterName: character.name,
+      poolName: `${context.name}: ${context.power} · Активация`,
+      poolType: 'discipline-power',
+      diceCount: dice.length,
+      dice,
+      successes: rouseChecks.filter(result => result.success).length,
+      createdAt: new Date().toISOString(),
+      meta: {
+        source: 'discipline',
+        hungerBefore,
+        hungerAfter,
+        hungerDice: 0,
+        bloodPotency: getCharacterBloodPotency(character),
+        rouseChecks,
+        discipline: context,
+        warnings,
+      },
+    }
+    await publishRoll(roll)
+  }
+
   const rollPreviewPower = async () => {
     if (!previewCharacter || !selectedPreviewPower || !canRollPreview) return
+    const context: DisciplineRollContext = {
+      name: previewDisciplineName,
+      power: selectedPreviewPower.name,
+      level: selectedPreviewPower.level,
+      cost: selectedPreviewPower.rule.cost || '—',
+    }
+    const rouseChecks = selectedPreviewPowerRouseCost.rouseChecks > 0
+      ? await performDisciplineRouseChecks(previewCharacter, selectedPreviewPower, selectedPreviewPowerRouseCost)
+      : []
+    if (rouseChecks === null) return
+
     if (previewPowerDiceCount < 1 || previewPowerPoolChoices.length === 0) {
+      if (rouseChecks.length > 0) {
+        await publishDisciplineActivation(previewCharacter, selectedPreviewPower, context, rouseChecks)
+        return
+      }
       window.alert('Для этой силы автоматический бросок не указан. Используй обычный конструктор пула.')
       return
     }
@@ -2427,6 +2789,11 @@ export default function VampireTable() {
       `${previewDisciplineName}: ${selectedPreviewPower.name} · ${selectedParts.join(' + ')}`,
       previewCharacter,
       'discipline-power',
+      {
+        source: 'discipline',
+        disciplineContext: context,
+        rouseChecks,
+      },
     )
   }
 
@@ -4655,6 +5022,40 @@ export default function VampireTable() {
     return `/character-sheet?${params.toString()}`
   }
 
+  const renderRollMeta = (roll: RollMessage) => {
+    const meta = roll.meta
+    if (!meta) return null
+    const rouseChecks = meta.rouseChecks || []
+    const warnings = meta.warnings || []
+    const hasHungerChange = typeof meta.hungerBefore === 'number'
+      && typeof meta.hungerAfter === 'number'
+      && meta.hungerBefore !== meta.hungerAfter
+
+    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline) {
+      return null
+    }
+
+    return (
+      <div className="roll-v5-meta">
+        {meta.discipline ? (
+          <span className="roll-note">Дисциплина: {meta.discipline.name} · {meta.discipline.power}{meta.discipline.cost && meta.discipline.cost !== '—' ? ` · ${meta.discipline.cost}` : ''}</span>
+        ) : null}
+        {meta.bloodSurge?.enabled ? (
+          <span className="roll-note">Прилив Крови: +{meta.bloodSurge.bonusDice}к10</span>
+        ) : null}
+        {rouseChecks.map(result => (
+          <span className="roll-note" key={result.id}>
+            {result.reason}: {result.value} · {result.success ? 'успех' : 'провал'}
+          </span>
+        ))}
+        {hasHungerChange ? <span className="roll-note">Голод: {meta.hungerBefore} → {meta.hungerAfter}</span> : null}
+        {meta.messyCritical ? <strong className="roll-alert">Кровавый триумф</strong> : null}
+        {meta.bestialFailure ? <strong className="roll-alert">Кровавый провал</strong> : null}
+        {warnings.map((warning, index) => <span className="roll-warning" key={`${roll.id}-warning-${index}`}>{warning}</span>)}
+      </div>
+    )
+  }
+
   const renderOpposedSideControls = (side: OpposedSideKey, title: string) => {
     const sideState = opposedRoll[side]
     const otherSide = side === 'left' ? 'right' : 'left'
@@ -5507,6 +5908,7 @@ export default function VampireTable() {
                         </footer>
                       </>
                     )}
+                    {renderRollMeta(roll)}
                   </article>
                 ))
               )}
@@ -5614,7 +6016,7 @@ export default function VampireTable() {
                           <div>
                             <span>Выбран</span>
                             <strong>{selectedMasterRollCharacter.name}</strong>
-                            <small>{selectedMasterRollCharacter.clan || 'без клана'}</small>
+                            <small>{selectedMasterRollCharacter.clan || 'без клана'} · Голод {getCharacterHunger(selectedMasterRollCharacter)}/5 · Сила Крови {masterBloodPotency}</small>
                           </div>
                           <button
                             type="button"
@@ -5713,8 +6115,16 @@ export default function VampireTable() {
                               onChange={event => setMasterRollModifier(Math.max(-20, Math.min(20, Number(event.target.value) || 0)))}
                             />
                           </label>
+                          <label className="preview-blood-surge-toggle">
+                            <span>Прилив Крови +{masterBloodSurgeBonus}к10</span>
+                            <input
+                              type="checkbox"
+                              checked={masterUseBloodSurge}
+                              onChange={event => setMasterUseBloodSurge(event.target.checked)}
+                            />
+                          </label>
                           <button type="button" className="preview-roll-submit" onClick={rollMasterPool} disabled={masterRollDiceCount < 1}>
-                            Бросить {masterRollDiceCount || 0}к10
+                            Бросить {Math.min(20, masterRollDiceCount + (masterUseBloodSurge ? masterBloodSurgeBonus : 0)) || 0}к10
                           </button>
                         </div>
 
@@ -5871,11 +6281,35 @@ export default function VampireTable() {
                 <div><dt>Поколение</dt><dd>{previewCharacter.generation || '—'}</dd></div>
                 <div><dt>Тип</dt><dd>{previewCharacter.type || '—'}</dd></div>
                 <div><dt>Стиль охоты</dt><dd>{previewCharacter.predator || '—'}</dd></div>
+                <div><dt>Голод</dt><dd>{previewHunger} / 5</dd></div>
+                <div><dt>Сила Крови</dt><dd>{previewBloodPotency}</dd></div>
                 <div><dt>Свободный опыт</dt><dd>{previewCharacter.freeExp ?? 0}</dd></div>
               </dl>
 
               {previewCharacterTab === 'mechanics' ? (
                 <div className="character-mechanics-sheet">
+                  <section className="preview-blood-panel">
+                    <div className="preview-section-heading">
+                      <div>
+                        <span>Голод и кровь</span>
+                        <h3>Состояние</h3>
+                      </div>
+                      <strong>{previewHunger} / 5</strong>
+                    </div>
+                    <div className="preview-blood-grid">
+                      <div>
+                        <span>Голод</span>
+                        <b>{'●'.repeat(previewHunger)}{'○'.repeat(5 - previewHunger)}</b>
+                      </div>
+                      <div>
+                        <span>Сила Крови</span>
+                        <b>{previewBloodPotency}</b>
+                      </div>
+                      <button type="button" onClick={() => rollRouseCheck(previewCharacter)} disabled={!canRollPreview}>
+                        Проверить Голод
+                      </button>
+                    </div>
+                  </section>
                   <section className="preview-roll-builder">
                     <div className="preview-section-heading">
                       <div>
@@ -5952,8 +6386,16 @@ export default function VampireTable() {
                           onChange={event => setPreviewRollModifier(Math.max(-20, Math.min(20, Number(event.target.value) || 0)))}
                         />
                       </label>
+                      <label className="preview-blood-surge-toggle">
+                        <span>Прилив Крови +{previewBloodSurgeBonus}к10</span>
+                        <input
+                          type="checkbox"
+                          checked={previewUseBloodSurge}
+                          onChange={event => setPreviewUseBloodSurge(event.target.checked)}
+                        />
+                      </label>
                       <button type="button" className="preview-roll-submit" onClick={rollPreviewPool} disabled={!canRollPreview || previewDiceCount < 1}>
-                        Бросить {previewDiceCount || 0}к10
+                        Бросить {Math.min(20, previewDiceCount + (previewUseBloodSurge ? previewBloodSurgeBonus : 0)) || 0}к10
                       </button>
                     </div>
                     <div className="quick-roll-grid" aria-label="Быстрые броски">
@@ -5962,7 +6404,10 @@ export default function VampireTable() {
                           type="button"
                           key={count}
                           disabled={!canRollPreview}
-                          onClick={() => rollQuickDice(count, `${count}к10`, previewCharacter)}
+                          onClick={() => rollQuickDice(count, `${count}к10`, previewCharacter, 'quick', {
+                            useBloodSurge: previewUseBloodSurge,
+                            source: previewUseBloodSurge ? 'blood_surge' : 'manual',
+                          })}
                         >
                           {count}к10
                         </button>
@@ -6256,7 +6701,16 @@ export default function VampireTable() {
                             {selectedPreviewPowerRollFormula !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">Используется формула силы «{selectedPreviewPowerRollFormula.replace(/^как\s+/i, '')}».</p> : null}
                           </>
                         ) : (
-                          <p className="discipline-no-roll">Для этой силы отдельный автоматический бросок не требуется или его пул зависит от ситуации. При необходимости используй конструктор броска в кратком листе.</p>
+                          selectedPreviewPowerRouseCost.rouseChecks > 0 ? (
+                            <div className="discipline-activation-only">
+                              <button type="button" onClick={rollPreviewPower} disabled={!canRollPreview}>
+                                Активировать силу
+                              </button>
+                              <p className="discipline-no-roll">У силы нет автоматического пула, но есть цена: {selectedPreviewPower.rule.cost || 'Испытание Крови'}.</p>
+                            </div>
+                          ) : (
+                            <p className="discipline-no-roll">Для этой силы отдельный автоматический бросок не требуется или его пул зависит от ситуации. При необходимости используй конструктор броска в кратком листе.</p>
+                          )
                         )}
                         {!canRollPreview ? <p className="discipline-roll-opposition">Бросать может мастер или владелец активного персонажа.</p> : null}
                       </section>

@@ -1905,7 +1905,7 @@ export default function GameTableStyles() {
 
         .character-preview-summary {
           display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
+          grid-template-columns: repeat(auto-fit, minmax(108px, 1fr));
           gap: 1px;
           margin: 0 -14px 14px;
           border-bottom: 1px solid #252525;
@@ -1979,6 +1979,50 @@ export default function GameTableStyles() {
           font-size: 20px;
         }
 
+        .preview-blood-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr)) minmax(140px, auto);
+          gap: 8px;
+          margin-top: 12px;
+          align-items: stretch;
+        }
+
+        .preview-blood-grid > div {
+          min-width: 0;
+          display: grid;
+          gap: 5px;
+          border: 1px solid #2f2f2f;
+          border-radius: 5px;
+          background: #0c0c0c;
+          padding: 9px;
+        }
+
+        .preview-blood-grid span,
+        .preview-blood-surge-toggle span {
+          color: #9c9c9c;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .preview-blood-grid b {
+          color: #ff7777;
+          font-size: 14px;
+          letter-spacing: 0;
+        }
+
+        .preview-blood-grid button,
+        .discipline-activation-only button {
+          min-height: 36px;
+          border: 1px solid #8c3434;
+          border-radius: 5px;
+          background: #251313;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
         .preview-roll-controls {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2029,9 +2073,29 @@ export default function GameTableStyles() {
         .preview-roll-submit:disabled,
         .opposed-roll-submit:disabled,
         .quick-roll-grid button:disabled,
-        .discipline-power-roll-controls button:disabled {
+        .discipline-power-roll-controls button:disabled,
+        .discipline-activation-only button:disabled,
+        .preview-blood-grid button:disabled {
           cursor: not-allowed;
           opacity: 0.45;
+        }
+
+        .preview-blood-surge-toggle {
+          min-height: 36px;
+          display: flex !important;
+          justify-content: space-between;
+          align-items: center;
+          gap: 10px;
+          border: 1px solid #383838;
+          border-radius: 5px;
+          background: #0d0d0d;
+          padding: 0 9px;
+        }
+
+        .preview-blood-surge-toggle input {
+          width: 18px !important;
+          height: 18px !important;
+          accent-color: #ff4949;
         }
 
         .quick-roll-grid {
@@ -2480,6 +2544,12 @@ export default function GameTableStyles() {
           color: #999;
           font-size: 10px;
           line-height: 1.45;
+        }
+
+        .discipline-activation-only {
+          display: grid;
+          gap: 8px;
+          margin-top: 11px;
         }
 
         .quick-inventory-form {
@@ -3376,6 +3446,40 @@ export default function GameTableStyles() {
         .roll-card footer strong {
           color: #36d675;
           font-size: 18px;
+        }
+
+        .roll-v5-meta {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 8px;
+        }
+
+        .roll-note,
+        .roll-warning,
+        .roll-alert {
+          border-radius: 5px;
+          padding: 4px 7px;
+          font-size: 10px;
+          line-height: 1.35;
+        }
+
+        .roll-note {
+          border: 1px solid #343434;
+          background: #0f0f0f;
+          color: #cfcfcf;
+        }
+
+        .roll-warning {
+          border: 1px solid #6d511e;
+          background: #1a1307;
+          color: #ffd98a;
+        }
+
+        .roll-alert {
+          border: 1px solid #8b3030;
+          background: #2a1010;
+          color: #ffb4b4;
         }
 
         .opposed-roll-result {
@@ -4370,6 +4474,14 @@ export default function GameTableStyles() {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 
+          .preview-blood-grid {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .preview-blood-grid button {
+            grid-column: 1 / -1;
+          }
+
           .discipline-power-roll-controls {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
@@ -4422,6 +4534,10 @@ export default function GameTableStyles() {
           }
 
           .preview-roll-controls label:nth-child(-n+4) {
+            grid-column: 1 / -1;
+          }
+
+          .preview-blood-surge-toggle {
             grid-column: 1 / -1;
           }
 

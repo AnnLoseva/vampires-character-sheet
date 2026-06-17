@@ -20,6 +20,38 @@ export type OpposedRollResult = {
   summary: string
 }
 
+export type RouseCheckResult = {
+  id: string
+  reason: string
+  value: number
+  success: boolean
+  hungerBefore: number
+  hungerAfter: number
+  maxHungerWarning?: boolean
+}
+
+export type RollMeta = {
+  hungerBefore?: number
+  hungerAfter?: number
+  hungerDice?: number
+  bloodPotency?: number
+  rouseChecks?: RouseCheckResult[]
+  bloodSurge?: {
+    enabled: boolean
+    bonusDice: number
+  }
+  messyCritical?: boolean
+  bestialFailure?: boolean
+  source?: 'manual' | 'discipline' | 'blood_surge' | 'rouse_check' | 'character_sheet'
+  warnings?: string[]
+  discipline?: {
+    name: string
+    power: string
+    level: number
+    cost: string
+  }
+}
+
 export type RollMessage = {
   id: string
   room: string
@@ -32,6 +64,7 @@ export type RollMessage = {
   createdAt: string
   hidden?: boolean
   opposed?: OpposedRollResult
+  meta?: RollMeta
 }
 
 export type RollRow = {
@@ -43,6 +76,7 @@ export type RollRow = {
   dice_count: number
   dice: unknown
   successes: number
+  meta?: unknown
   created_at: string
 }
 
@@ -62,6 +96,7 @@ export type CharacterOption = {
   predator?: string
   generation?: string
   type?: string
+  bloodPotency?: number
   notes?: string
   appearance?: string
   backstory?: string
@@ -93,6 +128,10 @@ export type CharacterRow = {
     predator?: string
     generation?: string
     type?: string
+    bloodPotency?: number
+    blood?: {
+      potency?: number
+    }
     notes?: string
     appearance?: string
     backstory?: string

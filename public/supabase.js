@@ -9,6 +9,29 @@ let currentCharacterRecordId = null;
 let charactersListCache = null;
 let requestedCharacterLoadStarted = false;
 
+function setAutoSaveStatus(text, kind = '') {
+    const status = document.getElementById('autosave-status');
+    if (!status) return;
+    status.textContent = text || '';
+    status.dataset.kind = kind;
+}
+
+function isPlainObject(value) {
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function mergeCharacterPatch(base, patch) {
+    const result = { ...(isPlainObject(base) ? base : {}) };
+    Object.entries(patch || {}).forEach(([key, value]) => {
+        if (isPlainObject(value) && isPlainObject(result[key])) {
+            result[key] = mergeCharacterPatch(result[key], value);
+        } else {
+            result[key] = value;
+        }
+    });
+    return result;
+}
+
 function initSupabase() {
     if (supabaseClient) return supabaseClient;
     
@@ -253,6 +276,85 @@ async function saveCharacter() {
     }
 }
 
+async function autoSaveCharacterPatch(patch = {}, options = {}) {
+    const client = ensureSupabase();
+    if (!client) return { ok: false, skipped: true };
+    if (!currentUser || !currentCharacterRecordId) {
+        setAutoSaveStatus('Автосохранение: сначала сохраните лист', 'idle');
+        return { ok: false, skipped: true };
+    }
+
+    try {
+        if (!options.silent) setAutoSaveStatus('Сохраняю...', 'saving');
+        const { data, error } = await client
+            .from('characters')
+            .select('data')
+            .eq('id', currentCharacterRecordId)
+            .eq('user_id', currentUser.id)
+            .single();
+        if (error) throw error;
+
+        const nextData = mergeCharacterPatch(data?.data || {}, {
+            ...patch,
+            timestamp: new Date().toISOString()
+        });
+
+        const { error: updateError } = await client
+            .from('characters')
+            .update({ data: nextData })
+            .eq('id', currentCharacterRecordId)
+            .eq('user_id', currentUser.id);
+        if (updateError) throw updateError;
+
+        charactersListCache = null;
+        setAutoSaveStatus('Сохранено', 'saved');
+        return { ok: true, data: nextData };
+    } catch (error) {
+        console.error('Ошибка автосохранения персонажа:', error);
+        setAutoSaveStatus('Ошибка автосохранения', 'error');
+        return { ok: false, error };
+    }
+}
+
+async function updateCurrentCharacterData(mutator, options = {}) {
+    const client = ensureSupabase();
+    if (!client) return { ok: false, skipped: true };
+    if (!currentUser || !currentCharacterRecordId) {
+        setAutoSaveStatus('Автосохранение: сначала сохраните лист', 'idle');
+        return { ok: false, skipped: true };
+    }
+
+    try {
+        if (!options.silent) setAutoSaveStatus('Сохраняю...', 'saving');
+        const { data, error } = await client
+            .from('characters')
+            .select('data')
+            .eq('id', currentCharacterRecordId)
+            .eq('user_id', currentUser.id)
+            .single();
+        if (error) throw error;
+
+        const currentData = isPlainObject(data?.data) ? data.data : {};
+        const nextData = mutator({ ...currentData }) || currentData;
+        nextData.timestamp = new Date().toISOString();
+
+        const { error: updateError } = await client
+            .from('characters')
+            .update({ data: nextData })
+            .eq('id', currentCharacterRecordId)
+            .eq('user_id', currentUser.id);
+        if (updateError) throw updateError;
+
+        charactersListCache = null;
+        setAutoSaveStatus('Сохранено', 'saved');
+        return { ok: true, data: nextData };
+    } catch (error) {
+        console.error('Ошибка автосохранения персонажа:', error);
+        setAutoSaveStatus('Ошибка автосохранения', 'error');
+        return { ok: false, error };
+    }
+}
+
 async function fetchMyCharacters({ force = false } = {}) {
     const client = ensureSupabase();
     if (!client || !currentUser) return [];
@@ -440,3 +542,5 @@ window.saveCharacter = saveCharacter;
 window.showMyCharacters = showMyCharacters;
 window.loadCharacter = loadCharacter;
 window.deleteCharacter = deleteCharacter;
+window.autoSaveCharacterPatch = autoSaveCharacterPatch;
+window.updateCurrentCharacterData = updateCurrentCharacterData;
