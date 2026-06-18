@@ -2159,6 +2159,7 @@ export default function VampireTable() {
   const previewPoolBeforeLimit = previewAttributeDots + previewAttributeTwoDots + previewSkillDots + previewDisciplineDots + previewRollModifier
   const previewWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewCharacter)
   const previewHealth = getCharacterHealth(previewCharacter)
+  const previewSheetFixed = Boolean(previewCharacter?.sheetFixed)
   const previewHealthImpairmentPenalty = getHealthImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewHealth)
   const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit + previewWillpowerImpairmentPenalty + previewHealthImpairmentPenalty))
   const previewBloodPotency = getCharacterBloodPotency(previewCharacter)
@@ -7240,6 +7241,7 @@ export default function VampireTable() {
 
               {previewCharacterTab === 'mechanics' ? (
                 <div className="character-mechanics-sheet">
+                  {!previewSheetFixed ? <p className="preview-roll-notice">Лист ещё не зафиксирован</p> : null}
                   <section className="preview-blood-panel">
                     <div className="preview-section-heading">
                       <div>
@@ -7257,9 +7259,11 @@ export default function VampireTable() {
                         <span>Сила Крови</span>
                         <b>{previewBloodPotency}</b>
                       </div>
-                      <button type="button" onClick={() => rollRouseCheck(previewCharacter)} disabled={!canRollPreview}>
-                        Проверить Голод
-                      </button>
+                      {previewSheetFixed ? (
+                        <button type="button" onClick={() => rollRouseCheck(previewCharacter)} disabled={!canRollPreview}>
+                          Проверить Голод
+                        </button>
+                      ) : null}
                     </div>
                   </section>
                   <section className="preview-willpower-panel">
@@ -7285,22 +7289,24 @@ export default function VampireTable() {
                         )
                       })}
                     </div>
-                    <label className="preview-health-profile">
-                      <span>Профиль урона</span>
-                      <select
-                        value={previewCharacter.damageProfile || 'vampire'}
-                        onChange={event => changeCharacterDamageProfile(previewCharacter, event.target.value as NonNullable<CharacterOption['damageProfile']>)}
-                        disabled={!canRollPreview}
-                      >
-                        <option value="vampire">Вампир</option>
-                        <option value="mortal">Смертный</option>
-                        <option value="ghoul">Гуль</option>
-                        <option value="thinblood">Слабокровный</option>
-                        <option value="custom">Ручной</option>
-                      </select>
-                    </label>
+                    {previewSheetFixed ? (
+                      <label className="preview-health-profile">
+                        <span>Профиль урона</span>
+                        <select
+                          value={previewCharacter.damageProfile || 'vampire'}
+                          onChange={event => changeCharacterDamageProfile(previewCharacter, event.target.value as NonNullable<CharacterOption['damageProfile']>)}
+                          disabled={!canRollPreview}
+                        >
+                          <option value="vampire">Вампир</option>
+                          <option value="mortal">Смертный</option>
+                          <option value="ghoul">Гуль</option>
+                          <option value="thinblood">Слабокровный</option>
+                          <option value="custom">Ручной</option>
+                        </select>
+                      </label>
+                    ) : null}
                     {previewHealth.impaired ? <p className="preview-roll-notice">{getHealthWarning(previewHealth, previewCharacter.damageProfile || 'vampire')}</p> : null}
-                    <div className="preview-willpower-actions preview-health-actions">
+                    {previewSheetFixed ? <div className="preview-willpower-actions preview-health-actions">
                       <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'superficial', { source: 'manual', ignoreHalving: true })} disabled={!canRollPreview}>+ лёгкий</button>
                       <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'aggravated', { source: 'manual' })} disabled={!canRollPreview}>+ тяжёлый</button>
                       <button type="button" onClick={() => promptCharacterHealthDamage(previewCharacter)} disabled={!canRollPreview}>+N урона</button>
@@ -7349,7 +7355,7 @@ export default function VampireTable() {
                       >
                         Торпор/кома
                       </button>
-                    </div>
+                    </div> : null}
                     {previewCharacter.damageProfile === 'thinblood' ? <p className="preview-roll-notice">Слабокровные получают часть урона ближе к смертным. Проверь тип урона вручную.</p> : null}
                     <p className="preview-roll-notice">Сила Крови {previewBloodPotency}: за Испытание Крови лечит {getSuperficialMendAmount(previewBloodPotency)} лёгк.</p>
                   </section>
@@ -7377,7 +7383,7 @@ export default function VampireTable() {
                       })}
                     </div>
                     {previewWillpower.impaired ? <p className="preview-roll-notice">Трек заполнен: ментальные и социальные проверки получают -2к10.</p> : null}
-                    <div className="preview-willpower-actions">
+                    {previewSheetFixed ? <div className="preview-willpower-actions">
                       <button type="button" onClick={() => spendWillpower(previewCharacter, 1, 'Воля: трата')} disabled={!canRollPreview || previewWillpower.aggravated >= previewWillpower.max}>
                         Потратить
                       </button>
@@ -7403,7 +7409,7 @@ export default function VampireTable() {
                       <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'superficial', -1)} disabled={!canRollPreview}>- /</button>
                       <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'aggravated', 1)} disabled={!canRollPreview}>+ X</button>
                       <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'aggravated', -1)} disabled={!canRollPreview}>- X</button>
-                    </div>
+                    </div> : null}
                   </section>
                   <section className="preview-roll-builder">
                     <div className="preview-section-heading">

@@ -1456,6 +1456,15 @@
             display: none !important;
         }
 
+        body:not(.sheet-fixed) [data-requires-fixed-sheet="true"],
+        [data-requires-fixed-sheet="true"][hidden] {
+            display: none !important;
+        }
+
+        [data-creation-control="true"] {
+            display: block;
+        }
+
         body.sheet-fixed #clan-input,
         body.sheet-fixed #predator-input,
         body.sheet-fixed #generation-input,
@@ -2470,7 +2479,7 @@
             <div id="val-hp" class="vital-value" style="color:white" data-tooltip="Здоровье = Выносливость + 3">4</div>
             <div id="track-health" class="vital-track" aria-label="Закрашенные клетки здоровья"></div>
             <small id="track-health-caption" class="vital-track-caption">0 / 4</small>
-            <div class="health-controls" aria-label="Управление Здоровьем">
+            <div class="tracker-creation-control" data-creation-control="true">
                 <select id="damage-profile" class="health-profile" onchange="setSheetDamageProfile(this.value)">
                     <option value="vampire">Профиль: вампир</option>
                     <option value="mortal">Профиль: смертный</option>
@@ -2478,6 +2487,8 @@
                     <option value="thinblood">Профиль: слабокровный</option>
                     <option value="custom">Профиль: ручной</option>
                 </select>
+            </div>
+            <div class="health-controls tracker-game-actions" data-requires-fixed-sheet="true" aria-label="Управление Здоровьем">
                 <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('superficial', 1)">+1 лёгкое</button>
                 <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('aggravated', 1)">+1 тяжёлое</button>
                 <button type="button" class="rouse-check-btn" onclick="openSheetHealthDamagePrompt()">+N урона</button>
@@ -2501,7 +2512,7 @@
             <div id="val-wp" class="vital-value" style="color:white" data-tooltip="Сила воли = Самообладание + Упорство">2</div>
             <div id="track-willpower" class="vital-track" aria-label="Закрашенные клетки силы воли"></div>
             <small id="track-willpower-caption" class="vital-track-caption">0 / 2</small>
-            <div class="willpower-controls" aria-label="Управление Волей">
+            <div class="willpower-controls tracker-game-actions" data-requires-fixed-sheet="true" aria-label="Управление Волей">
                 <button type="button" class="rouse-check-btn" onclick="spendSheetWillpower()">Потратить</button>
                 <button type="button" class="rouse-check-btn" onclick="performSheetWillpowerCheck()">Проверка</button>
                 <button type="button" class="rouse-check-btn" onclick="recoverSheetWillpowerSessionStart()">Встреча</button>
@@ -2522,10 +2533,12 @@
             <div id="val-humanity" class="vital-value" style="color:white" data-tooltip="Базовая Человечность = старт (7 или 8) + модификатор от типа и стиля охоты">7</div>
             <div id="track-humanity" class="vital-track" aria-label="Закрашенные клетки человечности"></div>
             <small id="track-humanity-caption" class="vital-track-caption">0 / 7</small>
-            <select id="base-humanity" style="background:#111; color:#fff; border:1px solid #444; border-radius:4px; padding:2px 6px; font-size:12px;">
-                <option value="7" selected>Старт 7</option>
-                <option value="8">Старт 8</option>
-            </select>
+            <div class="humanity-start-control" data-creation-control="true">
+                <select id="base-humanity" style="background:#111; color:#fff; border:1px solid #444; border-radius:4px; padding:2px 6px; font-size:12px;">
+                    <option value="7" selected>Старт 7</option>
+                    <option value="8">Старт 8</option>
+                </select>
+            </div>
         </div>
     </div>
     <div class="vital-item vampire-only">
@@ -2534,7 +2547,9 @@
             <div id="val-hunger" class="vital-value" style="color:white" data-tooltip="Голод = текущий уровень голода">0</div>
             <div id="track-hunger" class="vital-track" aria-label="Закрашенные клетки голода"></div>
             <small id="track-hunger-caption" class="vital-track-caption">0 / 5</small>
-            <button type="button" class="rouse-check-btn" onclick="performSheetRouseCheck()">Проверить Голод</button>
+            <div class="tracker-game-actions" data-requires-fixed-sheet="true">
+                <button type="button" class="rouse-check-btn" onclick="performSheetRouseCheck()">Проверить Голод</button>
+            </div>
         </div>
     </div>
     <div class="vital-item vampire-only">

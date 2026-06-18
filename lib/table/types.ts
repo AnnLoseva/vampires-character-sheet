@@ -190,6 +190,7 @@ export type CharacterOption = {
   damageProfile?: 'vampire' | 'mortal' | 'ghoul' | 'thinblood' | 'custom'
   physicalState?: NormalizedHealth['physicalState']
   lastAggravatedMendAt?: string
+  sheetFixed?: boolean
   notes?: string
   appearance?: string
   backstory?: string
@@ -226,6 +227,9 @@ export type CharacterRow = {
     }
     healthState?: {
       lastAggravatedMendAt?: string
+    }
+    sheetLock?: {
+      fixed?: boolean
     }
     notes?: string
     appearance?: string

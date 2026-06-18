@@ -292,6 +292,7 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     damageProfile,
     physicalState: data.status?.physicalState || health.physicalState,
     lastAggravatedMendAt: data.healthState?.lastAggravatedMendAt,
+    sheetFixed: Boolean(data.sheetLock?.fixed),
     vitalTrackers: normalizeVitalTrackers(data.vitalTrackers, willpower.max, health),
     inventory: normalizeInventory(data.inventory),
     attributes: data.attributes || {},

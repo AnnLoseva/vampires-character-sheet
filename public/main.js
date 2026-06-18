@@ -688,6 +688,7 @@ function renderVitalTracker(key) {
 
 function renderVitalTrackers() {
     Object.keys(VITAL_TRACKER_CONFIG).forEach(renderVitalTracker);
+    updateSheetFixedVisibility();
 }
 
 function setVitalTrackerValue(key, value) {
@@ -6670,6 +6671,7 @@ function getFullCharacterData() {
 window.getFullCharacterData = getFullCharacterData;
 
 function resetCharacterSheetForLoad() {
+    startingSheetFixed = false;
     document.querySelectorAll('.dot-input').forEach(input => {
         input.checked = parseInt(input.value, 10) === 0;
     });
@@ -8527,6 +8529,7 @@ function captureSheetSnapshot() {
 function applySheetLockState() {
     document.body.classList.toggle('sheet-fixed', startingSheetFixed);
     document.body.classList.toggle('xp-shop-active', expShopMode);
+    updateSheetFixedVisibility();
 
     if (startingSheetFixed) {
         document.querySelector('.guide')?.classList.remove('error');
@@ -8556,6 +8559,34 @@ function applySheetLockState() {
         document.getElementById('predator-modal')?.style.setProperty('display', 'none');
         document.getElementById('generation-modal')?.style.setProperty('display', 'none');
     }
+}
+
+function isCharacterSheetFixed() {
+    return Boolean(startingSheetFixed);
+}
+
+function updateSheetFixedVisibility() {
+    const fixed = isCharacterSheetFixed();
+
+    document
+        .querySelectorAll('[data-requires-fixed-sheet="true"]')
+        .forEach(element => {
+            element.hidden = !fixed;
+            element.style.display = fixed ? '' : 'none';
+        });
+
+    document
+        .querySelectorAll('[data-creation-control="true"]')
+        .forEach(element => {
+            element.hidden = false;
+            element.style.display = '';
+        });
+}
+
+function autoSaveSheetLockState() {
+    if (!window.autoSaveCharacterPatch || isApplyingCharacterData) return;
+    const data = getFullCharacterData();
+    window.autoSaveCharacterPatch({ sheetLock: data.sheetLock }, { silent: true });
 }
 
 function isSheetLockedTarget(target) {
@@ -8604,6 +8635,7 @@ function fixStartingSheet() {
         if (confirm("Расфиксировать лист?\nПосле этого поля снова можно будет менять вручную.")) {
             startingSheetFixed = false;
             applySheetLockState();
+            autoSaveSheetLockState();
             alert("Лист расфиксирован. Ручное редактирование снова доступно.");
         }
         return;
@@ -8630,6 +8662,7 @@ function fixStartingSheet() {
     }
     startingSheetFixed = true;
     applySheetLockState();
+    autoSaveSheetLockState();
     updateExpPurchasedStyles();
 
     alert("Стартовый лист зафиксирован. Теперь повышения проходят через магазин опыта.");
