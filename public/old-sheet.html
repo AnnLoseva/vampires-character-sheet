@@ -972,17 +972,6 @@
             grid-column: 1 / -1;
         }
 
-        .health-profile {
-            grid-column: 1 / -1;
-            min-width: 0;
-            border: 1px solid #444;
-            border-radius: 5px;
-            background: #111;
-            color: #eee;
-            padding: 6px;
-            font-size: 10px;
-        }
-
         .health-state-note {
             grid-column: 1 / -1;
             margin: 0;
@@ -2212,6 +2201,9 @@
         padding-bottom: 12px;
         border-bottom: 1px solid #2a2a2a;
     }
+    body.character-saved .char-type-switcher {
+        display: none !important;
+    }
     .char-type-group-label {
         font-size: 10px;
         color: #555;
@@ -2235,11 +2227,13 @@
 
     /* Смертный игрок / НПС смертный / НПС призрак — скрываем вампирские */
     body.char-type-mortal     .vampire-only,
+    body.char-type-ghoul      .vampire-only,
     body.char-type-npc-mortal .vampire-only,
     body.char-type-npc-ghost  .vampire-only { display: none !important; }
 
     /* Показываем смертные элементы */
     body.char-type-mortal     .mortal-only,
+    body.char-type-ghoul      .mortal-only,
     body.char-type-npc-mortal .mortal-only  { display: block !important; }
 
     /* НПС призрак */
@@ -2586,15 +2580,6 @@
         <span class="creation-vital-title">Здоровье</span>
         <strong id="val-hp" class="creation-vital-value" data-tooltip="Здоровье = Выносливость + 3">4</strong>
         <small id="creation-health-formula" class="creation-vital-formula">Выносливость 1 + 3</small>
-        <label class="creation-vital-control">
-            <select id="damage-profile" onchange="setSheetDamageProfile(this.value)" aria-label="Профиль существа">
-                <option value="vampire">Профиль: вампир</option>
-                <option value="thinblood">Профиль: слабокровный</option>
-                <option value="ghoul">Профиль: гуль</option>
-                <option value="mortal">Профиль: смертный</option>
-                <option value="custom">Профиль: другое / ручной</option>
-            </select>
-        </label>
     </div>
     <div class="creation-vital-card">
         <span class="creation-vital-title">Сила воли</span>
@@ -2907,6 +2892,10 @@
                 </button>
             </div>
             <div id="autosave-status" class="autosave-status" role="status" aria-live="polite"></div>
+
+            <button type="button" onclick="startNewCharacter()" style="padding:16px; font-size:16px; background:#2a1111; color:white; border:1px solid #ff3131; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
+                + Создать нового персонажа
+            </button>
 
             <button onclick="showMyCharacters()" style="padding:16px; font-size:16px; background:#444; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
                 📋 Мои персонажи

@@ -6,6 +6,8 @@ export default function CharacterSheetPage() {
   const [room, setRoom] = useState('campaign-666')
   const [role, setRole] = useState<'master' | 'player'>('player')
   const [characterId, setCharacterId] = useState('')
+  const [isNewCharacter, setIsNewCharacter] = useState(false)
+  const [newCharacterSession, setNewCharacterSession] = useState(0)
   const [isReady, setIsReady] = useState(false)
 
   useEffect(() => {
@@ -13,20 +15,50 @@ export default function CharacterSheetPage() {
     const nextRoom = params.get('room') || window.localStorage.getItem('vtm-table-room') || 'campaign-666'
     const requestedRole = params.get('role')
     const savedRole = window.localStorage.getItem('vtm-table-role')
+    const nextIsNewCharacter = params.get('new') === '1'
     setRoom(nextRoom)
-    setCharacterId(params.get('characterId') || '')
+    setCharacterId(nextIsNewCharacter ? '' : params.get('characterId') || '')
+    setIsNewCharacter(nextIsNewCharacter)
     if (requestedRole === 'master' || requestedRole === 'player') setRole(requestedRole)
     else if (savedRole === 'master' || savedRole === 'player') setRole(savedRole)
     window.localStorage.setItem('vtm-table-room', nextRoom)
     setIsReady(true)
   }, [])
 
+  useEffect(() => {
+    const handleCharacterSaved = (event: MessageEvent) => {
+      if (event.origin !== window.location.origin) return
+      if (event.data?.type !== 'vtm-character-saved' || typeof event.data.characterId !== 'string') return
+
+      const savedCharacterId = event.data.characterId
+      setCharacterId(savedCharacterId)
+      setIsNewCharacter(false)
+
+      const params = new URLSearchParams(window.location.search)
+      params.delete('new')
+      params.set('characterId', savedCharacterId)
+      window.history.replaceState(null, '', `/character-sheet?${params.toString()}`)
+    }
+
+    window.addEventListener('message', handleCharacterSaved)
+    return () => window.removeEventListener('message', handleCharacterSaved)
+  }, [])
+
   const tableHref = useMemo(() => `/table?room=${encodeURIComponent(room)}&role=${role}`, [room, role])
   const iframeSrc = useMemo(() => {
     const params = new URLSearchParams({ room, role })
     if (characterId) params.set('characterId', characterId)
+    if (isNewCharacter) params.set('new', '1')
     return `/old-sheet.html?${params.toString()}`
-  }, [room, role, characterId])
+  }, [room, role, characterId, isNewCharacter])
+
+  const startNewCharacter = () => {
+    setCharacterId('')
+    setIsNewCharacter(true)
+    setNewCharacterSession(current => current + 1)
+    const params = new URLSearchParams({ room, role, new: '1' })
+    window.history.pushState(null, '', `/character-sheet?${params.toString()}`)
+  }
 
   return (
     <>
@@ -65,6 +97,9 @@ export default function CharacterSheetPage() {
 
       <nav className="sheet-nav-links" aria-label="Навигация листа персонажа">
         <a href="/" title="На главную">На главную</a>
+        <button type="button" onClick={startNewCharacter}>
+          Создать нового персонажа
+        </button>
         <a
           href={tableHref}
           onClick={() => {
@@ -79,6 +114,7 @@ export default function CharacterSheetPage() {
 
       {isReady ? (
         <iframe
+          key={`${characterId || 'new'}-${newCharacterSession}`}
           src={iframeSrc}
           className="sheet-iframe"
           title="VTM V5 Character Sheet"
@@ -104,7 +140,8 @@ export default function CharacterSheetPage() {
           background: #0a0a0a;
         }
 
-        .sheet-nav-links a {
+        .sheet-nav-links a,
+        .sheet-nav-links button {
           min-width: 92px;
           min-height: 38px;
           display: inline-grid;
@@ -117,9 +154,11 @@ export default function CharacterSheetPage() {
           font-size: 14px;
           text-decoration: none;
           box-shadow: 0 10px 30px rgba(0,0,0,0.35);
+          cursor: pointer;
         }
 
-        .sheet-nav-links a:hover {
+        .sheet-nav-links a:hover,
+        .sheet-nav-links button:hover {
           background: #2a1111;
           border-color: #ff3131;
         }

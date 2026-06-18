@@ -1,4 +1,4 @@
-import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
+import type { CharacterOption, CharacterRow, CharacterType, ChatMessage, ChatMessageRow, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
 import { getMusicProvider } from '@/components/music/utils'
 import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from '@/lib/vtm/health'
 
@@ -265,11 +265,24 @@ export function normalizeInventory(items: unknown): InventoryItem[] {
   })
 }
 
+export function getCharacterType(data?: CharacterRow['data']): CharacterType {
+  const value = data?.characterType || data?.creatureType || data?.kind
+  if (value === 'mortal' || value === 'ghoul' || value === 'thinblood') return value
+  return 'vampire'
+}
+
+export function getDefaultDamageProfile(characterType: CharacterType): NonNullable<CharacterOption['damageProfile']> {
+  if (characterType === 'mortal' || characterType === 'ghoul') return 'mortal'
+  if (characterType === 'thinblood') return 'thinblood'
+  return 'vampire'
+}
+
 export function mapCharacterRow(row: CharacterRow): CharacterOption {
   const data = row.data || {}
+  const characterType = getCharacterType(data)
   const bloodPotency = Number(data.bloodPotency ?? data.blood?.potency ?? 0) || 0
   const humanity = Math.max(1, Math.min(10, Number(data.humanity?.value ?? data.baseHumanity ?? 7) || 7))
-  const damageProfile = normalizeDamageProfile(data.damageProfile, row.clan, data.type)
+  const damageProfile = normalizeDamageProfile(data.damageProfile || getDefaultDamageProfile(characterType))
   const health = normalizeHealthTracker(data.vitalTrackers?.health, data.attributes?.['Выносливость'] || 0, damageProfile)
   const willpower = normalizeWillpowerTracker(data.vitalTrackers?.willpower, getWillpowerMaxFromAttributes(data.attributes || {}))
   return {
@@ -283,6 +296,7 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     predator: data.predator || '',
     generation: data.generation || '',
     type: data.type || '',
+    characterType,
     bloodPotency,
     humanity,
     health,

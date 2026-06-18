@@ -9,6 +9,20 @@ let currentCharacterRecordId = null;
 let charactersListCache = null;
 let requestedCharacterLoadStarted = false;
 
+function isNewCharacterMode() {
+    return new URLSearchParams(window.location.search).get('new') === '1';
+}
+
+function startNewCharacter() {
+    const currentParams = new URLSearchParams(window.location.search);
+    const targetParams = new URLSearchParams({
+        room: currentParams.get('room') || localStorage.getItem('vtm-table-room') || 'campaign-666',
+        role: currentParams.get('role') || localStorage.getItem('vtm-table-role') || 'player',
+        new: '1'
+    });
+    window.top.location.assign(`/character-sheet?${targetParams.toString()}`);
+}
+
 function setAutoSaveStatus(text, kind = '') {
     const status = document.getElementById('autosave-status');
     if (!status) return;
@@ -236,11 +250,17 @@ async function saveCharacter() {
     const characterData = window.getFullCharacterData ? window.getFullCharacterData() : {};
 
     if (!characterData.name) characterData.name = "Без имени";
+    characterData.characterType = characterData.characterType || 'vampire';
+    characterData.damageProfile = characterData.damageProfile || (characterData.characterType === 'mortal' || characterData.characterType === 'ghoul'
+        ? 'mortal'
+        : characterData.characterType === 'thinblood' ? 'thinblood' : 'vampire');
+    characterData.hasBeenSaved = true;
 
     setButtonBusy('[onclick="saveCharacter()"]', true, 'Сохраняю...');
 
-    let existingId = currentCharacterRecordId;
-    if (!existingId) {
+    const creatingNewCharacter = isNewCharacterMode();
+    let existingId = creatingNewCharacter ? null : currentCharacterRecordId;
+    if (!existingId && !creatingNewCharacter) {
         const { data: existing } = await client
             .from('characters')
             .select('id')
@@ -272,6 +292,23 @@ async function saveCharacter() {
     } else {
         currentCharacterRecordId = data?.id || existingId;
         charactersListCache = null;
+        window.setCharacterSavedState?.(true);
+        if (currentCharacterRecordId) {
+            const params = new URLSearchParams(window.location.search);
+            const room = params.get('room');
+            params.delete('new');
+            params.set('characterId', currentCharacterRecordId);
+            window.history.replaceState(null, '', `${window.location.pathname}?${params.toString()}`);
+            if (currentUser?.id) {
+                localStorage.setItem(`vtm-chat-character:${currentUser.id}`, currentCharacterRecordId);
+                localStorage.setItem(`vtm-home-character:${currentUser.id}`, currentCharacterRecordId);
+                if (room) localStorage.setItem(`vtm-chat-character:${currentUser.id}:${room}`, currentCharacterRecordId);
+            }
+            window.parent.postMessage({
+                type: 'vtm-character-saved',
+                characterId: currentCharacterRecordId
+            }, window.location.origin);
+        }
         alert(`✅ Персонаж "${characterData.name}" сохранён.`);
     }
 }
@@ -391,15 +428,11 @@ async function showMyCharacters() {
         return;
     }
 
-    if (data.length === 0) {
-        closeModal();
-        alert("У вас пока нет сохранённых персонажей. Вы возвращены на лист.");
-        return;
-    }
-
     let html = `<div style="position:relative;padding:24px; width:min(980px,96vw); max-height:86vh; overflow:auto; background:#111; border:2px solid #ff3131; border-radius:10px; color:#eee;">
         <button onclick="closeModal()" title="Закрыть" style="position:absolute; top:12px; right:16px; background:none; border:none; color:#ff3131; font-size:32px; cursor:pointer; line-height:1;">×</button>
         <h2 style="color:#ff3131; text-align:center; margin:0 0 18px;">📋 Мои персонажи (${data.length})</h2>
+        <button onclick="startNewCharacter()" style="width:100%; margin-bottom:16px; padding:12px; border:1px solid #ff3131; border-radius:6px; background:#2a1111; color:#fff; cursor:pointer; font-size:15px;">+ Создать нового персонажа</button>
+        ${data.length ? `
         <table style="width:100%; border-collapse:collapse; background:#111;">
             <thead><tr style="background:#222;">
                 <th style="padding:12px; text-align:left;">Картинка</th>
@@ -407,7 +440,7 @@ async function showMyCharacters() {
                 <th style="padding:12px; text-align:center;">Клан</th>
                 <th style="padding:12px; text-align:center;">Создан</th>
                 <th style="padding:12px; text-align:center;">Действия</th>
-            </tr></thead><tbody>`;
+            </tr></thead><tbody>` : '<p style="color:#888; text-align:center;">Сохранённых персонажей пока нет.</p>'}`;
 
     data.forEach(char => {
         const date = new Date(char.created_at).toLocaleString('ru-RU');
@@ -427,7 +460,8 @@ async function showMyCharacters() {
             </tr>`;
     });
 
-    html += `</tbody></table></div>`;
+    if (data.length) html += `</tbody></table>`;
+    html += `</div>`;
     showModal(html);
 }
 
@@ -465,6 +499,10 @@ async function loadCharacter(id, button = null) {
 }
 
 async function loadRequestedCharacter() {
+    if (isNewCharacterMode()) {
+        currentCharacterRecordId = null;
+        return;
+    }
     const params = new URLSearchParams(window.location.search);
     const characterId = params.get('characterId');
     if (!characterId || requestedCharacterLoadStarted) return;
@@ -539,6 +577,7 @@ async function deleteCharacter(id, name = 'персонажа') {
 
 // Глобальные функции
 window.saveCharacter = saveCharacter;
+window.startNewCharacter = startNewCharacter;
 window.showMyCharacters = showMyCharacters;
 window.loadCharacter = loadCharacter;
 window.deleteCharacter = deleteCharacter;

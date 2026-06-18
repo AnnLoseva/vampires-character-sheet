@@ -179,6 +179,7 @@ export default function MainScreen() {
   const room = useMemo(() => sanitizeRoom(roomDraft) || DEFAULT_ROOM, [roomDraft])
   const tableHref = `/table?room=${encodeURIComponent(room)}&role=${role}`
   const sheetHref = `/character-sheet?room=${encodeURIComponent(room)}&role=${role}${selectedCharacterId ? `&characterId=${encodeURIComponent(selectedCharacterId)}` : ''}`
+  const newSheetHref = `/character-sheet?room=${encodeURIComponent(room)}&role=${role}&new=1`
 
   const rememberTableChoice = (nextRole = role) => {
     window.localStorage.setItem('vtm-table-room', room)
@@ -366,6 +367,13 @@ export default function MainScreen() {
                     <button type="button" className="ghost-action" onClick={logout}>
                       Выйти
                     </button>
+                    <Link
+                      href={newSheetHref}
+                      onClick={() => rememberTableChoice(role)}
+                      className="ghost-action new-character-action"
+                    >
+                      Создать нового персонажа
+                    </Link>
                   </div>
                 </div>
               ) : (
@@ -440,6 +448,9 @@ export default function MainScreen() {
               <div className="library-actions">
                 <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
                   Открыть редактор
+                </Link>
+                <Link href={newSheetHref} onClick={() => rememberTableChoice(role)} className="ghost-action">
+                  Создать нового персонажа
                 </Link>
                 <Link href="/journal" className="ghost-action">
                   Дневник
@@ -887,6 +898,10 @@ export default function MainScreen() {
           grid-template-columns: minmax(0, 1fr) auto;
           gap: 8px;
           align-items: center;
+        }
+
+        .new-character-action {
+          grid-column: 1 / -1;
         }
 
         .library-actions {

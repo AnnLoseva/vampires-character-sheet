@@ -2125,30 +2125,6 @@ export default function GameTableStyles() {
           grid-template-columns: repeat(3, minmax(0, 1fr));
         }
 
-        .preview-health-profile {
-          display: grid;
-          grid-template-columns: auto minmax(130px, 1fr);
-          align-items: center;
-          gap: 10px;
-          margin-top: 10px;
-          color: #999;
-          font-size: 10px;
-          text-transform: uppercase;
-        }
-
-        .preview-health-profile select {
-          min-width: 0;
-          height: 34px;
-          border: 1px solid #353535;
-          border-radius: 5px;
-          background: #090909;
-          color: #eee;
-          padding: 0 8px;
-          font: inherit;
-          font-size: 12px;
-          text-transform: none;
-        }
-
         .preview-roll-controls {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));

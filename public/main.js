@@ -38,6 +38,9 @@ let touchstones = [];
 let inventory = [];
 let explicitBloodPotency = null;
 let vitalAutoSaveTimeout = null;
+let currentCharType = 'vampire';
+let currentMortalTemplate = null;
+let characterHasBeenSaved = false;
 const THIN_BLOOD_CLAN = 'Слабокровные';
 const CAITIFF_CLAN = 'Каитиф';
 const THIN_BLOOD_ALCHEMY = 'Алхимия слабокровных';
@@ -182,6 +185,7 @@ async function initializeApp() {
         const savedType = localStorage.getItem('vtm-char-type') || 'vampire';
         const savedMortalTpl = localStorage.getItem('vtm-mortal-template');
         if (savedMortalTpl) currentMortalTemplate = savedMortalTpl;
+        setCharacterSavedState(Boolean(new URLSearchParams(window.location.search).get('characterId')));
         setCharacterType(savedType);
         renderVitalTrackers();
 
@@ -424,10 +428,46 @@ function getWillpowerTracker(max = getVitalMax('willpower')) {
     return tracker;
 }
 
+function normalizeCharacterType(value) {
+    if (value === 'mortal' || value === 'npc-mortal' || value === 'npc-ghost') return 'mortal';
+    if (value === 'ghoul') return 'ghoul';
+    if (value === 'thinblood') return 'thinblood';
+    return 'vampire';
+}
+
+function getCharacterType(characterData = {}) {
+    return normalizeCharacterType(
+        characterData.characterType ||
+        characterData.creatureType ||
+        characterData.kind ||
+        'vampire'
+    );
+}
+
+function getDefaultDamageProfile(characterType) {
+    switch (normalizeCharacterType(characterType)) {
+        case 'mortal':
+        case 'ghoul':
+            return 'mortal';
+        case 'thinblood':
+            return 'thinblood';
+        case 'vampire':
+        default:
+            return 'vampire';
+    }
+}
+
+function getCurrentCharacterType() {
+    if (normalizeCharacterType(currentCharType) === 'vampire' && isThinBloodClan()) {
+        return 'thinblood';
+    }
+    return normalizeCharacterType(currentCharType);
+}
+
 function getSheetDamageProfile() {
-    const clan = document.getElementById('clan-input')?.value || '';
-    const type = document.getElementById('type-input')?.value || '';
-    damageProfile = window.VTMHealth.normalizeDamageProfile(damageProfile, clan, type);
+    damageProfile = window.VTMHealth.normalizeDamageProfile(
+        damageProfile || getDefaultDamageProfile(getCurrentCharacterType())
+    );
     return damageProfile;
 }
 
@@ -583,6 +623,7 @@ function getVitalAutosavePatch() {
     const baseHumanity = parseInt(document.getElementById('base-humanity')?.value || '7', 10) || 7;
     return {
         vitalTrackers: getVitalTrackerData(),
+        characterType: getCurrentCharacterType(),
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
         baseHumanity: String(baseHumanity),
@@ -643,8 +684,6 @@ function renderVitalTracker(key) {
             track.appendChild(button);
         }
         if (caption) caption.textContent = `Доступно ${state.current} / ${state.max} · / ${state.superficial} · X ${state.aggravated}${state.impaired ? ' · -2к10' : ''}`;
-        const profileSelect = document.getElementById('damage-profile');
-        if (profileSelect) profileSelect.value = getSheetDamageProfile();
         const note = document.getElementById('health-state-note');
         if (note) note.textContent = window.VTMHealth.warningFor(state, getSheetDamageProfile());
         return;
@@ -983,15 +1022,15 @@ function markSheetHealthDefeated() {
     });
 }
 
-function setSheetDamageProfile(value) {
-    damageProfile = window.VTMHealth.normalizeDamageProfile(value);
+function syncDamageProfileFromCharacterType({ autosave = false } = {}) {
+    damageProfile = getDefaultDamageProfile(getCurrentCharacterType());
     renderVitalTracker('health');
     updateVitalProfileVisibility();
-    autoSaveVitalState({ immediate: true });
+    if (autosave) autoSaveVitalState({ immediate: true });
 }
 
 function updateVitalProfileVisibility() {
-    const usesVampireResources = ['vampire', 'thinblood'].includes(getSheetDamageProfile());
+    const usesVampireResources = ['vampire', 'thinblood'].includes(getCurrentCharacterType());
     document.querySelectorAll('[data-vampire-resource="true"]').forEach(element => {
         element.hidden = !usesVampireResources;
     });
@@ -3000,30 +3039,36 @@ const MORTAL_TEMPLATES = [
     },
 ];
 
-let currentCharType = 'vampire';
-let currentMortalTemplate = null;
-
-function setCharacterType(type) {
-    currentCharType = type;
-    localStorage.setItem('vtm-char-type', type);
+function setCharacterType(type, { persist = true, syncDamageProfile = true } = {}) {
+    const supportedModes = ['vampire', 'mortal', 'ghoul', 'thinblood', 'npc-vampire', 'npc-ghost', 'npc-mortal'];
+    currentCharType = supportedModes.includes(type) ? type : normalizeCharacterType(type);
+    if (persist) localStorage.setItem('vtm-char-type', currentCharType);
 
     // Сбрасываем все классы char-type-*
     document.body.classList.forEach(cls => {
         if (cls.startsWith('char-type-')) document.body.classList.remove(cls);
     });
-    document.body.classList.add('char-type-' + type);
+    document.body.classList.add('char-type-' + currentCharType);
 
     // Синхронизируем select переключателя
     const charTypeSelect = document.getElementById('char-type-select');
-    if (charTypeSelect) charTypeSelect.value = type;
+    if (charTypeSelect && Array.from(charTypeSelect.options).some(option => option.value === currentCharType)) {
+        charTypeSelect.value = currentCharType;
+    }
 
     // Рендерим нужный трекер
-    if (type === 'mortal' || type === 'npc-mortal') {
+    if (currentCharType === 'mortal' || currentCharType === 'npc-mortal') {
         renderMortalTemplates();
     }
 
     // Обновляем label у поля Сира для смертных
-    updateSireLabel(type);
+    updateSireLabel(currentCharType);
+    if (syncDamageProfile) syncDamageProfileFromCharacterType();
+}
+
+function setCharacterSavedState(saved) {
+    characterHasBeenSaved = Boolean(saved);
+    document.body.classList.toggle('character-saved', characterHasBeenSaved);
 }
 
 function updateSireLabel(type) {
@@ -3113,6 +3158,7 @@ function renderMortalAttrTracker() {
 
 window.setCharacterType = setCharacterType;
 window.selectMortalTemplate = selectMortalTemplate;
+window.setCharacterSavedState = setCharacterSavedState;
 
 // ==================== МОДАЛЬНОЕ ОКНО АРХЕТИПОВ ====================
 let _archetypeTargetFieldId = null;
@@ -4459,7 +4505,6 @@ window.recoverSheetMortalHealth = recoverSheetMortalHealth;
 window.treatSheetMortalHealth = treatSheetMortalHealth;
 window.clearSheetHealth = clearSheetHealth;
 window.markSheetHealthDefeated = markSheetHealthDefeated;
-window.setSheetDamageProfile = setSheetDamageProfile;
 window.setInitialHunger = setInitialHunger;
 window.performSheetRouseCheck = async () => {
     if (!isCharacterSheetFixed()) return;
@@ -5563,6 +5608,7 @@ function setupEventListeners() {
 
             updateDisciplineTotal();
             renderDisciplines();
+            syncDamageProfileFromCharacterType();
         });
     }
 
@@ -6716,6 +6762,9 @@ function getFullCharacterData() {
         predator: document.getElementById('predator-input').value,
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
+        characterType: getCurrentCharacterType(),
+        sheetMode: currentCharType,
+        hasBeenSaved: characterHasBeenSaved,
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
         sheetFixed: startingSheetFixed,
@@ -6823,6 +6872,9 @@ function applyCharacterData(d, sourceName = 'JSON') {
 
     try {
         resetCharacterSheetForLoad();
+        const loadedCharacterType = getCharacterType(d);
+        setCharacterType(d.sheetMode || loadedCharacterType, { persist: false, syncDamageProfile: false });
+        setCharacterSavedState(sourceName !== 'JSON' || Boolean(d.hasBeenSaved));
 
         // Основная информация
         document.getElementById('char-name').value = d.name || 'Безымянный';
@@ -6855,7 +6907,9 @@ function applyCharacterData(d, sourceName = 'JSON') {
         }
         const savedBloodPotency = d.bloodPotency ?? d.blood?.potency;
         explicitBloodPotency = savedBloodPotency === undefined || savedBloodPotency === null ? null : clampBloodPotency(savedBloodPotency);
-        damageProfile = window.VTMHealth.normalizeDamageProfile(d.damageProfile, d.clan, d.type);
+        damageProfile = window.VTMHealth.normalizeDamageProfile(
+            d.damageProfile || getDefaultDamageProfile(loadedCharacterType)
+        );
         characterPhysicalState = d.status?.physicalState || 'healthy';
         healthState = d.healthState && typeof d.healthState === 'object' ? { ...d.healthState } : {};
         vitalTrackers = normalizeVitalTrackerData(d.vitalTrackers || {});
@@ -8620,6 +8674,9 @@ function captureSheetSnapshot() {
         predator: document.getElementById('predator-input')?.value || '',
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
+        characterType: getCurrentCharacterType(),
+        sheetMode: currentCharType,
+        hasBeenSaved: characterHasBeenSaved,
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
         sheetFixed: startingSheetFixed,
@@ -8663,7 +8720,7 @@ function applySheetLockState() {
             : "Зафиксировать текущие значения как стартовый лист";
     }
 
-    const lockedControls = document.querySelectorAll('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #damage-profile, #initial-hunger, #val-blood-potency, .locked-origin-control');
+    const lockedControls = document.querySelectorAll('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #initial-hunger, #val-blood-potency, .locked-origin-control');
     lockedControls.forEach(control => {
         const shouldDisable = startingSheetFixed && !expShopMode;
         control.disabled = shouldDisable;
@@ -8730,7 +8787,7 @@ function isSheetLockedTarget(target) {
     const dotLabel = target.closest('.dot-label');
     const dotRow = dotLabel?.closest('.row');
     if ((dotLabel && (dotRow?.querySelector('.attr-name') || dotRow?.querySelector('.skill-name'))) || target.closest('.discipline-item:not(.xp-shop-discipline-option) .disc-dot')) return false;
-    if (target.closest('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #damage-profile, #initial-hunger, #val-blood-potency, .locked-origin-control, .dot-label, .dot-input, .disc-dot, .s-badge, .add-power-btn, .remove-disc-btn, .merit-add-btn, .selected-item-remove')) return true;
+    if (target.closest('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #initial-hunger, #val-blood-potency, .locked-origin-control, .dot-label, .dot-input, .disc-dot, .s-badge, .add-power-btn, .remove-disc-btn, .merit-add-btn, .selected-item-remove')) return true;
     if (target.closest('.skill-spec-line button, .skill-spec-line input')) return true;
     if (target.closest('.attr-name, .skill-name, .skill-spec-line')) return false;
     const disciplineItem = target.closest('.discipline-item:not(.xp-shop-discipline-option)');

@@ -173,6 +173,8 @@ export type ChatUser = {
   username: string
 }
 
+export type CharacterType = 'vampire' | 'mortal' | 'ghoul' | 'thinblood'
+
 export type CharacterOption = {
   id: string
   name: string
@@ -184,6 +186,7 @@ export type CharacterOption = {
   predator?: string
   generation?: string
   type?: string
+  characterType: CharacterType
   bloodPotency?: number
   humanity?: number
   health?: NormalizedHealth
@@ -218,6 +221,11 @@ export type CharacterRow = {
     predator?: string
     generation?: string
     type?: string
+    characterType?: CharacterType
+    creatureType?: CharacterType
+    kind?: CharacterType
+    sheetMode?: string
+    hasBeenSaved?: boolean
     bloodPotency?: number
     baseHumanity?: string | number
     humanity?: {
