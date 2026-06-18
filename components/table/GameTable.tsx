@@ -76,6 +76,19 @@ import {
   upsertLayer,
 } from '@/lib/table/layer-utils'
 import { sortSceneMusic, sortScenes, upsertScene } from '@/lib/table/scene-utils'
+import {
+  applyHealthDamage,
+  calculateConflictDamage,
+  getHealthImpairmentPenalty,
+  getHealthMetaState,
+  getHealthWarning,
+  getSuperficialMendAmount,
+  normalizeDamageProfile,
+  normalizeHealthTracker,
+  recoverHealthDamage,
+  toHealthTracker,
+} from '@/lib/vtm/health'
+import type { DamageSeverity, HealthDamageOptions } from '@/lib/vtm/health'
 import type {
   ActiveParticipant,
   BlendMode,
@@ -99,6 +112,7 @@ import type {
   LeftToolbarTab,
   MasterReveal,
   MasterWhisper,
+  NormalizedHealth,
   NormalizedWillpower,
   MediaTab,
   OpposedRollResult,
@@ -206,6 +220,7 @@ type QuickRollOptions = {
   spentWillpower?: number
   recoveredWillpower?: number
   impairmentPenaltyApplied?: number
+  healthImpairmentPenaltyApplied?: number
 }
 
 type WillpowerRerollDraft = {
@@ -401,6 +416,27 @@ function getCharacterWillpower(character?: CharacterOption | null): NormalizedWi
   return character.willpower || normalizeWillpowerTracker(
     character.vitalTrackers?.willpower,
     getWillpowerMaxFromAttributes(character.attributes || {}),
+  )
+}
+
+function getCharacterHealth(character?: CharacterOption | null): NormalizedHealth {
+  if (!character) {
+    return {
+      superficial: 0,
+      aggravated: 0,
+      bonusMax: 0,
+      maxOverride: null,
+      max: 0,
+      current: 0,
+      impaired: false,
+      defeated: false,
+      physicalState: 'healthy',
+    }
+  }
+  return character.health || normalizeHealthTracker(
+    character.vitalTrackers?.health,
+    character.attributes['Выносливость'] || 0,
+    character.damageProfile || 'vampire',
   )
 }
 
@@ -2029,7 +2065,8 @@ export default function VampireTable() {
   const masterRollDisciplineDots = selectedMasterRollCharacter ? getDisciplineDots(selectedMasterRollCharacter.disciplines[masterRollDiscipline] || {}) : 0
   const masterRollPoolBeforeLimit = masterRollAttributeDots + masterRollAttributeTwoDots + masterRollSkillDots + masterRollDisciplineDots + masterRollModifier
   const masterWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([masterRollAttribute, masterRollAttributeTwo], selectedMasterRollCharacter)
-  const masterRollDiceCount = Math.max(0, Math.min(20, masterRollPoolBeforeLimit + masterWillpowerImpairmentPenalty))
+  const masterHealthImpairmentPenalty = getHealthImpairmentPenalty([masterRollAttribute, masterRollAttributeTwo], getCharacterHealth(selectedMasterRollCharacter))
+  const masterRollDiceCount = Math.max(0, Math.min(20, masterRollPoolBeforeLimit + masterWillpowerImpairmentPenalty + masterHealthImpairmentPenalty))
   const masterBloodPotency = getCharacterBloodPotency(selectedMasterRollCharacter)
   const masterBloodSurgeBonus = getBloodSurgeBonus(masterBloodPotency)
   const masterRollExtraAttributes = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.attributes, ATTRIBUTE_GROUPS) : []
@@ -2121,7 +2158,9 @@ export default function VampireTable() {
   const previewDisciplineDots = previewCharacter ? getDisciplineDots(previewCharacter.disciplines[previewRollDiscipline] || {}) : 0
   const previewPoolBeforeLimit = previewAttributeDots + previewAttributeTwoDots + previewSkillDots + previewDisciplineDots + previewRollModifier
   const previewWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewCharacter)
-  const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit + previewWillpowerImpairmentPenalty))
+  const previewHealth = getCharacterHealth(previewCharacter)
+  const previewHealthImpairmentPenalty = getHealthImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewHealth)
+  const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit + previewWillpowerImpairmentPenalty + previewHealthImpairmentPenalty))
   const previewBloodPotency = getCharacterBloodPotency(previewCharacter)
   const previewBloodSurgeBonus = getBloodSurgeBonus(previewBloodPotency)
   const previewHunger = getCharacterHunger(previewCharacter)
@@ -2157,7 +2196,8 @@ export default function VampireTable() {
     ? previewPowerPoolSelections.reduce((sum, name) => sum + getCharacterPoolPartDots(previewCharacter, name), 0) + previewPowerModifier
     : 0
   const previewPowerWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty(previewPowerPoolSelections, previewCharacter)
-  const previewPowerDiceCount = Math.max(0, Math.min(20, previewPowerPoolBeforeLimit + previewPowerWillpowerImpairmentPenalty))
+  const previewPowerHealthImpairmentPenalty = getHealthImpairmentPenalty(previewPowerPoolSelections, previewHealth)
+  const previewPowerDiceCount = Math.max(0, Math.min(20, previewPowerPoolBeforeLimit + previewPowerWillpowerImpairmentPenalty + previewPowerHealthImpairmentPenalty))
   const selectedPreviewPowerRouseCost = parseRouseCost(selectedPreviewPower?.rule.cost, selectedPreviewPower?.rule.mechanics)
   const selectedPreviewPowerWillpowerCost = parseWillpowerCost(selectedPreviewPower?.rule.cost, selectedPreviewPower?.rule.mechanics)
 
@@ -2241,10 +2281,24 @@ export default function VampireTable() {
     window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}`, characterId)
   }
 
+  const openCharacterPreview = async (character: CharacterOption, username?: string) => {
+    setPreviewCharacter({ ...character, username: username || character.username })
+    if (!character.id) return
+    const { data, error } = await createClient()
+      .from('characters')
+      .select('id, user_id, name, clan, data')
+      .eq('id', character.id)
+      .single()
+    if (error || !data) return
+    const fresh = { ...mapCharacterRow(data as CharacterRow), username: username || character.username }
+    setPreviewCharacter(fresh)
+    setChatCharacters(current => current.map(item => item.id === fresh.id ? { ...fresh, username: item.username || fresh.username } : item))
+  }
+
   const openParticipantPreview = async (participant: ActiveParticipant) => {
     const local = chatCharacters.find(character => character.id === participant.characterId)
     if (local) {
-      setPreviewCharacter({ ...local, username: participant.username })
+      await openCharacterPreview(local, participant.username)
       return
     }
     if (!participant.characterId) {
@@ -2308,13 +2362,17 @@ export default function VampireTable() {
     const attributeTwoDots = character ? Number(character.attributes[sideState.attributeTwo] || 0) : 0
     const skillDots = character ? getSkillDots(character.skills[sideState.skill] || 0) : 0
     const disciplineDots = character ? getDisciplineDots(character.disciplines[sideState.discipline] || {}) : 0
-    const diceCount = Math.max(0, Math.min(20, attributeDots + attributeTwoDots + skillDots + disciplineDots + sideState.modifier))
+    const willpowerPenalty = getWillpowerImpairmentPenalty([sideState.attribute, sideState.attributeTwo], character)
+    const healthPenalty = getHealthImpairmentPenalty([sideState.attribute, sideState.attributeTwo], getCharacterHealth(character))
+    const diceCount = Math.max(0, Math.min(20, attributeDots + attributeTwoDots + skillDots + disciplineDots + sideState.modifier + willpowerPenalty + healthPenalty))
     const poolParts = [
       sideState.attribute ? `${sideState.attribute} ${attributeDots}` : '',
       sideState.attributeTwo ? `${sideState.attributeTwo} ${attributeTwoDots}` : '',
       sideState.skill ? `${sideState.skill} ${skillDots}` : '',
       sideState.discipline ? `${sideState.discipline} ${disciplineDots}` : '',
       sideState.modifier ? `модификатор ${sideState.modifier > 0 ? '+' : ''}${sideState.modifier}` : '',
+      willpowerPenalty ? 'Истощение Воли -2' : '',
+      healthPenalty ? 'Изнурение по здоровью -2' : '',
     ].filter(Boolean)
 
     return {
@@ -2513,6 +2571,255 @@ export default function VampireTable() {
 
     setConnectionText(reason)
     return updatedCharacter
+  }
+
+  const syncHealthCharacter = (characterId: string, updatedCharacter: CharacterOption) => {
+    setChatCharacters(current => current.map(character => (
+      character.id === characterId ? { ...updatedCharacter, username: character.username } : character
+    )))
+    setPreviewCharacter(current => current?.id === characterId ? { ...updatedCharacter, username: current.username } : current)
+    setOpposedCharacterCache(current => {
+      if (!current[characterId]) return current
+      return { ...current, [characterId]: { ...updatedCharacter, username: current[characterId].username } }
+    })
+  }
+
+  const updateCharacterHealth = async (
+    characterId: string,
+    nextTracker: NormalizedHealth,
+    reason = 'Здоровье сохранено',
+    options: {
+      damageProfile?: CharacterOption['damageProfile']
+      lastAggravatedMendAt?: string
+    } = {},
+  ) => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id, user_id, name, clan, data')
+      .eq('id', characterId)
+      .single()
+
+    if (error || !data?.data) {
+      console.error('Не удалось прочитать персонажа для обновления Здоровья:', error)
+      setConnectionText('Здоровье не сохранилось')
+      return null
+    }
+
+    const characterData = data.data as NonNullable<CharacterRow['data']>
+    const profile = normalizeDamageProfile(
+      options.damageProfile || characterData.damageProfile,
+      data.clan,
+      characterData.type,
+    )
+    const stamina = Number(characterData.attributes?.['Выносливость'] || 0) || 0
+    const normalized = normalizeHealthTracker(toHealthTracker(nextTracker), stamina, profile)
+    const nextData = {
+      ...characterData,
+      damageProfile: profile,
+      vitalTrackers: {
+        ...(characterData.vitalTrackers || {}),
+        health: toHealthTracker(normalized),
+      },
+      status: {
+        ...(characterData.status || {}),
+        physicalState: normalized.physicalState,
+      },
+      healthState: {
+        ...(characterData.healthState || {}),
+        ...(options.lastAggravatedMendAt ? { lastAggravatedMendAt: options.lastAggravatedMendAt } : {}),
+      },
+      timestamp: new Date().toISOString(),
+    }
+    const { error: updateError } = await supabase
+      .from('characters')
+      .update({ data: nextData })
+      .eq('id', characterId)
+
+    if (updateError) {
+      console.error('Не удалось сохранить Здоровье персонажа:', updateError)
+      setConnectionText('Здоровье не сохранилось')
+      return null
+    }
+
+    const updatedCharacter = mapCharacterRow({ ...(data as CharacterRow), data: nextData })
+    syncHealthCharacter(characterId, updatedCharacter)
+    setConnectionText(reason)
+    return updatedCharacter
+  }
+
+  const publishHealthEvent = async (
+    character: CharacterOption,
+    reason: string,
+    before: NormalizedHealth,
+    after: NormalizedHealth,
+    meta: Partial<RollMeta> = {},
+  ) => {
+    const roll: RollMessage = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      characterName: character.name,
+      poolName: reason,
+      poolType: 'health',
+      diceCount: 0,
+      dice: [],
+      successes: 0,
+      createdAt: new Date().toISOString(),
+      meta: {
+        source: 'health',
+        characterId: character.id,
+        healthBefore: getHealthMetaState(before),
+        healthAfter: getHealthMetaState(after),
+        healthImpaired: after.impaired,
+        physicalState: after.physicalState,
+        ...meta,
+      },
+    }
+    await publishRoll(roll)
+  }
+
+  const applyCharacterHealthDamage = async (
+    character: CharacterOption,
+    amount: number,
+    severity: DamageSeverity,
+    options: HealthDamageOptions = {},
+  ) => {
+    const before = getCharacterHealth(character)
+    const profile = character.damageProfile || 'vampire'
+    const result = applyHealthDamage(before, amount, severity, options, profile)
+    const updatedCharacter = await updateCharacterHealth(character.id, result.tracker, 'Здоровье сохранено')
+    if (!updatedCharacter) return null
+    const after = getCharacterHealth(updatedCharacter)
+    await publishHealthEvent(updatedCharacter, 'Урон здоровью', before, after, {
+      damage: {
+        source: options.source || 'manual',
+        originalAmount: result.originalAmount,
+        finalAmount: result.finalAmount,
+        severity,
+        halved: result.halved,
+        weaponModifier: options.weaponModifier,
+        margin: options.margin,
+        targetCharacterId: updatedCharacter.id,
+        targetCharacterName: updatedCharacter.name,
+      },
+      warnings: result.warnings,
+    })
+    return { character: updatedCharacter, before, after, ...result }
+  }
+
+  const recoverCharacterHealth = async (
+    character: CharacterOption,
+    amount: number,
+    severity: DamageSeverity,
+    reason: string,
+    healingType: NonNullable<RollMeta['healing']>['type'] = 'manual',
+  ) => {
+    const before = getCharacterHealth(character)
+    const result = recoverHealthDamage(before, amount, severity, character.damageProfile || 'vampire')
+    if (result.recovered < 1) return null
+    const updatedCharacter = await updateCharacterHealth(character.id, result.tracker, 'Здоровье сохранено')
+    if (!updatedCharacter) return null
+    const after = getCharacterHealth(updatedCharacter)
+    await publishHealthEvent(updatedCharacter, reason, before, after, {
+      healing: {
+        type: healingType,
+        amountSuperficial: severity === 'superficial' ? result.recovered : 0,
+        amountAggravated: severity === 'aggravated' ? result.recovered : 0,
+      },
+    })
+    return updatedCharacter
+  }
+
+  const mendVampireSuperficial = async (character: CharacterOption) => {
+    const before = getCharacterHealth(character)
+    if (before.superficial < 1) return
+    const result = await performRouseCheck(character, 'Заживление лёгких повреждений')
+    const mendAmount = getSuperficialMendAmount(getCharacterBloodPotency(character))
+    const recovered = recoverHealthDamage(before, mendAmount, 'superficial', character.damageProfile || 'vampire')
+    const updatedCharacter = await updateCharacterHealth(character.id, recovered.tracker, 'Здоровье и Голод сохранены')
+    if (!updatedCharacter) return
+    const after = getCharacterHealth(updatedCharacter)
+    await publishHealthEvent(updatedCharacter, 'Заживление лёгких повреждений', before, after, {
+      hungerBefore: result.hungerBefore,
+      hungerAfter: result.hungerAfter,
+      rouseChecks: [result],
+      healing: {
+        type: 'vampire_superficial',
+        amountSuperficial: recovered.recovered,
+        rouseChecks: [result],
+      },
+      warnings: [getRouseWarning(result)].filter(Boolean),
+    })
+  }
+
+  const mendVampireAggravated = async (character: CharacterOption) => {
+    const before = getCharacterHealth(character)
+    if (before.aggravated < 1) return
+    if (!window.confirm('По правилам это можно делать не чаще одного раза за ночь и требует 3 Испытания Крови. Продолжить?')) return
+    const lastMendDate = character.lastAggravatedMendAt ? new Date(character.lastAggravatedMendAt) : null
+    const mendedTonight = Boolean(
+      lastMendDate
+      && !Number.isNaN(lastMendDate.getTime())
+      && lastMendDate.toDateString() === new Date().toDateString(),
+    )
+    if (mendedTonight && !window.confirm('Тяжёлый урон уже лечили этой ночью. Применить мастерский override?')) return
+    const checks: RouseCheckResult[] = []
+    let hunger = getCharacterHunger(character)
+    for (let index = 0; index < 3; index += 1) {
+      const result = await performRouseCheck(character, `Заживление тяжёлого повреждения ${index + 1}/3`, hunger)
+      checks.push(result)
+      hunger = result.hungerAfter
+    }
+    const recovered = recoverHealthDamage(before, 1, 'aggravated', character.damageProfile || 'vampire')
+    const updatedCharacter = await updateCharacterHealth(character.id, recovered.tracker, 'Здоровье и Голод сохранены', {
+      lastAggravatedMendAt: new Date().toISOString(),
+    })
+    if (!updatedCharacter) return
+    const after = getCharacterHealth(updatedCharacter)
+    await publishHealthEvent(updatedCharacter, 'Заживление тяжёлого повреждения', before, after, {
+      hungerBefore: checks[0]?.hungerBefore,
+      hungerAfter: checks[checks.length - 1]?.hungerAfter,
+      rouseChecks: checks,
+      healing: {
+        type: 'vampire_aggravated',
+        amountAggravated: recovered.recovered,
+        rouseChecks: checks,
+      },
+      warnings: checks.map(getRouseWarning).filter(Boolean),
+    })
+  }
+
+  const recoverMortalHealth = async (character: CharacterOption) => {
+    const amount = Number(character.attributes['Выносливость'] || 0) || 0
+    await recoverCharacterHealth(character, amount, 'superficial', 'Восстановление смертного', 'mortal_superficial')
+  }
+
+  const treatMortalHealth = async (character: CharacterOption) => {
+    const medicine = Number(window.prompt('Медицина лекаря:', '1') || 0)
+    if (medicine < 1) return
+    const success = window.confirm(`Проверка Интеллект + Медицина успешна? Сложность: ${getCharacterHealth(character).aggravated}.`)
+    const before = getCharacterHealth(character)
+    const converted = success ? Math.min(before.aggravated, Math.ceil(medicine / 2)) : 0
+    const next = normalizeHealthTracker({
+      ...toHealthTracker(before),
+      aggravated: before.aggravated - converted,
+      superficial: before.superficial + converted,
+    }, character.attributes['Выносливость'] || 0, character.damageProfile || 'mortal')
+    const updatedCharacter = await updateCharacterHealth(character.id, next, 'Лечение смертного сохранено')
+    if (!updatedCharacter) return
+    await publishHealthEvent(updatedCharacter, 'Лечение смертного', before, getCharacterHealth(updatedCharacter), {
+      healing: { type: 'mortal_aggravated_medicine', amountAggravated: converted },
+      warnings: success
+        ? ['Тяжёлые повреждения превращены в лёгкие. Восстановление занимает ночь.']
+        : ['Проверка лечения провалена: здоровье не изменилось.'],
+    })
+  }
+
+  const changeCharacterDamageProfile = async (character: CharacterOption, profile: CharacterOption['damageProfile']) => {
+    const health = getCharacterHealth(character)
+    await updateCharacterHealth(character.id, normalizeHealthTracker(toHealthTracker(health), character.attributes['Выносливость'] || 0, profile), 'Профиль урона сохранён', {
+      damageProfile: profile,
+    })
   }
 
   const publishWillpowerEvent = async (
@@ -2912,6 +3219,9 @@ export default function VampireTable() {
       recoveredWillpower: options.recoveredWillpower,
       willpowerImpaired: willpowerAfter.impaired,
       impairmentPenaltyApplied: options.impairmentPenaltyApplied,
+      healthImpaired: getCharacterHealth(character).impaired,
+      healthImpairmentPenaltyApplied: options.healthImpairmentPenaltyApplied,
+      physicalState: getCharacterHealth(character).physicalState,
       rouseChecks,
       bloodSurge: options.useBloodSurge ? {
         enabled: true,
@@ -2943,6 +3253,59 @@ export default function VampireTable() {
     const characterId = roll.meta?.characterId
     if (characterId) return chatCharacters.find(character => character.id === characterId) || null
     return chatCharacters.find(character => character.name === roll.characterName) || null
+  }
+
+  const applyRollDamage = async (roll: RollMessage) => {
+    if (!chatCharacters.length) {
+      window.alert('На столе нет доступных целей.')
+      return
+    }
+    const targetList = chatCharacters.map((character, index) => `${index + 1}. ${character.name}`).join('\n')
+    const targetIndex = Number(window.prompt(`Выбери цель:\n${targetList}`, '1') || 0) - 1
+    const target = chatCharacters[targetIndex]
+    if (!target) return
+    const opposedMargin = roll.opposed
+      ? Math.abs((roll.opposed.sides[0]?.successes || 0) - (roll.opposed.sides[1]?.successes || 0))
+      : roll.successes
+    const margin = Math.max(0, Number(window.prompt('Разница успехов:', String(opposedMargin)) || 0))
+    const weaponModifier = Number(window.prompt('Модификатор оружия:', '0') || 0)
+    const severity: DamageSeverity = window.confirm('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.')
+      ? 'aggravated'
+      : 'superficial'
+    const halveSuperficial = severity === 'superficial'
+      ? window.confirm('Делить лёгкий урон пополам с округлением вверх?')
+      : false
+    const amount = calculateConflictDamage({ margin, weaponModifier })
+    if (amount < 1) {
+      window.alert('Итоговый урон равен нулю.')
+      return
+    }
+    await applyCharacterHealthDamage(target, amount, severity, {
+      source: 'physical_conflict',
+      margin,
+      weaponModifier,
+      halveSuperficial,
+      ignoreHalving: severity === 'superficial' && !halveSuperficial,
+      notes: [`Урон применён из броска «${roll.poolName}».`],
+    })
+  }
+
+  const promptCharacterHealthDamage = async (character: CharacterOption) => {
+    const amount = Math.max(0, Number(window.prompt('Сколько урона нанести?', '1') || 0))
+    if (amount < 1) return
+    const severity: DamageSeverity = window.confirm('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.')
+      ? 'aggravated'
+      : 'superficial'
+    const halveSuperficial = severity === 'superficial'
+      ? window.confirm('Делить лёгкий урон пополам с округлением вверх?')
+      : false
+    const note = window.prompt('Комментарий к урону (необязательно):', '') || ''
+    await applyCharacterHealthDamage(character, amount, severity, {
+      source: 'manual',
+      halveSuperficial,
+      ignoreHalving: severity === 'superficial' && !halveSuperficial,
+      notes: note ? [note] : [],
+    })
   }
 
   const getWillpowerRerollEligibleDieIds = (roll: RollMessage) => roll.dice
@@ -3075,7 +3438,11 @@ export default function VampireTable() {
         useBloodSurge: masterUseBloodSurge,
         source: masterUseBloodSurge ? 'blood_surge' : 'manual',
         impairmentPenaltyApplied: masterWillpowerImpairmentPenalty || undefined,
-        warnings: masterWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : [],
+        healthImpairmentPenaltyApplied: masterHealthImpairmentPenalty || undefined,
+        warnings: [
+          ...(masterWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : []),
+          ...(masterHealthImpairmentPenalty ? ['Шкала здоровья заполнена: физическая проверка получает -2к10.'] : []),
+        ],
       },
     )
   }
@@ -3131,7 +3498,11 @@ export default function VampireTable() {
       useBloodSurge: previewUseBloodSurge,
       source: previewUseBloodSurge ? 'blood_surge' : 'manual',
       impairmentPenaltyApplied: previewWillpowerImpairmentPenalty || undefined,
-      warnings: previewWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : [],
+      healthImpairmentPenaltyApplied: previewHealthImpairmentPenalty || undefined,
+      warnings: [
+        ...(previewWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : []),
+        ...(previewHealthImpairmentPenalty ? ['Шкала здоровья заполнена: физическая проверка получает -2к10.'] : []),
+      ],
     })
   }
 
@@ -3288,8 +3659,10 @@ export default function VampireTable() {
         warnings: [
           ...(willpowerMeta.warnings || []),
           ...(previewPowerWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : []),
+          ...(previewPowerHealthImpairmentPenalty ? ['Шкала здоровья заполнена: физическая проверка получает -2к10.'] : []),
         ],
         impairmentPenaltyApplied: previewPowerWillpowerImpairmentPenalty || undefined,
+        healthImpairmentPenaltyApplied: previewPowerHealthImpairmentPenalty || undefined,
       },
     )
   }
@@ -5533,8 +5906,13 @@ export default function VampireTable() {
       || Boolean(meta.recoveredWillpower)
       || Boolean(meta.willpowerReroll?.used)
       || Boolean(meta.impairmentPenaltyApplied)
+    const hasHealthChange = Boolean(meta.healthBefore && meta.healthAfter)
+    const hasHealthMeta = hasHealthChange
+      || Boolean(meta.damage)
+      || Boolean(meta.healing)
+      || Boolean(meta.healthImpairmentPenaltyApplied)
 
-    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !hasWillpowerMeta && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline) {
+    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !hasWillpowerMeta && !hasHealthMeta && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline) {
       return null
     }
 
@@ -5561,6 +5939,24 @@ export default function VampireTable() {
           <span className="roll-note">Переброс Воли: {meta.willpowerReroll.oldDice.map(die => die.value).join(', ')} → {meta.willpowerReroll.newDice.map(die => die.value).join(', ')}</span>
         ) : null}
         {meta.impairmentPenaltyApplied ? <span className="roll-note">Истощение Воли: {meta.impairmentPenaltyApplied}к10</span> : null}
+        {meta.healthImpairmentPenaltyApplied ? <span className="roll-note">Изнурение по здоровью: {meta.healthImpairmentPenaltyApplied}к10</span> : null}
+        {meta.damage ? (
+          <span className="roll-note">
+            Урон: {meta.damage.originalAmount} {meta.damage.severity === 'aggravated' ? 'тяжёлых' : 'лёгких'}
+            {meta.damage.halved ? ` → после деления ${meta.damage.finalAmount}` : ''}
+            {meta.damage.targetCharacterName ? ` · цель: ${meta.damage.targetCharacterName}` : ''}
+          </span>
+        ) : null}
+        {meta.healthBefore && meta.healthAfter ? (
+          <span className="roll-note">
+            Здоровье: {meta.healthBefore.current} → {meta.healthAfter.current} / {meta.healthAfter.max} · / {meta.healthAfter.superficial} · X {meta.healthAfter.aggravated}
+          </span>
+        ) : null}
+        {meta.healing ? (
+          <span className="roll-note">
+            Лечение: / {meta.healing.amountSuperficial || 0} · X {meta.healing.amountAggravated || 0}
+          </span>
+        ) : null}
         {meta.messyCritical ? <strong className="roll-alert">Кровавый триумф</strong> : null}
         {meta.bestialFailure ? <strong className="roll-alert">Кровавый провал</strong> : null}
         {warnings.map((warning, index) => <span className="roll-warning" key={`${roll.id}-warning-${index}`}>{warning}</span>)}
@@ -5885,7 +6281,7 @@ export default function VampireTable() {
             <strong>{selectedActiveCharacter?.name || 'Персонаж не выбран'}</strong>
             <small>{selectedActiveCharacter?.clan || (chatUser ? 'без клана' : 'войдите в аккаунт')}</small>
           </div>
-          <button type="button" onClick={() => selectedActiveCharacter ? setPreviewCharacter(selectedActiveCharacter) : setRightRailTab('chat')} disabled={!selectedActiveCharacter}>
+          <button type="button" onClick={() => selectedActiveCharacter ? void openCharacterPreview(selectedActiveCharacter) : setRightRailTab('chat')} disabled={!selectedActiveCharacter}>
             Быстрый просмотр
           </button>
           <a href={getCharacterSheetHref(selectedActiveCharacter?.id)}>Открыть полный лист</a>
@@ -6444,8 +6840,22 @@ export default function VampireTable() {
                             )}
                           </div>
                         ) : null}
+                        {roll.poolType !== 'health' && roll.poolType !== 'rouse-check' && chatCharacters.length ? (
+                          <div className="roll-health-actions">
+                            <button type="button" onClick={() => applyRollDamage(roll)}>
+                              Применить урон к цели
+                            </button>
+                          </div>
+                        ) : null}
                       </>
                     )}
+                    {roll.opposed && chatCharacters.length ? (
+                      <div className="roll-health-actions">
+                        <button type="button" onClick={() => applyRollDamage(roll)}>
+                          Применить урон к цели
+                        </button>
+                      </div>
+                    ) : null}
                     {renderRollMeta(roll)}
                   </article>
                 )})
@@ -6559,7 +6969,7 @@ export default function VampireTable() {
                           <button
                             type="button"
                             onClick={() => {
-                              setPreviewCharacter(selectedMasterRollCharacter)
+                              void openCharacterPreview(selectedMasterRollCharacter)
                               setPreviewCharacterTab('mechanics')
                             }}
                           >
@@ -6698,6 +7108,7 @@ export default function VampireTable() {
 
                         {masterRollPoolBeforeLimit > 20 ? <p className="preview-roll-notice">Пул ограничен двадцатью костями.</p> : null}
                         {masterWillpowerImpairmentPenalty ? <p className="preview-roll-notice">Истощение Воли: -2к10 к этому пулу.</p> : null}
+                        {masterHealthImpairmentPenalty ? <p className="preview-roll-notice">Изнурение по здоровью: -2к10 к этому пулу.</p> : null}
                       </>
                     ) : (
                       <p className="panel-empty">Выбери персонажа.</p>
@@ -6821,6 +7232,7 @@ export default function VampireTable() {
                 <div><dt>Тип</dt><dd>{previewCharacter.type || '—'}</dd></div>
                 <div><dt>Стиль охоты</dt><dd>{previewCharacter.predator || '—'}</dd></div>
                 <div><dt>Голод</dt><dd>{previewHunger} / 5</dd></div>
+                <div><dt>Здоровье</dt><dd>{previewHealth.current} / {previewHealth.max}</dd></div>
                 <div><dt>Воля</dt><dd>{previewWillpower.current} / {previewWillpower.max}</dd></div>
                 <div><dt>Сила Крови</dt><dd>{previewBloodPotency}</dd></div>
                 <div><dt>Свободный опыт</dt><dd>{previewCharacter.freeExp ?? 0}</dd></div>
@@ -6849,6 +7261,97 @@ export default function VampireTable() {
                         Проверить Голод
                       </button>
                     </div>
+                  </section>
+                  <section className="preview-willpower-panel">
+                    <div className="preview-section-heading">
+                      <div>
+                        <span>Здоровье</span>
+                        <h3>Повреждения</h3>
+                      </div>
+                      <strong>{previewHealth.current} / {previewHealth.max}</strong>
+                    </div>
+                    <div className="preview-willpower-track" aria-label="Трек Здоровья">
+                      {Array.from({ length: previewHealth.max }, (_, index) => {
+                        const cell = index + 1
+                        const status = cell <= previewHealth.aggravated
+                          ? 'aggravated'
+                          : cell <= previewHealth.aggravated + previewHealth.superficial
+                            ? 'superficial'
+                            : 'empty'
+                        return (
+                          <span className={`preview-willpower-cell ${status}`} key={`preview-health-${cell}`}>
+                            {status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : ''}
+                          </span>
+                        )
+                      })}
+                    </div>
+                    <label className="preview-health-profile">
+                      <span>Профиль урона</span>
+                      <select
+                        value={previewCharacter.damageProfile || 'vampire'}
+                        onChange={event => changeCharacterDamageProfile(previewCharacter, event.target.value as NonNullable<CharacterOption['damageProfile']>)}
+                        disabled={!canRollPreview}
+                      >
+                        <option value="vampire">Вампир</option>
+                        <option value="mortal">Смертный</option>
+                        <option value="ghoul">Гуль</option>
+                        <option value="thinblood">Слабокровный</option>
+                        <option value="custom">Ручной</option>
+                      </select>
+                    </label>
+                    {previewHealth.impaired ? <p className="preview-roll-notice">{getHealthWarning(previewHealth, previewCharacter.damageProfile || 'vampire')}</p> : null}
+                    <div className="preview-willpower-actions preview-health-actions">
+                      <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'superficial', { source: 'manual', ignoreHalving: true })} disabled={!canRollPreview}>+ лёгкий</button>
+                      <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'aggravated', { source: 'manual' })} disabled={!canRollPreview}>+ тяжёлый</button>
+                      <button type="button" onClick={() => promptCharacterHealthDamage(previewCharacter)} disabled={!canRollPreview}>+N урона</button>
+                      <button type="button" onClick={() => recoverCharacterHealth(previewCharacter, 1, 'superficial', 'Ручное лечение', 'manual')} disabled={!canRollPreview || previewHealth.superficial < 1}>- лёгкий</button>
+                      <button type="button" onClick={() => recoverCharacterHealth(previewCharacter, 1, 'aggravated', 'Ручное лечение', 'manual')} disabled={!canRollPreview || previewHealth.aggravated < 1}>- тяжёлый</button>
+                      <button type="button" onClick={() => mendVampireSuperficial(previewCharacter)} disabled={!canRollPreview || previewHealth.superficial < 1 || !['vampire', 'thinblood'].includes(previewCharacter.damageProfile || 'vampire')}>
+                        Заживить лёгкий
+                      </button>
+                      <button type="button" onClick={() => mendVampireAggravated(previewCharacter)} disabled={!canRollPreview || previewHealth.aggravated < 1 || !['vampire', 'thinblood'].includes(previewCharacter.damageProfile || 'vampire')}>
+                        Заживить тяжёлый
+                      </button>
+                      <button type="button" onClick={() => recoverMortalHealth(previewCharacter)} disabled={!canRollPreview || previewHealth.superficial < 1 || !['mortal', 'ghoul', 'custom'].includes(previewCharacter.damageProfile || 'vampire')}>
+                        Восстановление смертного
+                      </button>
+                      <button type="button" onClick={() => treatMortalHealth(previewCharacter)} disabled={!canRollPreview || previewHealth.aggravated < 1 || !['mortal', 'ghoul', 'custom'].includes(previewCharacter.damageProfile || 'vampire')}>
+                        Лечение смертного
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (window.confirm('Полностью очистить шкалу здоровья?')) {
+                            void updateCharacterHealth(previewCharacter.id, normalizeHealthTracker({
+                              ...toHealthTracker(previewHealth),
+                              superficial: 0,
+                              aggravated: 0,
+                            }, previewCharacter.attributes['Выносливость'] || 0, previewCharacter.damageProfile || 'vampire'), 'Здоровье очищено')
+                          }
+                        }}
+                        disabled={!canRollPreview || (!previewHealth.superficial && !previewHealth.aggravated)}
+                      >
+                        Очистить
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const stateName = previewCharacter.damageProfile === 'vampire' ? 'торпор' : 'кому/смерть'
+                          if (window.confirm(`Отметить ${stateName} и заполнить шкалу тяжёлыми повреждениями?`)) {
+                            void updateCharacterHealth(previewCharacter.id, normalizeHealthTracker({
+                              ...toHealthTracker(previewHealth),
+                              superficial: 0,
+                              aggravated: previewHealth.max,
+                            }, previewCharacter.attributes['Выносливость'] || 0, previewCharacter.damageProfile || 'vampire'), stateName)
+                          }
+                        }}
+                        disabled={!canRollPreview}
+                      >
+                        Торпор/кома
+                      </button>
+                    </div>
+                    {previewCharacter.damageProfile === 'thinblood' ? <p className="preview-roll-notice">Слабокровные получают часть урона ближе к смертным. Проверь тип урона вручную.</p> : null}
+                    <p className="preview-roll-notice">Сила Крови {previewBloodPotency}: за Испытание Крови лечит {getSuperficialMendAmount(previewBloodPotency)} лёгк.</p>
                   </section>
                   <section className="preview-willpower-panel">
                     <div className="preview-section-heading">
@@ -7008,6 +7511,7 @@ export default function VampireTable() {
                     {!canRollPreview ? <p className="preview-roll-notice">Бросать может мастер или владелец активного персонажа.</p> : null}
                     {previewPoolBeforeLimit > 20 ? <p className="preview-roll-notice">Пул ограничен двадцатью костями.</p> : null}
                     {previewWillpowerImpairmentPenalty ? <p className="preview-roll-notice">Истощение Воли: -2к10 к этому пулу.</p> : null}
+                    {previewHealthImpairmentPenalty ? <p className="preview-roll-notice">Изнурение по здоровью: -2к10 к этому пулу.</p> : null}
                   </section>
 
                   <section className="preview-trait-section">
@@ -7305,6 +7809,7 @@ export default function VampireTable() {
                             {previewPowerOpposition ? <p className="discipline-roll-opposition">Сопротивление цели: {previewPowerOpposition}</p> : null}
                             {selectedPreviewPowerRollFormula !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">Используется формула силы «{selectedPreviewPowerRollFormula.replace(/^как\s+/i, '')}».</p> : null}
                             {previewPowerWillpowerImpairmentPenalty ? <p className="discipline-roll-opposition">Истощение Воли: -2к10 к этому пулу.</p> : null}
+                            {previewPowerHealthImpairmentPenalty ? <p className="discipline-roll-opposition">Изнурение по здоровью: -2к10 к этому пулу.</p> : null}
                             {selectedPreviewPowerWillpowerCost.warnings.map((warning, index) => <p className="discipline-roll-opposition" key={`wp-cost-warning-${index}`}>{warning}</p>)}
                           </>
                         ) : (

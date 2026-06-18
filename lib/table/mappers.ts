@@ -1,5 +1,6 @@
-import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, Die, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
+import type { CharacterOption, CharacterRow, ChatMessage, ChatMessageRow, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
 import { getMusicProvider } from '@/components/music/utils'
+import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from '@/lib/vtm/health'
 
 const DIE_KINDS = new Set<Die['kind']>([
   'fail',
@@ -73,11 +74,11 @@ export function normalizeWillpowerTracker(value: unknown, max: number): Normaliz
   }
 }
 
-function normalizeVitalTrackers(value: unknown, willpowerMax: number): VitalTrackers {
+function normalizeVitalTrackers(value: unknown, willpowerMax: number, health: ReturnType<typeof normalizeHealthTracker>): VitalTrackers {
   const source = isRecord(value) ? value : {}
   const willpower = normalizeWillpowerTracker(source.willpower, willpowerMax)
   return {
-    health: Math.max(0, Number(source.health || 0) || 0),
+    health: toHealthTracker(health),
     willpower: {
       superficial: willpower.superficial,
       aggravated: willpower.aggravated,
@@ -85,6 +86,18 @@ function normalizeVitalTrackers(value: unknown, willpowerMax: number): VitalTrac
     humanity: Math.max(0, Number(source.humanity || 0) || 0),
     hunger: Math.max(0, Math.min(5, Number(source.hunger || 0) || 0)),
   }
+}
+
+function normalizeHealthMetaState(value: unknown): HealthMetaState | undefined {
+  if (!isRecord(value)) return undefined
+  const max = Math.max(0, Math.floor(Number(value.max) || 0))
+  const aggravated = clampInteger(value.aggravated, 0, max)
+  const superficial = clampInteger(value.superficial, 0, Math.max(0, max - aggravated))
+  const current = clampInteger(value.current ?? max - superficial - aggravated, 0, max)
+  const physicalState = typeof value.physicalState === 'string'
+    ? value.physicalState as HealthMetaState['physicalState']
+    : undefined
+  return { max, superficial, aggravated, current, impaired: Boolean(value.impaired), physicalState }
 }
 
 function normalizeWillpowerMetaState(value: unknown): WillpowerMetaState | undefined {
@@ -128,6 +141,9 @@ function normalizeRollMeta(value: unknown): RollMeta | undefined {
   if (typeof value.recoveredWillpower === 'number') meta.recoveredWillpower = value.recoveredWillpower
   if (typeof value.willpowerImpaired === 'boolean') meta.willpowerImpaired = value.willpowerImpaired
   if (typeof value.impairmentPenaltyApplied === 'number') meta.impairmentPenaltyApplied = value.impairmentPenaltyApplied
+  if (typeof value.healthImpaired === 'boolean') meta.healthImpaired = value.healthImpaired
+  if (typeof value.healthImpairmentPenaltyApplied === 'number') meta.healthImpairmentPenaltyApplied = value.healthImpairmentPenaltyApplied
+  if (typeof value.physicalState === 'string') meta.physicalState = value.physicalState as RollMeta['physicalState']
   if (typeof value.messyCritical === 'boolean') meta.messyCritical = value.messyCritical
   if (typeof value.bestialFailure === 'boolean') meta.bestialFailure = value.bestialFailure
   if (typeof value.source === 'string') meta.source = value.source as RollMeta['source']
@@ -138,6 +154,33 @@ function normalizeRollMeta(value: unknown): RollMeta | undefined {
   const willpowerAfter = normalizeWillpowerMetaState(value.willpowerAfter)
   if (willpowerBefore) meta.willpowerBefore = willpowerBefore
   if (willpowerAfter) meta.willpowerAfter = willpowerAfter
+  const healthBefore = normalizeHealthMetaState(value.healthBefore)
+  const healthAfter = normalizeHealthMetaState(value.healthAfter)
+  if (healthBefore) meta.healthBefore = healthBefore
+  if (healthAfter) meta.healthAfter = healthAfter
+
+  if (isRecord(value.damage)) {
+    meta.damage = {
+      source: String(value.damage.source || 'manual'),
+      originalAmount: Math.max(0, Number(value.damage.originalAmount) || 0),
+      finalAmount: Math.max(0, Number(value.damage.finalAmount) || 0),
+      severity: value.damage.severity === 'aggravated' ? 'aggravated' : 'superficial',
+      halved: Boolean(value.damage.halved),
+      weaponModifier: typeof value.damage.weaponModifier === 'number' ? value.damage.weaponModifier : undefined,
+      margin: typeof value.damage.margin === 'number' ? value.damage.margin : undefined,
+      targetCharacterId: typeof value.damage.targetCharacterId === 'string' ? value.damage.targetCharacterId : undefined,
+      targetCharacterName: typeof value.damage.targetCharacterName === 'string' ? value.damage.targetCharacterName : undefined,
+    }
+  }
+
+  if (isRecord(value.healing)) {
+    meta.healing = {
+      type: String(value.healing.type || 'manual') as NonNullable<RollMeta['healing']>['type'],
+      amountSuperficial: typeof value.healing.amountSuperficial === 'number' ? value.healing.amountSuperficial : undefined,
+      amountAggravated: typeof value.healing.amountAggravated === 'number' ? value.healing.amountAggravated : undefined,
+      rouseChecks: Array.isArray(value.healing.rouseChecks) ? value.healing.rouseChecks.filter(isRouseCheckResult) : undefined,
+    }
+  }
 
   if (isRecord(value.willpowerReroll)) {
     meta.willpowerReroll = {
@@ -225,6 +268,8 @@ export function normalizeInventory(items: unknown): InventoryItem[] {
 export function mapCharacterRow(row: CharacterRow): CharacterOption {
   const data = row.data || {}
   const bloodPotency = Number(data.bloodPotency ?? data.blood?.potency ?? 0) || 0
+  const damageProfile = normalizeDamageProfile(data.damageProfile, row.clan, data.type)
+  const health = normalizeHealthTracker(data.vitalTrackers?.health, data.attributes?.['Выносливость'] || 0, damageProfile)
   const willpower = normalizeWillpowerTracker(data.vitalTrackers?.willpower, getWillpowerMaxFromAttributes(data.attributes || {}))
   return {
     id: row.id,
@@ -238,12 +283,16 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     generation: data.generation || '',
     type: data.type || '',
     bloodPotency,
+    health,
     notes: data.notes || data.backstory || '',
     appearance: data.appearance || '',
     backstory: data.backstory || '',
     freeExp: Number(data.freeExp ?? data.experience ?? 0) || 0,
     willpower,
-    vitalTrackers: normalizeVitalTrackers(data.vitalTrackers, willpower.max),
+    damageProfile,
+    physicalState: data.status?.physicalState || health.physicalState,
+    lastAggravatedMendAt: data.healthState?.lastAggravatedMendAt,
+    vitalTrackers: normalizeVitalTrackers(data.vitalTrackers, willpower.max, health),
     inventory: normalizeInventory(data.inventory),
     attributes: data.attributes || {},
     skills: data.skills || {},

@@ -187,6 +187,16 @@ async function initializeApp() {
 
         // Обновлять морталь-трекер при смене характеристик/навыков
         document.addEventListener('change', function(e) {
+            if (e.target?.matches?.('input[name="Выносливость"]')) {
+                updateVitals();
+                const attributes = {};
+                document.querySelectorAll('.dot-input[data-type="attr"]:checked').forEach(input => {
+                    if (parseInt(input.value, 10) > 0) attributes[input.name] = parseInt(input.value, 10);
+                });
+                if (window.autoSaveCharacterPatch && !isApplyingCharacterData) {
+                    window.autoSaveCharacterPatch({ ...getVitalAutosavePatch(), attributes });
+                }
+            }
             if (
                 (currentCharType === 'mortal' || currentCharType === 'npc-mortal') &&
                 currentMortalTemplate &&
@@ -372,9 +382,13 @@ const VITAL_TRACKER_CONFIG = {
     hunger: { valueId: 'val-hunger', trackId: 'track-hunger', captionId: 'track-hunger-caption', label: 'Голод', max: 5, displayCurrent: true }
 };
 
-let vitalTrackers = { health: 0, willpower: { superficial: 0, aggravated: 0 }, humanity: 0, hunger: 0 };
+let vitalTrackers = { health: { superficial: 0, aggravated: 0, bonusMax: 0, maxOverride: null }, willpower: { superficial: 0, aggravated: 0 }, humanity: 0, hunger: 0 };
+let damageProfile = 'vampire';
+let characterPhysicalState = 'healthy';
+let healthState = {};
 
 const WILLPOWER_IMPAIRED_ATTRIBUTES = ['Обаяние', 'Манипуляция', 'Самообладание', 'Интеллект', 'Смекалка', 'Упорство'];
+const HEALTH_IMPAIRED_ATTRIBUTES = ['Сила', 'Ловкость', 'Выносливость'];
 
 function getVitalMax(key) {
     const config = VITAL_TRACKER_CONFIG[key];
@@ -401,6 +415,37 @@ function getWillpowerTracker(max = getVitalMax('willpower')) {
     const tracker = normalizeWillpowerTracker(vitalTrackers.willpower, max);
     vitalTrackers.willpower = tracker;
     return tracker;
+}
+
+function getSheetDamageProfile() {
+    const clan = document.getElementById('clan-input')?.value || '';
+    const type = document.getElementById('type-input')?.value || '';
+    damageProfile = window.VTMHealth.normalizeDamageProfile(damageProfile, clan, type);
+    return damageProfile;
+}
+
+function getHealthTracker() {
+    const stamina = parseInt(document.querySelector('input[name="Выносливость"]:checked')?.value || '1', 10) || 1;
+    const tracker = window.VTMHealth.normalizeHealthTracker(vitalTrackers.health, stamina, getSheetDamageProfile());
+    vitalTrackers.health = {
+        superficial: tracker.superficial,
+        aggravated: tracker.aggravated,
+        bonusMax: tracker.bonusMax,
+        maxOverride: tracker.maxOverride
+    };
+    characterPhysicalState = tracker.physicalState;
+    return tracker;
+}
+
+function getHealthMetaState(state = getHealthTracker()) {
+    return {
+        max: state.max,
+        superficial: state.superficial,
+        aggravated: state.aggravated,
+        current: state.current,
+        impaired: state.impaired,
+        physicalState: state.physicalState
+    };
 }
 
 function getWillpowerState(max = getVitalMax('willpower')) {
@@ -432,9 +477,15 @@ function getWillpowerRecoveryPool() {
 }
 
 function getVitalTrackerData() {
+    const health = getHealthTracker();
     const willpower = getWillpowerTracker();
     return {
-        health: Math.max(0, Math.min(getVitalMax('health'), parseInt(vitalTrackers.health || 0, 10) || 0)),
+        health: {
+            superficial: health.superficial,
+            aggravated: health.aggravated,
+            bonusMax: health.bonusMax,
+            maxOverride: health.maxOverride
+        },
         willpower: {
             superficial: willpower.superficial,
             aggravated: willpower.aggravated
@@ -446,6 +497,10 @@ function getVitalTrackerData() {
 
 function getVitalTrackerSummary(key) {
     const max = getVitalMax(key);
+    if (key === 'health') {
+        const state = getHealthTracker();
+        return `${state.max} (доступно ${state.current}/${state.max}; / ${state.superficial}, X ${state.aggravated})`;
+    }
     if (key === 'willpower') {
         const state = getWillpowerState(max);
         return `${state.max} (доступно ${state.current}/${state.max}; / ${state.superficial}, X ${state.aggravated})`;
@@ -455,11 +510,23 @@ function getVitalTrackerSummary(key) {
 }
 
 function normalizeVitalTrackerData(data = {}) {
+    const sourceHealth = data && Object.prototype.hasOwnProperty.call(data, 'health')
+        ? data.health
+        : { superficial: 0, aggravated: 0, bonusMax: 0, maxOverride: null };
     const sourceWillpower = data && Object.prototype.hasOwnProperty.call(data, 'willpower')
         ? data.willpower
         : { superficial: 0, aggravated: 0 };
     return {
-        health: Math.max(0, parseInt(data.health || 0, 10) || 0),
+        health: sourceHealth && typeof sourceHealth === 'object'
+            ? {
+                superficial: Math.max(0, parseInt(sourceHealth.superficial || 0, 10) || 0),
+                aggravated: Math.max(0, parseInt(sourceHealth.aggravated || 0, 10) || 0),
+                bonusMax: Math.max(0, parseInt(sourceHealth.bonusMax || 0, 10) || 0),
+                maxOverride: sourceHealth.maxOverride === null || sourceHealth.maxOverride === undefined
+                    ? null
+                    : Math.max(0, parseInt(sourceHealth.maxOverride, 10) || 0)
+            }
+            : Math.max(0, parseInt(sourceHealth || 0, 10) || 0),
         willpower: sourceWillpower && typeof sourceWillpower === 'object'
             ? {
                 superficial: Math.max(0, parseInt(sourceWillpower.superficial || 0, 10) || 0),
@@ -505,9 +572,13 @@ function getBloodSurgeBonus(bloodPotency = getCurrentBloodPotencyValue()) {
 }
 
 function getVitalAutosavePatch() {
+    const health = getHealthTracker();
     return {
         vitalTrackers: getVitalTrackerData(),
-        bloodPotency: getCurrentBloodPotencyValue()
+        bloodPotency: getCurrentBloodPotencyValue(),
+        damageProfile: getSheetDamageProfile(),
+        status: { physicalState: health.physicalState },
+        healthState: { ...healthState }
     };
 }
 
@@ -536,6 +607,36 @@ function renderVitalTracker(key) {
     if (!track) return;
 
     const max = getVitalMax(key);
+    if (key === 'health') {
+        const state = getHealthTracker();
+        const valueEl = document.getElementById(config.valueId);
+        if (valueEl) {
+            valueEl.textContent = state.max;
+            valueEl.setAttribute('data-tooltip', `Здоровье: доступно ${state.current} из ${state.max}`);
+        }
+        track.innerHTML = '';
+        for (let index = 1; index <= state.max; index++) {
+            const status = index <= state.aggravated
+                ? 'aggravated'
+                : index <= state.aggravated + state.superficial
+                    ? 'superficial'
+                    : 'empty';
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.className = `vital-box vital-health hp-${status}`;
+            button.textContent = status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : '';
+            button.setAttribute('aria-label', `Здоровье: клетка ${index} из ${state.max}, ${status === 'aggravated' ? 'тяжёлое повреждение' : status === 'superficial' ? 'лёгкое повреждение' : 'пусто'}`);
+            button.title = 'Пусто → / → X → пусто';
+            button.addEventListener('click', () => cycleHealthCell(index));
+            track.appendChild(button);
+        }
+        if (caption) caption.textContent = `Доступно ${state.current} / ${state.max} · / ${state.superficial} · X ${state.aggravated}${state.impaired ? ' · -2к10' : ''}`;
+        const profileSelect = document.getElementById('damage-profile');
+        if (profileSelect) profileSelect.value = getSheetDamageProfile();
+        const note = document.getElementById('health-state-note');
+        if (note) note.textContent = window.VTMHealth.warningFor(state, getSheetDamageProfile());
+        return;
+    }
     if (key === 'willpower') {
         const state = getWillpowerState(max);
         track.innerHTML = '';
@@ -590,6 +691,10 @@ function renderVitalTrackers() {
 }
 
 function setVitalTrackerValue(key, value) {
+    if (key === 'health') {
+        cycleHealthCell(value);
+        return;
+    }
     if (key === 'willpower') {
         cycleWillpowerCell(value);
         return;
@@ -599,6 +704,256 @@ function setVitalTrackerValue(key, value) {
     vitalTrackers[key] = Math.max(0, Math.min(max, next));
     renderVitalTracker(key);
     if (key === 'hunger') autoSaveVitalState();
+}
+
+function setHealthTracker(nextTracker, { autosave = true, immediate = true, publish = false, reason = 'Здоровье обновлено', before = null, meta = {} } = {}) {
+    vitalTrackers.health = {
+        superficial: nextTracker.superficial,
+        aggravated: nextTracker.aggravated,
+        bonusMax: nextTracker.bonusMax || 0,
+        maxOverride: nextTracker.maxOverride ?? null
+    };
+    const after = getHealthTracker();
+    characterPhysicalState = after.physicalState;
+    renderVitalTracker('health');
+    if (autosave) autoSaveVitalState({ immediate });
+    if (publish) publishHealthEvent(reason, before || after, after, meta);
+    return after;
+}
+
+function getHealthCellStatuses(state = getHealthTracker()) {
+    return Array.from({ length: state.max }, (_, index) => {
+        const cell = index + 1;
+        if (cell <= state.aggravated) return 'aggravated';
+        if (cell <= state.aggravated + state.superficial) return 'superficial';
+        return 'empty';
+    });
+}
+
+function cycleHealthCell(index) {
+    const before = getHealthTracker();
+    const statuses = getHealthCellStatuses(before);
+    const current = statuses[index - 1] || 'empty';
+    statuses[index - 1] = current === 'empty' ? 'superficial' : current === 'superficial' ? 'aggravated' : 'empty';
+    const next = {
+        superficial: statuses.filter(status => status === 'superficial').length,
+        aggravated: statuses.filter(status => status === 'aggravated').length,
+        bonusMax: before.bonusMax,
+        maxOverride: before.maxOverride
+    };
+    setHealthTracker(next, { immediate: false });
+}
+
+function publishHealthEvent(reason, beforeState, afterState, meta = {}) {
+    if (typeof publishDiceRoll !== 'function') return;
+    const roll = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        room: getDiceRoom(),
+        characterName: document.getElementById('char-name')?.value?.trim() || 'Безымянный',
+        poolName: reason,
+        poolType: 'health',
+        diceCount: 0,
+        dice: [],
+        successes: 0,
+        createdAt: new Date().toISOString(),
+        meta: {
+            source: 'health',
+            healthBefore: getHealthMetaState(beforeState),
+            healthAfter: getHealthMetaState(afterState),
+            healthImpaired: afterState.impaired,
+            physicalState: afterState.physicalState,
+            warnings: meta.warnings || [],
+            damage: meta.damage,
+            healing: meta.healing,
+            rouseChecks: meta.rouseChecks,
+            hungerBefore: meta.hungerBefore,
+            hungerAfter: meta.hungerAfter
+        }
+    };
+    publishDiceRoll(roll);
+}
+
+function applySheetHealthDamage(amount, severity, options = {}) {
+    const before = getHealthTracker();
+    const result = window.VTMHealth.applyHealthDamage(before, amount, severity, options, getSheetDamageProfile());
+    const after = setHealthTracker(result.tracker, {
+        before,
+        publish: true,
+        reason: 'Урон здоровью',
+        meta: {
+            warnings: result.warnings,
+            damage: {
+                source: options.source || 'manual',
+                originalAmount: result.originalAmount,
+                finalAmount: result.finalAmount,
+                severity,
+                halved: result.halved,
+                weaponModifier: options.weaponModifier,
+                margin: options.margin
+            }
+        }
+    });
+    return { ...result, after };
+}
+
+function adjustSheetHealthDamage(severity, delta) {
+    const before = getHealthTracker();
+    if (delta > 0) {
+        applySheetHealthDamage(delta, severity, { source: 'manual', ignoreHalving: true });
+        return;
+    }
+    const result = window.VTMHealth.recoverHealthDamage(before, Math.abs(delta), severity, getSheetDamageProfile());
+    setHealthTracker(result.tracker, {
+        before,
+        publish: result.recovered > 0,
+        reason: 'Ручное лечение здоровья',
+        meta: {
+            healing: {
+                type: 'manual',
+                amountSuperficial: severity === 'superficial' ? result.recovered : 0,
+                amountAggravated: severity === 'aggravated' ? result.recovered : 0
+            }
+        }
+    });
+}
+
+function openSheetHealthDamagePrompt() {
+    const amount = parseInt(prompt('Сколько урона нанести?', '1') || '0', 10);
+    if (!amount || amount < 1) return;
+    const aggravated = confirm('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.');
+    const severity = aggravated ? 'aggravated' : 'superficial';
+    const ignoreHalving = severity === 'superficial'
+        ? !confirm('Делить лёгкий урон пополам с округлением вверх?')
+        : true;
+    const note = prompt('Комментарий к урону (необязательно):', '') || '';
+    applySheetHealthDamage(amount, severity, {
+        source: 'manual',
+        ignoreHalving,
+        notes: note ? [note] : []
+    });
+}
+
+async function mendSheetVampireSuperficial() {
+    if (getSheetDamageProfile() !== 'vampire' && getSheetDamageProfile() !== 'thinblood') {
+        alert('Это лечение предназначено для вампиров. Для смертного используйте восстановление в начале встречи.');
+        return;
+    }
+    const before = getHealthTracker();
+    if (before.superficial < 1) return;
+    const hungerBefore = clampHunger(vitalTrackers.hunger);
+    const check = await performRouseCheck('Заживление лёгких повреждений', { publish: false });
+    const amount = window.VTMHealth.getSuperficialMendAmount(getCurrentBloodPotencyValue());
+    const result = window.VTMHealth.recoverHealthDamage(before, amount, 'superficial', getSheetDamageProfile());
+    setHealthTracker(result.tracker, {
+        before,
+        publish: true,
+        reason: 'Заживление лёгких повреждений',
+        meta: {
+            rouseChecks: [check],
+            hungerBefore,
+            hungerAfter: clampHunger(vitalTrackers.hunger),
+            warnings: [getRouseWarning(check)].filter(Boolean),
+            healing: { type: 'vampire_superficial', amountSuperficial: result.recovered, rouseChecks: [check] }
+        }
+    });
+}
+
+async function mendSheetVampireAggravated() {
+    const before = getHealthTracker();
+    if (before.aggravated < 1) return;
+    if (!confirm('По правилам это можно делать не чаще одного раза за ночь и требует 3 Испытания Крови. Продолжить?')) return;
+    const lastMendDate = healthState.lastAggravatedMendAt ? new Date(healthState.lastAggravatedMendAt) : null;
+    const mendedTonight = lastMendDate
+        && !Number.isNaN(lastMendDate.getTime())
+        && lastMendDate.toDateString() === new Date().toDateString();
+    if (mendedTonight && !confirm('Тяжёлое повреждение уже лечили этой ночью. Применить мастерский override?')) return;
+    const hungerBefore = clampHunger(vitalTrackers.hunger);
+    const checks = [];
+    for (let index = 0; index < 3; index += 1) {
+        checks.push(await performRouseCheck(`Заживление тяжёлого повреждения ${index + 1}/3`, { publish: false }));
+    }
+    const result = window.VTMHealth.recoverHealthDamage(before, 1, 'aggravated', getSheetDamageProfile());
+    healthState.lastAggravatedMendAt = new Date().toISOString();
+    setHealthTracker(result.tracker, {
+        before,
+        publish: true,
+        reason: 'Заживление тяжёлого повреждения',
+        meta: {
+            rouseChecks: checks,
+            hungerBefore,
+            hungerAfter: clampHunger(vitalTrackers.hunger),
+            warnings: checks.map(getRouseWarning).filter(Boolean),
+            healing: { type: 'vampire_aggravated', amountAggravated: result.recovered, rouseChecks: checks }
+        }
+    });
+}
+
+function recoverSheetMortalHealth() {
+    if (!['mortal', 'ghoul', 'custom'].includes(getSheetDamageProfile())) {
+        alert('Вампиры лечат лёгкие повреждения через Пробуждение Крови.');
+        return;
+    }
+    const before = getHealthTracker();
+    const stamina = parseInt(document.querySelector('input[name="Выносливость"]:checked')?.value || '0', 10) || 0;
+    const result = window.VTMHealth.recoverHealthDamage(before, stamina, 'superficial', getSheetDamageProfile());
+    setHealthTracker(result.tracker, {
+        before,
+        publish: result.recovered > 0,
+        reason: 'Восстановление смертного',
+        meta: { healing: { type: 'mortal_superficial', amountSuperficial: result.recovered } }
+    });
+}
+
+function treatSheetMortalHealth() {
+    const before = getHealthTracker();
+    if (before.aggravated < 1) return;
+    const medicine = parseInt(prompt('Медицина лекаря:', '1') || '0', 10);
+    if (!medicine || medicine < 1) return;
+    const selfTreatment = confirm('Лекарь лечит сам себя? Это повышает сложность на 1.');
+    const difficulty = before.aggravated + (selfTreatment ? 1 : 0);
+    const success = confirm(`Проверка Интеллект + Медицина успешна? Сложность ${difficulty}.`);
+    const converted = success ? Math.min(before.aggravated, Math.ceil(medicine / 2)) : 0;
+    const next = {
+        ...before,
+        aggravated: before.aggravated - converted,
+        superficial: before.superficial + converted
+    };
+    setHealthTracker(next, {
+        before,
+        publish: true,
+        reason: 'Лечение смертного',
+        meta: {
+            warnings: success
+                ? ['Тяжёлые повреждения превращены в лёгкие. Восстановление занимает ночь.']
+                : ['Проверка лечения провалена: здоровье не изменилось.'],
+            healing: { type: 'mortal_aggravated_medicine', amountAggravated: converted }
+        }
+    });
+}
+
+function clearSheetHealth() {
+    if (!confirm('Полностью очистить шкалу здоровья?')) return;
+    const before = getHealthTracker();
+    setHealthTracker({ ...before, superficial: 0, aggravated: 0 }, { before, publish: true, reason: 'Здоровье очищено' });
+}
+
+function markSheetHealthDefeated() {
+    const profile = getSheetDamageProfile();
+    const message = profile === 'vampire' ? 'Отметить торпор и заполнить шкалу X?' : 'Отметить кому/смерть и заполнить шкалу X?';
+    if (!confirm(message)) return;
+    const before = getHealthTracker();
+    setHealthTracker({ ...before, superficial: 0, aggravated: before.max }, {
+        before,
+        publish: true,
+        reason: profile === 'vampire' ? 'Торпор' : 'Кома / смерть',
+        meta: { warnings: [window.VTMHealth.warningFor({ ...before, superficial: 0, aggravated: before.max }, profile)] }
+    });
+}
+
+function setSheetDamageProfile(value) {
+    damageProfile = window.VTMHealth.normalizeDamageProfile(value);
+    renderVitalTracker('health');
+    autoSaveVitalState({ immediate: true });
 }
 
 function setWillpowerTracker(nextTracker, { autosave = true, publish = false, reason = 'Воля обновлена', before = null, meta = {} } = {}) {
@@ -3474,6 +3829,13 @@ function getWillpowerImpairmentPenaltyForDiceParts(parts = []) {
     return names.some(name => WILLPOWER_IMPAIRED_ATTRIBUTES.includes(name)) ? -2 : 0;
 }
 
+function getHealthImpairmentPenaltyForDiceParts(parts = []) {
+    const state = getHealthTracker();
+    if (!state.impaired) return 0;
+    const names = parts.filter(Boolean).map(getDicePartName);
+    return names.some(name => HEALTH_IMPAIRED_ATTRIBUTES.includes(name)) ? -2 : 0;
+}
+
 function openDiceRollModal(pool = {}) {
     pendingDicePool = {
         first: pool.first || '',
@@ -3552,7 +3914,8 @@ function readDiceRollPool() {
     const firstDots = getDicePartDots(first);
     const secondDots = getDicePartDots(second);
     const willpowerPenalty = getWillpowerImpairmentPenaltyForDiceParts([first, second]);
-    const baseDiceCount = Math.max(0, firstDots + secondDots + modifier + willpowerPenalty);
+    const healthPenalty = getHealthImpairmentPenaltyForDiceParts([first, second]);
+    const baseDiceCount = Math.max(0, firstDots + secondDots + modifier + willpowerPenalty + healthPenalty);
     const diceCount = Math.max(0, Math.min(20, baseDiceCount + bloodSurgeBonus));
     const parts = [first, second]
         .filter(Boolean)
@@ -3572,6 +3935,7 @@ function readDiceRollPool() {
         bloodPotency,
         bloodSurgeBonus,
         willpowerPenalty,
+        healthPenalty,
         firstDots,
         secondDots,
         baseDiceCount,
@@ -3596,10 +3960,11 @@ function updateDiceRollPoolPreview() {
         : '';
     const surgeText = pool.useBloodSurge ? ` + Прилив Крови ${pool.bloodSurgeBonus}` : '';
     const willpowerText = pool.willpowerPenalty ? ` · Воля: ${pool.willpowerPenalty}к10` : '';
+    const healthText = pool.healthPenalty ? ` · Здоровье: ${pool.healthPenalty}к10` : '';
 
     preview.innerHTML = `
         <strong>${pool.diceCount}к10</strong>
-        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}${surgeText}`)}${willpowerText}${hungerDiceCount ? ` · Голод: ${hungerDiceCount}` : ''}</span>
+        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}${surgeText}`)}${willpowerText}${healthText}${hungerDiceCount ? ` · Голод: ${hungerDiceCount}` : ''}</span>
     `;
 }
 
@@ -3740,6 +4105,26 @@ function renderDicePreview(dice, successes, meta = {}) {
     if (meta.impairmentPenaltyApplied) {
         callouts.push({ kind: 'warning', text: `Истощение Воли: ${meta.impairmentPenaltyApplied}к10 к ментальной/социальной проверке.` });
     }
+    if (meta.healthImpairmentPenaltyApplied) {
+        callouts.push({ kind: 'warning', text: `Изнурение по здоровью: ${meta.healthImpairmentPenaltyApplied}к10 к физической проверке.` });
+    }
+    if (meta.damage) {
+        const severity = meta.damage.severity === 'aggravated' ? 'тяжёлых' : 'лёгких';
+        callouts.push({
+            kind: 'warning',
+            text: `Урон: ${meta.damage.originalAmount} ${severity}${meta.damage.halved ? ` → после деления ${meta.damage.finalAmount}` : ''}.`
+        });
+    }
+    if (meta.healthBefore && meta.healthAfter) {
+        callouts.push({
+            kind: meta.healthAfter.current <= 0 ? 'danger' : 'warning',
+            text: `Здоровье: ${meta.healthBefore.current} → ${meta.healthAfter.current} / ${meta.healthAfter.max} · / ${meta.healthAfter.superficial} · X ${meta.healthAfter.aggravated}`
+        });
+    }
+    if (meta.healing) {
+        const healed = (meta.healing.amountSuperficial || 0) + (meta.healing.amountAggravated || 0);
+        callouts.push({ kind: 'warning', text: `Лечение здоровья: снято ${healed} поврежд.` });
+    }
     if (meta.messyCritical) {
         callouts.push({ kind: 'danger', text: 'Кровавый триумф: успех достигнут через Зверя. Рассказчик должен добавить зверское/опасное осложнение.' });
     }
@@ -3789,7 +4174,8 @@ async function confirmDiceRoll() {
     const outcomeMeta = getRollOutcomeMeta(dice, successes);
     const warnings = [
         ...rouseChecks.map(getRouseWarning).filter(Boolean),
-        ...(pool.willpowerPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : [])
+        ...(pool.willpowerPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : []),
+        ...(pool.healthPenalty ? ['Шкала здоровья заполнена: физическая проверка получает -2к10.'] : [])
     ];
     const meta = {
         source: pool.useBloodSurge ? 'blood_surge' : 'character_sheet',
@@ -3801,6 +4187,9 @@ async function confirmDiceRoll() {
         willpowerAfter: getWillpowerMetaState(willpowerAfter),
         willpowerImpaired: willpowerAfter.impaired,
         impairmentPenaltyApplied: pool.willpowerPenalty || undefined,
+        healthImpairmentPenaltyApplied: pool.healthPenalty || undefined,
+        healthImpaired: getHealthTracker().impaired,
+        physicalState: getHealthTracker().physicalState,
         rouseChecks,
         bloodSurge: pool.useBloodSurge ? {
             enabled: true,
@@ -3963,6 +4352,15 @@ window.recoverSheetWillpowerDesire = recoverSheetWillpowerDesire;
 window.recoverSheetWillpowerAggravated = recoverSheetWillpowerAggravated;
 window.adjustSheetWillpowerStress = adjustSheetWillpowerStress;
 window.performSheetWillpowerCheck = performSheetWillpowerCheck;
+window.adjustSheetHealthDamage = adjustSheetHealthDamage;
+window.openSheetHealthDamagePrompt = openSheetHealthDamagePrompt;
+window.mendSheetVampireSuperficial = mendSheetVampireSuperficial;
+window.mendSheetVampireAggravated = mendSheetVampireAggravated;
+window.recoverSheetMortalHealth = recoverSheetMortalHealth;
+window.treatSheetMortalHealth = treatSheetMortalHealth;
+window.clearSheetHealth = clearSheetHealth;
+window.markSheetHealthDefeated = markSheetHealthDefeated;
+window.setSheetDamageProfile = setSheetDamageProfile;
 window.performSheetRouseCheck = async () => {
     const modal = getDiceRollModal();
     modal.querySelector('#dice-roll-title').textContent = 'Проверка Голода';
@@ -6218,6 +6616,9 @@ function getFullCharacterData() {
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
         bloodPotency: getCurrentBloodPotencyValue(),
+        damageProfile: getSheetDamageProfile(),
+        status: { physicalState: getHealthTracker().physicalState },
+        healthState: { ...healthState },
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
         vitalTrackers: getVitalTrackerData(),
         freeExp: getCurrentXP(),
@@ -6286,7 +6687,10 @@ function resetCharacterSheetForLoad() {
     selectedFlaws = [];
     selectedThinBloodMerits = [];
     selectedThinBloodFlaws = [];
-    vitalTrackers = { health: 0, willpower: { superficial: 0, aggravated: 0 }, humanity: 0, hunger: 0 };
+    vitalTrackers = { health: { superficial: 0, aggravated: 0, bonusMax: 0, maxOverride: null }, willpower: { superficial: 0, aggravated: 0 }, humanity: 0, hunger: 0 };
+    damageProfile = 'vampire';
+    characterPhysicalState = 'healthy';
+    healthState = {};
     clanProvidedDisciplines = {};
     predatorProvidedDisciplines = {};
     currentPredatorSpecialty = null;
@@ -6342,6 +6746,9 @@ function applyCharacterData(d, sourceName = 'JSON') {
         if (document.getElementById('base-humanity')) document.getElementById('base-humanity').value = d.baseHumanity || '7';
         const savedBloodPotency = d.bloodPotency ?? d.blood?.potency;
         explicitBloodPotency = savedBloodPotency === undefined || savedBloodPotency === null ? null : clampBloodPotency(savedBloodPotency);
+        damageProfile = window.VTMHealth.normalizeDamageProfile(d.damageProfile, d.clan, d.type);
+        characterPhysicalState = d.status?.physicalState || 'healthy';
+        healthState = d.healthState && typeof d.healthState === 'object' ? { ...d.healthState } : {};
         vitalTrackers = normalizeVitalTrackerData(d.vitalTrackers || {});
         if (document.getElementById('free-exp')) document.getElementById('free-exp').value = parseInt(d.freeExp ?? d.experience ?? 0, 10) || 0;
         expHistory = Array.isArray(d.expHistory) ? JSON.parse(JSON.stringify(d.expHistory)) : [];
@@ -8100,6 +8507,9 @@ function captureSheetSnapshot() {
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
         bloodPotency: getCurrentBloodPotencyValue(),
+        damageProfile: getSheetDamageProfile(),
+        status: { physicalState: getHealthTracker().physicalState },
+        healthState: { ...healthState },
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
         vitalTrackers: getVitalTrackerData(),
         skillPackage: document.getElementById('skill-package')?.value || '',

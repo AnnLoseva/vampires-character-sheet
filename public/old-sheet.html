@@ -802,20 +802,23 @@
             box-shadow: 0 0 12px rgba(176, 0, 0, 0.75);
         }
 
-        .vital-box.vital-willpower {
+        .vital-box.vital-willpower,
+        .vital-box.vital-health {
             color: #ffd9d9;
             font-size: 13px;
             font-weight: 900;
             line-height: 1;
         }
 
-        .vital-box.vital-willpower.wp-superficial {
+        .vital-box.vital-willpower.wp-superficial,
+        .vital-box.vital-health.hp-superficial {
             background: #261515;
             border-color: #b66b6b;
             box-shadow: 0 0 8px rgba(255, 120, 120, 0.28);
         }
 
-        .vital-box.vital-willpower.wp-aggravated {
+        .vital-box.vital-willpower.wp-aggravated,
+        .vital-box.vital-health.hp-aggravated {
             background: #710000;
             border-color: #ff3131;
             box-shadow: 0 0 11px rgba(255, 49, 49, 0.58);
@@ -844,23 +847,45 @@
             background: #2a1212;
         }
 
-        .willpower-controls {
+        .willpower-controls,
+        .health-controls {
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 5px;
             max-width: 210px;
         }
 
-        .willpower-controls .rouse-check-btn {
+        .willpower-controls .rouse-check-btn,
+        .health-controls .rouse-check-btn {
             padding: 6px 7px;
             font-size: 10px;
         }
 
-        .willpower-manual {
+        .willpower-manual,
+        .health-manual {
             display: grid;
             grid-template-columns: repeat(4, minmax(0, 1fr));
             gap: 4px;
             grid-column: 1 / -1;
+        }
+
+        .health-profile {
+            grid-column: 1 / -1;
+            min-width: 0;
+            border: 1px solid #444;
+            border-radius: 5px;
+            background: #111;
+            color: #eee;
+            padding: 6px;
+            font-size: 10px;
+        }
+
+        .health-state-note {
+            grid-column: 1 / -1;
+            margin: 0;
+            color: #ffae00;
+            font-size: 10px;
+            line-height: 1.35;
         }
 
         .autosave-status {
@@ -2445,6 +2470,29 @@
             <div id="val-hp" class="vital-value" style="color:white" data-tooltip="Здоровье = Выносливость + 3">4</div>
             <div id="track-health" class="vital-track" aria-label="Закрашенные клетки здоровья"></div>
             <small id="track-health-caption" class="vital-track-caption">0 / 4</small>
+            <div class="health-controls" aria-label="Управление Здоровьем">
+                <select id="damage-profile" class="health-profile" onchange="setSheetDamageProfile(this.value)">
+                    <option value="vampire">Профиль: вампир</option>
+                    <option value="mortal">Профиль: смертный</option>
+                    <option value="ghoul">Профиль: гуль</option>
+                    <option value="thinblood">Профиль: слабокровный</option>
+                    <option value="custom">Профиль: ручной</option>
+                </select>
+                <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('superficial', 1)">+1 лёгкое</button>
+                <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('aggravated', 1)">+1 тяжёлое</button>
+                <button type="button" class="rouse-check-btn" onclick="openSheetHealthDamagePrompt()">+N урона</button>
+                <button type="button" class="rouse-check-btn" onclick="mendSheetVampireSuperficial()">Заживить лёгкое</button>
+                <button type="button" class="rouse-check-btn" onclick="mendSheetVampireAggravated()">Заживить тяжёлое</button>
+                <button type="button" class="rouse-check-btn" onclick="recoverSheetMortalHealth()">Восстановление смертного</button>
+                <button type="button" class="rouse-check-btn" onclick="treatSheetMortalHealth()">Лечение смертного</button>
+                <div class="health-manual">
+                    <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('superficial', -1)">- /</button>
+                    <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('aggravated', -1)">- X</button>
+                    <button type="button" class="rouse-check-btn" onclick="clearSheetHealth()">Очистить</button>
+                    <button type="button" class="rouse-check-btn" onclick="markSheetHealthDefeated()">Торпор/кома</button>
+                </div>
+                <p id="health-state-note" class="health-state-note"></p>
+            </div>
         </div>
     </div>
     <div class="vital-item">
@@ -2770,6 +2818,7 @@
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
+<script src="/vtm-health.js"></script>
 <script src="/main.js"></script>
 <script src="/supabase.js"></script> 
 

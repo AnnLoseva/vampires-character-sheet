@@ -43,8 +43,25 @@ export type NormalizedWillpower = WillpowerTracker & {
   impaired: boolean
 }
 
+export type HealthTracker = {
+  superficial: number
+  aggravated: number
+  bonusMax?: number
+  maxOverride?: number | null
+}
+
+export type NormalizedHealth = HealthTracker & {
+  bonusMax: number
+  maxOverride: number | null
+  max: number
+  current: number
+  impaired: boolean
+  defeated: boolean
+  physicalState: 'healthy' | 'impaired' | 'torpor' | 'dead_or_coma' | 'dead' | null
+}
+
 export type VitalTrackers = {
-  health?: number
+  health?: number | HealthTracker
   willpower?: number | WillpowerTracker
   humanity?: number
   hunger?: number
@@ -55,6 +72,15 @@ export type WillpowerMetaState = {
   superficial: number
   aggravated: number
   current: number
+}
+
+export type HealthMetaState = {
+  max: number
+  superficial: number
+  aggravated: number
+  current: number
+  impaired: boolean
+  physicalState?: NormalizedHealth['physicalState']
 }
 
 export type RollMeta = {
@@ -80,9 +106,31 @@ export type RollMeta = {
   }
   willpowerImpaired?: boolean
   impairmentPenaltyApplied?: number
+  healthBefore?: HealthMetaState
+  healthAfter?: HealthMetaState
+  healthImpaired?: boolean
+  healthImpairmentPenaltyApplied?: number
+  physicalState?: NormalizedHealth['physicalState']
+  damage?: {
+    source: string
+    originalAmount: number
+    finalAmount: number
+    severity: 'superficial' | 'aggravated'
+    halved: boolean
+    weaponModifier?: number
+    margin?: number
+    targetCharacterId?: string
+    targetCharacterName?: string
+  }
+  healing?: {
+    type: 'vampire_superficial' | 'vampire_aggravated' | 'mortal_superficial' | 'mortal_aggravated_medicine' | 'manual'
+    amountSuperficial?: number
+    amountAggravated?: number
+    rouseChecks?: RouseCheckResult[]
+  }
   messyCritical?: boolean
   bestialFailure?: boolean
-  source?: 'manual' | 'discipline' | 'blood_surge' | 'rouse_check' | 'character_sheet' | 'willpower'
+  source?: 'manual' | 'discipline' | 'blood_surge' | 'rouse_check' | 'character_sheet' | 'willpower' | 'health' | 'physical_conflict'
   warnings?: string[]
   discipline?: {
     name: string
@@ -137,7 +185,11 @@ export type CharacterOption = {
   generation?: string
   type?: string
   bloodPotency?: number
+  health?: NormalizedHealth
   willpower?: NormalizedWillpower
+  damageProfile?: 'vampire' | 'mortal' | 'ghoul' | 'thinblood' | 'custom'
+  physicalState?: NormalizedHealth['physicalState']
+  lastAggravatedMendAt?: string
   notes?: string
   appearance?: string
   backstory?: string
@@ -167,6 +219,13 @@ export type CharacterRow = {
     bloodPotency?: number
     blood?: {
       potency?: number
+    }
+    damageProfile?: CharacterOption['damageProfile']
+    status?: {
+      physicalState?: NormalizedHealth['physicalState']
+    }
+    healthState?: {
+      lastAggravatedMendAt?: string
     }
     notes?: string
     appearance?: string

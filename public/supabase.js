@@ -543,4 +543,5 @@ window.showMyCharacters = showMyCharacters;
 window.loadCharacter = loadCharacter;
 window.deleteCharacter = deleteCharacter;
 window.autoSaveCharacterPatch = autoSaveCharacterPatch;
+window.autoSaveCharacterDataPatch = autoSaveCharacterPatch;
 window.updateCurrentCharacterData = updateCurrentCharacterData;

@@ -2070,6 +2070,34 @@ export default function GameTableStyles() {
           margin-top: 10px;
         }
 
+        .preview-health-actions {
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+        }
+
+        .preview-health-profile {
+          display: grid;
+          grid-template-columns: auto minmax(130px, 1fr);
+          align-items: center;
+          gap: 10px;
+          margin-top: 10px;
+          color: #999;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .preview-health-profile select {
+          min-width: 0;
+          height: 34px;
+          border: 1px solid #353535;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 0 8px;
+          font: inherit;
+          font-size: 12px;
+          text-transform: none;
+        }
+
         .preview-roll-controls {
           display: grid;
           grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -3543,6 +3571,24 @@ export default function GameTableStyles() {
         .roll-reroll-actions button:disabled {
           cursor: not-allowed;
           opacity: 0.5;
+        }
+
+        .roll-health-actions {
+          display: flex;
+          margin-top: 7px;
+        }
+
+        .roll-health-actions button {
+          min-height: 28px;
+          border: 1px solid #7b3d26;
+          border-radius: 5px;
+          background: #24150f;
+          color: #ffd8c5;
+          cursor: pointer;
+          font: inherit;
+          font-size: 11px;
+          font-weight: 700;
+          padding: 4px 8px;
         }
 
         .roll-v5-meta {

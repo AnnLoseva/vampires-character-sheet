@@ -1,4 +1,46 @@
 {
+  "health": {
+    "max_formula": { "attributes": ["Выносливость"], "operation": "attribute_plus", "bonus": 3 },
+    "tracker": {
+      "damage_types": { "superficial": "/", "aggravated": "X" },
+      "superficial_default_halving": true,
+      "superficial_rounding": "ceil",
+      "aggravated_halving": false
+    },
+    "impairment": {
+      "when_tracker_full": true,
+      "penalty": -2,
+      "applies_to": ["physical"],
+      "physical_attributes": ["Сила", "Ловкость", "Выносливость"]
+    },
+    "overflow": {
+      "superficial_when_full": "convert_superficial_to_aggravated",
+      "aggravated_when_full": "convert_superficial_to_aggravated",
+      "all_aggravated": {
+        "vampire": "torpor",
+        "mortal": "dead_or_coma",
+        "ghoul": "dead_or_coma",
+        "thinblood": "storyteller_decision"
+      }
+    },
+    "recovery": {
+      "vampire_superficial": { "cost": "1 rouse_check", "amount": "blood_potency.mend_superficial", "can_repeat": "once_per_turn" },
+      "vampire_aggravated": { "cost": "3 rouse_checks", "amount": 1, "frequency": "once_per_night", "requires_next_sunset": true },
+      "mortal_superficial_session_start": { "amount": "Выносливость" },
+      "mortal_aggravated_medicine": {
+        "roll": "Интеллект + Медицина",
+        "difficulty": "current_aggravated_damage",
+        "self_treatment_difficulty_modifier": 1,
+        "max_converted": "ceil(healer_medicine / 2)",
+        "time": "one_night"
+      }
+    },
+    "damage_profiles": {
+      "vampire": { "ordinary_weapons": "superficial", "fire": "aggravated", "sunlight": "aggravated", "supernatural_claws_and_fangs": "aggravated" },
+      "mortal": { "bashing": "superficial", "bladed_or_piercing_weapons": "aggravated", "firearms": "aggravated", "fire": "aggravated" },
+      "thinblood": { "default": "manual", "sunlight": "aggravated_weak" }
+    }
+  },
   "willpower": {
     "max_formula": ["Самообладание", "Упорство"],
     "tracker": {
@@ -46,17 +88,17 @@
       "max_hunger": 5
     },
     "blood_potency": {
-      "0": { "blood_surge": 1, "discipline_modifier": 0, "discipline_rouse_reroll_levels": [] },
-      "1": { "blood_surge": 2, "discipline_modifier": 0, "discipline_rouse_reroll_levels": [1] },
-      "2": { "blood_surge": 2, "discipline_modifier": 1, "discipline_rouse_reroll_levels": [1] },
-      "3": { "blood_surge": 3, "discipline_modifier": 1, "discipline_rouse_reroll_levels": [1, 2] },
-      "4": { "blood_surge": 3, "discipline_modifier": 2, "discipline_rouse_reroll_levels": [1, 2] },
-      "5": { "blood_surge": 4, "discipline_modifier": 2, "discipline_rouse_reroll_levels": [1, 2, 3] },
-      "6": { "blood_surge": 4, "discipline_modifier": 3, "discipline_rouse_reroll_levels": [1, 2, 3] },
-      "7": { "blood_surge": 5, "discipline_modifier": 3, "discipline_rouse_reroll_levels": [1, 2, 3, 4] },
-      "8": { "blood_surge": 5, "discipline_modifier": 4, "discipline_rouse_reroll_levels": [1, 2, 3, 4] },
-      "9": { "blood_surge": 6, "discipline_modifier": 4, "discipline_rouse_reroll_levels": [1, 2, 3, 4, 5] },
-      "10": { "blood_surge": 6, "discipline_modifier": 5, "discipline_rouse_reroll_levels": [1, 2, 3, 4, 5] }
+      "0": { "blood_surge": 1, "mend_superficial": 1, "discipline_modifier": 0, "discipline_rouse_reroll_levels": [] },
+      "1": { "blood_surge": 2, "mend_superficial": 1, "discipline_modifier": 0, "discipline_rouse_reroll_levels": [1] },
+      "2": { "blood_surge": 2, "mend_superficial": 2, "discipline_modifier": 1, "discipline_rouse_reroll_levels": [1] },
+      "3": { "blood_surge": 3, "mend_superficial": 2, "discipline_modifier": 1, "discipline_rouse_reroll_levels": [1, 2] },
+      "4": { "blood_surge": 3, "mend_superficial": 3, "discipline_modifier": 2, "discipline_rouse_reroll_levels": [1, 2] },
+      "5": { "blood_surge": 4, "mend_superficial": 3, "discipline_modifier": 2, "discipline_rouse_reroll_levels": [1, 2, 3] },
+      "6": { "blood_surge": 4, "mend_superficial": 3, "discipline_modifier": 3, "discipline_rouse_reroll_levels": [1, 2, 3] },
+      "7": { "blood_surge": 5, "mend_superficial": 3, "discipline_modifier": 3, "discipline_rouse_reroll_levels": [1, 2, 3, 4] },
+      "8": { "blood_surge": 5, "mend_superficial": 4, "discipline_modifier": 4, "discipline_rouse_reroll_levels": [1, 2, 3, 4] },
+      "9": { "blood_surge": 6, "mend_superficial": 4, "discipline_modifier": 4, "discipline_rouse_reroll_levels": [1, 2, 3, 4, 5] },
+      "10": { "blood_surge": 6, "mend_superficial": 5, "discipline_modifier": 5, "discipline_rouse_reroll_levels": [1, 2, 3, 4, 5] }
     }
   },
   "attributes": {
