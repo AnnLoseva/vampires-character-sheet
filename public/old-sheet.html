@@ -2244,6 +2244,20 @@
     body.char-type-npc-ghost   .npc-hide,
     body.char-type-npc-mortal  .npc-hide  { display: none !important; }
 
+    .npc-only { display: none !important; }
+    body.char-type-npc-vampire .npc-only { display: block !important; }
+
+    .creation-mode-note {
+        margin: 10px 0 16px;
+        padding: 10px 12px;
+        border: 1px solid #3a2a2a;
+        border-radius: 6px;
+        background: #100b0b;
+        color: #bba9a9;
+        font-size: 12px;
+        line-height: 1.45;
+    }
+
     /* Шаблоны смертных */
     .mortal-template-card {
         background: #141414;
@@ -2309,6 +2323,7 @@
                 <button type="button" data-sheet-tab="inventory" onclick="switchSheetSection('inventory')">Инвентарь</button>
             </nav>
             <div id="startup-trackers">
+            <div id="creation-mode-note" class="creation-mode-note"></div>
             <div id="attr-tracker"></div>
 
             <!-- Вампирский: выбор набора навыков -->
@@ -2376,10 +2391,10 @@
         id="fix-start-btn"
         class="npc-hide"
         style="width:100%; padding:14px; margin:15px 0; background:#ff3131; color:white; border:none; border-radius:8px; font-size:16px; font-weight:bold;">
-    Зафиксировать стартовый лист
+    Завершить создание и зафиксировать
 </button>
     <div class="sheet-lock-note">
-        Лист зафиксирован. Нажимай на названия навыков, атрибутов или точки — откроется бросок кубиков. Остальное можно редактировать.
+        Стартовый лист зафиксирован. Повышения доступны через магазин опыта; игровые трекеры Голода, Здоровья и Воли остаются активными.
     </div>
         </div>
 
@@ -2607,12 +2622,12 @@
     </div>
     <div class="creation-vital-card vampire-only" data-vampire-resource="true">
         <span class="creation-vital-title">Голод</span>
-        <strong id="val-hunger" class="creation-vital-value" data-tooltip="Начальный уровень Голода">0</strong>
-        <small class="creation-vital-formula">Начальное значение</small>
+        <strong id="val-hunger" class="creation-vital-value" data-tooltip="Начальный уровень Голода">1</strong>
+        <small class="creation-vital-formula">Игрок: фиксированное значение 1</small>
         <label class="creation-vital-control">
             <select id="initial-hunger" onchange="setInitialHunger(this.value)" aria-label="Начальный голод">
-                <option value="0" selected>Начальный голод: 0</option>
-                <option value="1">Начальный голод: 1</option>
+                <option value="0">Начальный голод: 0</option>
+                <option value="1" selected>Начальный голод: 1</option>
                 <option value="2">Начальный голод: 2</option>
                 <option value="3">Начальный голод: 3</option>
                 <option value="4">Начальный голод: 4</option>
@@ -2623,7 +2638,7 @@
     <div class="creation-vital-card vampire-only" data-vampire-resource="true">
         <span class="creation-vital-title">Сила крови</span>
         <strong id="val-blood-potency-summary" class="creation-vital-value">0</strong>
-        <small class="creation-vital-formula">Стартовое значение</small>
+        <small class="creation-vital-formula">Автоматически от поколения, типа и охоты</small>
         <label class="creation-vital-control">
             <select id="val-blood-potency" aria-label="Сила крови">
                 <option value="0" selected>Сила крови: 0</option>
@@ -2716,6 +2731,10 @@
     <div class="vampire-only" style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333;">
         <h2 style="text-align:center; margin-bottom:15px;">Дисциплины</h2>
         <div id="disciplines-list"></div>
+        <button type="button" class="npc-only" onclick="openNpcDisciplineModal()"
+                style="margin-top:12px; width:100%; padding:10px; background:#171717; color:#ffae00; border:1px solid #665020; border-radius:6px; cursor:pointer;">
+            + Добавить любую дисциплину НПС
+        </button>
     </div>
 
 

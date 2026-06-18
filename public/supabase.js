@@ -246,6 +246,7 @@ async function saveCharacter() {
     }
 
     if (window.validateThinBloodBalance && !window.validateThinBloodBalance()) return;
+    if (window.validatePlayerCreation && !window.validatePlayerCreation({ requireFixed: true })) return;
 
     const characterData = window.getFullCharacterData ? window.getFullCharacterData() : {};
 

@@ -46,6 +46,203 @@ const CAITIFF_CLAN = 'Каитиф';
 const THIN_BLOOD_ALCHEMY = 'Алхимия слабокровных';
 const INVENTORY_CATEGORIES = ['Оружие', 'Одежда', 'Документы', 'Деньги', 'Артефакты', 'Расходники', 'Другое'];
 
+function isNpcCharacterType(type = currentCharType) {
+    return String(type || '').startsWith('npc-');
+}
+
+function isPlayerVampire(type = currentCharType) {
+    return type === 'vampire';
+}
+
+function isStrictPlayerCreation() {
+    return isPlayerVampire() && !startingSheetFixed && !expShopMode && !isApplyingCharacterData;
+}
+
+function getAllocationCounts(type) {
+    const result = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+    document.querySelectorAll(`.dot-input[data-type="${type}"]:checked`).forEach(input => {
+        const value = parseInt(input.value, 10) || 0;
+        if (value >= 1 && value <= 5) result[value]++;
+    });
+    return result;
+}
+
+function allocationMatchesLimits(actual, limits) {
+    return [1, 2, 3, 4, 5].every(value => (actual[value] || 0) === (limits[value] || 0));
+}
+
+function formatAllocationLimits(limits) {
+    return [1, 2, 3, 4, 5]
+        .filter(value => (limits[value] || 0) > 0)
+        .map(value => `${limits[value]}×${value}`)
+        .join(', ');
+}
+
+function getPaidCreationMeritPoints() {
+    return selectedMerits.reduce((sum, item) => sum + getPaidMeritPoints(item), 0);
+}
+
+function getPaidCreationFlawPoints() {
+    return selectedFlaws.reduce((sum, item) => item.fromPredator ? sum : sum + getTraitPoints(item), 0);
+}
+
+function getClanDisciplineDots(clanName = getCurrentClan()) {
+    return Object.values(disciplineSources || {}).reduce((total, sources) => {
+        return total + Object.entries(sources || {}).reduce((sum, [source, dots]) => {
+            return source === `Клан ${clanName}` ? sum + (parseInt(dots, 10) || 0) : sum;
+        }, 0);
+    }, 0);
+}
+
+function getPlayerCreationIssues() {
+    if (!isPlayerVampire()) return [];
+
+    const issues = [];
+    const clan = getCurrentClan();
+    const predator = document.getElementById('predator-input')?.value || '';
+    const generation = document.getElementById('generation-input')?.value || '';
+    const type = document.getElementById('type-input')?.value || '';
+    const skillPackage = document.getElementById('skill-package')?.value || '';
+    const baseHumanity = parseInt(document.getElementById('base-humanity')?.value || '7', 10) || 7;
+    const allowedGenerations = {
+        childe: ['12', '13', '14', '15', '16'],
+        neonate: ['12', '13'],
+        ancilla: ['8', '9', '10', '11']
+    };
+
+    if (!clan) issues.push('выбери клан');
+    if (!predator) issues.push('выбери тип охоты');
+    if (!generation) issues.push('выбери поколение');
+    if (!type) issues.push('выбери тип вампира');
+    if (type && !allowedGenerations[type]) issues.push('игроку доступны Птенец, Неонат или Анцилла');
+    if (type && generation && allowedGenerations[type] && !allowedGenerations[type].includes(generation)) {
+        issues.push('поколение не соответствует выбранному типу вампира');
+    }
+    if (clan === THIN_BLOOD_CLAN && generation && parseInt(generation, 10) < 14) {
+        issues.push('слабокровному нужно выбрать 14–16 поколение');
+    }
+    if (clan && clan !== THIN_BLOOD_CLAN && generation && parseInt(generation, 10) >= 14) {
+        issues.push('14–16 поколение доступно только слабокровным');
+    }
+
+    const attributes = getAllocationCounts('attr');
+    if (!allocationMatchesLimits(attributes, ATTR_LIMITS)) {
+        issues.push(`распредели характеристики строго по схеме ${formatAllocationLimits(ATTR_LIMITS)}`);
+    }
+
+    if (!skillPackage) {
+        issues.push('выбери набор навыков');
+    } else {
+        const skillLimits = SKILL_PACKAGES[skillPackage];
+        const skills = getAllocationCounts('skill');
+        if (!allocationMatchesLimits(skills, skillLimits)) {
+            issues.push(`распредели навыки строго по схеме ${formatAllocationLimits(skillLimits)}`);
+        }
+    }
+
+    if (getSpecialtyCount() > VAMPIRE_SPECIALTY_LIMIT) {
+        issues.push(`оставь не больше ${VAMPIRE_SPECIALTY_LIMIT} специализаций`);
+    }
+    if (getPaidCreationMeritPoints() !== getMeritsLimit()) {
+        issues.push(`распредели ровно ${getMeritsLimit()} точек преимуществ`);
+    }
+    if (getPaidCreationFlawPoints() !== getFlawsLimit()) {
+        issues.push(`возьми ровно ${getFlawsLimit()} точки недостатков`);
+    }
+    if (!isThinBloodClan(clan) && clan && getClanDisciplineDots(clan) !== 3) {
+        issues.push('выбери две клановые дисциплины: одну на 2 точки и одну на 1');
+    }
+    if (![7, 8].includes(baseHumanity)) issues.push('стартовая Человечность может быть только 7 или 8');
+    if (clampHunger(vitalTrackers.hunger) !== 1) issues.push('стартовый Голод должен быть 1');
+    if (getCurrentBloodPotencyValue() !== getCalculatedBloodPotency()) {
+        issues.push('Сила крови должна соответствовать поколению, типу и типу охоты');
+    }
+    if (!validateThinBloodBalance({ silent: true })) {
+        issues.push('уравновесь слабокровные преимущества и недостатки');
+    }
+
+    return issues;
+}
+
+function validatePlayerCreation({ requireFixed = false, silent = false } = {}) {
+    if (!isPlayerVampire()) return true;
+    if (startingSheetFixed) return true;
+    const issues = getPlayerCreationIssues();
+    if (requireFixed && !startingSheetFixed) issues.push('заверши создание кнопкой «Завершить создание и зафиксировать»');
+    if (issues.length && !silent) {
+        alert(`Стартовый лист ещё не готов:\n\n• ${issues.join('\n• ')}`);
+    }
+    return issues.length === 0;
+}
+
+function updateCreationRuleControls() {
+    const playerVampire = isPlayerVampire();
+    const npc = isNpcCharacterType();
+    document.body.classList.toggle('strict-player-vampire', playerVampire);
+    document.body.classList.toggle('npc-freeform', npc);
+
+    const baseHumanity = document.getElementById('base-humanity');
+    if (baseHumanity) {
+        Array.from(baseHumanity.options).forEach(option => {
+            option.disabled = playerVampire && !['7', '8'].includes(option.value);
+            option.hidden = playerVampire && !['7', '8'].includes(option.value);
+        });
+        if (playerVampire && !['7', '8'].includes(baseHumanity.value)) baseHumanity.value = '7';
+    }
+
+    const typeSelect = document.getElementById('type-input');
+    if (typeSelect) {
+        Array.from(typeSelect.options).forEach(option => {
+            const unavailable = playerVampire && ['elder', 'methuselah', 'antediluvian'].includes(option.value);
+            option.disabled = unavailable;
+            option.hidden = unavailable;
+        });
+        if (playerVampire && ['elder', 'methuselah', 'antediluvian'].includes(typeSelect.value)) typeSelect.value = '';
+    }
+
+    const generationSelect = document.getElementById('generation-input');
+    if (generationSelect) {
+        Array.from(generationSelect.options).forEach(option => {
+            const unavailable = playerVampire && option.value && parseInt(option.value, 10) <= 7;
+            option.disabled = unavailable;
+            option.hidden = unavailable;
+        });
+        if (playerVampire && generationSelect.value && parseInt(generationSelect.value, 10) <= 7) {
+            generationSelect.value = '';
+        }
+    }
+
+    const hunger = document.getElementById('initial-hunger');
+    if (hunger && playerVampire && !startingSheetFixed) {
+        vitalTrackers.hunger = 1;
+        hunger.value = '1';
+    }
+    if (hunger && (!startingSheetFixed || npc)) {
+        hunger.disabled = playerVampire;
+        hunger.setAttribute('aria-disabled', playerVampire ? 'true' : 'false');
+    }
+
+    if (playerVampire && !startingSheetFixed) {
+        explicitBloodPotency = null;
+        updateBloodPotencyVital();
+        renderVitalTracker('hunger');
+    }
+    const bloodPotency = document.getElementById('val-blood-potency');
+    if (bloodPotency && (!startingSheetFixed || npc)) {
+        bloodPotency.disabled = playerVampire;
+        bloodPotency.setAttribute('aria-disabled', playerVampire ? 'true' : 'false');
+    }
+
+    const creationModeNote = document.getElementById('creation-mode-note');
+    if (creationModeNote) {
+        creationModeNote.textContent = npc
+            ? 'Режим НПС: значения свободные, счётчики и карточки работают как рекомендации.'
+            : playerVampire
+                ? 'Режим игрока: стартовые значения и распределения обязательны; после фиксации изменения идут только за опыт.'
+                : 'Режим игрока: счётчики слева помогают собрать стартовый лист.';
+    }
+}
+
 
 
 function getTypeBonuses(type) {
@@ -165,6 +362,7 @@ async function initializeApp() {
         setupSaveButton();
         setupDiceRollsFromLockedSheet();
         setupSheetLockGuards();
+        setupCreationRuleGuards();
         setupExpShopDotEditing();
         setupSheetTabs();
         setupInventoryEditor();
@@ -1337,6 +1535,13 @@ function updateCreationSummaryFormulas() {
 
 function setInitialHunger(value) {
     if (isCharacterSheetFixed()) return;
+    if (isPlayerVampire()) {
+        vitalTrackers.hunger = 1;
+        const select = document.getElementById('initial-hunger');
+        if (select) select.value = '1';
+        renderVitalTracker('hunger');
+        return;
+    }
     vitalTrackers.hunger = clampHunger(value);
     const select = document.getElementById('initial-hunger');
     if (select) select.value = String(vitalTrackers.hunger);
@@ -1706,7 +1911,9 @@ function openClanDisciplineModal(clanName) {
     const clanData = RULES.clans?.[clanName];
     if (isThinBloodClan(clanName)) return;
 
-    const disciplineOptions = isCaitiffClan(clanName)
+    const disciplineOptions = isNpcCharacterType()
+        ? getStandardDisciplineNames(clanName)
+        : isCaitiffClan(clanName)
         ? getStandardDisciplineNames(clanName)
         : (clanData?.disciplines || []).filter(name => canUseDiscipline(name, clanName));
 
@@ -1820,6 +2027,44 @@ function closeClanDiscModal() {
 
 function closePredDiscModal() {
     document.getElementById('pred-disc-modal')?.remove();
+}
+
+function openNpcDisciplineModal() {
+    if (currentCharType !== 'npc-vampire') return;
+    const names = Object.keys(RULES.disciplines || {}).sort();
+    if (!names.length) return alert('Список дисциплин ещё не загрузился.');
+
+    const modalHTML = `
+    <div id="npc-discipline-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:20000;display:flex;align-items:center;justify-content:center;padding:20px;">
+        <div style="background:#111;border:2px solid #a14600;padding:28px;width:min(520px,95vw);border-radius:10px;">
+            <h2 style="color:#ffae00;text-align:center;margin:0 0 18px;">Дисциплина НПС</h2>
+            <p style="color:#aaa;line-height:1.45;">Для НПС список не ограничен кланом. После добавления уровень можно менять точками прямо в листе.</p>
+            <select id="npc-discipline-select" style="width:100%;padding:12px;background:#050505;color:white;border:1px solid #555;font-size:16px;">
+                ${names.map(name => `<option value="${name}">${name}</option>`).join('')}
+            </select>
+            <div style="display:flex;gap:10px;margin-top:20px;">
+                <button type="button" onclick="addNpcDiscipline()" style="flex:1;padding:12px;background:#a14600;color:white;border:none;border-radius:6px;cursor:pointer;">Добавить</button>
+                <button type="button" onclick="closeNpcDisciplineModal()" style="flex:1;padding:12px;background:#333;color:white;border:none;border-radius:6px;cursor:pointer;">Отмена</button>
+            </div>
+        </div>
+    </div>`;
+
+    document.getElementById('npc-discipline-modal')?.remove();
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function addNpcDiscipline() {
+    const name = document.getElementById('npc-discipline-select')?.value;
+    if (!name) return;
+    if (!disciplineSources[name]) disciplineSources[name] = { 'НПС вручную': 1 };
+    updateAllDisciplineRows();
+    updateDisciplineTotal();
+    renderDisciplines();
+    closeNpcDisciplineModal();
+}
+
+function closeNpcDisciplineModal() {
+    document.getElementById('npc-discipline-modal')?.remove();
 }
 
 // Подсказка по дисциплине в модальном окне
@@ -3064,6 +3309,8 @@ function setCharacterType(type, { persist = true, syncDamageProfile = true } = {
     // Обновляем label у поля Сира для смертных
     updateSireLabel(currentCharType);
     if (syncDamageProfile) syncDamageProfileFromCharacterType();
+    updateCreationRuleControls();
+    updateTrackers();
 }
 
 function setCharacterSavedState(saved) {
@@ -3596,7 +3843,7 @@ function checkLimits() {
     const guide = document.querySelector('.guide');
     const warning = document.getElementById('global-warning');
 
-    if (startingSheetFixed) {
+    if (startingSheetFixed || isNpcCharacterType()) {
         guide?.classList.remove('error');
         if (warning) warning.style.display = 'none';
         return;
@@ -3673,6 +3920,11 @@ function addSpecLine(skillName, value = '') {
 
     const currentDots = parseInt(document.querySelector(`input[name="${skillName}"]:checked`)?.value || 0);
     const currentSpecs = container.children.length;
+
+    if (isStrictPlayerCreation() && getSpecialtyCount() >= VAMPIRE_SPECIALTY_LIMIT) {
+        alert(`В стартовом листе можно взять не больше ${VAMPIRE_SPECIALTY_LIMIT} специализаций.`);
+        return;
+    }
 
     if (currentSpecs >= currentDots) {
         alert(`У навыка "${skillName}" только ${currentDots} точ${currentDots === 1 ? 'ка' : 'ки'}.`);
@@ -6144,7 +6396,8 @@ function renderDots(containerId, points, isMerit) {
     const container = document.getElementById(containerId);
     container.innerHTML = '';
     
-    const max = isMerit ? getMeritsLimit() : getFlawsLimit();   // ← главное изменение
+    const recommendedMax = isMerit ? getMeritsLimit() : getFlawsLimit();
+    const max = isNpcCharacterType() ? Math.max(points, recommendedMax) : recommendedMax;
     
     for (let i = 1; i <= max; i++) {
         const dot = document.createElement('div');
@@ -6652,7 +6905,7 @@ function closePredatorSelectionModal() {
 
 // Проверка лимита преимуществ (игнорируем пункты от охоты)
 function canAddMerit(newPoints) {
-    if (expShopMode) return true;
+    if (expShopMode || isNpcCharacterType()) return true;
 
     const currentTotal = selectedMerits.reduce((sum, item) => {
         return sum + getPaidMeritPoints(item);
@@ -6663,7 +6916,7 @@ function canAddMerit(newPoints) {
 
 // Проверка лимита недостатков (игнорируем пункты от охоты)
 function canAddFlaw(newPoints) {
-    if (expShopMode) return true;
+    if (expShopMode || isNpcCharacterType()) return true;
 
     const currentTotal = selectedFlaws.reduce((sum, item) => {
         if (item.fromPredator) return sum;        // бесплатно от охоты — не считаем
@@ -6967,7 +7220,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         selectedThinBloodFlaws = Array.isArray(d.thinBloodFlaws) ? [...d.thinBloodFlaws] : [];
         enforceClanSpecificRules();
 
-        startingSheetFixed = resolveCharacterSheetFixed(d);
+        startingSheetFixed = isNpcCharacterType() ? false : resolveCharacterSheetFixed(d);
         const savedBaseLevels = d.sheetLock?.baseLevels;
         baseLevels = (savedBaseLevels && Object.keys(savedBaseLevels).length > 0)
             ? JSON.parse(JSON.stringify(savedBaseLevels))
@@ -6993,6 +7246,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         });
     } finally {
         isApplyingCharacterData = false;
+        updateCreationRuleControls();
         applySheetLockState();
         updateExpPurchasedStyles();
         renderExpHistory();
@@ -7002,6 +7256,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
 window.applyCharacterData = applyCharacterData;
 
 function exportToJSON() {
+    if (!validatePlayerCreation({ requireFixed: true })) return;
     if (!validateThinBloodBalance()) return;
     const character = getFullCharacterData();
 
@@ -7072,12 +7327,18 @@ function setupBloodPotencyField() {
     if (!input || input.dataset.ready === 'true') return;
     input.dataset.ready = 'true';
     input.addEventListener('change', () => {
+        if (isPlayerVampire()) {
+            explicitBloodPotency = null;
+            updateBloodPotencyVital();
+            return;
+        }
         explicitBloodPotency = clampBloodPotency(input.value);
         input.value = String(explicitBloodPotency);
         updateBloodPotencyVital();
         autoSaveVitalState();
     });
     input.addEventListener('input', () => {
+        if (isPlayerVampire()) return;
         explicitBloodPotency = clampBloodPotency(input.value);
         autoSaveVitalState();
     });
@@ -8713,16 +8974,22 @@ function applySheetLockState() {
 
     const btn = document.getElementById('fix-start-btn');
     if (btn) {
-        btn.textContent = startingSheetFixed ? "Расфиксировать лист" : "Зафиксировать стартовый лист";
+        btn.textContent = startingSheetFixed
+            ? isPlayerVampire() ? "Стартовый лист зафиксирован" : "Расфиксировать лист"
+            : isPlayerVampire() ? "Завершить создание и зафиксировать" : "Зафиксировать стартовый лист";
         btn.style.background = startingSheetFixed ? "#555" : "#ff3131";
         btn.title = startingSheetFixed
-            ? "Снять фиксацию и снова редактировать лист вручную"
-            : "Зафиксировать текущие значения как стартовый лист";
+            ? isPlayerVampire()
+                ? "Дальнейшие изменения доступны через магазин опыта"
+                : "Снять фиксацию и снова редактировать лист вручную"
+            : "Проверить правила создания и зафиксировать стартовый лист";
     }
 
-    const lockedControls = document.querySelectorAll('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #initial-hunger, #val-blood-potency, .locked-origin-control');
+    const lockedControls = document.querySelectorAll('#char-type-select, #clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #initial-hunger, #val-blood-potency, .locked-origin-control');
     lockedControls.forEach(control => {
-        const shouldDisable = startingSheetFixed && !expShopMode;
+        const isFixedOrigin = startingSheetFixed && !isNpcCharacterType();
+        const isFixedPlayerResource = isPlayerVampire() && ['initial-hunger', 'val-blood-potency'].includes(control.id);
+        const shouldDisable = isFixedOrigin || isFixedPlayerResource;
         control.disabled = shouldDisable;
         control.setAttribute('aria-disabled', shouldDisable ? 'true' : 'false');
     });
@@ -8733,10 +9000,11 @@ function applySheetLockState() {
         document.getElementById('predator-modal')?.style.setProperty('display', 'none');
         document.getElementById('generation-modal')?.style.setProperty('display', 'none');
     }
+    updateCreationRuleControls();
 }
 
 function isCharacterSheetFixed() {
-    return Boolean(startingSheetFixed);
+    return Boolean(startingSheetFixed && !isNpcCharacterType());
 }
 
 function updateSheetFixedVisibility() {
@@ -8787,7 +9055,7 @@ function isSheetLockedTarget(target) {
     const dotLabel = target.closest('.dot-label');
     const dotRow = dotLabel?.closest('.row');
     if ((dotLabel && (dotRow?.querySelector('.attr-name') || dotRow?.querySelector('.skill-name'))) || target.closest('.discipline-item:not(.xp-shop-discipline-option) .disc-dot')) return false;
-    if (target.closest('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #initial-hunger, #val-blood-potency, .locked-origin-control, .dot-label, .dot-input, .disc-dot, .s-badge, .add-power-btn, .remove-disc-btn, .merit-add-btn, .selected-item-remove')) return true;
+    if (target.closest('#char-type-select, #clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #initial-hunger, #val-blood-potency, .locked-origin-control, .dot-label, .dot-input, .disc-dot, .s-badge, .add-power-btn, .remove-disc-btn, .merit-add-btn, .selected-item-remove')) return true;
     if (target.closest('.skill-spec-line button, .skill-spec-line input')) return true;
     if (target.closest('.attr-name, .skill-name, .skill-spec-line')) return false;
     const disciplineItem = target.closest('.discipline-item:not(.xp-shop-discipline-option)');
@@ -8809,6 +9077,56 @@ function setupSheetLockGuards() {
     });
 }
 
+function setupCreationRuleGuards() {
+    if (window.__creationRuleGuardsReady) return;
+    window.__creationRuleGuardsReady = true;
+
+    document.addEventListener('click', event => {
+        if (!isStrictPlayerCreation()) return;
+        const label = event.target.closest('label.dot-label');
+        if (!label) return;
+        const input = document.getElementById(label.getAttribute('for'));
+        if (!input || !['attr', 'skill'].includes(input.dataset.type)) return;
+
+        const limits = input.dataset.type === 'attr'
+            ? ATTR_LIMITS
+            : SKILL_PACKAGES[document.getElementById('skill-package')?.value];
+        if (!limits) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            alert('Сначала выбери набор навыков.');
+            return;
+        }
+
+        const current = parseInt(document.querySelector(`input[name="${input.name}"]:checked`)?.value || '0', 10) || 0;
+        const clicked = parseInt(input.value, 10) || 0;
+        const target = clicked === current ? 0 : clicked;
+        const projected = getAllocationCounts(input.dataset.type);
+        if (current > 0) projected[current] = Math.max(0, projected[current] - 1);
+        if (target > 0) projected[target] = (projected[target] || 0) + 1;
+
+        if (target > 0 && projected[target] > (limits[target] || 0)) {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            alert(`В стартовом листе значений ${target} может быть только ${limits[target] || 0}.`);
+        }
+    }, true);
+
+    document.addEventListener('click', event => {
+        if (currentCharType !== 'npc-vampire' || expShopMode) return;
+        const dot = event.target.closest('.discipline-item:not(.xp-shop-discipline-option) .disc-dot');
+        if (!dot) return;
+        const item = dot.closest('.discipline-item');
+        const name = item?.dataset.disciplineName;
+        if (!name) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        const current = getDisciplineTotal(name);
+        const clicked = parseInt(dot.dataset.level || '0', 10) || 0;
+        setDisciplineTotal(name, clicked === current ? Math.max(0, current - 1) : clicked, 'НПС');
+    }, true);
+}
+
 function runExperiencePurchase(callback) {
     isExperiencePurchaseInProgress = true;
     try {
@@ -8822,6 +9140,10 @@ function runExperiencePurchase(callback) {
 
 function fixStartingSheet() {
     if (startingSheetFixed) {
+        if (isPlayerVampire()) {
+            alert("Стартовый лист уже зафиксирован. Дальнейшие изменения делаются через магазин опыта.");
+            return;
+        }
         if (confirm("Расфиксировать лист?\nПосле этого поля снова можно будет менять вручную.")) {
             startingSheetFixed = false;
             applySheetLockState();
@@ -8831,9 +9153,10 @@ function fixStartingSheet() {
         return;
     }
 
+    if (!validatePlayerCreation()) return;
     if (!validateThinBloodBalance()) return;
 
-    if (!confirm("Зафиксировать текущие значения как стартовый лист?\nПосле этого лист нельзя будет менять вручную: только через магазин опыта или после расфиксации.")) {
+    if (!confirm("Завершить создание и зафиксировать стартовый лист?\nПосле этого значения меняются только через магазин опыта.")) {
         return;
     }
 
@@ -8855,5 +9178,7 @@ function fixStartingSheet() {
     autoSaveSheetLockState();
     updateExpPurchasedStyles();
 
-    alert("Стартовый лист зафиксирован. Теперь повышения проходят через магазин опыта.");
+    alert("Создание завершено. Теперь изменения характеристик проходят через магазин опыта.");
 }
+
+window.validatePlayerCreation = validatePlayerCreation;
