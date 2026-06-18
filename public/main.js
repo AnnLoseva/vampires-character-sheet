@@ -7017,7 +7017,11 @@ function getFullCharacterData() {
         generation: document.getElementById('generation-input')?.value || '',
         type: document.getElementById('type-input')?.value || '',
         characterType: getCurrentCharacterType(),
+        characterRole: window.__characterRole || (isNpcCharacterType() ? 'npc' : 'player'),
         sheetMode: currentCharType,
+        creationWizard: window.__creationWizardData
+            ? JSON.parse(JSON.stringify(window.__creationWizardData))
+            : window.__loadedCharacterData?.creationWizard || null,
         hasBeenSaved: characterHasBeenSaved,
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
@@ -7123,6 +7127,8 @@ function resetCharacterSheetForLoad() {
 function applyCharacterData(d, sourceName = 'JSON') {
     console.log(`📥 Загрузка персонажа из ${sourceName}:`, d);
     window.__loadedCharacterData = d;
+    window.__characterRole = d.characterRole || (String(d.sheetMode || '').startsWith('npc-') ? 'npc' : 'player');
+    window.__creationWizardData = d.creationWizard ? JSON.parse(JSON.stringify(d.creationWizard)) : null;
     isApplyingCharacterData = true;
 
     try {

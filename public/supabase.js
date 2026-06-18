@@ -14,6 +14,7 @@ function isNewCharacterMode() {
 }
 
 function startNewCharacter() {
+    localStorage.removeItem('vtm-character-creation-draft-v2');
     const currentParams = new URLSearchParams(window.location.search);
     const targetParams = new URLSearchParams({
         room: currentParams.get('room') || localStorage.getItem('vtm-table-room') || 'campaign-666',

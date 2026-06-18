@@ -53,6 +53,7 @@ export default function CharacterSheetPage() {
   }, [room, role, characterId, isNewCharacter])
 
   const startNewCharacter = () => {
+    window.localStorage.removeItem('vtm-character-creation-draft-v2')
     setCharacterId('')
     setIsNewCharacter(true)
     setNewCharacterSession(current => current + 1)

@@ -369,7 +369,10 @@ export default function MainScreen() {
                     </button>
                     <Link
                       href={newSheetHref}
-                      onClick={() => rememberTableChoice(role)}
+                      onClick={() => {
+                        rememberTableChoice(role)
+                        window.localStorage.removeItem('vtm-character-creation-draft-v2')
+                      }}
                       className="ghost-action new-character-action"
                     >
                       Создать нового персонажа
@@ -449,7 +452,14 @@ export default function MainScreen() {
                 <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
                   Открыть редактор
                 </Link>
-                <Link href={newSheetHref} onClick={() => rememberTableChoice(role)} className="ghost-action">
+                <Link
+                  href={newSheetHref}
+                  onClick={() => {
+                    rememberTableChoice(role)
+                    window.localStorage.removeItem('vtm-character-creation-draft-v2')
+                  }}
+                  className="ghost-action"
+                >
                   Создать нового персонажа
                 </Link>
                 <Link href="/journal" className="ghost-action">

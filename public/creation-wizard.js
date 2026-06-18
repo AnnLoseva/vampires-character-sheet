@@ -5,7 +5,6 @@
    ==================================================================== */
 (function () {
     'use strict';
-    console.log('[CW] creation-wizard.js загружен, ?new=1:', new URLSearchParams(window.location.search).get('new') === '1');
 
     const STEP_ORDER = [
         'warning', 'identity', 'clanFilter', 'clan', 'predator', 'generation',
@@ -17,6 +16,7 @@
     let wizard = null;          // creationWizard data object
     let pendingType = null;     // chosen character type before wizard
     let activeStep = null;
+    const DRAFT_KEY = 'vtm-character-creation-draft-v2';
 
     // ---------- утилиты ----------
     function el(id) { return document.getElementById(id); }
@@ -30,6 +30,48 @@
         return new URLSearchParams(window.location.search).get('new') === '1';
     }
     function rules() { return window.VTM_RULES || (typeof RULES !== 'undefined' ? RULES : {}); }
+    function sheetData() {
+        try {
+            return typeof window.getFullCharacterData === 'function'
+                ? window.getFullCharacterData()
+                : {};
+        } catch (error) {
+            console.warn('Не удалось прочитать данные листа для мастера:', error);
+            return {};
+        }
+    }
+    function clone(value) {
+        return value == null ? value : JSON.parse(JSON.stringify(value));
+    }
+    function readDraft() {
+        if (!isNewMode()) return null;
+        try {
+            const raw = localStorage.getItem(DRAFT_KEY);
+            return raw ? JSON.parse(raw) : null;
+        } catch (error) {
+            console.warn('Не удалось прочитать черновик мастера:', error);
+            return null;
+        }
+    }
+    function writeDraft(extra) {
+        if (!isNewMode() || !wizard) return;
+        try {
+            const character = Object.assign({}, sheetData(), extra || {}, {
+                creationWizard: clone(wizard),
+                characterRole: window.__characterRole || (isNpcSheet() ? 'npc' : 'player'),
+                sheetFixed: document.body.classList.contains('sheet-fixed')
+            });
+            localStorage.setItem(DRAFT_KEY, JSON.stringify({
+                wizard: clone(wizard),
+                character
+            }));
+        } catch (error) {
+            console.warn('Не удалось сохранить локальный черновик мастера:', error);
+        }
+    }
+    function isNpcSheet() {
+        return /char-type-npc-/.test(document.body.className);
+    }
 
     function defaultWizard() {
         return {
@@ -47,9 +89,12 @@
     function persist(extra) {
         if (!wizard) return;
         wizard.updatedAt = new Date().toISOString();
+        window.__creationWizardData = clone(wizard);
+        writeDraft(extra);
         if (window.autoSaveCharacterPatch) {
             window.autoSaveCharacterPatch(Object.assign({
-                creationWizard: JSON.parse(JSON.stringify(wizard))
+                creationWizard: clone(wizard),
+                characterRole: window.__characterRole || (isNpcSheet() ? 'npc' : 'player')
             }, extra || {}), { silent: true });
         }
     }
@@ -144,8 +189,17 @@
             + `<div class="cw-step-meta">Шаг ${idx + 1} из ${STEP_ORDER.length}</div>`
             + `<h1>${esc(title)}</h1>`
             + (sub ? `<h2 class="cw-sub">${esc(sub)}</h2>` : '')
+            + '<div class="cw-error" id="cw-step-error" style="display:none"></div>'
             + body
             + `<div class="cw-nav">${nav}</div>`;
+    }
+
+    function showStepError(message) {
+        const error = el('cw-step-error');
+        if (!error) return;
+        error.textContent = message;
+        error.style.display = 'block';
+        error.scrollIntoView({ block: 'nearest' });
     }
 
     function navBtn(label, handler, cls) {
@@ -210,13 +264,15 @@
 
     /* ================= ШАГ 2: СОЦИАЛКА + АВАТАР ================= */
     RENDERERS.identity = () => {
+        const data = sheetData();
+        const portraitValue = data.characterImage || data.image || data.portrait || '';
         const f = (id, label, req) => `
             <div class="cw-field ${req ? 'required' : ''}">
                 <label for="cw-${id}">${esc(label)}${req ? '' : ' (необязательно)'}</label>
                 <input type="text" id="cw-${id}" data-mirror="${id}" value="${esc(val(id))}">
             </div>`;
-        const portrait = window.characterImageData
-            ? `<img class="cw-portrait-preview" src="${esc(window.characterImageData)}" alt="Портрет">`
+        const portrait = portraitValue
+            ? `<img class="cw-portrait-preview" src="${esc(portraitValue)}" alt="Портрет">`
             : `<div class="cw-portrait-placeholder">Портрет персонажа</div>`;
         return shell('identity', 'Кто этот персонаж?', '',
             `<div class="cw-error" id="cw-identity-error" style="display:none"></div>
@@ -225,7 +281,7 @@
                 <div style="flex:1">
                     <p style="color:#888;font-size:13px;margin:0 0 10px;line-height:1.5;">Изображение персонажа (необязательно)</p>
                     <button type="button" class="cw-btn" id="cw-portrait-upload">Загрузить изображение</button>
-                    ${window.characterImageData ? '<button type="button" class="cw-btn ghost" id="cw-portrait-remove" style="margin-left:8px">Удалить</button>' : ''}
+                    ${portraitValue ? '<button type="button" class="cw-btn ghost" id="cw-portrait-remove" style="margin-left:8px">Удалить</button>' : ''}
                 </div>
              </div>
              <div class="cw-fields">
@@ -327,8 +383,13 @@
         el('cw-card').querySelectorAll('[data-cw="pickClan"]').forEach(tile => {
             tile.addEventListener('click', () => {
                 const name = tile.getAttribute('data-clan');
-                if (typeof window.selectThisClan === 'function') window.selectThisClan(name);
-                else setVal('clan-input', name);
+                if (val('clan-input') !== name && typeof window.resetClanDisciplines === 'function') {
+                    window.resetClanDisciplines();
+                }
+                setVal('clan-input', name);
+                if (typeof window.loadClanHint === 'function') window.loadClanHint();
+                if (typeof window.updateClanIcon === 'function') window.updateClanIcon();
+                if (typeof window.enforceClanSpecificRules === 'function') window.enforceClanSpecificRules();
                 markCompleted('clan');
                 // подсветка
                 el('cw-card').querySelectorAll('[data-cw="pickClan"]').forEach(t => t.classList.remove('selected'));
@@ -366,8 +427,13 @@
         el('cw-card').querySelectorAll('[data-cw="pickPred"]').forEach(tile => {
             tile.addEventListener('click', () => {
                 const name = tile.getAttribute('data-pred');
-                if (typeof window.selectThisPredator === 'function') window.selectThisPredator(name);
-                else setVal('predator-input', name);
+                if (val('predator-input') !== name) {
+                    if (typeof window.resetPredatorDisciplines === 'function') window.resetPredatorDisciplines();
+                    if (typeof window.resetPredatorSpecialties === 'function') window.resetPredatorSpecialties();
+                }
+                setVal('predator-input', name);
+                if (typeof window.loadPredatorHint === 'function') window.loadPredatorHint();
+                if (typeof window.updateVitals === 'function') window.updateVitals();
                 markCompleted('predator');
                 el('cw-card').querySelectorAll('[data-cw="pickPred"]').forEach(t => t.classList.remove('selected'));
                 tile.classList.add('selected');
@@ -454,7 +520,7 @@
 
     /* ================= ШАГИ 8-11: ОПОРЫ И ТЕКСТ ================= */
     RENDERERS.touchstones = () => {
-        const ts = (window.touchstones || []);
+        const ts = sheetData().touchstones || [];
         const rows = ts.length
             ? ts.map((t, i) => `<div class="cw-summary-row"><span class="lbl">${esc(t.name || 'Без имени')}</span><span class="val">${esc((t.description || '').slice(0, 80))}</span></div>`).join('')
             : '<p style="color:#888;font-size:14px">Опоры пока не добавлены.</p>';
@@ -580,9 +646,19 @@
 
     /* ================= ШАГ 13: ДИСЦИПЛИНЫ ================= */
     function disciplineDotsTotal() {
-        const src = window.disciplineSources || {};
+        const src = sheetData().disciplines || {};
         return Object.values(src).reduce((t, s) =>
             t + Object.values(s || {}).reduce((a, b) => a + (parseInt(b, 10) || 0), 0), 0);
+    }
+    function clanDisciplineDots() {
+        const clan = getCurrentClanValue();
+        const src = sheetData().disciplines || {};
+        return Object.values(src).reduce((total, sources) =>
+            total + Object.entries(sources || {}).reduce((sum, [source, dots]) =>
+                source === `Клан ${clan}` ? sum + (parseInt(dots, 10) || 0) : sum, 0), 0);
+    }
+    function disciplineStepValid() {
+        return getCurrentClanValue() === 'Слабокровные' || clanDisciplineDots() === 3;
     }
     RENDERERS.disciplines = () => {
         const clan = getCurrentClanValue();
@@ -606,9 +682,12 @@
         const box = el('cw-disc-status');
         if (!box) return;
         const total = disciplineDotsTotal();
-        const ok = total === 3;
-        box.innerHTML = `<div class="cw-counter"><span>Распределено точек: <b>${total}</b> / 3</span>
-            <span class="${ok ? 'ok' : 'bad'}">${ok ? '✓ готово' : 'нужно ровно 3'}</span></div>`;
+        const clanTotal = clanDisciplineDots();
+        const thinBlood = getCurrentClanValue() === 'Слабокровные';
+        const ok = disciplineStepValid();
+        box.innerHTML = `<div class="cw-counter"><span>Всего точек: <b>${total}</b></span>
+            <span>От клана: <b>${clanTotal}</b>${thinBlood ? ' (для слабокровного не требуется)' : ' / 3'}</span>
+            <span class="${ok ? 'ok' : 'bad'}">${ok ? '✓ готово' : 'нужно выбрать клановые 2 + 1'}</span></div>`;
         if (ok) markCompleted('disciplines'); else markSkipped('disciplines');
     }
     STEP_ACTIONS.openDiscSheet = () => {
@@ -623,13 +702,21 @@
     STEP_ACTIONS.recheckDisc = () => renderDiscStatus();
 
     /* ================= ШАГ 14: ПРЕИМУЩЕСТВА И НЕДОСТАТКИ ================= */
+    function itemPoints(item) {
+        return parseInt(item?.points ?? item?.dots ?? item?.точки ?? 0, 10) || 0;
+    }
     function meritPoints() {
-        return (window.selectedMerits || []).reduce((s, m) =>
-            s + (typeof window.getPaidMeritPoints === 'function' ? window.getPaidMeritPoints(m) : (m.dots || 0)), 0);
+        return (sheetData().merits || []).reduce((sum, item) => {
+            const points = itemPoints(item);
+            const free = item.fromPredator
+                ? parseInt(item.predatorBasePoints ?? item.basePoints ?? points, 10) || 0
+                : 0;
+            return sum + Math.max(0, points - free);
+        }, 0);
     }
     function flawPoints() {
-        return (window.selectedFlaws || []).reduce((s, m) =>
-            m.fromPredator ? s : s + (m.dots || (typeof window.getTraitPoints === 'function' ? window.getTraitPoints(m) : 0)), 0);
+        return (sheetData().flaws || []).reduce((sum, item) =>
+            item.fromPredator ? sum : sum + itemPoints(item), 0);
     }
     function meritsLimit() { return typeof window.getMeritsLimit === 'function' ? window.getMeritsLimit() : 7; }
     function flawsLimit() { return typeof window.getFlawsLimit === 'function' ? window.getFlawsLimit() : 2; }
@@ -662,7 +749,7 @@
 
     /* ================= ШАГ 15: ИНВЕНТАРЬ ================= */
     RENDERERS.inventory = () => {
-        const inv = window.inventory || [];
+        const inv = sheetData().inventory || [];
         const rows = inv.length
             ? inv.map(it => `<div class="cw-summary-row"><span class="lbl">${esc(it.name || 'Предмет')}</span><span class="val">${esc(it.category || '')} ×${esc(it.quantity || 1)}</span></div>`).join('')
             : '<p style="color:#888;font-size:14px">Инвентарь пуст.</p>';
@@ -685,13 +772,14 @@
         const sc = counts('skill');
         const attrOk = schemeComplete(ATTR_SCHEME, ac);
         const skillOk = pkg && SKILL_SCHEMES[pkg] && schemeComplete(SKILL_SCHEMES[pkg].limits, sc);
-        const discOk = disciplineDotsTotal() === 3;
+        const discOk = disciplineStepValid();
         const mfOk = meritPoints() === meritsLimit() && flawPoints() === flawsLimit();
         return {
             name: !!val('char-name'),
             clan: !!getCurrentClanValue(),
             predator: !!val('predator-input'),
             generation: !!val('generation-input'),
+            humanity: ['7', '8'].includes(val('base-humanity')),
             attributes: attrOk,
             skills: skillOk,
             disciplines: discOk,
@@ -703,7 +791,7 @@
         const row = (lbl, value, cls) =>
             `<div class="cw-summary-row"><span class="lbl">${esc(lbl)}</span><span class="val ${cls || ''}">${esc(value)}</span></div>`;
         const yn = b => b ? { t: 'заполнены', c: 'ok' } : { t: 'ошибки', c: 'bad' };
-        const inv = (window.inventory || []).length;
+        const inv = (sheetData().inventory || []).length;
         const allOk = Object.values(v).every(Boolean);
         return shell('summary', 'Персонаж почти готов', '',
             `<div class="cw-summary">
@@ -727,26 +815,48 @@
     function finishSheet() {
         const v = mandatoryValid();
         if (!Object.values(v).every(Boolean)) {
-            alert('Сначала заверши все обязательные шаги.');
+            showStepError('Сначала заверши все обязательные шаги.');
+            return;
+        }
+        let fixed = false;
+        if (typeof window.fixStartingSheet === 'function') {
+            try {
+                fixed = window.fixStartingSheet({ silent: true }) === true;
+            } catch (e) { console.error(e); }
+        }
+        if (!fixed) {
+            showStepError('Лист пока не проходит финальную проверку. Вернись к отмеченным шагам и исправь значения.');
             return;
         }
         wizard.finishedAt = new Date().toISOString();
         markCompleted('summary');
         hideOverlay();
-        // фиксируем лист через существующий механизм (без диалогов)
-        if (typeof window.fixStartingSheet === 'function') {
-            try {
-                window.fixStartingSheet({ silent: true });
-            } catch (e) { console.error(e); }
-        }
         persist({ sheetFixed: true });
+        localStorage.removeItem(DRAFT_KEY);
         updateReturnButton();
     }
 
     /* ================= ВАЛИДАЦИЯ ПЕРЕХОДА «ДАЛЬШЕ» ================= */
     function validateAndAdvance() {
-        if (activeStep === 'identity' && !val('char-name')) {
-            showIdentityError();
+        const requiredChecks = {
+            identity: [() => !!val('char-name'), 'Имя обязательно для заполнения.'],
+            clan: [() => !!getCurrentClanValue(), 'Сначала выбери клан.'],
+            predator: [() => !!val('predator-input'), 'Сначала выбери тип охоты.'],
+            generation: [() => !!val('generation-input'), 'Сначала выбери поколение.'],
+            humanity: [() => ['7', '8'].includes(val('base-humanity')), 'Выбери начальную Человечность: 7 или 8.'],
+            attributes: [() => {
+                const pkg = val('skill-package');
+                return schemeComplete(ATTR_SCHEME, counts('attr'))
+                    && Boolean(pkg && SKILL_SCHEMES[pkg] && schemeComplete(SKILL_SCHEMES[pkg].limits, counts('skill')));
+            }, 'Заверши строгое распределение характеристик и навыков.'],
+            disciplines: [disciplineStepValid, 'Выбери стартовые клановые дисциплины по схеме 2 + 1.'],
+            meritsFlaws: [() => meritPoints() === meritsLimit() && flawPoints() === flawsLimit(),
+                'Распредели требуемые преимущества и недостатки.']
+        };
+        const check = requiredChecks[activeStep];
+        if (check && !check[0]()) {
+            if (activeStep === 'identity') showIdentityError();
+            else showStepError(check[1]);
             return false;
         }
         if (!OPTIONAL_STEPS.has(activeStep)) markCompleted(activeStep);
@@ -800,6 +910,7 @@
     }
     function applyCharMeta(meta) {
         pendingType = meta;
+        window.__characterRole = meta.characterRole;
         if (typeof window.setCharacterType === 'function') window.setCharacterType(meta.sheetMode);
         persist({
             characterType: meta.characterType,
@@ -815,28 +926,35 @@
     function typeNav(action) {
         switch (action) {
             case 'typeVampire':
+                wizard.entryStage = 'mode';
                 applyCharMeta({ characterType: 'vampire', characterRole: 'player', damageProfile: 'vampire', sheetMode: 'vampire' });
                 showModeChoice();
                 break;
             case 'typeNpc':
+                wizard.entryStage = 'npcType';
+                persist();
                 showNpcChoice();
                 break;
             case 'npcVampire':
+                wizard.entryStage = null;
                 applyCharMeta({ characterType: 'vampire', characterRole: 'npc', damageProfile: 'vampire', sheetMode: 'npc-vampire' });
                 startBlank(true);
                 break;
             case 'npcHuman':
+                wizard.entryStage = null;
                 applyCharMeta({ characterType: 'mortal', characterRole: 'npc', damageProfile: 'mortal', sheetMode: 'npc-mortal' });
                 startBlank(true);
                 break;
             case 'modeGuided':
                 wizard.mode = 'guided';
+                wizard.entryStage = null;
                 restoreCardContainer();
                 renderStep('warning');
                 persist();
                 break;
             case 'modeBlank':
                 wizard.mode = 'blank';
+                wizard.entryStage = null;
                 wizard.currentStep = 'warning';
                 startBlank(false);
                 break;
@@ -854,8 +972,11 @@
 
     /* ================= ИНИЦИАЛИЗАЦИЯ ================= */
     function readExistingWizard() {
+        if (window.__creationWizardData) {
+            return clone(window.__creationWizardData);
+        }
         if (window.__loadedCharacterData && window.__loadedCharacterData.creationWizard) {
-            return JSON.parse(JSON.stringify(window.__loadedCharacterData.creationWizard));
+            return clone(window.__loadedCharacterData.creationWizard);
         }
         return null;
     }
@@ -865,8 +986,15 @@
         if (_initDone) return;
         _initDone = true;
 
-        const existing = readExistingWizard();
+        const draft = readDraft();
+        if (draft?.character && typeof window.applyCharacterData === 'function') {
+            window.__characterRole = draft.character.characterRole || 'player';
+            window.applyCharacterData(draft.character, 'JSON');
+        }
+
+        const existing = draft?.wizard || readExistingWizard();
         if (existing) wizard = Object.assign(defaultWizard(), existing);
+        window.__creationWizardData = wizard ? clone(wizard) : null;
 
         try {
             new MutationObserver(updateReturnButton)
@@ -875,33 +1003,41 @@
 
         if (isNewMode()) {
             wizard = wizard || defaultWizard();
-            showTypeChoice();
+            if (wizard.mode === 'guided') {
+                openOverlay();
+                restoreCardContainer();
+                renderStep(STEP_ORDER.includes(wizard.currentStep) ? wizard.currentStep : 'warning');
+            } else if (wizard.mode === 'blank') {
+                hideOverlay();
+                updateReturnButton();
+            } else if (wizard.entryStage === 'mode') {
+                showModeChoice();
+            } else if (wizard.entryStage === 'npcType') {
+                showNpcChoice();
+            } else {
+                showTypeChoice();
+            }
         } else {
             updateReturnButton();
         }
     }
 
-    // Способ 1: событие vtm-sheet-ready (штатный путь)
-    window.addEventListener('vtm-sheet-ready', init);
-    if (window.__vtmSheetReady) init();
-
-    // Способ 2: DOMContentLoaded — показываем выбор типа немедленно если ?new=1
-    // (не ждём загрузки rules.json, которая может зависнуть)
     if (isNewMode()) {
-        if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', init);
-        } else {
-            setTimeout(init, 0);
-        }
+        openOverlay();
+        getOverlay().innerHTML = `<div class="cw-card" style="max-width:520px;margin-top:8vh">
+            <h1>Создание персонажа</h1>
+            <p style="color:#888;text-align:center">Подготавливаю правила и сохранённый прогресс…</p>
+        </div>`;
     }
 
-    // Способ 3: fallback через 2 сек на случай если всё предыдущее не сработало
-    setTimeout(init, 2000);
+    window.addEventListener('vtm-sheet-ready', init);
+    if (window.__vtmSheetReady) init();
 
     // Обновляем кнопку возврата при загрузке существующего персонажа
     window.addEventListener('vtm-character-loaded', () => {
         const existing = readExistingWizard();
         if (existing) wizard = Object.assign(defaultWizard(), existing);
+        window.__creationWizardData = wizard ? clone(wizard) : null;
         updateReturnButton();
     });
 })();
