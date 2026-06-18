@@ -2297,6 +2297,325 @@
     }
     .mortal-tracker-row .ok  { color: #4caf50; }
     .mortal-tracker-row .bad { color: #ff5555; }
+
+    /* ==================== МАСТЕР СОЗДАНИЯ ПЕРСОНАЖА ==================== */
+    #cw-overlay {
+        display: none;
+        position: fixed;
+        inset: 0;
+        z-index: 40000;
+        background: #0a0a0a;
+        overflow-y: auto;
+        padding: 24px 16px calc(40px + env(safe-area-inset-bottom));
+        font-family: 'Courier New', Courier, monospace;
+        color: #d0d0d0;
+    }
+    #cw-overlay.cw-open { display: block; }
+    body.cw-active { overflow: hidden; }
+
+    .cw-card {
+        max-width: 1180px;
+        margin: 0 auto;
+        background: #000;
+        border: 1px solid #222;
+        box-shadow: 0 0 40px rgba(255,49,49,0.1);
+        border-radius: 10px;
+        padding: 30px 32px 36px;
+    }
+    .cw-progress {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+        margin-bottom: 22px;
+    }
+    .cw-progress span {
+        flex: 1 1 26px;
+        height: 6px;
+        border-radius: 4px;
+        background: #1d1d1d;
+        min-width: 18px;
+    }
+    .cw-progress span.done { background: #5a1414; }
+    .cw-progress span.current { background: #ff3131; box-shadow: 0 0 10px rgba(255,49,49,0.6); }
+    .cw-step-meta {
+        color: #666;
+        font-size: 12px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin-bottom: 6px;
+    }
+    .cw-card h1 {
+        color: #ff3131;
+        text-align: center;
+        letter-spacing: 3px;
+        text-transform: uppercase;
+        font-size: 24px;
+        margin: 0 0 18px;
+    }
+    .cw-card h2.cw-sub {
+        color: #fff;
+        text-align: center;
+        letter-spacing: 2px;
+        font-size: 17px;
+        border: none;
+        margin: 0 0 18px;
+        padding: 0;
+    }
+    .cw-intro {
+        color: #ccc;
+        font-size: 15px;
+        line-height: 1.7;
+        background: #0d0d0d;
+        border: 1px solid #2a2a2a;
+        border-radius: 8px;
+        padding: 18px 20px;
+        margin-bottom: 22px;
+    }
+    .cw-hint {
+        color: #ffae00;
+        font-size: 13px;
+        line-height: 1.5;
+        background: #160f04;
+        border: 1px solid #664400;
+        border-radius: 6px;
+        padding: 11px 14px;
+        margin-bottom: 16px;
+    }
+    .cw-error {
+        color: #ff8080;
+        font-size: 13px;
+        line-height: 1.5;
+        background: #1a0d0d;
+        border: 1px solid #7a2222;
+        border-radius: 6px;
+        padding: 11px 14px;
+        margin-bottom: 16px;
+    }
+    .cw-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px 18px;
+        margin-bottom: 22px;
+    }
+    .cw-field.wide { grid-column: 1 / -1; }
+    .cw-field label {
+        display: block;
+        color: #777;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 6px;
+    }
+    .cw-field input,
+    .cw-field textarea {
+        width: 100%;
+        box-sizing: border-box;
+        background: #050505;
+        border: 1px solid #333;
+        border-radius: 6px;
+        color: #fff;
+        font: inherit;
+        font-size: 16px;
+        padding: 10px 12px;
+    }
+    .cw-field textarea { min-height: 130px; resize: vertical; line-height: 1.5; }
+    .cw-field input:focus,
+    .cw-field textarea:focus { outline: none; border-color: #ff3131; }
+    .cw-field.required label::after { content: ' *'; color: #ff3131; }
+
+    .cw-portrait-row {
+        display: flex;
+        gap: 16px;
+        align-items: flex-start;
+        margin-bottom: 22px;
+    }
+    .cw-portrait-preview {
+        width: 130px;
+        aspect-ratio: 3 / 4;
+        object-fit: cover;
+        border: 1px solid #2a2a2a;
+        border-radius: 6px;
+        background: #111;
+        flex-shrink: 0;
+    }
+    .cw-portrait-placeholder {
+        width: 130px;
+        aspect-ratio: 3 / 4;
+        border: 1px dashed #444;
+        border-radius: 6px;
+        background: #111;
+        color: #666;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+        flex-shrink: 0;
+    }
+
+    .cw-gallery {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+        gap: 16px;
+        margin-bottom: 22px;
+    }
+    .cw-tile {
+        background: #0d0d0d;
+        border: 1px solid #2a2a2a;
+        border-radius: 8px;
+        padding: 16px;
+        cursor: pointer;
+        transition: border-color 0.15s, background 0.15s, transform 0.1s;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+    .cw-tile:hover { border-color: #773030; background: #160c0c; transform: translateY(-2px); }
+    .cw-tile.selected { border-color: #ff3131; background: #220c0c; box-shadow: 0 0 16px rgba(255,49,49,0.25); }
+    .cw-tile-name { color: #ff3131; font-size: 18px; font-weight: bold; }
+    .cw-tile-badge {
+        display: inline-block;
+        align-self: flex-start;
+        font-size: 10px;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        color: #888;
+        border: 1px solid #444;
+        border-radius: 4px;
+        padding: 2px 6px;
+    }
+    .cw-tile-desc { color: #bbb; font-size: 13px; line-height: 1.5; }
+    .cw-tile-meta { color: #999; font-size: 12px; line-height: 1.5; }
+    .cw-tile-meta b { color: #ffae00; }
+
+    .cw-choice-grid {
+        display: grid;
+        gap: 14px;
+        max-width: 520px;
+        margin: 0 auto 24px;
+    }
+    .cw-choice-btn {
+        padding: 18px 20px;
+        font-size: 16px;
+        font-family: inherit;
+        background: #141414;
+        color: #fff;
+        border: 1px solid #333;
+        border-radius: 8px;
+        cursor: pointer;
+        text-align: center;
+        transition: all 0.15s;
+    }
+    .cw-choice-btn:hover { border-color: #ff3131; background: #2a1111; transform: translateY(-1px); }
+    .cw-choice-btn small { display: block; color: #888; font-size: 12px; margin-top: 6px; }
+
+    .cw-counter {
+        display: inline-flex;
+        gap: 14px;
+        flex-wrap: wrap;
+        background: #0d0d0d;
+        border: 1px solid #2a2a2a;
+        border-radius: 8px;
+        padding: 12px 16px;
+        margin-bottom: 18px;
+        font-size: 14px;
+    }
+    .cw-counter b { color: #ff3131; }
+    .cw-counter .ok { color: #36d675; }
+    .cw-counter .bad { color: #ff6666; }
+
+    .cw-alloc {
+        display: grid;
+        grid-template-columns: minmax(140px, 1fr) auto;
+        gap: 10px 14px;
+        align-items: center;
+        margin-bottom: 6px;
+    }
+    .cw-alloc-name { font-size: 14px; color: #ddd; }
+    .cw-alloc-dots { display: flex; gap: 6px; direction: rtl; }
+    .cw-alloc-dots .cw-dot {
+        width: 18px; height: 18px; border-radius: 50%;
+        border: 2px solid #555; background: #111; cursor: pointer;
+    }
+    .cw-alloc-dots .cw-dot.filled { background: #ff3131; border-color: #ff3131; box-shadow: 0 0 8px #ff3131; }
+    .cw-section-title {
+        color: #ff3131; letter-spacing: 2px; text-transform: uppercase;
+        font-size: 14px; margin: 20px 0 12px; border-bottom: 1px solid #222; padding-bottom: 8px;
+    }
+    .cw-twocol { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+
+    .cw-summary {
+        display: grid;
+        gap: 10px;
+        margin-bottom: 24px;
+    }
+    .cw-summary-row {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        padding: 10px 14px;
+        background: #0d0d0d;
+        border: 1px solid #232323;
+        border-radius: 6px;
+        font-size: 14px;
+    }
+    .cw-summary-row .lbl { color: #888; }
+    .cw-summary-row .val { color: #eee; text-align: right; }
+    .cw-summary-row .val.ok { color: #36d675; }
+    .cw-summary-row .val.bad { color: #ff6666; }
+
+    .cw-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 26px;
+        padding-top: 20px;
+        border-top: 1px solid #222;
+    }
+    .cw-btn {
+        padding: 13px 22px;
+        font-size: 15px;
+        font-family: inherit;
+        border-radius: 7px;
+        cursor: pointer;
+        border: 1px solid #444;
+        background: #1a1a1a;
+        color: #eee;
+        transition: all 0.15s;
+    }
+    .cw-btn:hover { border-color: #777; background: #242424; }
+    .cw-btn.primary { background: #ff3131; border-color: #ff3131; color: #fff; font-weight: bold; }
+    .cw-btn.primary:hover { background: #ff5151; }
+    .cw-btn.primary:disabled { opacity: 0.45; cursor: not-allowed; background: #5a1414; border-color: #5a1414; }
+    .cw-btn.ghost { background: transparent; }
+    .cw-btn.to-sheet { margin-left: auto; color: #9ab7ff; border-color: #3a4a6a; }
+    .cw-btn.to-sheet:hover { border-color: #9ab7ff; background: #0d1018; }
+
+    #cw-return-btn {
+        position: fixed;
+        right: 18px;
+        bottom: calc(18px + env(safe-area-inset-bottom));
+        z-index: 9000;
+        display: none;
+        padding: 14px 18px;
+        background: #ff3131;
+        color: #fff;
+        border: none;
+        border-radius: 8px;
+        font-family: 'Courier New', Courier, monospace;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        box-shadow: 0 4px 20px rgba(255,49,49,0.45);
+    }
+    #cw-return-btn:hover { background: #ff5151; }
+
+    @media (max-width: 700px) {
+        .cw-fields { grid-template-columns: 1fr; }
+        .cw-twocol { grid-template-columns: 1fr; gap: 0; }
+        .cw-card { padding: 22px 16px 28px; }
+        .cw-btn.to-sheet { margin-left: 0; }
+    }
   </style>
 </head>
 
@@ -3012,13 +3331,20 @@
 
 
 
+<!-- ==================== МАСТЕР СОЗДАНИЯ ПЕРСОНАЖА ==================== -->
+<div id="cw-overlay" role="dialog" aria-modal="true" aria-label="Создание персонажа">
+    <div class="cw-card" id="cw-card"></div>
+</div>
+<button type="button" id="cw-return-btn" onclick="returnToCreationWizard()">↩ Вернуться к пошаговому созданию персонажа</button>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 
 <script src="/vtm-health.js"></script>
 <script src="/main.js"></script>
-<script src="/supabase.js"></script> 
+<script src="/supabase.js"></script>
+<script src="/creation-wizard.js"></script>
 
 </body>
 </html>

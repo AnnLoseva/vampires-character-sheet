@@ -323,6 +323,7 @@ async function loadRules() {
         if (!response.ok) throw new Error('rules.json не найден');
 
         RULES = await response.json();
+        window.VTM_RULES = RULES;
 
         console.log('✅ RULES успешно загружены');
         console.log('Преимуществ:', Object.keys(RULES.advantages?.merits || {}).length);
@@ -7121,6 +7122,7 @@ function resetCharacterSheetForLoad() {
 
 function applyCharacterData(d, sourceName = 'JSON') {
     console.log(`📥 Загрузка персонажа из ${sourceName}:`, d);
+    window.__loadedCharacterData = d;
     isApplyingCharacterData = true;
 
     try {
@@ -7250,6 +7252,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         applySheetLockState();
         updateExpPurchasedStyles();
         renderExpHistory();
+        window.dispatchEvent(new CustomEvent('vtm-character-loaded'));
     }
 }
 
@@ -9138,7 +9141,25 @@ function runExperiencePurchase(callback) {
     }
 }
 
-function fixStartingSheet() {
+function fixStartingSheet({ silent = false } = {}) {
+    if (silent && !startingSheetFixed) {
+        if (!validatePlayerCreation({ silent: true })) return false;
+        if (!validateThinBloodBalance({ silent: true })) return false;
+        const hasExistingStartBase = startingSheetBase && Object.keys(startingSheetBase.levels || {}).length > 0;
+        if (!hasExistingStartBase) {
+            baseLevels = captureCurrentLevels();
+            sheetLockSnapshot = captureSheetSnapshot();
+            startingSheetBase = JSON.parse(JSON.stringify(sheetLockSnapshot));
+        } else {
+            if (!Object.keys(baseLevels || {}).length) baseLevels = captureCurrentLevels();
+            sheetLockSnapshot = captureSheetSnapshot();
+        }
+        startingSheetFixed = true;
+        applySheetLockState();
+        autoSaveSheetLockState();
+        updateExpPurchasedStyles();
+        return true;
+    }
     if (startingSheetFixed) {
         if (isPlayerVampire()) {
             alert("Стартовый лист уже зафиксирован. Дальнейшие изменения делаются через магазин опыта.");
