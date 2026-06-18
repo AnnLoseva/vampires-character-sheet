@@ -5,6 +5,7 @@
    ==================================================================== */
 (function () {
     'use strict';
+    console.log('[CW] creation-wizard.js загружен, ?new=1:', new URLSearchParams(window.location.search).get('new') === '1');
 
     const STEP_ORDER = [
         'warning', 'identity', 'clanFilter', 'clan', 'predator', 'generation',
