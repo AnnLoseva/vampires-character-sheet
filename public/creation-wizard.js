@@ -67,12 +67,16 @@
     // ---------- overlay show/hide ----------
     function openOverlay() {
         document.body.classList.add('cw-active');
-        el('cw-overlay').classList.add('cw-open');
-        el('cw-return-btn').style.display = 'none';
+        const overlay = getOverlay();
+        overlay.classList.add('cw-open');
+        overlay.style.display = 'block';
+        const btn = el('cw-return-btn');
+        if (btn) btn.style.display = 'none';
     }
     function hideOverlay() {
         document.body.classList.remove('cw-active');
-        el('cw-overlay').classList.remove('cw-open');
+        const overlay = el('cw-overlay');
+        if (overlay) { overlay.classList.remove('cw-open'); overlay.style.display = 'none'; }
     }
 
     function updateReturnButton() {
@@ -180,15 +184,16 @@
     function renderStep(step) {
         activeStep = step;
         wizard.currentStep = step;
+        const overlay = getOverlay();
         if (!el('cw-card')) {
-            el('cw-overlay').innerHTML = '<div class="cw-card" id="cw-card"></div>';
+            overlay.innerHTML = '<div class="cw-card" id="cw-card"></div>';
         }
         const card = el('cw-card');
         const renderer = RENDERERS[step];
         if (!renderer) return;
         card.innerHTML = renderer();
         card.scrollTop = 0;
-        el('cw-overlay').scrollTop = 0;
+        overlay.scrollTop = 0;
         bindNav(card);
         if (typeof AFTER_RENDER[step] === 'function') AFTER_RENDER[step]();
     }
@@ -755,27 +760,40 @@
             <div class="cw-choice-grid">${buttonsHtml}</div>
         </div>`;
     }
+    function getOverlay() {
+        let overlay = el('cw-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.id = 'cw-overlay';
+            overlay.setAttribute('role', 'dialog');
+            overlay.setAttribute('aria-modal', 'true');
+            // fallback-стиль если HTML-версия без CSS
+            overlay.style.cssText = 'display:none;position:fixed;inset:0;z-index:40000;background:#0a0a0a;overflow-y:auto;padding:24px 16px;font-family:"Courier New",monospace;color:#d0d0d0;';
+            document.body.appendChild(overlay);
+        }
+        return overlay;
+    }
     function showTypeChoice() {
         openOverlay();
-        el('cw-overlay').innerHTML = modalShell('Создать персонажа',
+        getOverlay().innerHTML = modalShell('Создать персонажа',
             choiceBtn('Создать вампира', 'typeVampire') +
             choiceBtn('Создать НПС', 'typeNpc'));
         bindTypeNav();
     }
     function showNpcChoice() {
-        el('cw-overlay').innerHTML = modalShell('Создать НПС',
+        getOverlay().innerHTML = modalShell('Создать НПС',
             choiceBtn('Вампир', 'npcVampire') +
             choiceBtn('Человек', 'npcHuman'));
         bindTypeNav();
     }
     function showModeChoice() {
-        el('cw-overlay').innerHTML = modalShell('Как создать персонажа?',
+        getOverlay().innerHTML = modalShell('Как создать персонажа?',
             choiceBtn('Лёгкое создание персонажа', 'modeGuided') +
             choiceBtn('Чистый лист', 'modeBlank'));
         bindTypeNav();
     }
     function bindTypeNav() {
-        el('cw-overlay').querySelectorAll('[data-cw]').forEach(b => {
+        getOverlay().querySelectorAll('[data-cw]').forEach(b => {
             b.addEventListener('click', () => typeNav(b.getAttribute('data-cw')));
         });
     }
@@ -835,41 +853,49 @@
 
     /* ================= ИНИЦИАЛИЗАЦИЯ ================= */
     function readExistingWizard() {
-        // Пытаемся восстановить creationWizard из уже загруженных данных персонажа
         if (window.__loadedCharacterData && window.__loadedCharacterData.creationWizard) {
             return JSON.parse(JSON.stringify(window.__loadedCharacterData.creationWizard));
         }
         return null;
     }
 
+    let _initDone = false;
     function init() {
-        const existing = readExistingWizard();
-        if (existing) {
-            wizard = Object.assign(defaultWizard(), existing);
-        }
+        if (_initDone) return;
+        _initDone = true;
 
-        // Следим за фиксацией листа, чтобы скрывать/показывать кнопку возврата
+        const existing = readExistingWizard();
+        if (existing) wizard = Object.assign(defaultWizard(), existing);
+
         try {
             new MutationObserver(updateReturnButton)
                 .observe(document.body, { attributes: true, attributeFilter: ['class'] });
         } catch (e) {}
 
         if (isNewMode()) {
-            // Новый персонаж — показываем выбор типа
             wizard = wizard || defaultWizard();
             showTypeChoice();
         } else {
-            // Существующий: показываем кнопку возврата, если лист не зафиксирован и мастер не завершён
             updateReturnButton();
         }
     }
 
-    // Хук: после готовности листа
-    if (window.__vtmSheetReady) {
-        setTimeout(init, 50);
-    } else {
-        window.addEventListener('vtm-sheet-ready', () => setTimeout(init, 50));
+    // Способ 1: событие vtm-sheet-ready (штатный путь)
+    window.addEventListener('vtm-sheet-ready', init);
+    if (window.__vtmSheetReady) init();
+
+    // Способ 2: DOMContentLoaded — показываем выбор типа немедленно если ?new=1
+    // (не ждём загрузки rules.json, которая может зависнуть)
+    if (isNewMode()) {
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', init);
+        } else {
+            setTimeout(init, 0);
+        }
     }
+
+    // Способ 3: fallback через 2 сек на случай если всё предыдущее не сработало
+    setTimeout(init, 2000);
 
     // Обновляем кнопку возврата при загрузке существующего персонажа
     window.addEventListener('vtm-character-loaded', () => {
