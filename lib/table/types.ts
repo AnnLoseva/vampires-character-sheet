@@ -185,6 +185,7 @@ export type CharacterOption = {
   generation?: string
   type?: string
   bloodPotency?: number
+  humanity?: number
   health?: NormalizedHealth
   willpower?: NormalizedWillpower
   damageProfile?: 'vampire' | 'mortal' | 'ghoul' | 'thinblood' | 'custom'
@@ -218,6 +219,13 @@ export type CharacterRow = {
     generation?: string
     type?: string
     bloodPotency?: number
+    baseHumanity?: string | number
+    humanity?: {
+      value?: number
+      base?: number
+    }
+    sheetFixed?: boolean
+    creationCompleted?: boolean
     blood?: {
       potency?: number
     }

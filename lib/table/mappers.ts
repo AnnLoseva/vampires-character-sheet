@@ -268,6 +268,7 @@ export function normalizeInventory(items: unknown): InventoryItem[] {
 export function mapCharacterRow(row: CharacterRow): CharacterOption {
   const data = row.data || {}
   const bloodPotency = Number(data.bloodPotency ?? data.blood?.potency ?? 0) || 0
+  const humanity = Math.max(1, Math.min(10, Number(data.humanity?.value ?? data.baseHumanity ?? 7) || 7))
   const damageProfile = normalizeDamageProfile(data.damageProfile, row.clan, data.type)
   const health = normalizeHealthTracker(data.vitalTrackers?.health, data.attributes?.['Выносливость'] || 0, damageProfile)
   const willpower = normalizeWillpowerTracker(data.vitalTrackers?.willpower, getWillpowerMaxFromAttributes(data.attributes || {}))
@@ -283,6 +284,7 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     generation: data.generation || '',
     type: data.type || '',
     bloodPotency,
+    humanity,
     health,
     notes: data.notes || data.backstory || '',
     appearance: data.appearance || '',
@@ -292,7 +294,7 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     damageProfile,
     physicalState: data.status?.physicalState || health.physicalState,
     lastAggravatedMendAt: data.healthState?.lastAggravatedMendAt,
-    sheetFixed: Boolean(data.sheetLock?.fixed),
+    sheetFixed: data.sheetFixed ?? data.sheetLock?.fixed ?? data.creationCompleted ?? true,
     vitalTrackers: normalizeVitalTrackers(data.vitalTrackers, willpower.max, health),
     inventory: normalizeInventory(data.inventory),
     attributes: data.attributes || {},

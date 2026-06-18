@@ -390,6 +390,13 @@ let healthState = {};
 const WILLPOWER_IMPAIRED_ATTRIBUTES = ['Обаяние', 'Манипуляция', 'Самообладание', 'Интеллект', 'Смекалка', 'Упорство'];
 const HEALTH_IMPAIRED_ATTRIBUTES = ['Сила', 'Ловкость', 'Выносливость'];
 
+function resolveCharacterSheetFixed(data = {}) {
+    if (typeof data.sheetFixed === 'boolean') return data.sheetFixed;
+    if (typeof data.sheetLock?.fixed === 'boolean') return data.sheetLock.fixed;
+    if (typeof data.creationCompleted === 'boolean') return data.creationCompleted;
+    return true;
+}
+
 function getVitalMax(key) {
     const config = VITAL_TRACKER_CONFIG[key];
     if (!config) return 0;
@@ -573,10 +580,13 @@ function getBloodSurgeBonus(bloodPotency = getCurrentBloodPotencyValue()) {
 
 function getVitalAutosavePatch() {
     const health = getHealthTracker();
+    const baseHumanity = parseInt(document.getElementById('base-humanity')?.value || '7', 10) || 7;
     return {
         vitalTrackers: getVitalTrackerData(),
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
+        baseHumanity: String(baseHumanity),
+        humanity: { value: getStartingHumanityValue(), base: baseHumanity },
         status: { physicalState: health.physicalState },
         healthState: { ...healthState }
     };
@@ -614,6 +624,8 @@ function renderVitalTracker(key) {
             valueEl.textContent = state.max;
             valueEl.setAttribute('data-tooltip', `Здоровье: доступно ${state.current} из ${state.max}`);
         }
+        const gameValueEl = document.getElementById('val-hp-game');
+        if (gameValueEl) gameValueEl.textContent = state.max;
         track.innerHTML = '';
         for (let index = 1; index <= state.max; index++) {
             const status = index <= state.aggravated
@@ -639,6 +651,8 @@ function renderVitalTracker(key) {
     }
     if (key === 'willpower') {
         const state = getWillpowerState(max);
+        const gameValueEl = document.getElementById('val-wp-game');
+        if (gameValueEl) gameValueEl.textContent = state.max;
         track.innerHTML = '';
         for (let index = 1; index <= max; index++) {
             const status = index <= state.aggravated
@@ -664,12 +678,18 @@ function renderVitalTracker(key) {
 
     const current = Math.max(0, Math.min(max, parseInt(vitalTrackers[key] || 0, 10) || 0));
     vitalTrackers[key] = current;
+    if (key === 'hunger') {
+        const initialHunger = document.getElementById('initial-hunger');
+        if (initialHunger) initialHunger.value = String(current);
+    }
     if (config.displayCurrent) {
         const valueEl = document.getElementById(config.valueId);
         if (valueEl) {
             valueEl.textContent = current;
             valueEl.setAttribute('data-tooltip', `${config.label} = ${current} из ${max}`);
         }
+        const gameValueEl = document.getElementById(`${config.valueId}-game`);
+        if (gameValueEl) gameValueEl.textContent = current;
     }
 
     track.innerHTML = '';
@@ -688,10 +708,13 @@ function renderVitalTracker(key) {
 
 function renderVitalTrackers() {
     Object.keys(VITAL_TRACKER_CONFIG).forEach(renderVitalTracker);
-    updateSheetFixedVisibility();
+    updateCreationSummaryFormulas();
+    updateVitalProfileVisibility();
+    updateCreationVsGameVitalsVisibility();
 }
 
 function setVitalTrackerValue(key, value) {
+    if (!isCharacterSheetFixed()) return;
     if (key === 'health') {
         cycleHealthCell(value);
         return;
@@ -732,6 +755,7 @@ function getHealthCellStatuses(state = getHealthTracker()) {
 }
 
 function cycleHealthCell(index) {
+    if (!isCharacterSheetFixed()) return;
     const before = getHealthTracker();
     const statuses = getHealthCellStatuses(before);
     const current = statuses[index - 1] || 'empty';
@@ -798,6 +822,7 @@ function applySheetHealthDamage(amount, severity, options = {}) {
 }
 
 function adjustSheetHealthDamage(severity, delta) {
+    if (!isCharacterSheetFixed()) return;
     const before = getHealthTracker();
     if (delta > 0) {
         applySheetHealthDamage(delta, severity, { source: 'manual', ignoreHalving: true });
@@ -819,6 +844,7 @@ function adjustSheetHealthDamage(severity, delta) {
 }
 
 function openSheetHealthDamagePrompt() {
+    if (!isCharacterSheetFixed()) return;
     const amount = parseInt(prompt('Сколько урона нанести?', '1') || '0', 10);
     if (!amount || amount < 1) return;
     const aggravated = confirm('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.');
@@ -835,6 +861,7 @@ function openSheetHealthDamagePrompt() {
 }
 
 async function mendSheetVampireSuperficial() {
+    if (!isCharacterSheetFixed()) return;
     if (getSheetDamageProfile() !== 'vampire' && getSheetDamageProfile() !== 'thinblood') {
         alert('Это лечение предназначено для вампиров. Для смертного используйте восстановление в начале встречи.');
         return;
@@ -860,6 +887,7 @@ async function mendSheetVampireSuperficial() {
 }
 
 async function mendSheetVampireAggravated() {
+    if (!isCharacterSheetFixed()) return;
     const before = getHealthTracker();
     if (before.aggravated < 1) return;
     if (!confirm('По правилам это можно делать не чаще одного раза за ночь и требует 3 Испытания Крови. Продолжить?')) return;
@@ -890,6 +918,7 @@ async function mendSheetVampireAggravated() {
 }
 
 function recoverSheetMortalHealth() {
+    if (!isCharacterSheetFixed()) return;
     if (!['mortal', 'ghoul', 'custom'].includes(getSheetDamageProfile())) {
         alert('Вампиры лечат лёгкие повреждения через Пробуждение Крови.');
         return;
@@ -906,6 +935,7 @@ function recoverSheetMortalHealth() {
 }
 
 function treatSheetMortalHealth() {
+    if (!isCharacterSheetFixed()) return;
     const before = getHealthTracker();
     if (before.aggravated < 1) return;
     const medicine = parseInt(prompt('Медицина лекаря:', '1') || '0', 10);
@@ -933,12 +963,14 @@ function treatSheetMortalHealth() {
 }
 
 function clearSheetHealth() {
+    if (!isCharacterSheetFixed()) return;
     if (!confirm('Полностью очистить шкалу здоровья?')) return;
     const before = getHealthTracker();
     setHealthTracker({ ...before, superficial: 0, aggravated: 0 }, { before, publish: true, reason: 'Здоровье очищено' });
 }
 
 function markSheetHealthDefeated() {
+    if (!isCharacterSheetFixed()) return;
     const profile = getSheetDamageProfile();
     const message = profile === 'vampire' ? 'Отметить торпор и заполнить шкалу X?' : 'Отметить кому/смерть и заполнить шкалу X?';
     if (!confirm(message)) return;
@@ -954,7 +986,15 @@ function markSheetHealthDefeated() {
 function setSheetDamageProfile(value) {
     damageProfile = window.VTMHealth.normalizeDamageProfile(value);
     renderVitalTracker('health');
+    updateVitalProfileVisibility();
     autoSaveVitalState({ immediate: true });
+}
+
+function updateVitalProfileVisibility() {
+    const usesVampireResources = ['vampire', 'thinblood'].includes(getSheetDamageProfile());
+    document.querySelectorAll('[data-vampire-resource="true"]').forEach(element => {
+        element.hidden = !usesVampireResources;
+    });
 }
 
 function setWillpowerTracker(nextTracker, { autosave = true, publish = false, reason = 'Воля обновлена', before = null, meta = {} } = {}) {
@@ -984,6 +1024,7 @@ function trackerFromWillpowerStatuses(statuses) {
 }
 
 function cycleWillpowerCell(index) {
+    if (!isCharacterSheetFixed()) return;
     const before = getWillpowerState();
     const statuses = getWillpowerCellStatuses(before);
     const current = statuses[index - 1] || 'empty';
@@ -1072,6 +1113,7 @@ function publishWillpowerEvent(reason, beforeState, afterState, meta = {}) {
 }
 
 function spendSheetWillpower(reason = 'Потратить Волю') {
+    if (!isCharacterSheetFixed()) return false;
     const before = getWillpowerState();
     const result = applyWillpowerStress(before, 1);
     if (result.applied < 1) {
@@ -1088,6 +1130,7 @@ function spendSheetWillpower(reason = 'Потратить Волю') {
 }
 
 function recoverSheetWillpowerSessionStart() {
+    if (!isCharacterSheetFixed()) return;
     const before = getWillpowerState();
     const amount = getWillpowerRecoveryPool();
     const result = recoverWillpowerStress(before, amount, 'superficial');
@@ -1100,6 +1143,7 @@ function recoverSheetWillpowerSessionStart() {
 }
 
 function recoverSheetWillpowerDesire() {
+    if (!isCharacterSheetFixed()) return;
     const before = getWillpowerState();
     const result = recoverWillpowerStress(before, 1, 'superficial');
     setWillpowerTracker(result.tracker, {
@@ -1111,6 +1155,7 @@ function recoverSheetWillpowerDesire() {
 }
 
 function recoverSheetWillpowerAggravated() {
+    if (!isCharacterSheetFixed()) return;
     const before = getWillpowerState();
     if (before.aggravated <= 0) return;
     if (!confirm('Снять один тяжёлый стресс Воли?')) return;
@@ -1124,6 +1169,7 @@ function recoverSheetWillpowerAggravated() {
 }
 
 function adjustSheetWillpowerStress(severity, delta) {
+    if (!isCharacterSheetFixed()) return;
     const before = getWillpowerState();
     const next = { superficial: before.superficial, aggravated: before.aggravated };
     if (severity === 'aggravated') {
@@ -1143,6 +1189,8 @@ function updateVitals() {
     document.getElementById('val-hp').textContent = hp;
     document.getElementById('val-hp').setAttribute('data-tooltip', 
         `Здоровье = Выносливость(${stamina}) + 3 = ${hp}`);
+    const healthFormula = document.getElementById('creation-health-formula');
+    if (healthFormula) healthFormula.textContent = `Выносливость ${stamina} + 3`;
 
     // Сила воли
     const composureInput = document.querySelector('input[name="Самообладание"]:checked');
@@ -1153,6 +1201,8 @@ function updateVitals() {
     document.getElementById('val-wp').textContent = wp;
     document.getElementById('val-wp').setAttribute('data-tooltip', 
         `Сила воли = Самообладание(${composure}) + Упорство(${resolve}) = ${wp}`);
+    const willpowerFormula = document.getElementById('creation-willpower-formula');
+    if (willpowerFormula) willpowerFormula.textContent = `Самообладание ${composure} + Упорство ${resolve}`;
     renderVitalTracker('health');
     renderVitalTracker('willpower');
 
@@ -1162,6 +1212,7 @@ function updateVitals() {
     // Сила крови
     updateBloodPotencyVital();
     renderVitalTracker('hunger');
+    updateCreationSummaryFormulas();
 }
 
 function updateBloodPotencyVital() {
@@ -1177,6 +1228,10 @@ function updateBloodPotencyVital() {
     if (!el) return;
     if ('value' in el) el.value = String(total);
     else el.textContent = total;
+    const summaryEl = document.getElementById('val-blood-potency-summary');
+    if (summaryEl) summaryEl.textContent = String(total);
+    const gameEl = document.getElementById('val-blood-potency-game');
+    if (gameEl) gameEl.textContent = String(total);
     let tip = `Сила крови: ${base} (от поколения/типа)`;
     if (predBonus) tip += ` + ${predBonus} (${predatorName})`;
     tip += ` = ${calculated}`;
@@ -1184,7 +1239,7 @@ function updateBloodPotencyVital() {
     el.setAttribute('data-tooltip', tip);
 }
 
-function updateHumanity() {
+function getStartingHumanityValue() {
     const predatorName = document.getElementById('predator-input').value;
     const type = document.getElementById('type-input')?.value;
     const baseHumanity = parseInt(document.getElementById('base-humanity')?.value || '7') || 7;
@@ -1196,7 +1251,18 @@ function updateHumanity() {
         predatorMod = RULES.predator_types[predatorName].humanity || 0;
     }
 
-    const humanity = Math.max(0, baseHumanity + typeMod + predatorMod);
+    return Math.max(1, Math.min(10, baseHumanity + typeMod + predatorMod));
+}
+
+function updateHumanity() {
+    const predatorName = document.getElementById('predator-input').value;
+    const type = document.getElementById('type-input')?.value;
+    const baseHumanity = parseInt(document.getElementById('base-humanity')?.value || '7') || 7;
+    const typeMod = getTypeBonuses(type).humanityMod || 0;
+    const predatorMod = predatorName && RULES.predator_types?.[predatorName]
+        ? RULES.predator_types[predatorName].humanity || 0
+        : 0;
+    const humanity = getStartingHumanityValue();
     const el = document.getElementById('val-humanity');
 
     if (el) {
@@ -1205,7 +1271,38 @@ function updateHumanity() {
         el.setAttribute('data-tooltip',
             `Человечность = старт(${baseHumanity}) + тип(${typeMod >= 0 ? '+' : ''}${typeMod}) + стиль охоты(${predatorMod >= 0 ? '+' : ''}${predatorMod}) = ${humanity}`);
     }
+    const gameEl = document.getElementById('val-humanity-game');
+    if (gameEl) gameEl.textContent = humanity;
+    const formulaEl = document.getElementById('creation-humanity-formula');
+    if (formulaEl) {
+        const modifiers = [
+            typeMod ? `тип ${typeMod > 0 ? '+' : ''}${typeMod}` : '',
+            predatorMod ? `стиль ${predatorMod > 0 ? '+' : ''}${predatorMod}` : ''
+        ].filter(Boolean);
+        formulaEl.textContent = modifiers.length
+            ? `Старт ${baseHumanity} · ${modifiers.join(' · ')} = ${humanity}`
+            : `Стартовая человечность: ${humanity}`;
+    }
     renderVitalTracker('humanity');
+}
+
+function updateCreationSummaryFormulas() {
+    const stamina = parseInt(document.querySelector('input[name="Выносливость"]:checked')?.value || '1', 10) || 1;
+    const composure = parseInt(document.querySelector('input[name="Самообладание"]:checked')?.value || '1', 10) || 1;
+    const resolve = parseInt(document.querySelector('input[name="Упорство"]:checked')?.value || '1', 10) || 1;
+    const healthFormula = document.getElementById('creation-health-formula');
+    const willpowerFormula = document.getElementById('creation-willpower-formula');
+    if (healthFormula) healthFormula.textContent = `Выносливость ${stamina} + 3`;
+    if (willpowerFormula) willpowerFormula.textContent = `Самообладание ${composure} + Упорство ${resolve}`;
+}
+
+function setInitialHunger(value) {
+    if (isCharacterSheetFixed()) return;
+    vitalTrackers.hunger = clampHunger(value);
+    const select = document.getElementById('initial-hunger');
+    if (select) select.value = String(vitalTrackers.hunger);
+    renderVitalTracker('hunger');
+    autoSaveVitalState();
 }
 
 
@@ -4307,6 +4404,7 @@ async function publishDiceRoll(roll) {
 }
 
 async function performSheetWillpowerCheck() {
+    if (!isCharacterSheetFixed()) return;
     const state = getWillpowerState();
     if (state.current < 1) {
         alert('Доступной Воли нет: проверку Воли бросить нельзя.');
@@ -4362,7 +4460,9 @@ window.treatSheetMortalHealth = treatSheetMortalHealth;
 window.clearSheetHealth = clearSheetHealth;
 window.markSheetHealthDefeated = markSheetHealthDefeated;
 window.setSheetDamageProfile = setSheetDamageProfile;
+window.setInitialHunger = setInitialHunger;
 window.performSheetRouseCheck = async () => {
+    if (!isCharacterSheetFixed()) return;
     const modal = getDiceRollModal();
     modal.querySelector('#dice-roll-title').textContent = 'Проверка Голода';
     modal.querySelector('#dice-roll-subtitle').textContent = 'Испытание Крови бросает один обычный d10. На 1–5 Голод растёт на 1.';
@@ -6618,9 +6718,14 @@ function getFullCharacterData() {
         type: document.getElementById('type-input')?.value || '',
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
+        sheetFixed: startingSheetFixed,
         status: { physicalState: getHealthTracker().physicalState },
         healthState: { ...healthState },
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
+        humanity: {
+            value: getStartingHumanityValue(),
+            base: parseInt(document.getElementById('base-humanity')?.value || '7', 10) || 7
+        },
         vitalTrackers: getVitalTrackerData(),
         freeExp: getCurrentXP(),
         expHistory: JSON.parse(JSON.stringify(expHistory || [])),
@@ -6745,13 +6850,17 @@ function applyCharacterData(d, sourceName = 'JSON') {
         document.getElementById('predator-input').value = d.predator || '';
         if (document.getElementById('generation-input')) document.getElementById('generation-input').value = d.generation || '';
         if (document.getElementById('type-input')) document.getElementById('type-input').value = d.type || '';
-        if (document.getElementById('base-humanity')) document.getElementById('base-humanity').value = d.baseHumanity || '7';
+        if (document.getElementById('base-humanity')) {
+            document.getElementById('base-humanity').value = String(d.humanity?.base ?? d.baseHumanity ?? d.humanity?.value ?? '7');
+        }
         const savedBloodPotency = d.bloodPotency ?? d.blood?.potency;
         explicitBloodPotency = savedBloodPotency === undefined || savedBloodPotency === null ? null : clampBloodPotency(savedBloodPotency);
         damageProfile = window.VTMHealth.normalizeDamageProfile(d.damageProfile, d.clan, d.type);
         characterPhysicalState = d.status?.physicalState || 'healthy';
         healthState = d.healthState && typeof d.healthState === 'object' ? { ...d.healthState } : {};
         vitalTrackers = normalizeVitalTrackerData(d.vitalTrackers || {});
+        const initialHunger = document.getElementById('initial-hunger');
+        if (initialHunger) initialHunger.value = String(clampHunger(vitalTrackers.hunger));
         if (document.getElementById('free-exp')) document.getElementById('free-exp').value = parseInt(d.freeExp ?? d.experience ?? 0, 10) || 0;
         expHistory = Array.isArray(d.expHistory) ? JSON.parse(JSON.stringify(d.expHistory)) : [];
         renderExpHistory();
@@ -6804,7 +6913,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         selectedThinBloodFlaws = Array.isArray(d.thinBloodFlaws) ? [...d.thinBloodFlaws] : [];
         enforceClanSpecificRules();
 
-        startingSheetFixed = Boolean(d.sheetLock?.fixed);
+        startingSheetFixed = resolveCharacterSheetFixed(d);
         const savedBaseLevels = d.sheetLock?.baseLevels;
         baseLevels = (savedBaseLevels && Object.keys(savedBaseLevels).length > 0)
             ? JSON.parse(JSON.stringify(savedBaseLevels))
@@ -6898,7 +7007,10 @@ function setupGenerationHint() {
         renderSelectedMeritsFlaws();
     });
     if (genSelect) genSelect.addEventListener('change', updateBloodPotencyAndBonuses);
-    if (baseHumanitySelect) baseHumanitySelect.addEventListener('change', updateHumanity);
+    if (baseHumanitySelect) baseHumanitySelect.addEventListener('change', () => {
+        updateHumanity();
+        autoSaveVitalState();
+    });
 }
 
 function setupBloodPotencyField() {
@@ -8510,9 +8622,14 @@ function captureSheetSnapshot() {
         type: document.getElementById('type-input')?.value || '',
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
+        sheetFixed: startingSheetFixed,
         status: { physicalState: getHealthTracker().physicalState },
         healthState: { ...healthState },
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
+        humanity: {
+            value: getStartingHumanityValue(),
+            base: parseInt(document.getElementById('base-humanity')?.value || '7', 10) || 7
+        },
         vitalTrackers: getVitalTrackerData(),
         skillPackage: document.getElementById('skill-package')?.value || '',
         levels: captureCurrentLevels(),
@@ -8546,7 +8663,7 @@ function applySheetLockState() {
             : "Зафиксировать текущие значения как стартовый лист";
     }
 
-    const lockedControls = document.querySelectorAll('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, .locked-origin-control');
+    const lockedControls = document.querySelectorAll('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #damage-profile, #initial-hunger, #val-blood-potency, .locked-origin-control');
     lockedControls.forEach(control => {
         const shouldDisable = startingSheetFixed && !expShopMode;
         control.disabled = shouldDisable;
@@ -8566,6 +8683,10 @@ function isCharacterSheetFixed() {
 }
 
 function updateSheetFixedVisibility() {
+    updateCreationVsGameVitalsVisibility();
+}
+
+function updateCreationVsGameVitalsVisibility() {
     const fixed = isCharacterSheetFixed();
 
     document
@@ -8576,17 +8697,29 @@ function updateSheetFixedVisibility() {
         });
 
     document
-        .querySelectorAll('[data-creation-control="true"]')
+        .querySelectorAll('[data-visible-before-fixed="true"]')
         .forEach(element => {
-            element.hidden = false;
-            element.style.display = '';
+            element.hidden = fixed;
+            element.style.display = fixed ? 'none' : '';
         });
+
+    document
+        .querySelectorAll('[data-visible-after-fixed="true"]')
+        .forEach(element => {
+            element.hidden = !fixed;
+            element.style.display = fixed ? '' : 'none';
+        });
+
+    updateVitalProfileVisibility();
 }
 
 function autoSaveSheetLockState() {
     if (!window.autoSaveCharacterPatch || isApplyingCharacterData) return;
     const data = getFullCharacterData();
-    window.autoSaveCharacterPatch({ sheetLock: data.sheetLock }, { silent: true });
+    window.autoSaveCharacterPatch({
+        sheetFixed: data.sheetFixed,
+        sheetLock: data.sheetLock
+    }, { silent: true });
 }
 
 function isSheetLockedTarget(target) {
@@ -8597,7 +8730,7 @@ function isSheetLockedTarget(target) {
     const dotLabel = target.closest('.dot-label');
     const dotRow = dotLabel?.closest('.row');
     if ((dotLabel && (dotRow?.querySelector('.attr-name') || dotRow?.querySelector('.skill-name'))) || target.closest('.discipline-item:not(.xp-shop-discipline-option) .disc-dot')) return false;
-    if (target.closest('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, .locked-origin-control, .dot-label, .dot-input, .disc-dot, .s-badge, .add-power-btn, .remove-disc-btn, .merit-add-btn, .selected-item-remove')) return true;
+    if (target.closest('#clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #damage-profile, #initial-hunger, #val-blood-potency, .locked-origin-control, .dot-label, .dot-input, .disc-dot, .s-badge, .add-power-btn, .remove-disc-btn, .merit-add-btn, .selected-item-remove')) return true;
     if (target.closest('.skill-spec-line button, .skill-spec-line input')) return true;
     if (target.closest('.attr-name, .skill-name, .skill-spec-line')) return false;
     const disciplineItem = target.closest('.discipline-item:not(.xp-shop-discipline-option)');

@@ -1950,6 +1950,57 @@ export default function GameTableStyles() {
           padding: 12px;
         }
 
+        .preview-creation-vitals {
+          display: grid;
+          gap: 12px;
+        }
+
+        .preview-creation-vitals > div {
+          display: grid;
+          gap: 3px;
+        }
+
+        .preview-creation-vitals > div span {
+          color: #ff8d8d;
+          font-size: 10px;
+          text-transform: uppercase;
+        }
+
+        .preview-creation-vitals > div strong {
+          color: #f3f3f3;
+          font-size: 14px;
+        }
+
+        .preview-creation-vitals dl {
+          display: grid;
+          grid-template-columns: repeat(5, minmax(0, 1fr));
+          gap: 8px;
+          margin: 0;
+        }
+
+        .preview-creation-vitals dl > div {
+          display: grid;
+          gap: 5px;
+          border: 1px solid #2f2f2f;
+          border-radius: 5px;
+          background: #0c0c0c;
+          padding: 10px;
+          text-align: center;
+        }
+
+        .preview-creation-vitals dt {
+          color: #888;
+          font-size: 9px;
+          text-transform: uppercase;
+        }
+
+        .preview-creation-vitals dd {
+          margin: 0;
+          color: #f4f4f4;
+          font-size: 22px;
+          font-weight: 800;
+        }
+
         .preview-section-heading {
           display: flex;
           justify-content: space-between;
@@ -4673,6 +4724,10 @@ export default function GameTableStyles() {
           }
 
           .character-preview-summary {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+
+          .preview-creation-vitals dl {
             grid-template-columns: repeat(2, minmax(0, 1fr));
           }
 

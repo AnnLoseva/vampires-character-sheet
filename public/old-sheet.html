@@ -132,6 +132,39 @@
         padding: 20px;
     }
 
+    .sheet-import-actions {
+        display: flex;
+        margin-bottom: 4px;
+    }
+
+    .sheet-import-actions button {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #a14600;
+        border-radius: 6px;
+        background: #222;
+        color: #ffae00;
+        cursor: pointer;
+        font: inherit;
+        font-size: 14px;
+    }
+
+    .sheet-import-actions button:hover {
+        border-color: #ff9500;
+        background: #2a1805;
+    }
+
+    .sheet-save-export-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .sheet-save-export-actions > button {
+        width: 100%;
+        margin-top: 0 !important;
+    }
+
     .sheet-tabs {
         display: grid;
         gap: 8px;
@@ -587,6 +620,76 @@
             background: #080808; 
             border: 1px solid #333; 
             border-radius: 8px;
+        }
+
+        .vitals-creation-summary {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(130px, 1fr));
+            gap: 18px;
+            align-items: stretch;
+        }
+
+        .creation-vital-card {
+            min-width: 0;
+            min-height: 150px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            gap: 8px;
+            padding: 16px 12px;
+            border: 1px solid #252525;
+            border-radius: 7px;
+            background: #0d0d0d;
+            text-align: center;
+        }
+
+        .creation-vital-title {
+            color: #777;
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+        }
+
+        .creation-vital-value {
+            color: #f4f4f4;
+            font-size: 44px;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .creation-vital-formula {
+            min-height: 34px;
+            color: #777;
+            font-size: 11px;
+            line-height: 1.45;
+        }
+
+        .creation-vital-control {
+            width: 100%;
+            max-width: 190px;
+            margin-top: auto;
+        }
+
+        .creation-vital-control select {
+            width: 100% !important;
+            min-width: 0;
+            box-sizing: border-box;
+            padding: 7px 30px 7px 9px !important;
+            font-size: 12px !important;
+        }
+
+        .vitals-game-trackers {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(130px, 1fr));
+            gap: 18px;
+            align-items: start;
+        }
+
+        [data-visible-before-fixed="true"][hidden],
+        [data-visible-after-fixed="true"][hidden],
+        [data-vampire-resource="true"][hidden] {
+            display: none !important;
         }
 
         .row { 
@@ -2012,6 +2115,15 @@
                 padding: 18px 14px;
             }
 
+            .vitals-creation-summary,
+            .vitals-game-trackers {
+                grid-template-columns: 1fr;
+            }
+
+            .creation-vital-card {
+                min-height: 0;
+            }
+
             .vital-item {
                 display: flex;
                 justify-content: space-between;
@@ -2202,9 +2314,6 @@
                 <button type="button" data-sheet-tab="mechanics" onclick="switchSheetSection('mechanics')">Броски / механика</button>
                 <button type="button" data-sheet-tab="inventory" onclick="switchSheetSection('inventory')">Инвентарь</button>
             </nav>
-            <button onclick="importFromJSON()" style="width:100%; margin:8px 0 12px 0; padding:10px; background:#222; color:#ffae00; border:1px solid #a14600; border-radius:4px; cursor:pointer; font-size:14px;">
-                Импорт персонажа (JSON)
-            </button>
             <div id="startup-trackers">
             <div id="attr-tracker"></div>
 
@@ -2472,23 +2581,90 @@
     <h2>Навыки</h2>
     <div class="grid" id="skills-grid"></div>
 
-<div class="vitals">
+<section class="vitals vitals-creation-summary" data-visible-before-fixed="true" aria-label="Стартовые витальные параметры">
+    <div class="creation-vital-card">
+        <span class="creation-vital-title">Здоровье</span>
+        <strong id="val-hp" class="creation-vital-value" data-tooltip="Здоровье = Выносливость + 3">4</strong>
+        <small id="creation-health-formula" class="creation-vital-formula">Выносливость 1 + 3</small>
+        <label class="creation-vital-control">
+            <select id="damage-profile" onchange="setSheetDamageProfile(this.value)" aria-label="Профиль существа">
+                <option value="vampire">Профиль: вампир</option>
+                <option value="thinblood">Профиль: слабокровный</option>
+                <option value="ghoul">Профиль: гуль</option>
+                <option value="mortal">Профиль: смертный</option>
+                <option value="custom">Профиль: другое / ручной</option>
+            </select>
+        </label>
+    </div>
+    <div class="creation-vital-card">
+        <span class="creation-vital-title">Сила воли</span>
+        <strong id="val-wp" class="creation-vital-value" data-tooltip="Сила воли = Самообладание + Упорство">2</strong>
+        <small id="creation-willpower-formula" class="creation-vital-formula">Самообладание 1 + Упорство 1</small>
+    </div>
+    <div class="creation-vital-card vampire-only" data-vampire-resource="true">
+        <span class="creation-vital-title">Человечность</span>
+        <strong id="val-humanity" class="creation-vital-value" data-tooltip="Стартовая Человечность с модификаторами">7</strong>
+        <small id="creation-humanity-formula" class="creation-vital-formula">Стартовая человечность: 7</small>
+        <label class="creation-vital-control">
+            <select id="base-humanity" aria-label="Стартовая человечность">
+                <option value="1">Старт 1</option>
+                <option value="2">Старт 2</option>
+                <option value="3">Старт 3</option>
+                <option value="4">Старт 4</option>
+                <option value="5">Старт 5</option>
+                <option value="6">Старт 6</option>
+                <option value="7" selected>Старт 7</option>
+                <option value="8">Старт 8</option>
+                <option value="9">Старт 9</option>
+                <option value="10">Старт 10</option>
+            </select>
+        </label>
+    </div>
+    <div class="creation-vital-card vampire-only" data-vampire-resource="true">
+        <span class="creation-vital-title">Голод</span>
+        <strong id="val-hunger" class="creation-vital-value" data-tooltip="Начальный уровень Голода">0</strong>
+        <small class="creation-vital-formula">Начальное значение</small>
+        <label class="creation-vital-control">
+            <select id="initial-hunger" onchange="setInitialHunger(this.value)" aria-label="Начальный голод">
+                <option value="0" selected>Начальный голод: 0</option>
+                <option value="1">Начальный голод: 1</option>
+                <option value="2">Начальный голод: 2</option>
+                <option value="3">Начальный голод: 3</option>
+                <option value="4">Начальный голод: 4</option>
+                <option value="5">Начальный голод: 5</option>
+            </select>
+        </label>
+    </div>
+    <div class="creation-vital-card vampire-only" data-vampire-resource="true">
+        <span class="creation-vital-title">Сила крови</span>
+        <strong id="val-blood-potency-summary" class="creation-vital-value">0</strong>
+        <small class="creation-vital-formula">Стартовое значение</small>
+        <label class="creation-vital-control">
+            <select id="val-blood-potency" aria-label="Сила крови">
+                <option value="0" selected>Сила крови: 0</option>
+                <option value="1">Сила крови: 1</option>
+                <option value="2">Сила крови: 2</option>
+                <option value="3">Сила крови: 3</option>
+                <option value="4">Сила крови: 4</option>
+                <option value="5">Сила крови: 5</option>
+                <option value="6">Сила крови: 6</option>
+                <option value="7">Сила крови: 7</option>
+                <option value="8">Сила крови: 8</option>
+                <option value="9">Сила крови: 9</option>
+                <option value="10">Сила крови: 10</option>
+            </select>
+        </label>
+    </div>
+</section>
+
+<section class="vitals vitals-game-trackers" data-visible-after-fixed="true" aria-label="Игровые витальные трекеры">
     <div class="vital-item">
         <span>Здоровье</span>
         <div class="vital-stack">
-            <div id="val-hp" class="vital-value" style="color:white" data-tooltip="Здоровье = Выносливость + 3">4</div>
+            <div id="val-hp-game" class="vital-value" style="color:white">4</div>
             <div id="track-health" class="vital-track" aria-label="Закрашенные клетки здоровья"></div>
             <small id="track-health-caption" class="vital-track-caption">0 / 4</small>
-            <div class="tracker-creation-control" data-creation-control="true">
-                <select id="damage-profile" class="health-profile" onchange="setSheetDamageProfile(this.value)">
-                    <option value="vampire">Профиль: вампир</option>
-                    <option value="mortal">Профиль: смертный</option>
-                    <option value="ghoul">Профиль: гуль</option>
-                    <option value="thinblood">Профиль: слабокровный</option>
-                    <option value="custom">Профиль: ручной</option>
-                </select>
-            </div>
-            <div class="health-controls tracker-game-actions" data-requires-fixed-sheet="true" aria-label="Управление Здоровьем">
+            <div class="health-controls tracker-game-actions" aria-label="Управление Здоровьем">
                 <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('superficial', 1)">+1 лёгкое</button>
                 <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('aggravated', 1)">+1 тяжёлое</button>
                 <button type="button" class="rouse-check-btn" onclick="openSheetHealthDamagePrompt()">+N урона</button>
@@ -2509,10 +2685,10 @@
     <div class="vital-item">
         <span>Сила воли</span>
         <div class="vital-stack">
-            <div id="val-wp" class="vital-value" style="color:white" data-tooltip="Сила воли = Самообладание + Упорство">2</div>
+            <div id="val-wp-game" class="vital-value" style="color:white">2</div>
             <div id="track-willpower" class="vital-track" aria-label="Закрашенные клетки силы воли"></div>
             <small id="track-willpower-caption" class="vital-track-caption">0 / 2</small>
-            <div class="willpower-controls tracker-game-actions" data-requires-fixed-sheet="true" aria-label="Управление Волей">
+            <div class="willpower-controls tracker-game-actions" aria-label="Управление Волей">
                 <button type="button" class="rouse-check-btn" onclick="spendSheetWillpower()">Потратить</button>
                 <button type="button" class="rouse-check-btn" onclick="performSheetWillpowerCheck()">Проверка</button>
                 <button type="button" class="rouse-check-btn" onclick="recoverSheetWillpowerSessionStart()">Встреча</button>
@@ -2527,36 +2703,30 @@
             </div>
         </div>
     </div>
-    <div class="vital-item vampire-only">
+    <div class="vital-item vampire-only" data-vampire-resource="true">
         <span>Человечность</span>
         <div class="vital-humanity-stack">
-            <div id="val-humanity" class="vital-value" style="color:white" data-tooltip="Базовая Человечность = старт (7 или 8) + модификатор от типа и стиля охоты">7</div>
+            <div id="val-humanity-game" class="vital-value" style="color:white">7</div>
             <div id="track-humanity" class="vital-track" aria-label="Закрашенные клетки человечности"></div>
             <small id="track-humanity-caption" class="vital-track-caption">0 / 7</small>
-            <div class="humanity-start-control" data-creation-control="true">
-                <select id="base-humanity" style="background:#111; color:#fff; border:1px solid #444; border-radius:4px; padding:2px 6px; font-size:12px;">
-                    <option value="7" selected>Старт 7</option>
-                    <option value="8">Старт 8</option>
-                </select>
-            </div>
         </div>
     </div>
-    <div class="vital-item vampire-only">
+    <div class="vital-item vampire-only" data-vampire-resource="true">
         <span>Голод</span>
         <div class="vital-stack">
-            <div id="val-hunger" class="vital-value" style="color:white" data-tooltip="Голод = текущий уровень голода">0</div>
+            <div id="val-hunger-game" class="vital-value" style="color:white">0</div>
             <div id="track-hunger" class="vital-track" aria-label="Закрашенные клетки голода"></div>
             <small id="track-hunger-caption" class="vital-track-caption">0 / 5</small>
-            <div class="tracker-game-actions" data-requires-fixed-sheet="true">
+            <div class="tracker-game-actions">
                 <button type="button" class="rouse-check-btn" onclick="performSheetRouseCheck()">Проверить Голод</button>
             </div>
         </div>
     </div>
-    <div class="vital-item vampire-only">
+    <div class="vital-item vampire-only" data-vampire-resource="true">
         <span>Сила крови</span>
-        <input id="val-blood-potency" class="blood-potency" type="number" min="0" max="10" value="0" data-tooltip="Сила крови = от поколения + тип + стиль охоты">
+        <div id="val-blood-potency-game" class="vital-value" style="color:white">0</div>
     </div>
-</div>
+</section>
 
     <div class="vampire-only" style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333;">
         <h2 style="text-align:center; margin-bottom:15px;">Дисциплины</h2>
@@ -2714,23 +2884,28 @@
         <div class="hint-content" id="generation-hint-content"></div>
     </div>
 
+            <div class="sheet-import-actions">
+                <button type="button" onclick="importFromJSON()">Импорт персонажа (JSON)</button>
+            </div>
+
             <!-- Кнопки сохранения и экспорта -->
-            <button id="btn-save" style="padding:18px; font-size:16px;">
-                Скачать как картинку (JPG)
-            </button>
-            <button id="btn-pdf" onclick="generateSheetPDF()">
-                Скачать социалку (PDF)
-            </button>
+            <div class="sheet-save-export-actions">
+                <button id="btn-save" style="padding:18px; font-size:16px;">
+                    Скачать как картинку (JPG)
+                </button>
+                <button id="btn-pdf" onclick="generateSheetPDF()">
+                    Скачать социалку (PDF)
+                </button>
 
-            <button onclick="exportToJSON()" style="padding:16px; font-size:16px; background:#111; color:#ffae00; border:2px solid #a14600;">
-                Экспорт в JSON
-            </button>
+                <button onclick="exportToJSON()" style="padding:16px; font-size:16px; background:#111; color:#ffae00; border:2px solid #a14600;">
+                    Экспорт в JSON
+                </button>
 
-
-            <!-- Кнопка сохранения в Supabase -->
-            <button onclick="saveCharacter()" style="padding:16px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
-                💾 Сохранить в Личный кабинет
-            </button>
+                <!-- Кнопка сохранения в Supabase -->
+                <button onclick="saveCharacter()" style="padding:16px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
+                    💾 Сохранить в Личный кабинет
+                </button>
+            </div>
             <div id="autosave-status" class="autosave-status" role="status" aria-live="polite"></div>
 
             <button onclick="showMyCharacters()" style="padding:16px; font-size:16px; background:#444; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">

@@ -2159,13 +2159,14 @@ export default function VampireTable() {
   const previewPoolBeforeLimit = previewAttributeDots + previewAttributeTwoDots + previewSkillDots + previewDisciplineDots + previewRollModifier
   const previewWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewCharacter)
   const previewHealth = getCharacterHealth(previewCharacter)
-  const previewSheetFixed = Boolean(previewCharacter?.sheetFixed)
+  const previewSheetFixed = previewCharacter?.sheetFixed ?? true
   const previewHealthImpairmentPenalty = getHealthImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewHealth)
   const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit + previewWillpowerImpairmentPenalty + previewHealthImpairmentPenalty))
   const previewBloodPotency = getCharacterBloodPotency(previewCharacter)
   const previewBloodSurgeBonus = getBloodSurgeBonus(previewBloodPotency)
   const previewHunger = getCharacterHunger(previewCharacter)
   const previewWillpower = getCharacterWillpower(previewCharacter)
+  const previewHumanity = Math.max(1, Math.min(10, Number(previewCharacter?.humanity ?? 7) || 7))
   const canRollPreview = Boolean(previewCharacter?.id && (isMaster || previewCharacter.id === selectedActiveCharacter?.id))
   const canEditPreviewInventory = Boolean(chatUser && previewCharacter?.id && previewCharacter.id === selectedActiveCharacter?.id)
   const previewExtraAttributes = previewCharacter ? getExtraTraitNames(previewCharacter.attributes, ATTRIBUTE_GROUPS) : []
@@ -7241,8 +7242,9 @@ export default function VampireTable() {
 
               {previewCharacterTab === 'mechanics' ? (
                 <div className="character-mechanics-sheet">
-                  {!previewSheetFixed ? <p className="preview-roll-notice">Лист ещё не зафиксирован</p> : null}
-                  <section className="preview-blood-panel">
+                  {previewSheetFixed ? (
+                    <>
+                    <section className="preview-blood-panel">
                     <div className="preview-section-heading">
                       <div>
                         <span>Голод и кровь</span>
@@ -7265,7 +7267,7 @@ export default function VampireTable() {
                         </button>
                       ) : null}
                     </div>
-                  </section>
+                    </section>
                   <section className="preview-willpower-panel">
                     <div className="preview-section-heading">
                       <div>
@@ -7411,6 +7413,22 @@ export default function VampireTable() {
                       <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'aggravated', -1)} disabled={!canRollPreview}>- X</button>
                     </div> : null}
                   </section>
+                    </>
+                  ) : (
+                    <section className="preview-creation-vitals">
+                      <div>
+                        <span>Лист ещё не зафиксирован</span>
+                        <strong>Стартовые значения</strong>
+                      </div>
+                      <dl>
+                        <div><dt>Здоровье</dt><dd>{previewHealth.max}</dd></div>
+                        <div><dt>Воля</dt><dd>{previewWillpower.max}</dd></div>
+                        <div><dt>Человечность</dt><dd>{previewHumanity}</dd></div>
+                        <div><dt>Голод</dt><dd>{previewHunger}</dd></div>
+                        <div><dt>Сила Крови</dt><dd>{previewBloodPotency}</dd></div>
+                      </dl>
+                    </section>
+                  )}
                   <section className="preview-roll-builder">
                     <div className="preview-section-heading">
                       <div>
