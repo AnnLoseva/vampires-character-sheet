@@ -1,3 +1,5 @@
+import type { Conviction, HumanityStainEvent, HumanityState, HumanityStatus, MoralityState, Touchstone } from '@/lib/vtm/humanity'
+
 export type Die = {
   id?: string
   value: number
@@ -85,8 +87,20 @@ export type HealthMetaState = {
   physicalState?: NormalizedHealth['physicalState']
 }
 
+export type HumanityRollMeta = {
+  humanityBefore?: number
+  humanityAfter?: number
+  stainsBefore?: number
+  stainsAfter?: number
+  remorseDice?: number
+  automaticFailure?: boolean
+  humanityLost?: boolean
+  stainEvents?: HumanityStainEvent[]
+}
+
 export type RollMeta = {
   characterId?: string
+  rollKind?: 'humanity_check' | 'remorse_check'
   rollMode?: RollMode
   contested?: {
     requestId?: string
@@ -129,6 +143,14 @@ export type RollMeta = {
   healthImpaired?: boolean
   healthImpairmentPenaltyApplied?: number
   physicalState?: NormalizedHealth['physicalState']
+  humanityBefore?: number
+  humanityAfter?: number
+  stainsBefore?: number
+  stainsAfter?: number
+  remorseDice?: number
+  automaticFailure?: boolean
+  humanityLost?: boolean
+  stainEvents?: HumanityStainEvent[]
   damage?: {
     source: string
     originalAmount: number
@@ -148,7 +170,7 @@ export type RollMeta = {
   }
   messyCritical?: boolean
   bestialFailure?: boolean
-  source?: 'manual' | 'discipline' | 'blood_surge' | 'rouse_check' | 'character_sheet' | 'willpower' | 'health' | 'physical_conflict'
+  source?: 'manual' | 'discipline' | 'blood_surge' | 'rouse_check' | 'character_sheet' | 'willpower' | 'health' | 'physical_conflict' | 'humanity'
   warnings?: string[]
   discipline?: {
     name: string
@@ -193,6 +215,11 @@ export type ChatUser = {
 
 export type CharacterType = 'vampire' | 'mortal' | 'ghoul' | 'thinblood'
 
+export type CharacterHumanity = HumanityState & {
+  freeBoxes: number
+  status: HumanityStatus
+}
+
 export type CharacterOption = {
   id: string
   name: string
@@ -206,7 +233,8 @@ export type CharacterOption = {
   type?: string
   characterType: CharacterType
   bloodPotency?: number
-  humanity?: number
+  humanity?: CharacterHumanity
+  morality?: MoralityState
   health?: NormalizedHealth
   willpower?: NormalizedWillpower
   damageProfile?: 'vampire' | 'mortal' | 'ghoul' | 'thinblood' | 'custom'
@@ -246,10 +274,7 @@ export type CharacterRow = {
     hasBeenSaved?: boolean
     bloodPotency?: number
     baseHumanity?: string | number
-    humanity?: {
-      value?: number
-      base?: number
-    }
+    humanity?: number | (Partial<HumanityState> & { base?: number })
     sheetFixed?: boolean
     creationCompleted?: boolean
     blood?: {
@@ -258,6 +283,7 @@ export type CharacterRow = {
     damageProfile?: CharacterOption['damageProfile']
     status?: {
       physicalState?: NormalizedHealth['physicalState']
+      humanityState?: 'lost_to_beast'
     }
     healthState?: {
       lastAggravatedMendAt?: string
@@ -272,6 +298,12 @@ export type CharacterRow = {
     experience?: number
     vitalTrackers?: VitalTrackers
     inventory?: InventoryItem[]
+    morality?: {
+      chronicleTenets?: string[]
+      convictions?: Array<string | Partial<Conviction>>
+      touchstones?: Array<string | Partial<Touchstone>>
+    }
+    touchstones?: Array<string | { text?: string; name?: string; image?: string }>
     attributes?: Record<string, number>
     skills?: Record<string, number | { dots?: number; specs?: string[] }>
     disciplines?: Record<string, Record<string, number>>

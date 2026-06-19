@@ -686,6 +686,14 @@
             align-items: start;
         }
 
+        .vitals-game-trackers .humanity-vital-item {
+            grid-column: 1 / -1;
+            border: 1px solid #292929;
+            border-radius: 8px;
+            background: #0d0d0d;
+            padding: 16px;
+        }
+
         [data-visible-before-fixed="true"][hidden],
         [data-visible-after-fixed="true"][hidden],
         [data-vampire-resource="true"][hidden] {
@@ -859,8 +867,9 @@
 
         .vital-humanity-stack {
             display: grid;
-            gap: 6px;
-            justify-items: end;
+            gap: 10px;
+            justify-items: center;
+            width: min(620px, 100%);
         }
 
         .vital-track {
@@ -874,7 +883,8 @@
         }
 
         .vital-humanity-stack .vital-track {
-            justify-content: flex-end;
+            justify-content: center;
+            max-width: 260px;
         }
 
         .vital-box {
@@ -903,6 +913,214 @@
             background: #760000;
             border-color: #b00000;
             box-shadow: 0 0 12px rgba(176, 0, 0, 0.75);
+        }
+
+        .vital-box.vital-humanity {
+            display: inline-block;
+            margin: 0;
+            cursor: default;
+        }
+
+        .vital-box.vital-humanity:hover {
+            transform: none;
+        }
+
+        .vital-box.vital-humanity.humanity-filled {
+            border-color: #c8c8c8;
+            background: #b7b7b7;
+            box-shadow: 0 0 8px rgba(230, 230, 230, 0.22);
+        }
+
+        .vital-box.vital-humanity.stain {
+            border-color: #b73545;
+            background: #741d2a;
+            box-shadow: 0 0 10px rgba(155, 26, 45, 0.6);
+        }
+
+        .vital-box.vital-humanity.empty {
+            border-color: #555;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        .humanity-panel {
+            width: 100%;
+            display: grid;
+            gap: 12px;
+            margin-top: 4px;
+            text-align: left;
+        }
+
+        .humanity-quick-controls,
+        .humanity-form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .humanity-quick-controls input,
+        .humanity-form-grid input,
+        .humanity-form-grid select,
+        .humanity-form-grid textarea,
+        .morality-editor textarea {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #3a3a3a;
+            border-radius: 6px;
+            background: #090909;
+            color: #eee;
+            padding: 9px 10px;
+            font: inherit;
+        }
+
+        .humanity-quick-controls input,
+        .humanity-form-grid .humanity-wide,
+        .morality-editor {
+            grid-column: 1 / -1;
+        }
+
+        .humanity-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 7px;
+            grid-column: 1 / -1;
+        }
+
+        .humanity-actions button,
+        .humanity-form-grid button {
+            min-height: 34px;
+            border: 1px solid #7e303a;
+            border-radius: 6px;
+            background: #211114;
+            color: #f5f5f5;
+            padding: 7px 10px;
+            cursor: pointer;
+            font: inherit;
+            font-size: 12px;
+        }
+
+        .humanity-actions button:disabled {
+            cursor: not-allowed;
+            opacity: 0.45;
+        }
+
+        .humanity-actions .humanity-remorse {
+            border-color: #b68b46;
+            background: #261d0f;
+            color: #ffe0a3;
+        }
+
+        .humanity-actions .humanity-danger {
+            border-color: #6b252c;
+            color: #ff9aa5;
+        }
+
+        .humanity-notice,
+        .humanity-risk-warning {
+            margin: 0;
+            border: 1px solid #454545;
+            border-radius: 6px;
+            background: #121212;
+            color: #bbb;
+            padding: 9px 10px;
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
+        .humanity-notice[data-kind="success"] {
+            border-color: #2f6b4a;
+            color: #9be0b8;
+        }
+
+        .humanity-notice[data-kind="warning"],
+        .humanity-risk-warning {
+            border-color: #755522;
+            color: #ffd58a;
+        }
+
+        .humanity-notice[data-kind="danger"] {
+            border-color: #862f3a;
+            color: #ff9baa;
+        }
+
+        .humanity-event-form,
+        .humanity-history,
+        .morality-editor {
+            border: 1px solid #292929;
+            border-radius: 7px;
+            background: #0b0b0b;
+            padding: 12px;
+        }
+
+        .humanity-event-form h3,
+        .humanity-history h3,
+        .morality-editor h3 {
+            margin: 0 0 10px;
+            color: #ddd;
+            font-size: 13px;
+        }
+
+        .humanity-form-grid label,
+        .morality-editor label {
+            display: grid;
+            gap: 5px;
+            color: #9b9b9b;
+            font-size: 11px;
+        }
+
+        .humanity-form-grid .humanity-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .humanity-form-grid .humanity-checkbox input {
+            width: 18px;
+            height: 18px;
+        }
+
+        .morality-editor {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 8px;
+        }
+
+        .morality-editor h3 {
+            grid-column: 1 / -1;
+        }
+
+        .humanity-events {
+            display: grid;
+            gap: 7px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+        }
+
+        .humanity-events li {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            gap: 7px;
+            align-items: baseline;
+            border-bottom: 1px solid #242424;
+            padding-bottom: 6px;
+            color: #ccc;
+            font-size: 12px;
+        }
+
+        .humanity-events li small {
+            grid-column: 2 / -1;
+            color: #888;
+        }
+
+        .humanity-events time {
+            color: #666;
+            font-size: 10px;
+        }
+
+        .humanity-events .humanity-events-empty {
+            display: block;
+            color: #666;
         }
 
         .vital-box.vital-willpower,
@@ -2127,6 +2345,20 @@
                 padding-bottom: 0;
             }
 
+            .vitals-game-trackers .humanity-vital-item {
+                display: block;
+                padding: 14px;
+            }
+
+            .humanity-form-grid,
+            .morality-editor {
+                grid-template-columns: 1fr;
+            }
+
+            .morality-editor h3 {
+                grid-column: auto;
+            }
+
             .discipline-item {
                 padding: 14px 12px;
             }
@@ -3224,12 +3456,89 @@
             </div>
         </div>
     </div>
-    <div class="vital-item vampire-only" data-vampire-resource="true">
+    <div class="vital-item humanity-vital-item vampire-only" data-vampire-resource="true">
         <span>Человечность</span>
         <div class="vital-humanity-stack">
             <div id="val-humanity-game" class="vital-value" style="color:white">7</div>
-            <div id="track-humanity" class="vital-track" aria-label="Закрашенные клетки человечности"></div>
-            <small id="track-humanity-caption" class="vital-track-caption">0 / 7</small>
+            <div id="track-humanity" class="vital-track" aria-label="Шкала Человечности и Сомнений"></div>
+            <small id="track-humanity-caption" class="vital-track-caption">Человечность 7 · Сомнения 0/3</small>
+            <div class="humanity-panel">
+                <div class="humanity-quick-controls">
+                    <input id="humanity-quick-reason" type="text" placeholder="Причина Сомнения (необязательно)">
+                    <div class="humanity-actions">
+                        <button type="button" onclick="addHumanityStains(null, 1, 'ручное решение', { source: 'manual', reasonText: document.getElementById('humanity-quick-reason').value.trim() })">+ Сомнение</button>
+                        <button type="button" onclick="addHumanityStains(null, 2, 'ручное решение', { source: 'manual', reasonText: document.getElementById('humanity-quick-reason').value.trim() })">+2 Сомнения</button>
+                        <button type="button" onclick="removeHumanityStains(1)">Снять 1 Сомнение</button>
+                        <button type="button" class="humanity-danger" onclick="clearHumanityStains()">Очистить Сомнения</button>
+                        <button id="humanity-remorse-btn" type="button" class="humanity-remorse" onclick="performRemorseCheck()" disabled>Проверка мук совести</button>
+                    </div>
+                </div>
+                <p id="humanity-risk-warning" class="humanity-risk-warning" hidden></p>
+                <p id="humanity-notice" class="humanity-notice" role="status" hidden></p>
+
+                <form class="humanity-event-form" onsubmit="submitHumanityEvent(event)">
+                    <h3>Моральное событие</h3>
+                    <div class="humanity-form-grid">
+                        <label>
+                            Тип события
+                            <select id="humanity-event-type">
+                                <option value="chronicle_tenet_violation">Нарушение Принципа хроники</option>
+                                <option value="conviction_violation">Нарушение Убеждения</option>
+                                <option value="touchstone_harmed">Вред Опоре</option>
+                                <option value="diablerie">Диаблери</option>
+                                <option value="cruelty">Жестокость</option>
+                                <option value="discipline_risk">Сила с риском Человечности</option>
+                                <option value="predator_type_flaw">Нарушение пищевого правила</option>
+                                <option value="storyteller">Решение Рассказчика</option>
+                            </select>
+                        </label>
+                        <label>
+                            Сомнения
+                            <select id="humanity-event-amount" onchange="updateHumanityEventAmountControl()">
+                                <option value="1">1 — небольшое нарушение</option>
+                                <option value="2">2 — серьёзное нарушение</option>
+                                <option value="3">3 — чудовищный поступок</option>
+                                <option value="custom">Другое число</option>
+                            </select>
+                        </label>
+                        <input id="humanity-event-custom-amount" type="number" min="0" max="10" value="1" hidden aria-label="Другое количество Сомнений">
+                        <label class="humanity-wide">
+                            Причина
+                            <textarea id="humanity-event-reason" rows="2" placeholder="Что произошло? Решение остаётся за Рассказчиком."></textarea>
+                        </label>
+                        <label>
+                            Связанное Убеждение
+                            <select id="humanity-event-conviction"><option value="">— Убеждение не выбрано —</option></select>
+                        </label>
+                        <label>
+                            Связанная Опора
+                            <select id="humanity-event-touchstone"><option value="">— Опора не выбрана —</option></select>
+                        </label>
+                        <label class="humanity-checkbox humanity-wide">
+                            <input id="humanity-event-mitigated" type="checkbox">
+                            Смягчено Убеждением
+                        </label>
+                        <button type="submit" class="humanity-wide">Зафиксировать Сомнения</button>
+                    </div>
+                </form>
+
+                <section class="morality-editor">
+                    <h3>Принципы хроники и Убеждения</h3>
+                    <label>
+                        Принципы хроники — по одному в строке
+                        <textarea id="morality-tenets-input" rows="3" oninput="syncMoralityEditor()"></textarea>
+                    </label>
+                    <label>
+                        Убеждения — по одному в строке
+                        <textarea id="morality-convictions-input" rows="3" oninput="syncMoralityEditor()"></textarea>
+                    </label>
+                </section>
+
+                <section class="humanity-history">
+                    <h3>Последние Сомнения</h3>
+                    <ul id="humanity-stain-events" class="humanity-events"></ul>
+                </section>
+            </div>
         </div>
     </div>
     <div class="vital-item vampire-only" data-vampire-resource="true">
@@ -3547,6 +3856,7 @@
 <script src="./i18n-dictionary.js"></script>
 <script src="./i18n-runtime.js"></script>
 <script src="./vtm-health.js"></script>
+<script src="./vtm-humanity.js"></script>
 <script src="./main.js"></script>
 <script src="./supabase.js"></script>
 <script src="./creation-wizard.js"></script>

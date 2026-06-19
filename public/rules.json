@@ -108,7 +108,9 @@
    "exclude_from": [
     "rouse_check",
     "willpower",
-    "humanity"
+    "humanity",
+    "humanity_check",
+    "remorse_check"
    ]
   },
   "impairment": {
@@ -121,6 +123,34 @@
     "Смекалка",
     "Упорство"
    ]
+ }
+ },
+ "humanity_rules": {
+  "min": 0,
+  "max": 10,
+  "starting": {
+   "base": 7,
+   "predator_type_modifier_field": "humanity"
+  },
+  "stains": {
+   "occupy_free_boxes": true,
+   "max_formula": "10 - humanity",
+   "do_not_reduce_humanity_immediately": true
+  },
+  "remorse_check": {
+   "dice_formula": "10 - humanity - stains",
+   "success_threshold": 6,
+   "uses_hunger_dice": false,
+   "can_use_willpower_reroll": false,
+   "can_use_blood_surge": false,
+   "zero_dice": "automatic_failure",
+   "on_success": "clear_stains",
+   "on_failure": "lose_1_humanity_and_clear_stains"
+  },
+  "humanity_zero": {
+   "status": "lost_to_beast",
+   "player_control": false,
+   "message": "Персонаж окончательно уступает Зверю и переходит под контроль Рассказчика."
   }
  },
  "rolls": {
@@ -132,7 +162,9 @@
    "exclude_from": [
     "rouse_check",
     "willpower",
-    "humanity"
+    "humanity",
+    "humanity_check",
+    "remorse_check"
    ],
    "messy_critical": true,
    "bestial_failure": true
@@ -1474,7 +1506,14 @@
      "category": "Пищевые привычки",
      "name": "Разборчивость",
      "details": "смертные",
-     "dots": 2
+     "dots": 2,
+     "morality": {
+      "stains": {
+       "suggested": 1,
+       "source": "predator_type_flaw",
+       "requiresStorytellerConfirm": true
+      }
+     }
     }
    ]
   },
@@ -1509,7 +1548,14 @@
      "category": "Пищевые привычки",
      "name": "Разборчивость",
      "details": "несогласные",
-     "dots": 1
+     "dots": 1,
+     "morality": {
+      "stains": {
+       "suggested": 1,
+       "source": "predator_type_flaw",
+       "requiresStorytellerConfirm": true
+      }
+     }
     }
    ]
   },
@@ -1784,7 +1830,14 @@
      "name": "Разборчивость",
      "details": "другая субкультура",
      "dots": 1,
-     "choice_group": "main"
+     "choice_group": "main",
+     "morality": {
+      "stains": {
+       "suggested": 1,
+       "source": "predator_type_flaw",
+       "requiresStorytellerConfirm": true
+      }
+     }
     }
    ]
   },
@@ -2060,9 +2113,17 @@
      "Приказ на самоуничтожение": {
       "description": "Инстинкт самосохранения больше не блокирует приказы, ведущие к увечью или смерти.",
       "pool": "как применяемая сила",
-      "cost": "нет (но риск потери человечности)",
+     "cost": "нет (но риск потери человечности)",
       "effect": "Смертные и вампиры всё ещё сопротивляются по правилам применяемой силы, но самоубийственное содержание больше не отменяет команду автоматически. Использование почти всегда морально опасно для Человечности.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "humanity": {
+        "risk": true,
+        "suggestedStains": 1,
+        "requiresStorytellerConfirm": true,
+        "reason": "саморазрушительный приказ через Доминирование"
+       }
+      }
      },
      "Стадный инстинкт": {
       "description": "Доминирование распространяется на толпу, группу слуг или несколько целей сразу.",
@@ -8246,7 +8307,14 @@
       "название_пункта": "Разборчивость",
       "точки": 1,
       "полное_описание": "Ты считаешь неприемлемым пить кровь определённой категории людей (например: наркоманы, дети, полицейские, невинные и т.д.).",
-      "механика": "Если ты нарушаешь это правило, ты получаешь сомнения (как отклонение от темы хроники). Также это может срабатывать, если ты видишь, как другие пьют такую кровь."
+      "механика": "Если ты нарушаешь это правило, ты получаешь сомнения (как отклонение от темы хроники). Также это может срабатывать, если ты видишь, как другие пьют такую кровь.",
+      "morality": {
+       "stains": {
+        "suggested": 1,
+        "source": "predator_type_flaw",
+        "requiresStorytellerConfirm": true
+       }
+      }
      }
     ]
    },

@@ -1,6 +1,8 @@
 import type { CharacterOption, CharacterRow, CharacterType, ChatMessage, ChatMessageRow, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
 import { getMusicProvider } from '@/components/music/utils'
 import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from '@/lib/vtm/health'
+import { getHumanityState, getHumanityStatus, normalizeMoralityState } from '@/lib/vtm/humanity'
+import type { HumanityStainEvent } from '@/lib/vtm/humanity'
 
 const DIE_KINDS = new Set<Die['kind']>([
   'fail',
@@ -74,7 +76,12 @@ export function normalizeWillpowerTracker(value: unknown, max: number): Normaliz
   }
 }
 
-function normalizeVitalTrackers(value: unknown, willpowerMax: number, health: ReturnType<typeof normalizeHealthTracker>): VitalTrackers {
+function normalizeVitalTrackers(
+  value: unknown,
+  willpowerMax: number,
+  health: ReturnType<typeof normalizeHealthTracker>,
+  humanityValue: number,
+): VitalTrackers {
   const source = isRecord(value) ? value : {}
   const willpower = normalizeWillpowerTracker(source.willpower, willpowerMax)
   return {
@@ -83,7 +90,7 @@ function normalizeVitalTrackers(value: unknown, willpowerMax: number, health: Re
       superficial: willpower.superficial,
       aggravated: willpower.aggravated,
     },
-    humanity: Math.max(0, Number(source.humanity || 0) || 0),
+    humanity: humanityValue,
     hunger: Math.max(0, Math.min(5, Number(source.hunger || 0) || 0)),
   }
 }
@@ -133,6 +140,7 @@ function normalizeRollMeta(value: unknown): RollMeta | undefined {
   const meta: RollMeta = {}
 
   if (typeof value.characterId === 'string') meta.characterId = value.characterId
+  if (value.rollKind === 'humanity_check' || value.rollKind === 'remorse_check') meta.rollKind = value.rollKind
   if (value.rollMode === 'normal' || value.rollMode === 'contested') meta.rollMode = value.rollMode
   if (typeof value.hungerBefore === 'number') meta.hungerBefore = value.hungerBefore
   if (typeof value.hungerAfter === 'number') meta.hungerAfter = value.hungerAfter
@@ -145,11 +153,35 @@ function normalizeRollMeta(value: unknown): RollMeta | undefined {
   if (typeof value.healthImpaired === 'boolean') meta.healthImpaired = value.healthImpaired
   if (typeof value.healthImpairmentPenaltyApplied === 'number') meta.healthImpairmentPenaltyApplied = value.healthImpairmentPenaltyApplied
   if (typeof value.physicalState === 'string') meta.physicalState = value.physicalState as RollMeta['physicalState']
+  if (typeof value.humanityBefore === 'number') meta.humanityBefore = value.humanityBefore
+  if (typeof value.humanityAfter === 'number') meta.humanityAfter = value.humanityAfter
+  if (typeof value.stainsBefore === 'number') meta.stainsBefore = value.stainsBefore
+  if (typeof value.stainsAfter === 'number') meta.stainsAfter = value.stainsAfter
+  if (typeof value.remorseDice === 'number') meta.remorseDice = value.remorseDice
+  if (typeof value.automaticFailure === 'boolean') meta.automaticFailure = value.automaticFailure
+  if (typeof value.humanityLost === 'boolean') meta.humanityLost = value.humanityLost
   if (typeof value.messyCritical === 'boolean') meta.messyCritical = value.messyCritical
   if (typeof value.bestialFailure === 'boolean') meta.bestialFailure = value.bestialFailure
   if (typeof value.source === 'string') meta.source = value.source as RollMeta['source']
   if (Array.isArray(value.warnings)) meta.warnings = value.warnings.filter((warning): warning is string => typeof warning === 'string')
   if (Array.isArray(value.rouseChecks)) meta.rouseChecks = value.rouseChecks.filter(isRouseCheckResult)
+  if (Array.isArray(value.stainEvents)) {
+    meta.stainEvents = value.stainEvents.flatMap((item, index) => {
+      if (!isRecord(item)) return []
+      return [{
+        id: typeof item.id === 'string' ? item.id : `stain-${index}`,
+        amount: Math.max(0, Math.floor(Number(item.amount) || 0)),
+        requestedAmount: typeof item.requestedAmount === 'number' ? item.requestedAmount : undefined,
+        source: typeof item.source === 'string' ? item.source as HumanityStainEvent['source'] : 'manual',
+        reason: typeof item.reason === 'string' ? item.reason : 'Сомнение',
+        reasonText: typeof item.reasonText === 'string' ? item.reasonText : undefined,
+        createdAt: typeof item.createdAt === 'string' ? item.createdAt : new Date(0).toISOString(),
+        mitigatedByConviction: typeof item.mitigatedByConviction === 'boolean' ? item.mitigatedByConviction : undefined,
+        relatedConvictionId: typeof item.relatedConvictionId === 'string' ? item.relatedConvictionId : undefined,
+        relatedTouchstoneId: typeof item.relatedTouchstoneId === 'string' ? item.relatedTouchstoneId : undefined,
+      }]
+    })
+  }
 
   if (isRecord(value.contested)) {
     const status = ['requested', 'answered', 'resolved', 'cancelled'].includes(String(value.contested.status))
@@ -306,7 +338,15 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
   const data = row.data || {}
   const characterType = getCharacterType(data)
   const bloodPotency = Number(data.bloodPotency ?? data.blood?.potency ?? 0) || 0
-  const humanity = Math.max(1, Math.min(10, Number(data.humanity?.value ?? data.baseHumanity ?? 7) || 7))
+  const humanityState = getHumanityState(data)
+  const moralitySource = normalizeMoralityState(data.morality)
+  const legacyTouchstones = moralitySource.touchstones.length
+    ? moralitySource.touchstones
+    : (data.touchstones || []).flatMap((item, index) => {
+      const name = typeof item === 'string' ? item : String(item?.name || item?.text || '')
+      return name.trim() ? [{ id: `legacy-touchstone-${index}`, name: name.trim(), status: 'safe' as const }] : []
+    })
+  const morality = { ...moralitySource, touchstones: legacyTouchstones }
   const damageProfile = normalizeDamageProfile(data.damageProfile || getDefaultDamageProfile(characterType))
   const health = normalizeHealthTracker(data.vitalTrackers?.health, data.attributes?.['Выносливость'] || 0, damageProfile)
   const willpower = normalizeWillpowerTracker(data.vitalTrackers?.willpower, getWillpowerMaxFromAttributes(data.attributes || {}))
@@ -323,7 +363,12 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     type: data.type || '',
     characterType,
     bloodPotency,
-    humanity,
+    humanity: {
+      ...humanityState,
+      freeBoxes: Math.max(0, 10 - humanityState.value - humanityState.stains),
+      status: data.status?.humanityState === 'lost_to_beast' ? 'lost_to_beast' : getHumanityStatus(humanityState),
+    },
+    morality,
     health,
     notes: data.notes || data.backstory || '',
     appearance: data.appearance || '',
@@ -334,7 +379,7 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     physicalState: data.status?.physicalState || health.physicalState,
     lastAggravatedMendAt: data.healthState?.lastAggravatedMendAt,
     sheetFixed: data.sheetFixed ?? data.sheetLock?.fixed ?? data.creationCompleted ?? true,
-    vitalTrackers: normalizeVitalTrackers(data.vitalTrackers, willpower.max, health),
+    vitalTrackers: normalizeVitalTrackers(data.vitalTrackers, willpower.max, health, humanityState.value),
     inventory: normalizeInventory(data.inventory),
     attributes: data.attributes || {},
     skills: data.skills || {},

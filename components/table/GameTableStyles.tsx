@@ -2082,6 +2082,97 @@ export default function GameTableStyles() {
           padding: 12px;
         }
 
+        .preview-humanity-panel {
+          border: 1px solid #33292b;
+          border-radius: 6px;
+          background: #0b0909;
+          padding: 12px;
+        }
+
+        .preview-humanity-track {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 5px;
+          margin-top: 10px;
+        }
+
+        .preview-humanity-cell {
+          width: 20px;
+          height: 20px;
+          display: inline-block;
+          box-sizing: border-box;
+          border: 1px solid #555;
+          border-radius: 4px;
+          background: transparent;
+        }
+
+        .preview-humanity-cell.humanity-filled {
+          border-color: #c6c6c6;
+          background: #b5b5b5;
+          box-shadow: 0 0 7px rgba(230, 230, 230, 0.18);
+        }
+
+        .preview-humanity-cell.stain {
+          border-color: #b73545;
+          background: #741d2a;
+          box-shadow: 0 0 9px rgba(155, 26, 45, 0.55);
+        }
+
+        .preview-humanity-caption {
+          margin: 8px 0 0;
+          color: #a5a5a5;
+          font-size: 11px;
+        }
+
+        .preview-humanity-actions {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 6px;
+          margin-top: 10px;
+        }
+
+        .preview-humanity-actions button {
+          min-height: 36px;
+          border: 1px solid #8c343f;
+          border-radius: 5px;
+          background: #251317;
+          color: #f4f4f4;
+          cursor: pointer;
+          font: inherit;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .preview-humanity-actions button:last-child {
+          border-color: #8c6b34;
+          background: #251e13;
+          color: #ffe0a3;
+        }
+
+        .preview-humanity-actions button:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
+        }
+
+        .preview-roll-notice.warning {
+          color: #e4bd75;
+        }
+
+        .preview-roll-notice.danger {
+          color: #ff8f9b;
+        }
+
+        .humanity-history-event {
+          margin-top: 8px;
+          border: 1px solid #5e3037;
+          border-radius: 5px;
+          background: #1b1012;
+          color: #e7aab2;
+          padding: 7px 9px;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
         .preview-willpower-track {
           display: flex;
           flex-wrap: wrap;

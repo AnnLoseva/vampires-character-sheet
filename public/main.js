@@ -35,15 +35,43 @@ let expHistory = [];
 let lastAutoExperienceBonus = null;
 let characterImageData = '';
 let touchstones = [];
+let moralityState = { chronicleTenets: [], convictions: [], touchstones: [] };
 let inventory = [];
 let explicitBloodPotency = null;
 let vitalAutoSaveTimeout = null;
 let currentCharType = 'vampire';
 let currentMortalTemplate = null;
 let characterHasBeenSaved = false;
-const THIN_BLOOD_CLAN = 'Слабокровные';
-const CAITIFF_CLAN = 'Каитиф';
-const THIN_BLOOD_ALCHEMY = 'Алхимия слабокровных';
+// Stable-identity name pairs for comparisons against clan/discipline/predator-type/merit
+// DISPLAY NAMES, which differ between rules.json (RU) and rules_eng.json (EN). The app
+// compares against these names directly in several places; vtmName() keeps those
+// comparisons working regardless of which rules file is currently loaded. Keyed by the
+// Russian name (matches the i18n dictionary convention used elsewhere). Defined here, near
+// the top of the file, because THIN_BLOOD_CLAN etc. below need it immediately.
+const VTM_NAME_EN = {
+    'Тремер': 'Tremere',
+    'Вентру': 'Ventrue',
+    'Суррогатчик': 'Bagger',
+    'Фермер': 'Farmer',
+    'Слабокровные': 'Thin-blood',
+    'Каитиф': 'Caitiff',
+    'Кровавое чародейство': 'Blood Sorcery',
+    'Алхимия слабокровных': 'Thin-blood Alchemy',
+    'Алхимик': 'Alchemist',
+    'Склонность к Дисциплине': 'Discipline Affinity',
+    'тремер': 'tremere',
+    'СЛАБОКРОВНЫЕ': 'THIN_BLOODED',
+    'Достоинства слабокровных': 'Thin-blooded Merits',
+    'Недостатки слабокровных': 'Thin-blooded Flaws',
+};
+
+function vtmName(ruName) {
+    return (window.VTM_LANG === 'en') ? (VTM_NAME_EN[ruName] || ruName) : ruName;
+}
+
+const THIN_BLOOD_CLAN = vtmName('Слабокровные');
+const CAITIFF_CLAN = vtmName('Каитиф');
+const THIN_BLOOD_ALCHEMY = vtmName('Алхимия слабокровных');
 const INVENTORY_CATEGORIES = ['Оружие', 'Одежда', 'Документы', 'Деньги', 'Артефакты', 'Расходники', 'Другое'];
 
 function isNpcCharacterType(type = currentCharType) {
@@ -152,7 +180,7 @@ function getPlayerCreationIssues() {
     if (!isThinBloodClan(clan) && clan && getClanDisciplineDots(clan) !== 3) {
         issues.push('выбери две клановые дисциплины: одну на 2 точки и одну на 1');
     }
-    if (![7, 8].includes(baseHumanity)) issues.push('стартовая Человечность может быть только 7 или 8');
+    if (baseHumanity < 1 || baseHumanity > 10) issues.push('стартовая Человечность должна быть от 1 до 10');
     if (clampHunger(vitalTrackers.hunger) !== 1) issues.push('стартовый Голод должен быть 1');
     if (getCurrentBloodPotencyValue() !== getCalculatedBloodPotency()) {
         issues.push('Сила крови должна соответствовать поколению, типу и типу охоты');
@@ -184,10 +212,9 @@ function updateCreationRuleControls() {
     const baseHumanity = document.getElementById('base-humanity');
     if (baseHumanity) {
         Array.from(baseHumanity.options).forEach(option => {
-            option.disabled = playerVampire && !['7', '8'].includes(option.value);
-            option.hidden = playerVampire && !['7', '8'].includes(option.value);
+            option.disabled = false;
+            option.hidden = false;
         });
-        if (playerVampire && !['7', '8'].includes(baseHumanity.value)) baseHumanity.value = '7';
     }
 
     const typeSelect = document.getElementById('type-input');
@@ -297,29 +324,6 @@ function getStandardDisciplineNames(clanName = getCurrentClan()) {
     return Object.keys(RULES.disciplines || {})
         .filter(name => canUseDiscipline(name, clanName))
         .sort();
-}
-
-// Stable-identity name pairs for comparisons against clan/discipline/predator-type/merit
-// DISPLAY NAMES, which differ between rules.json (RU) and rules_eng.json (EN). The app
-// compares against these names directly in several places below; vtmName() keeps those
-// comparisons working regardless of which rules file is currently loaded. Keyed by the
-// Russian name (matches the i18n dictionary convention used elsewhere).
-const VTM_NAME_EN = {
-    'Тремер': 'Tremere',
-    'Вентру': 'Ventrue',
-    'Суррогатчик': 'Bagger',
-    'Фермер': 'Farmer',
-    'Кровавое чародейство': 'Blood Sorcery',
-    'Алхимик': 'Alchemist',
-    'Склонность к Дисциплине': 'Discipline Affinity',
-    'тремер': 'tremere',
-    'СЛАБОКРОВНЫЕ': 'THIN_BLOODED',
-    'Достоинства слабокровных': 'Thin-blooded Merits',
-    'Недостатки слабокровных': 'Thin-blooded Flaws',
-};
-
-function vtmName(ruName) {
-    return (window.VTM_LANG === 'en') ? (VTM_NAME_EN[ruName] || ruName) : ruName;
 }
 
 function hasThinBloodAlchemyMerit() {
@@ -605,11 +609,12 @@ function renderSkills() {
 const VITAL_TRACKER_CONFIG = {
     health: { valueId: 'val-hp', trackId: 'track-health', captionId: 'track-health-caption', label: 'Здоровье' },
     willpower: { valueId: 'val-wp', trackId: 'track-willpower', captionId: 'track-willpower-caption', label: 'Сила воли' },
-    humanity: { valueId: 'val-humanity', trackId: 'track-humanity', captionId: 'track-humanity-caption', label: 'Человечность' },
+    humanity: { valueId: 'val-humanity', trackId: 'track-humanity', captionId: 'track-humanity-caption', label: 'Человечность', max: 10 },
     hunger: { valueId: 'val-hunger', trackId: 'track-hunger', captionId: 'track-hunger-caption', label: 'Голод', max: 5, displayCurrent: true }
 };
 
 let vitalTrackers = { health: { superficial: 0, aggravated: 0, bonusMax: 0, maxOverride: null }, willpower: { superficial: 0, aggravated: 0 }, humanity: 0, hunger: 0 };
+let humanityState = { value: 7, stains: 0, stainEvents: [], lastRemorseCheckAt: null, lastHumanityLossAt: null };
 let damageProfile = 'vampire';
 let characterPhysicalState = 'healthy';
 let healthState = {};
@@ -760,7 +765,7 @@ function getVitalTrackerData() {
             superficial: willpower.superficial,
             aggravated: willpower.aggravated
         },
-        humanity: Math.max(0, Math.min(getVitalMax('humanity'), parseInt(vitalTrackers.humanity || 0, 10) || 0)),
+        humanity: getHumanityState().value,
         hunger: Math.max(0, Math.min(getVitalMax('hunger'), parseInt(vitalTrackers.hunger || 0, 10) || 0))
     };
 }
@@ -844,22 +849,27 @@ function getBloodSurgeBonus(bloodPotency = getCurrentBloodPotencyValue()) {
 function getVitalAutosavePatch() {
     const health = getHealthTracker();
     const baseHumanity = parseInt(document.getElementById('base-humanity')?.value || '7', 10) || 7;
+    const humanity = getHumanityState();
     return {
         vitalTrackers: getVitalTrackerData(),
         characterType: getCurrentCharacterType(),
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
         baseHumanity: String(baseHumanity),
-        humanity: { value: getStartingHumanityValue(), base: baseHumanity },
-        status: { physicalState: health.physicalState },
+        humanity: { ...humanity, base: baseHumanity },
+        morality: getMoralityData(),
+        status: {
+            physicalState: health.physicalState,
+            humanityState: humanity.value <= 0 ? 'lost_to_beast' : null
+        },
         healthState: { ...healthState }
     };
 }
 
 function autoSaveVitalState({ immediate = false } = {}) {
     if (isApplyingCharacterData) return;
-    if (!window.autoSaveCharacterPatch) return;
-    const run = () => window.autoSaveCharacterPatch(getVitalAutosavePatch());
+    if (!window.autoSaveCharacterDataPatch) return;
+    const run = () => window.autoSaveCharacterDataPatch(getVitalAutosavePatch(), { immediate, silent: true });
 
     if (vitalAutoSaveTimeout) {
         clearTimeout(vitalAutoSaveTimeout);
@@ -873,6 +883,296 @@ function autoSaveVitalState({ immediate = false } = {}) {
     vitalAutoSaveTimeout = setTimeout(run, 650);
 }
 
+function getHumanityState(characterData = null) {
+    if (characterData) return window.VTMHumanity.getHumanityState(characterData);
+    humanityState = window.VTMHumanity.getHumanityState({ humanity: humanityState });
+    vitalTrackers.humanity = humanityState.value;
+    return humanityState;
+}
+
+function getMoralityData() {
+    const normalized = window.VTMHumanity.normalizeMorality(moralityState);
+    const legacyTouchstones = (touchstones || []).flatMap((item, index) => {
+        const name = String(item.name || item.text || '').trim();
+        if (!name) return [];
+        return [{
+            id: item.id || `touchstone-${index}`,
+            name,
+            description: item.description || '',
+            status: ['safe', 'threatened', 'harmed', 'lost'].includes(item.status) ? item.status : 'safe'
+        }];
+    });
+    const byId = new Map(normalized.touchstones.map(item => [item.id, item]));
+    legacyTouchstones.forEach(item => byId.set(item.id, { ...(byId.get(item.id) || {}), ...item }));
+    moralityState = { ...normalized, touchstones: Array.from(byId.values()) };
+    return JSON.parse(JSON.stringify(moralityState));
+}
+
+function setHumanityNotice(text = '', kind = '') {
+    const notice = document.getElementById('humanity-notice');
+    if (!notice) return;
+    notice.textContent = text;
+    notice.dataset.kind = kind;
+    notice.hidden = !text;
+}
+
+function getHumanityWarning(state = getHumanityState()) {
+    if (state.value <= 0) {
+        return 'Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.';
+    }
+    if (state.stains >= 10 - state.value && state.stains > 0) {
+        return 'Шкала Сомнений заполнена. Следующая проверка мук совести почти наверняка приведёт к потере Человечности.';
+    }
+    return '';
+}
+
+function renderHumanityEvents() {
+    const container = document.getElementById('humanity-stain-events');
+    if (!container) return;
+    const events = [...(getHumanityState().stainEvents || [])].reverse().slice(0, 8);
+    container.innerHTML = events.length
+        ? events.map(event => {
+            const date = event.createdAt ? new Date(event.createdAt).toLocaleString('ru-RU') : '';
+            const amount = event.amount > 0 ? `+${event.amount}` : 'лимит';
+            const details = [event.reasonText, event.mitigatedByConviction ? 'смягчено Убеждением' : ''].filter(Boolean).join(' · ');
+            return `<li><strong>${amount}</strong> ${escapeHTML(event.reason || 'Сомнение')}${details ? `<small>${escapeHTML(details)}</small>` : ''}${date ? `<time>${escapeHTML(date)}</time>` : ''}</li>`;
+        }).join('')
+        : '<li class="humanity-events-empty">Сомнений пока не записано.</li>';
+}
+
+function updateHumanityFormOptions() {
+    const morality = getMoralityData();
+    const convictionSelect = document.getElementById('humanity-event-conviction');
+    const touchstoneSelect = document.getElementById('humanity-event-touchstone');
+    if (convictionSelect) {
+        const selected = convictionSelect.value;
+        convictionSelect.innerHTML = `<option value="">— Убеждение не выбрано —</option>${morality.convictions.map(item => `<option value="${escapeHTML(item.id)}">${escapeHTML(item.text)}</option>`).join('')}`;
+        convictionSelect.value = morality.convictions.some(item => item.id === selected) ? selected : '';
+    }
+    if (touchstoneSelect) {
+        const selected = touchstoneSelect.value;
+        touchstoneSelect.innerHTML = `<option value="">— Опора не выбрана —</option>${morality.touchstones.map(item => `<option value="${escapeHTML(item.id)}">${escapeHTML(item.name)}${item.status && item.status !== 'safe' ? ` · ${escapeHTML(item.status)}` : ''}</option>`).join('')}`;
+        touchstoneSelect.value = morality.touchstones.some(item => item.id === selected) ? selected : '';
+    }
+    const tenets = document.getElementById('morality-tenets-input');
+    const convictions = document.getElementById('morality-convictions-input');
+    if (tenets && document.activeElement !== tenets) tenets.value = morality.chronicleTenets.join('\n');
+    if (convictions && document.activeElement !== convictions) convictions.value = morality.convictions.map(item => item.text).join('\n');
+}
+
+function syncMoralityEditor() {
+    const tenets = document.getElementById('morality-tenets-input')?.value || '';
+    const convictionLines = (document.getElementById('morality-convictions-input')?.value || '')
+        .split('\n')
+        .map(value => value.trim())
+        .filter(Boolean);
+    const current = getMoralityData();
+    moralityState = {
+        ...current,
+        chronicleTenets: tenets.split('\n').map(value => value.trim()).filter(Boolean),
+        convictions: convictionLines.map((text, index) => ({
+            id: current.convictions[index]?.id || `conviction-${Date.now()}-${index}`,
+            text,
+            touchstoneId: current.convictions[index]?.touchstoneId
+        }))
+    };
+    updateHumanityFormOptions();
+    autoSaveVitalState();
+}
+
+async function saveHumanityState({ immediate = true } = {}) {
+    return autoSaveVitalState({ immediate });
+}
+
+function publishHumanityEvent(poolName, meta = {}) {
+    const roll = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        room: getDiceRoom(),
+        characterName: document.getElementById('char-name')?.value?.trim() || 'Безымянный',
+        poolName,
+        poolType: 'humanity-event',
+        diceCount: 0,
+        dice: [],
+        successes: 0,
+        createdAt: new Date().toISOString(),
+        meta: {
+            source: 'humanity',
+            hungerDice: 0,
+            rollKind: 'humanity_check',
+            ...meta
+        }
+    };
+    return publishDiceRoll(roll);
+}
+
+async function addHumanityStains(character, amount, reason, options = {}) {
+    if (!isCharacterSheetFixed()) return null;
+    const source = options.source || 'manual';
+    const result = window.VTMHumanity.addStains(
+        { humanity: getHumanityState() },
+        amount,
+        reason || window.VTMHumanity.SOURCE_LABELS[source] || 'ручное решение',
+        { ...options, source }
+    );
+    humanityState = result.humanity;
+    renderVitalTracker('humanity');
+    await saveHumanityState({ immediate: true });
+
+    const state = getHumanityState();
+    const sourceText = result.event.reasonText || result.event.reason;
+    const historyText = `${document.getElementById('char-name')?.value?.trim() || 'Персонаж'} получает ${result.applied} Сомнение: ${sourceText}. Человечность: ${state.value}, Сомнения: ${state.stains}/${10 - state.value}.`;
+    await publishHumanityEvent(historyText, {
+        humanityBefore: result.before.value,
+        humanityAfter: state.value,
+        stainsBefore: result.before.stains,
+        stainsAfter: state.stains,
+        stainEvents: [result.event],
+        warnings: result.warning ? [result.warning] : []
+    });
+    setHumanityNotice(result.warning || `Добавлено Сомнений: ${result.applied}.`, result.warning ? 'warning' : 'success');
+    return result;
+}
+
+async function removeHumanityStains(amount = 1) {
+    if (!isCharacterSheetFixed()) return;
+    const before = getHumanityState();
+    const removed = Math.min(before.stains, Math.max(0, Math.floor(Number(amount) || 0)));
+    if (!removed) {
+        setHumanityNotice('Сомнений для снятия нет.', 'neutral');
+        return;
+    }
+    humanityState = { ...before, stains: before.stains - removed };
+    renderVitalTracker('humanity');
+    await saveHumanityState({ immediate: true });
+    setHumanityNotice(`Снято Сомнений: ${removed}.`, 'success');
+}
+
+async function clearHumanityStains() {
+    if (!isCharacterSheetFixed()) return;
+    const before = getHumanityState();
+    if (!before.stains) {
+        setHumanityNotice('Сомнений для очистки нет.', 'neutral');
+        return;
+    }
+    if (!confirm(`Очистить все Сомнения (${before.stains})?`)) return;
+    humanityState = { ...before, stains: 0 };
+    renderVitalTracker('humanity');
+    await saveHumanityState({ immediate: true });
+    setHumanityNotice(`Сомнения очищены: ${before.stains} → 0.`, 'success');
+}
+
+async function performRemorseCheck(character = null, options = {}) {
+    if (!isCharacterSheetFixed()) return null;
+    const before = getHumanityState();
+    if (before.stains <= 0) {
+        setHumanityNotice('Нет Сомнений для проверки.', 'neutral');
+        return null;
+    }
+
+    const remorseDice = window.VTMHumanity.getRemorseDice(before);
+    const automaticFailure = remorseDice <= 0;
+    const dice = automaticFailure ? [] : rollD10Pool(remorseDice, 0);
+    const successes = dice.filter(die => die.value >= 6).length;
+    const success = !automaticFailure && successes > 0;
+    const now = new Date().toISOString();
+    const valueAfter = success ? before.value : Math.max(0, before.value - 1);
+    humanityState = {
+        ...before,
+        value: valueAfter,
+        stains: 0,
+        lastRemorseCheckAt: now,
+        lastHumanityLossAt: success ? before.lastHumanityLossAt : now
+    };
+    vitalTrackers.humanity = valueAfter;
+    renderVitalTracker('humanity');
+    await saveHumanityState({ immediate: true });
+
+    const lostToBeast = valueAfter <= 0;
+    const poolName = automaticFailure
+        ? `Проверка мук совести: свободных ячеек нет. Результат: автоматический провал. Человечность: ${before.value} → ${valueAfter}. Сомнения очищены.`
+        : success
+            ? `Проверка мук совести: ${remorseDice}d10. Результат: успех. Человечность остаётся ${valueAfter}. Сомнения очищены: ${before.stains} → 0.`
+            : `Проверка мук совести: ${remorseDice}d10. Результат: провал. Человечность: ${before.value} → ${valueAfter}. Сомнения очищены: ${before.stains} → 0.`;
+    const warnings = [
+        'Проверка мук совести не использует кубики Голода, Прилив Крови и переброс Воли.',
+        ...(lostToBeast ? ['Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.'] : [])
+    ];
+    const roll = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        room: getDiceRoom(),
+        characterName: document.getElementById('char-name')?.value?.trim() || 'Безымянный',
+        poolName,
+        poolType: 'remorse-check',
+        diceCount: dice.length,
+        dice,
+        successes,
+        createdAt: now,
+        meta: {
+            source: 'humanity',
+            rollKind: 'remorse_check',
+            hungerDice: 0,
+            humanityBefore: before.value,
+            humanityAfter: valueAfter,
+            stainsBefore: before.stains,
+            stainsAfter: 0,
+            remorseDice,
+            automaticFailure,
+            humanityLost: !success,
+            stainEvents: before.stainEvents || [],
+            warnings
+        }
+    };
+    await publishDiceRoll(roll);
+
+    const modal = getDiceRollModal();
+    modal.querySelector('#dice-roll-title').textContent = 'Проверка мук совести';
+    modal.querySelector('#dice-roll-subtitle').textContent = automaticFailure
+        ? 'Свободных ячеек не осталось: автоматический провал.'
+        : 'Обычные d10, успех на 6+. Кубики Голода и переброс Воли не используются.';
+    modal.querySelector('#dice-roll-result').innerHTML = renderDicePreview(dice, successes, roll.meta);
+    modal.style.display = 'flex';
+    setHumanityNotice(lostToBeast ? warnings[1] : success ? 'Раскаяние удерживает Человечность. Сомнения очищены.' : 'Проверка провалена: потеряна 1 Человечность, Сомнения очищены.', lostToBeast || !success ? 'danger' : 'success');
+    return { roll, success, automaticFailure, before, after: getHumanityState() };
+}
+
+async function submitHumanityEvent(event) {
+    event?.preventDefault?.();
+    if (!isCharacterSheetFixed()) return;
+    const type = document.getElementById('humanity-event-type')?.value || 'storyteller';
+    const amountSelect = document.getElementById('humanity-event-amount')?.value || '1';
+    const customAmount = document.getElementById('humanity-event-custom-amount')?.value || '1';
+    const amount = amountSelect === 'custom' ? parseInt(customAmount, 10) || 0 : parseInt(amountSelect, 10) || 0;
+    const reasonText = document.getElementById('humanity-event-reason')?.value?.trim() || '';
+    const sourceMap = {
+        chronicle_tenet_violation: 'chronicle_tenet_violation',
+        conviction_violation: 'conviction_violation',
+        touchstone_harmed: 'touchstone_harmed',
+        diablerie: 'diablerie',
+        cruelty: 'storyteller',
+        discipline_risk: 'discipline_risk',
+        predator_type_flaw: 'predator_type_flaw',
+        storyteller: 'storyteller'
+    };
+    const source = sourceMap[type] || 'storyteller';
+    const result = await addHumanityStains(null, amount, window.VTMHumanity.SOURCE_LABELS[source], {
+        source,
+        reasonText,
+        mitigatedByConviction: Boolean(document.getElementById('humanity-event-mitigated')?.checked),
+        relatedConvictionId: document.getElementById('humanity-event-conviction')?.value || undefined,
+        relatedTouchstoneId: document.getElementById('humanity-event-touchstone')?.value || undefined
+    });
+    if (result?.applied > 0) {
+        const reasonInput = document.getElementById('humanity-event-reason');
+        if (reasonInput) reasonInput.value = '';
+    }
+}
+
+function updateHumanityEventAmountControl() {
+    const custom = document.getElementById('humanity-event-custom-amount');
+    if (!custom) return;
+    custom.hidden = document.getElementById('humanity-event-amount')?.value !== 'custom';
+}
+
 function renderVitalTracker(key) {
     const config = VITAL_TRACKER_CONFIG[key];
     if (!config) return;
@@ -881,6 +1181,42 @@ function renderVitalTracker(key) {
     if (!track) return;
 
     const max = getVitalMax(key);
+    if (key === 'humanity') {
+        const state = getHumanityState();
+        const valueEl = document.getElementById('val-humanity');
+        const gameValueEl = document.getElementById('val-humanity-game');
+        if (valueEl) valueEl.textContent = state.value;
+        if (gameValueEl) gameValueEl.textContent = state.value;
+        track.innerHTML = '';
+        for (let index = 1; index <= 10; index++) {
+            const status = index <= state.value
+                ? 'humanity-filled'
+                : index <= state.value + state.stains
+                    ? 'stain'
+                    : 'empty';
+            const cell = document.createElement('span');
+            cell.className = `vital-box vital-humanity ${status}`;
+            cell.setAttribute('aria-label', `Человечность: клетка ${index} из 10, ${status === 'humanity-filled' ? 'Человечность' : status === 'stain' ? 'Сомнение' : 'свободно'}`);
+            cell.title = status === 'humanity-filled' ? 'Человечность' : status === 'stain' ? 'Сомнение' : 'Свободная клетка';
+            track.appendChild(cell);
+        }
+        const freeBoxes = Math.max(0, 10 - state.value - state.stains);
+        if (caption) caption.textContent = `Человечность ${state.value} · Сомнения ${state.stains}/${10 - state.value} · свободно ${freeBoxes}`;
+        const remorseButton = document.getElementById('humanity-remorse-btn');
+        if (remorseButton) {
+            remorseButton.disabled = state.stains <= 0;
+            remorseButton.title = state.stains <= 0 ? 'Нет Сомнений для проверки.' : `Пул: ${window.VTMHumanity.getRemorseDice(state)}к10`;
+        }
+        const warning = getHumanityWarning(state);
+        const warningEl = document.getElementById('humanity-risk-warning');
+        if (warningEl) {
+            warningEl.textContent = warning;
+            warningEl.hidden = !warning;
+        }
+        renderHumanityEvents();
+        updateHumanityFormOptions();
+        return;
+    }
     if (key === 'health') {
         const state = getHealthTracker();
         const valueEl = document.getElementById(config.valueId);
@@ -1502,43 +1838,42 @@ function updateBloodPotencyVital() {
 }
 
 function getStartingHumanityValue() {
-    const predatorName = document.getElementById('predator-input').value;
-    const type = document.getElementById('type-input')?.value;
+    const predatorName = document.getElementById('predator-input')?.value || '';
     const baseHumanity = parseInt(document.getElementById('base-humanity')?.value || '7') || 7;
 
-    const typeMod = getTypeBonuses(type).humanityMod || 0;
     let predatorMod = 0;
 
     if (predatorName && RULES.predator_types?.[predatorName]) {
         predatorMod = RULES.predator_types[predatorName].humanity || 0;
     }
 
-    return Math.max(1, Math.min(10, baseHumanity + typeMod + predatorMod));
+    return Math.max(1, Math.min(10, baseHumanity + predatorMod));
 }
 
 function updateHumanity() {
-    const predatorName = document.getElementById('predator-input').value;
-    const type = document.getElementById('type-input')?.value;
+    const predatorName = document.getElementById('predator-input')?.value || '';
     const baseHumanity = parseInt(document.getElementById('base-humanity')?.value || '7') || 7;
-    const typeMod = getTypeBonuses(type).humanityMod || 0;
     const predatorMod = predatorName && RULES.predator_types?.[predatorName]
         ? RULES.predator_types[predatorName].humanity || 0
         : 0;
-    const humanity = getStartingHumanityValue();
+    const humanity = isCharacterSheetFixed() ? getHumanityState().value : getStartingHumanityValue();
+    if (!isCharacterSheetFixed()) {
+        humanityState = { ...getHumanityState(), value: humanity, stains: 0 };
+        vitalTrackers.humanity = humanity;
+    }
     const el = document.getElementById('val-humanity');
 
     if (el) {
         el.textContent = humanity;
         el.style.color = 'white';
         el.setAttribute('data-tooltip',
-            `Человечность = старт(${baseHumanity}) + тип(${typeMod >= 0 ? '+' : ''}${typeMod}) + стиль охоты(${predatorMod >= 0 ? '+' : ''}${predatorMod}) = ${humanity}`);
+            `Человечность = старт(${baseHumanity}) + стиль охоты(${predatorMod >= 0 ? '+' : ''}${predatorMod}) = ${humanity}`);
     }
     const gameEl = document.getElementById('val-humanity-game');
     if (gameEl) gameEl.textContent = humanity;
     const formulaEl = document.getElementById('creation-humanity-formula');
     if (formulaEl) {
         const modifiers = [
-            typeMod ? `тип ${typeMod > 0 ? '+' : ''}${typeMod}` : '',
             predatorMod ? `стиль ${predatorMod > 0 ? '+' : ''}${predatorMod}` : ''
         ].filter(Boolean);
         formulaEl.textContent = modifiers.length
@@ -1915,8 +2250,8 @@ function confirmClanDisciplines(clanName) {
         return alert("Выберите две разные дисциплины.");
     }
     
-    if (disc2) mergeDiscipline(disc2, 2, `Клан ${clanName}`);
-    if (disc1) mergeDiscipline(disc1, 1, `Клан ${clanName}`);
+    if (disc2) mergeDiscipline(disc2, 2, `${t("Клан")} ${clanName}`);
+    if (disc1) mergeDiscipline(disc1, 1, `${t("Клан")} ${clanName}`);
 
     closeClanDiscModal();
 }
@@ -1926,7 +2261,7 @@ function confirmPredatorDiscipline(predatorName) {
     if (!disc) return alert("Выберите дисциплину!");
     if (!canUseDiscipline(disc) || isThinBloodClan()) return alert('Эта дисциплина недоступна текущему клану.');
 
-    mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
+    mergeDiscipline(disc, 1, `${t("Охота")}: ${predatorName}`);
 
     closePredDiscModal();
 }
@@ -2138,7 +2473,7 @@ function resetClanDisciplines() {
 
     Object.keys(disciplineSources).forEach(disc => {
         Object.keys(disciplineSources[disc]).forEach(src => {
-            if (src.includes("Охота")) {
+            if (src.includes(t("Охота"))) {
                 if (!huntBackup[disc]) huntBackup[disc] = {};
                 huntBackup[disc][src] = disciplineSources[disc][src];
                 console.log(`   ✅ НАЙДЕНО ОТ ОХОТЫ: ${disc} ← ${src} (${disciplineSources[disc][src]} точек)`);
@@ -2187,7 +2522,7 @@ function resetPredatorDisciplines() {
     Object.keys(disciplineSources).forEach(disc => {
         const sources = disciplineSources[disc];
         Object.keys(sources).forEach(src => {
-            if (src.includes("Клан")) {
+            if (src.includes(t("Клан"))) {
                 if (!clanBackup[disc]) clanBackup[disc] = {};
                 clanBackup[disc][src] = sources[src];
             }
@@ -3347,14 +3682,14 @@ function updateSireLabel(type) {
     const label = document.querySelector('[for="sire-input"], label[data-for="sire-input"]');
     // Ищем span с "Сир" в header-label
     document.querySelectorAll('.header-label').forEach(el => {
-        if (el.textContent.includes('Сир')) {
+        if (el.textContent.includes(t('Сир'))) {
             // Меняем placeholder инпута
             const input = document.getElementById('sire-input');
             if (!input) return;
             if (type === 'mortal' || type === 'npc-mortal' || type === 'npc-ghost') {
-                input.placeholder = 'Связи / Наставник';
+                input.placeholder = t('Связи / Наставник');
             } else {
-                input.placeholder = 'Сир';
+                input.placeholder = t('Сир');
             }
         }
     });
@@ -3566,11 +3901,11 @@ function confirmClanDisciplines(clanName) {
     }
 
     if (disc2) {
-        mergeDiscipline(disc2, 2, `Клан ${clanName}`);
+        mergeDiscipline(disc2, 2, `${t("Клан")} ${clanName}`);
         clanProvidedDisciplines[disc2] = 2;
     }
     if (disc1) {
-        mergeDiscipline(disc1, 1, `Клан ${clanName}`);
+        mergeDiscipline(disc1, 1, `${t("Клан")} ${clanName}`);
         clanProvidedDisciplines[disc1] = 1;
     }
 
@@ -3583,7 +3918,7 @@ function confirmPredatorDiscipline(predatorName) {
     const disc = document.getElementById('pred-disc-select').value;
     if (!disc) return alert("Выберите дисциплину!");
 
-    mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
+    mergeDiscipline(disc, 1, `${t("Охота")}: ${predatorName}`);
     predatorProvidedDisciplines[disc] = 1;
 
     closePredDiscModal();
@@ -4546,6 +4881,23 @@ function renderDicePreview(dice, successes, meta = {}) {
         const healed = (meta.healing.amountSuperficial || 0) + (meta.healing.amountAggravated || 0);
         callouts.push({ kind: 'warning', text: `Лечение здоровья: снято ${healed} поврежд.` });
     }
+    if (meta.rollKind === 'remorse_check') {
+        callouts.push({
+            kind: meta.humanityLost ? 'danger' : 'warning',
+            text: meta.automaticFailure
+                ? 'Свободных ячеек нет: автоматический провал проверки мук совести.'
+                : `Проверка мук совести: ${meta.remorseDice || 0}к10, обычные кубики без Голода.`
+        });
+    }
+    if (typeof meta.humanityBefore === 'number' && typeof meta.humanityAfter === 'number') {
+        callouts.push({
+            kind: meta.humanityAfter < meta.humanityBefore ? 'danger' : 'warning',
+            text: `Человечность: ${meta.humanityBefore} → ${meta.humanityAfter}.`
+        });
+    }
+    if (typeof meta.stainsBefore === 'number' && typeof meta.stainsAfter === 'number' && meta.stainsBefore !== meta.stainsAfter) {
+        callouts.push({ kind: 'warning', text: `Сомнения: ${meta.stainsBefore} → ${meta.stainsAfter}.` });
+    }
     if (meta.messyCritical) {
         callouts.push({ kind: 'danger', text: 'Кровавый триумф: успех достигнут через Зверя. Рассказчик должен добавить зверское/опасное осложнение.' });
     }
@@ -4783,6 +5135,14 @@ window.treatSheetMortalHealth = treatSheetMortalHealth;
 window.clearSheetHealth = clearSheetHealth;
 window.markSheetHealthDefeated = markSheetHealthDefeated;
 window.setInitialHunger = setInitialHunger;
+window.getHumanityState = getHumanityState;
+window.addHumanityStains = addHumanityStains;
+window.removeHumanityStains = removeHumanityStains;
+window.clearHumanityStains = clearHumanityStains;
+window.performRemorseCheck = performRemorseCheck;
+window.submitHumanityEvent = submitHumanityEvent;
+window.updateHumanityEventAmountControl = updateHumanityEventAmountControl;
+window.syncMoralityEditor = syncMoralityEditor;
 window.performSheetRouseCheck = async () => {
     if (!isCharacterSheetFixed()) return;
     const modal = getDiceRollModal();
@@ -5194,6 +5554,8 @@ function renderTouchstones() {
 
     list.innerHTML = '';
     touchstones.forEach((item, index) => {
+        item.id = item.id || `touchstone-${Date.now()}-${index}`;
+        item.status = ['safe', 'threatened', 'harmed', 'lost'].includes(item.status) ? item.status : 'safe';
         const row = document.createElement('div');
         row.className = 'touchstone-item';
         row.innerHTML = `
@@ -5203,6 +5565,12 @@ function renderTouchstones() {
             </div>
             <textarea data-touchstone-text="${index}" placeholder="Опора или принцип">${escapeHTML(item.text || '')}</textarea>
             <div class="touchstone-actions">
+                <select data-touchstone-status="${index}" aria-label="Статус Опоры">
+                    <option value="safe"${item.status === 'safe' ? ' selected' : ''}>В безопасности</option>
+                    <option value="threatened"${item.status === 'threatened' ? ' selected' : ''}>Под угрозой</option>
+                    <option value="harmed"${item.status === 'harmed' ? ' selected' : ''}>Пострадала</option>
+                    <option value="lost"${item.status === 'lost' ? ' selected' : ''}>Утрачена</option>
+                </select>
                 <button type="button" data-touchstone-upload="${index}">Загрузить</button>
                 <button type="button" data-touchstone-remove-image="${index}">Удалить фото</button>
                 <button type="button" data-touchstone-delete="${index}">Удалить</button>
@@ -5215,6 +5583,27 @@ function renderTouchstones() {
         textarea.addEventListener('input', (e) => {
             const index = parseInt(e.target.dataset.touchstoneText, 10);
             if (touchstones[index]) touchstones[index].text = e.target.value;
+            getMoralityData();
+            updateHumanityFormOptions();
+            autoSaveVitalState();
+        });
+    });
+
+    list.querySelectorAll('[data-touchstone-status]').forEach(select => {
+        select.addEventListener('change', (e) => {
+            const index = parseInt(e.target.dataset.touchstoneStatus, 10);
+            if (!touchstones[index]) return;
+            touchstones[index].status = e.target.value;
+            getMoralityData();
+            updateHumanityFormOptions();
+            autoSaveVitalState({ immediate: true });
+            if (e.target.value === 'harmed' || e.target.value === 'lost') {
+                const type = document.getElementById('humanity-event-type');
+                const related = document.getElementById('humanity-event-touchstone');
+                if (type) type.value = 'touchstone_harmed';
+                if (related) related.value = touchstones[index].id;
+                setHumanityNotice('Опора пострадала. Рассказчик может добавить Сомнения через форму морального события.', 'warning');
+            }
         });
     });
 
@@ -5233,6 +5622,7 @@ function renderTouchstones() {
             try {
                 touchstones[index].image = await readImageAsCompressedDataURL(file, 700, 0.8);
                 renderTouchstones();
+                autoSaveVitalState();
             } catch (err) {
                 alert(err.message || 'Ошибка загрузки изображения.');
             }
@@ -5244,6 +5634,7 @@ function renderTouchstones() {
             const index = parseInt(e.target.dataset.touchstoneRemoveImage, 10);
             if (touchstones[index]) touchstones[index].image = '';
             renderTouchstones();
+            autoSaveVitalState();
         });
     });
 
@@ -5252,6 +5643,7 @@ function renderTouchstones() {
             const index = parseInt(e.target.dataset.touchstoneDelete, 10);
             touchstones.splice(index, 1);
             renderTouchstones();
+            autoSaveVitalState({ immediate: true });
         });
     });
 
@@ -5582,8 +5974,9 @@ function stabilizeImagesForCapture(area) {
 }
 
 function addTouchstone() {
-    touchstones.push({ text: '', image: '' });
+    touchstones.push({ id: `touchstone-${Date.now()}-${Math.random().toString(16).slice(2)}`, text: '', image: '', status: 'safe' });
     renderTouchstones();
+    autoSaveVitalState();
 }
 
 function setupCharacterDetails() {
@@ -6389,8 +6782,8 @@ function confirmPredatorSelection(predName) {
 
 // Отображение выбранных
 function renderSelectedMeritsFlaws() {
-    selectedMerits = selectedMerits.filter(item => item.category !== 'Достоинства слабокровных' && item.category !== 'СЛАБОКРОВНЫЕ');
-    selectedFlaws = selectedFlaws.filter(item => item.category !== 'Недостатки слабокровных' && item.category !== 'СЛАБОКРОВНЫЕ');
+    selectedMerits = selectedMerits.filter(item => item.category !== vtmName('Достоинства слабокровных') && item.category !== vtmName('СЛАБОКРОВНЫЕ'));
+    selectedFlaws = selectedFlaws.filter(item => item.category !== vtmName('Недостатки слабокровных') && item.category !== vtmName('СЛАБОКРОВНЫЕ'));
 
     let totalMerits = 0;
     let totalFlaws = 0;
@@ -6604,15 +6997,16 @@ window.setPredatorMeritPoints = function(index, targetPoints) {
 };
 
 function getThinBloodCategory(isMerit) {
+    const key = vtmName('СЛАБОКРОВНЫЕ');
     return isMerit
-        ? RULES.advantages?.merits?.['СЛАБОКРОВНЫЕ']
-        : (RULES.advantages?.flaws?.['СЛАБОКРОВНЫЕ'] || RULES.flaws?.['СЛАБОКРОВНЫЕ']);
+        ? RULES.advantages?.merits?.[key]
+        : (RULES.advantages?.flaws?.[key] || RULES.flaws?.[key]);
 }
 
 function buildThinBloodTrait(raw, isMerit) {
     const category = getThinBloodCategory(isMerit) || {};
     return {
-        category: category.название || (isMerit ? 'Достоинства слабокровных' : 'Недостатки слабокровных'),
+        category: category.название || (isMerit ? vtmName('Достоинства слабокровных') : vtmName('Недостатки слабокровных')),
         categoryDesc: category.описание || '',
         name: raw.название_пункта || raw.name || '',
         points: parseInt(raw.точки || raw.points || 1, 10) || 1,
@@ -6657,7 +7051,7 @@ function renderThinBloodMeritsFlaws() {
     section.style.display = shouldShow ? 'block' : 'none';
     if (!shouldShow) return;
 
-    selectedThinBloodMerits = selectedThinBloodMerits.filter(item => item.name !== 'Склонность к Дисциплине');
+    selectedThinBloodMerits = selectedThinBloodMerits.filter(item => item.name !== vtmName('Склонность к Дисциплине'));
 
     const meritsContainer = document.getElementById('selected-thin-blood-merits-list');
     const flawsContainer = document.getElementById('selected-thin-blood-flaws-list');
@@ -6743,7 +7137,7 @@ function renderThinBloodTraitChoices(tab) {
     `;
 
     category.варианты.forEach((raw, index) => {
-        if (isMerit && raw.название_пункта === 'Склонность к Дисциплине') return;
+        if (isMerit && raw.название_пункта === vtmName('Склонность к Дисциплине')) return;
         const item = buildThinBloodTrait(raw, isMerit);
         const alreadyTaken = selected.some(existing => existing.name === item.name);
         const limitReached = selected.length >= 3;
@@ -6911,7 +7305,7 @@ function confirmPredatorDiscipline(predatorName) {
     if (!disc) return alert("Выберите дисциплину!");
 
     // Добавляем дисциплину
-    mergeDiscipline(disc, 1, `Охота: ${predatorName}`);
+    mergeDiscipline(disc, 1, `${t("Охота")}: ${predatorName}`);
     predatorProvidedDisciplines[disc] = 1;
 
     closePredDiscModal();
@@ -7050,13 +7444,17 @@ function getFullCharacterData() {
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
         sheetFixed: startingSheetFixed,
-        status: { physicalState: getHealthTracker().physicalState },
+        status: {
+            physicalState: getHealthTracker().physicalState,
+            humanityState: getHumanityState().value <= 0 ? 'lost_to_beast' : null
+        },
         healthState: { ...healthState },
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
         humanity: {
-            value: getStartingHumanityValue(),
+            ...getHumanityState(),
             base: parseInt(document.getElementById('base-humanity')?.value || '7', 10) || 7
         },
+        morality: getMoralityData(),
         vitalTrackers: getVitalTrackerData(),
         freeExp: getCurrentXP(),
         expHistory: JSON.parse(JSON.stringify(expHistory || [])),
@@ -7134,7 +7532,9 @@ function resetCharacterSheetForLoad() {
     currentPredatorSpecialty = null;
     characterImageData = '';
     touchstones = [];
+    moralityState = { chronicleTenets: [], convictions: [], touchstones: [] };
     inventory = [];
+    humanityState = { value: 7, stains: 0, stainEvents: [], lastRemorseCheckAt: null, lastHumanityLossAt: null };
     explicitBloodPotency = null;
     expShopMode = false;
     expShopSnapshot = null;
@@ -7176,6 +7576,8 @@ function applyCharacterData(d, sourceName = 'JSON') {
         touchstones = Array.isArray(d.touchstones)
             ? JSON.parse(JSON.stringify(d.touchstones))
             : [];
+        moralityState = window.VTMHumanity.normalizeMorality(d.morality);
+        humanityState = window.VTMHumanity.getHumanityState(d);
         inventory = normalizeInventory(d.inventory);
         setInputValue('appearance-input', d.appearance);
         setInputValue('backstory-input', d.backstory);
@@ -7198,6 +7600,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         characterPhysicalState = d.status?.physicalState || 'healthy';
         healthState = d.healthState && typeof d.healthState === 'object' ? { ...d.healthState } : {};
         vitalTrackers = normalizeVitalTrackerData(d.vitalTrackers || {});
+        vitalTrackers.humanity = humanityState.value;
         const initialHunger = document.getElementById('initial-hunger');
         if (initialHunger) initialHunger.value = String(clampHunger(vitalTrackers.hunger));
         if (document.getElementById('free-exp')) document.getElementById('free-exp').value = parseInt(d.freeExp ?? d.experience ?? 0, 10) || 0;
@@ -7341,6 +7744,7 @@ function importFromJSON() {
 function setupGenerationHint() {
     const typeSelect = document.getElementById('type-input');
     const genSelect = document.getElementById('generation-input');
+    const predatorSelect = document.getElementById('predator-input');
     const baseHumanitySelect = document.getElementById('base-humanity');
 
     if (typeSelect) typeSelect.addEventListener('change', () => {
@@ -7349,6 +7753,10 @@ function setupGenerationHint() {
         renderSelectedMeritsFlaws();
     });
     if (genSelect) genSelect.addEventListener('change', updateBloodPotencyAndBonuses);
+    if (predatorSelect) predatorSelect.addEventListener('change', () => {
+        updateHumanity();
+        autoSaveVitalState();
+    });
     if (baseHumanitySelect) baseHumanitySelect.addEventListener('change', () => {
         updateHumanity();
         autoSaveVitalState();
@@ -8144,7 +8552,7 @@ function spendOnDiscipline() {
     const cost = calculateCumulativeCost(current, target, multiplier);
 
     if (confirm(`Повысить ${name} с ${current} → ${target} за ${cost} XP?`)) {
-        mergeDiscipline(name, target - current, "Опыт");
+        mergeDiscipline(name, target - current, t("Опыт"));
         logExp(`Дисциплина ${name} ${current}→${target}`, cost);
     }
 }
@@ -8846,7 +9254,7 @@ function spendModalDiscipline() {
     if (!assertEnoughXP(cost)) return;
     if (confirm(`Повысить дисциплину ${name} до ${target} за ${cost} XP?`)) {
         runExperiencePurchase(() => {
-            mergeDiscipline(name, target - current, 'Опыт');
+            mergeDiscipline(name, target - current, t('Опыт'));
             logModal(`Дисциплина ${name} ${current}→${target}`, cost);
         });
     }
@@ -8974,13 +9382,17 @@ function captureSheetSnapshot() {
         bloodPotency: getCurrentBloodPotencyValue(),
         damageProfile: getSheetDamageProfile(),
         sheetFixed: startingSheetFixed,
-        status: { physicalState: getHealthTracker().physicalState },
+        status: {
+            physicalState: getHealthTracker().physicalState,
+            humanityState: getHumanityState().value <= 0 ? 'lost_to_beast' : null
+        },
         healthState: { ...healthState },
         baseHumanity: document.getElementById('base-humanity')?.value || '7',
         humanity: {
-            value: getStartingHumanityValue(),
+            ...getHumanityState(),
             base: parseInt(document.getElementById('base-humanity')?.value || '7', 10) || 7
         },
+        morality: getMoralityData(),
         vitalTrackers: getVitalTrackerData(),
         skillPackage: document.getElementById('skill-package')?.value || '',
         levels: captureCurrentLevels(),
@@ -9187,6 +9599,7 @@ function fixStartingSheet({ silent = false } = {}) {
         startingSheetFixed = true;
         applySheetLockState();
         autoSaveSheetLockState();
+        autoSaveVitalState({ immediate: true });
         updateExpPurchasedStyles();
         return true;
     }
@@ -9227,6 +9640,7 @@ function fixStartingSheet({ silent = false } = {}) {
     startingSheetFixed = true;
     applySheetLockState();
     autoSaveSheetLockState();
+    autoSaveVitalState({ immediate: true });
     updateExpPurchasedStyles();
 
     alert("Создание завершено. Теперь изменения характеристик проходят через магазин опыта.");

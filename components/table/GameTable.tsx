@@ -2,6 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { getAttributeDots } from '@/lib/i18n/ruleNames'
 import MusicPanel from '../music/MusicPanel'
 import GameTableStyles from './GameTableStyles'
 import LayerManager from './LayerManager'
@@ -91,6 +92,13 @@ import {
   toHealthTracker,
 } from '@/lib/vtm/health'
 import type { DamageSeverity, HealthDamageOptions } from '@/lib/vtm/health'
+import {
+  addHumanityStains as addHumanityStainsState,
+  getHumanityState,
+  getHumanityStatus,
+  getRemorseDice,
+} from '@/lib/vtm/humanity'
+import type { HumanityState, HumanityStainSource } from '@/lib/vtm/humanity'
 import type {
   ActiveParticipant,
   BlendMode,
@@ -173,6 +181,12 @@ type DisciplinePowerRule = {
       spend?: number
       reduce_rating?: number
       manual_choice?: boolean
+    }
+    humanity?: {
+      risk?: boolean
+      suggestedStains?: number
+      requiresStorytellerConfirm?: boolean
+      reason?: string
     }
   }
   effect?: string
@@ -317,10 +331,13 @@ function getDisciplinePowerEntries(rule?: DisciplineRule) {
     .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'ru'))
 }
 
+// rules.json pool text uses "как <power name>" (Russian); rules_eng.json uses
+// "as <power name>" (English) — matches whichever language is currently loaded.
 function resolvePowerPool(pool: string, rules: Record<string, DisciplineRule>) {
   const trimmed = pool.trim()
-  const reference = trimmed.match(/^как\s+(.+)$/i)?.[1]?.trim()
-  if (!reference || reference.toLocaleLowerCase('ru') === 'применяемая сила') return trimmed
+  const reference = trimmed.match(/^(?:как|as)\s+(.+)$/i)?.[1]?.trim()
+  const normalizedReference = reference?.toLocaleLowerCase('ru')
+  if (!reference || normalizedReference === 'применяемая сила' || normalizedReference === 'the power being applied') return trimmed
   for (const discipline of Object.values(rules)) {
     const referencedPower = getDisciplinePowerEntries(discipline).find(power => power.name.toLocaleLowerCase('ru') === reference.toLocaleLowerCase('ru'))
     if (referencedPower?.rule.pool) return referencedPower.rule.pool
@@ -431,7 +448,7 @@ function getCharacterHealth(character?: CharacterOption | null): NormalizedHealt
   }
   return character.health || normalizeHealthTracker(
     character.vitalTrackers?.health,
-    character.attributes['Выносливость'] || 0,
+    getAttributeDots(character.attributes, 'Выносливость'),
     getCharacterDamageProfile(character),
   )
 }
@@ -502,8 +519,8 @@ function recoverWillpowerStressValue(willpower: NormalizedWillpower, amount = 1,
 function getWillpowerRecoveryPool(character?: CharacterOption | null) {
   if (!character) return 0
   return Math.max(
-    Number(character.attributes['Самообладание'] || 0) || 0,
-    Number(character.attributes['Упорство'] || 0) || 0,
+    getAttributeDots(character.attributes, 'Самообладание'),
+    getAttributeDots(character.attributes, 'Упорство'),
   )
 }
 
@@ -518,7 +535,11 @@ function isWillpowerRerollExcluded(roll: RollMessage) {
   return roll.poolType === 'rouse-check'
     || roll.poolType === 'willpower'
     || roll.poolType === 'willpower-check'
-    || /проверка воли|вол[яи]|человеч/.test(text)
+    || roll.poolType === 'humanity-check'
+    || roll.poolType === 'remorse-check'
+    || roll.meta?.rollKind === 'humanity_check'
+    || roll.meta?.rollKind === 'remorse_check'
+    || /проверка воли|вол[яи]|человеч|willpower|humanity/.test(text)
 }
 
 function getBloodSurgeBonus(bloodPotency: number) {
@@ -540,11 +561,14 @@ function parseRouseCost(cost?: string, mechanics?: DisciplinePowerRule['mechanic
     }
   }
 
+  // cost text comes from rules.json (Russian, e.g. "1 испытание Крови") or rules_eng.json
+  // (English, e.g. "1 Blood trial") depending on which is currently loaded; every check
+  // below matches both phrasings so this keeps working regardless of language.
   const normalized = String(cost || '').trim().toLocaleLowerCase('ru')
-  if (!normalized || normalized === '—' || normalized === '-' || normalized === 'нет') {
+  if (!normalized || normalized === '—' || normalized === '-' || normalized === 'нет' || normalized === 'none') {
     return { rouseChecks: 0, variable: false }
   }
-  if (!/испытан/.test(normalized) || !/кров/.test(normalized)) {
+  if (!(/испытан|trial/.test(normalized)) || !(/кров|blood/.test(normalized))) {
     return { rouseChecks: 0, variable: false }
   }
 
@@ -572,14 +596,17 @@ function parseWillpowerCost(cost?: string, mechanics?: DisciplinePowerRule['mech
     result.manualChoice = Boolean(mechanicsCost.manual_choice)
   }
 
+  // cost text comes from rules.json (Russian) or rules_eng.json (English) depending on
+  // which is currently loaded; every check below matches both phrasings (e.g. "1 пункт
+  // воли" / "1 Willpower point") so this keeps working regardless of language.
   const normalized = String(cost || '').trim().toLocaleLowerCase('ru')
-  if (!normalized || normalized === '—' || normalized === '-' || normalized === 'нет') return result
-  if (!/вол/.test(normalized)) return result
+  if (!normalized || normalized === '—' || normalized === '-' || normalized === 'нет' || normalized === 'none') return result
+  if (!(/вол|willpower/.test(normalized))) return result
 
   const amount = Math.max(1, Math.floor(Number(normalized.match(/\d+/)?.[0]) || 1))
-  const mentionsPoint = /пункт|очк/.test(normalized)
-  const mentionsSpend = /потрат|стоим|расход|треб/.test(normalized)
-  const mentionsReduction = /сниж|уменьш|теря|постоян/.test(normalized) && /рейтинг|максим|значени|вол/.test(normalized)
+  const mentionsPoint = /пункт|очк|point/.test(normalized)
+  const mentionsSpend = /потрат|стоим|расход|треб|spend|cost|requir/.test(normalized)
+  const mentionsReduction = /сниж|уменьш|теря|постоян|reduc|lower|permanent/.test(normalized) && /рейтинг|максим|значени|вол|rating|maximum|value|willpower/.test(normalized)
 
   if (mentionsReduction) {
     result.reduceWillpowerRating = Math.max(result.reduceWillpowerRating, amount)
@@ -588,7 +615,7 @@ function parseWillpowerCost(cost?: string, mechanics?: DisciplinePowerRule['mech
     result.spendWillpower = Math.max(result.spendWillpower, amount)
   }
 
-  if (/может|добровольн|по желани|выбор|цель/.test(normalized)) {
+  if (/может|добровольн|по желани|выбор|цель|\bmay\b|voluntar|at will|choice|choos|target/.test(normalized)) {
     result.manualChoice = true
     result.warnings.push('В тексте есть добровольная трата Воли. Автотрата применяется только если это указано как цена силы.')
   }
@@ -2068,7 +2095,15 @@ export default function VampireTable() {
   const previewDamageProfile = getCharacterDamageProfile(previewCharacter)
   const previewUsesVampireResources = Boolean(previewCharacter && ['vampire', 'thinblood'].includes(previewCharacter.characterType))
   const previewBloodSurgeEnabled = previewUsesVampireResources && previewUseBloodSurge
-  const previewHumanity = Math.max(1, Math.min(10, Number(previewCharacter?.humanity ?? 7) || 7))
+  const previewHumanity = previewCharacter?.humanity || {
+    value: 7,
+    stains: 0,
+    stainEvents: [],
+    lastRemorseCheckAt: null,
+    lastHumanityLossAt: null,
+    freeBoxes: 3,
+    status: 'normal' as const,
+  }
   const canRollPreview = Boolean(previewCharacter?.id && (isMaster || previewCharacter.id === selectedActiveCharacter?.id))
   const previewContestedOpponentOptions = getContestedOpponentOptions(previewCharacter)
   const selectedPreviewContestedOpponent = previewContestedOpponentOptions.find(option => option.id === previewContestedOpponentId) || null
@@ -2374,6 +2409,178 @@ export default function VampireTable() {
     return updatedCharacter
   }
 
+  const updateCharacterHumanity = async (
+    characterId: string,
+    nextHumanity: HumanityState,
+    reason = 'Человечность сохранена',
+  ) => {
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id, user_id, name, clan, data')
+      .eq('id', characterId)
+      .single()
+
+    if (error || !data?.data) {
+      console.error('Не удалось прочитать персонажа для обновления Человечности:', error)
+      setConnectionText('Человечность не сохранилась')
+      return null
+    }
+
+    const characterData = data.data as NonNullable<CharacterRow['data']>
+    const normalized = getHumanityState({ humanity: nextHumanity })
+    const previousHumanity = characterData.humanity && typeof characterData.humanity === 'object'
+      ? characterData.humanity
+      : {}
+    const nextData: NonNullable<CharacterRow['data']> = {
+      ...characterData,
+      humanity: {
+        ...previousHumanity,
+        ...normalized,
+      },
+      vitalTrackers: {
+        ...(characterData.vitalTrackers || {}),
+        humanity: normalized.value,
+      },
+      status: {
+        ...(characterData.status || {}),
+        humanityState: normalized.value <= 0 ? 'lost_to_beast' : undefined,
+      },
+    }
+
+    const { error: updateError } = await supabase
+      .from('characters')
+      .update({ data: { ...nextData, timestamp: new Date().toISOString() } })
+      .eq('id', characterId)
+
+    if (updateError) {
+      console.error('Не удалось сохранить Человечность персонажа:', updateError)
+      setConnectionText('Человечность не сохранилась')
+      return null
+    }
+
+    const updatedCharacter = mapCharacterRow({ ...(data as CharacterRow), data: nextData })
+    setChatCharacters(current => current.map(character => (
+      character.id === characterId ? { ...updatedCharacter, username: character.username } : character
+    )))
+    setPreviewCharacter(current => current?.id === characterId ? { ...updatedCharacter, username: current.username } : current)
+    setConnectionText(reason)
+    return updatedCharacter
+  }
+
+  const addHumanityStains = async (
+    character: CharacterOption,
+    amount: number,
+    reason = 'ручное решение',
+    options: {
+      source?: HumanityStainSource
+      reasonText?: string
+    } = {},
+  ) => {
+    const result = addHumanityStainsState(
+      { humanity: character.humanity || { value: 7, stains: 0 } },
+      amount,
+      reason,
+      {
+        source: options.source || 'manual',
+        reasonText: options.reasonText,
+      },
+    )
+    const updated = await updateCharacterHumanity(character.id, result.humanity, 'Сомнения сохранены')
+    if (!updated) return null
+
+    const state = updated.humanity || {
+      ...result.humanity,
+      freeBoxes: Math.max(0, 10 - result.humanity.value - result.humanity.stains),
+      status: getHumanityStatus(result.humanity),
+    }
+    await publishRoll({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      characterName: character.name,
+      poolName: `${character.name} получает ${result.applied} Сомнение: ${options.reasonText || reason}. Человечность: ${state.value}, Сомнения: ${state.stains}/${10 - state.value}.`,
+      poolType: 'humanity-event',
+      diceCount: 0,
+      dice: [],
+      successes: 0,
+      createdAt: new Date().toISOString(),
+      meta: {
+        source: 'humanity',
+        rollKind: 'humanity_check',
+        hungerDice: 0,
+        humanityBefore: result.before.value,
+        humanityAfter: state.value,
+        stainsBefore: result.before.stains,
+        stainsAfter: state.stains,
+        stainEvents: [result.event],
+        warnings: result.warning ? [result.warning] : [],
+      },
+    })
+    setConnectionText(result.warning || 'Сомнения сохранены')
+    return updated
+  }
+
+  const performRemorseCheck = async (character: CharacterOption) => {
+    const before = getHumanityState({ humanity: character.humanity || { value: 7, stains: 0 } })
+    if (before.stains <= 0) {
+      setConnectionText('Нет Сомнений для проверки')
+      return null
+    }
+
+    const remorseDice = getRemorseDice(before)
+    const automaticFailure = remorseDice <= 0
+    const dice = automaticFailure ? [] : rollD10Pool(remorseDice, 0)
+    const successes = dice.filter(die => die.value >= 6).length
+    const success = !automaticFailure && successes > 0
+    const now = new Date().toISOString()
+    const humanityAfter = success ? before.value : Math.max(0, before.value - 1)
+    const nextState: HumanityState = {
+      ...before,
+      value: humanityAfter,
+      stains: 0,
+      lastRemorseCheckAt: now,
+      lastHumanityLossAt: success ? before.lastHumanityLossAt : now,
+    }
+    const updated = await updateCharacterHumanity(character.id, nextState, 'Проверка мук совести сохранена')
+    if (!updated) return null
+
+    const poolName = automaticFailure
+      ? `Проверка мук совести: свободных ячеек нет. Результат: автоматический провал. Человечность: ${before.value} → ${humanityAfter}. Сомнения очищены.`
+      : success
+        ? `Проверка мук совести: ${remorseDice}d10. Результат: успех. Человечность остаётся ${humanityAfter}. Сомнения очищены: ${before.stains} → 0.`
+        : `Проверка мук совести: ${remorseDice}d10. Результат: провал. Человечность: ${before.value} → ${humanityAfter}. Сомнения очищены: ${before.stains} → 0.`
+    const warnings = [
+      'Проверка мук совести не использует кубики Голода, Прилив Крови и переброс Воли.',
+      ...(humanityAfter <= 0 ? ['Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.'] : []),
+    ]
+    await publishRoll({
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      room,
+      characterName: character.name,
+      poolName,
+      poolType: 'remorse-check',
+      diceCount: dice.length,
+      dice,
+      successes,
+      createdAt: now,
+      meta: {
+        source: 'humanity',
+        rollKind: 'remorse_check',
+        hungerDice: 0,
+        humanityBefore: before.value,
+        humanityAfter,
+        stainsBefore: before.stains,
+        stainsAfter: 0,
+        remorseDice,
+        automaticFailure,
+        humanityLost: !success,
+        stainEvents: before.stainEvents || [],
+        warnings,
+      },
+    })
+    return updated
+  }
+
   const updateCharacterWillpower = async (
     characterId: string,
     nextTracker: { superficial: number; aggravated: number },
@@ -2639,7 +2846,7 @@ export default function VampireTable() {
   }
 
   const recoverMortalHealth = async (character: CharacterOption) => {
-    const amount = Number(character.attributes['Выносливость'] || 0) || 0
+    const amount = getAttributeDots(character.attributes, 'Выносливость')
     await recoverCharacterHealth(character, amount, 'superficial', 'Восстановление смертного', 'mortal_superficial')
   }
 
@@ -2653,7 +2860,7 @@ export default function VampireTable() {
       ...toHealthTracker(before),
       aggravated: before.aggravated - converted,
       superficial: before.superficial + converted,
-    }, character.attributes['Выносливость'] || 0, getCharacterDamageProfile(character))
+    }, getAttributeDots(character.attributes, 'Выносливость'), getCharacterDamageProfile(character))
     const updatedCharacter = await updateCharacterHealth(character.id, next, 'Лечение смертного сохранено')
     if (!updatedCharacter) return
     await publishHealthEvent(updatedCharacter, 'Лечение смертного', before, getCharacterHealth(updatedCharacter), {
@@ -3467,6 +3674,24 @@ export default function VampireTable() {
       power: selectedPreviewPower.name,
       level: selectedPreviewPower.level,
       cost: selectedPreviewPower.rule.cost || '—',
+    }
+    const humanityRisk = selectedPreviewPower.rule.mechanics?.humanity
+    if (humanityRisk?.risk) {
+      const suggested = Math.max(1, Math.floor(Number(humanityRisk.suggestedStains) || 1))
+      const answer = window.prompt(
+        `Эта сила может угрожать Человечности. Добавить Сомнения?\n\n1 — +1\n2 — +2\n0 — не добавлять\nДругое число — ручное значение`,
+        String(suggested),
+      )
+      if (answer !== null) {
+        const amount = Math.max(0, Math.min(10, Math.floor(Number(answer) || 0)))
+        if (amount > 0) {
+          const updated = await addHumanityStains(activeCharacter, amount, 'использование силы с риском Человечности', {
+            source: 'discipline_risk',
+            reasonText: humanityRisk.reason || `${previewDisciplineName}: ${selectedPreviewPower.name}`,
+          })
+          if (updated) activeCharacter = updated
+        }
+      }
     }
 
     if (selectedPreviewPowerWillpowerCost.reduceWillpowerRating > 0) {
@@ -5777,8 +6002,12 @@ export default function VampireTable() {
       || Boolean(meta.damage)
       || Boolean(meta.healing)
       || Boolean(meta.healthImpairmentPenaltyApplied)
+    const hasHumanityMeta = meta.rollKind === 'humanity_check'
+      || meta.rollKind === 'remorse_check'
+      || typeof meta.humanityBefore === 'number'
+      || typeof meta.stainsBefore === 'number'
 
-    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !hasWillpowerMeta && !hasHealthMeta && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline) {
+    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !hasWillpowerMeta && !hasHealthMeta && !hasHumanityMeta && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline) {
       return null
     }
 
@@ -5822,6 +6051,17 @@ export default function VampireTable() {
           <span className="roll-note">
             Лечение: / {meta.healing.amountSuperficial || 0} · X {meta.healing.amountAggravated || 0}
           </span>
+        ) : null}
+        {meta.rollKind === 'remorse_check' ? (
+          <span className="roll-note">
+            Проверка мук совести: {meta.automaticFailure ? 'автоматический провал' : `${meta.remorseDice || 0}к10 без кубиков Голода`}
+          </span>
+        ) : null}
+        {typeof meta.humanityBefore === 'number' && typeof meta.humanityAfter === 'number' ? (
+          <span className="roll-note">Человечность: {meta.humanityBefore} → {meta.humanityAfter}</span>
+        ) : null}
+        {typeof meta.stainsBefore === 'number' && typeof meta.stainsAfter === 'number' ? (
+          <span className="roll-note">Сомнения: {meta.stainsBefore} → {meta.stainsAfter}</span>
         ) : null}
         {meta.messyCritical ? <strong className="roll-alert">Кровавый триумф</strong> : null}
         {meta.bestialFailure ? <strong className="roll-alert">Кровавый провал</strong> : null}
@@ -6410,6 +6650,8 @@ export default function VampireTable() {
                         <span>Оппонент: {roll.meta?.contested?.opponentName || 'не выбран'}.</span>
                         <small>Ожидается ответный бросок.</small>
                       </div>
+                    ) : roll.poolType === 'humanity-event' ? (
+                      <div className="humanity-history-event">Событие Человечности</div>
                     ) : roll.opposed ? (
                       <div className="opposed-roll-result">
                         <strong className={`opposed-result-badge outcome-${roll.opposed.outcome}`}>{roll.opposed.summary}</strong>
@@ -6489,7 +6731,7 @@ export default function VampireTable() {
                             )}
                           </div>
                         ) : null}
-                        {roll.poolType !== 'health' && roll.poolType !== 'rouse-check' && !contestedRequest && chatCharacters.length ? (
+                        {!['health', 'rouse-check', 'remorse-check', 'humanity-event'].includes(roll.poolType) && !contestedRequest && chatCharacters.length ? (
                           <div className="roll-health-actions">
                             <button type="button" onClick={() => applyRollDamage(roll)}>
                               Применить урон к цели
@@ -6917,6 +7159,7 @@ export default function VampireTable() {
                 {previewUsesVampireResources ? <div><dt>Голод</dt><dd>{previewHunger} / 5</dd></div> : null}
                 <div><dt>Здоровье</dt><dd>{previewHealth.current} / {previewHealth.max}</dd></div>
                 <div><dt>Воля</dt><dd>{previewWillpower.current} / {previewWillpower.max}</dd></div>
+                {previewUsesVampireResources ? <div><dt>Человечность</dt><dd>{previewHumanity.value} · Сомнения {previewHumanity.stains}</dd></div> : null}
                 {previewUsesVampireResources ? <div><dt>Сила Крови</dt><dd>{previewBloodPotency}</dd></div> : null}
                 <div><dt>Свободный опыт</dt><dd>{previewCharacter.freeExp ?? 0}</dd></div>
               </dl>
@@ -6949,6 +7192,52 @@ export default function VampireTable() {
                       ) : null}
                     </div>
                     </section> : null}
+                  {previewUsesVampireResources ? (
+                    <section className="preview-humanity-panel">
+                      <div className="preview-section-heading">
+                        <div>
+                          <span>Человечность</span>
+                          <h3>Сомнения и муки совести</h3>
+                        </div>
+                        <strong>{previewHumanity.value} / 10</strong>
+                      </div>
+                      <div className="preview-humanity-track" aria-label={`Человечность ${previewHumanity.value}, Сомнения ${previewHumanity.stains}`}>
+                        {Array.from({ length: 10 }, (_, index) => {
+                          const cell = index + 1
+                          const status = cell <= previewHumanity.value
+                            ? 'humanity-filled'
+                            : cell <= previewHumanity.value + previewHumanity.stains
+                              ? 'stain'
+                              : 'empty'
+                          return <span className={`preview-humanity-cell ${status}`} key={`preview-humanity-${cell}`} />
+                        })}
+                      </div>
+                      <p className="preview-humanity-caption">
+                        Сомнения {previewHumanity.stains} / {10 - previewHumanity.value} · свободно {previewHumanity.freeBoxes}
+                      </p>
+                      {previewHumanity.status === 'at_risk' ? (
+                        <p className="preview-roll-notice warning">Шкала Сомнений заполнена. Следующая проверка почти наверняка приведёт к потере Человечности.</p>
+                      ) : null}
+                      {previewHumanity.status === 'lost_to_beast' ? (
+                        <p className="preview-roll-notice danger">Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.</p>
+                      ) : null}
+                      {previewSheetFixed ? (
+                        <div className="preview-humanity-actions">
+                          <button type="button" onClick={() => addHumanityStains(previewCharacter, 1)} disabled={!canRollPreview}>
+                            + Сомнение
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => performRemorseCheck(previewCharacter)}
+                            disabled={!canRollPreview || previewHumanity.stains <= 0}
+                            title={previewHumanity.stains <= 0 ? 'Нет Сомнений для проверки.' : `Пул: ${getRemorseDice(previewHumanity)}к10`}
+                          >
+                            Проверка мук совести
+                          </button>
+                        </div>
+                      ) : null}
+                    </section>
+                  ) : null}
                   <section className="preview-willpower-panel">
                     <div className="preview-section-heading">
                       <div>
@@ -6999,7 +7288,7 @@ export default function VampireTable() {
                               ...toHealthTracker(previewHealth),
                               superficial: 0,
                               aggravated: 0,
-                            }, previewCharacter.attributes['Выносливость'] || 0, previewDamageProfile), 'Здоровье очищено')
+                            }, getAttributeDots(previewCharacter.attributes, 'Выносливость'), previewDamageProfile), 'Здоровье очищено')
                           }
                         }}
                         disabled={!canRollPreview || (!previewHealth.superficial && !previewHealth.aggravated)}
@@ -7015,7 +7304,7 @@ export default function VampireTable() {
                               ...toHealthTracker(previewHealth),
                               superficial: 0,
                               aggravated: previewHealth.max,
-                            }, previewCharacter.attributes['Выносливость'] || 0, previewDamageProfile), stateName)
+                            }, getAttributeDots(previewCharacter.attributes, 'Выносливость'), previewDamageProfile), stateName)
                           }
                         }}
                         disabled={!canRollPreview}
@@ -7088,7 +7377,7 @@ export default function VampireTable() {
                       <dl>
                         <div><dt>Здоровье</dt><dd>{previewHealth.max}</dd></div>
                         <div><dt>Воля</dt><dd>{previewWillpower.max}</dd></div>
-                        {previewUsesVampireResources ? <div><dt>Человечность</dt><dd>{previewHumanity}</dd></div> : null}
+                        {previewUsesVampireResources ? <div><dt>Человечность</dt><dd>{previewHumanity.value}</dd></div> : null}
                         {previewUsesVampireResources ? <div><dt>Голод</dt><dd>{previewHunger}</dd></div> : null}
                         {previewUsesVampireResources ? <div><dt>Сила Крови</dt><dd>{previewBloodPotency}</dd></div> : null}
                       </dl>

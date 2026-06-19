@@ -5,4 +5,9 @@
 // is missing, so an incomplete dictionary degrades gracefully instead of breaking.
 window.VTM_I18N = {
   'Не удалось загрузить rules.json': 'Failed to load rules.json',
+  'Клан': 'Clan',
+  'Охота': 'Hunt',
+  'Опыт': 'Experience',
+  'Сир': 'Sire',
+  'Связи / Наставник': 'Contacts / Mentor',
 };
