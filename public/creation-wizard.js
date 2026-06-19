@@ -346,35 +346,76 @@
     STEP_ACTIONS.filterAll = () => { wizard.clanFilter = 'all'; markCompleted('clanFilter'); nextStep(); };
 
     /* ================= ШАГ 4: ГАЛЕРЕЯ КЛАНОВ ================= */
-    function editionAllowed(ed) {
+    const CLAN_V5_NAMES = new Set([
+        'Бруха', 'Вентру', 'Гангрел', 'Малкавиан', 'Носферату',
+        'Тореадор', 'Тремер', 'Каитиф', 'Слабокровные'
+    ]);
+    const CLAN_V20_NAMES = new Set([
+        'Ассамиты', 'Джованни', 'Ласомбра', 'Последователи Сета', 'Равнос', 'Цимисхи'
+    ]);
+    function clanSection(name) {
+        if (CLAN_V5_NAMES.has(name)) return 'v5';
+        if (CLAN_V20_NAMES.has(name)) return 'v20';
+        return 'legacy';
+    }
+    function editionAllowed(name) {
+        const section = clanSection(name);
         if (wizard.clanFilter === 'all') return true;
-        if (wizard.clanFilter === 'v5_v20') return ed === 'v5' || ed === 'v20';
-        return ed === 'v5';
+        if (wizard.clanFilter === 'v5_v20') return section === 'v5' || section === 'v20';
+        return section === 'v5';
     }
     function clanCardData() {
         const clans = rules().clans || {};
         return Object.entries(clans)
-            .filter(([, d]) => editionAllowed(d.edition || 'legacy'))
+            .filter(([name]) => editionAllowed(name))
             .map(([name, d]) => ({ name, d }));
+    }
+    const CLAN_IMAGE_OVERRIDES = {
+        'Вентру': '/static/clan_gallery/ventrue_full.png',
+        'Каитиф': '/static/clan_gallery/caitiff_full.png'
+    };
+    const CLAN_EDITION_LABELS = {
+        v5: '5 версия',
+        v20: '20 версия',
+        legacy: 'Линии крови'
+    };
+    function clanImage(name, data) {
+        return CLAN_IMAGE_OVERRIDES[name] || data.gallery_image || '';
+    }
+    function galleryImage(src, alt) {
+        if (!src) return '<span class="cw-tile-media cw-tile-media-empty">Изображение не найдено</span>';
+        return `<span class="cw-tile-media"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy"></span>`;
     }
     RENDERERS.clan = () => {
         const cur = getCurrentClanValue();
         const list = clanCardData();
-        const cards = list.map(({ name, d }) => {
-            const disc = (d.disciplines || []).join(', ');
-            const bane = (d.bane || '').split(/\n+/)[0] || '';
-            const desc = (d.description || '').split(/\n+/).find(Boolean) || '';
-            const ed = (d.edition || 'legacy').toUpperCase().replace('LEGACY', 'Legacy');
-            return `<div class="cw-tile ${cur === name ? 'selected' : ''}" data-cw="pickClan" data-clan="${esc(name)}">
-                <span class="cw-tile-name">${esc(name)}</span>
-                <span class="cw-tile-badge">${esc(ed)}</span>
-                <span class="cw-tile-desc">${esc(desc.length > 160 ? desc.slice(0, 157) + '…' : desc)}</span>
-                ${disc ? `<span class="cw-tile-meta"><b>Дисциплины:</b> ${esc(disc)}</span>` : ''}
-                ${bane ? `<span class="cw-tile-meta"><b>Изъян:</b> ${esc(bane.length > 120 ? bane.slice(0, 117) + '…' : bane)}</span>` : ''}
-            </div>`;
+        const editionOrder = ['v5', 'v20', 'legacy'];
+        const sections = editionOrder.map(edition => {
+            const cards = list.filter(({ name }) => clanSection(name) === edition).map(({ name, d }) => {
+                const disc = (d.disciplines || []).join(', ');
+                const desc = (d.description || '').split(/\n+/).find(Boolean) || '';
+                const image = clanImage(name, d);
+                return `<button type="button" class="cw-tile cw-gallery-card ${cur === name ? 'selected' : ''}" data-cw="pickClan" data-clan="${esc(name)}" aria-pressed="${cur === name}">
+                    ${galleryImage(image, `Клан ${name}`)}
+                    <span class="cw-tile-body">
+                        <span class="cw-tile-heading">
+                            <span class="cw-tile-name">${esc(name)}</span>
+                            <span class="cw-tile-badge">${edition === 'legacy' ? 'Legacy' : edition.toUpperCase()}</span>
+                        </span>
+                        <span class="cw-tile-desc">${esc(desc.length > 150 ? desc.slice(0, 147) + '…' : desc)}</span>
+                        ${disc ? `<span class="cw-tile-meta"><b>Дисциплины:</b> ${esc(disc)}</span>` : ''}
+                    </span>
+                </button>`;
+            }).join('');
+            return cards
+                ? `<section class="cw-gallery-section">
+                    <h3 class="cw-gallery-title"><span>${CLAN_EDITION_LABELS[edition]}</span></h3>
+                    <div class="cw-gallery cw-gallery-visual">${cards}</div>
+                </section>`
+                : '';
         }).join('');
         return shell('clan', 'Выбери клан', cur ? `Выбран: ${cur}` : '',
-            `<div class="cw-gallery">${cards}</div>`,
+            sections,
             navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
     };
     function getCurrentClanValue() { return val('clan-input'); }
@@ -392,8 +433,12 @@
                 if (typeof window.enforceClanSpecificRules === 'function') window.enforceClanSpecificRules();
                 markCompleted('clan');
                 // подсветка
-                el('cw-card').querySelectorAll('[data-cw="pickClan"]').forEach(t => t.classList.remove('selected'));
+                el('cw-card').querySelectorAll('[data-cw="pickClan"]').forEach(t => {
+                    t.classList.remove('selected');
+                    t.setAttribute('aria-pressed', 'false');
+                });
                 tile.classList.add('selected');
+                tile.setAttribute('aria-pressed', 'true');
                 const sub = el('cw-card').querySelector('h2.cw-sub');
                 if (sub) sub.textContent = 'Выбран: ' + name;
                 persist();
@@ -412,15 +457,19 @@
             const hum = typeof d.humanity === 'number' && d.humanity !== 0
                 ? (d.humanity > 0 ? '+' + d.humanity : '' + d.humanity) : '0';
             const bp = d.blood_potency ? '+' + d.blood_potency : '0';
-            return `<div class="cw-tile ${cur === name ? 'selected' : ''}" data-cw="pickPred" data-pred="${esc(name)}">
-                <span class="cw-tile-name">${esc(name)}</span>
-                <span class="cw-tile-desc">${esc(desc.length > 170 ? desc.slice(0, 167) + '…' : desc)}</span>
-                ${disc ? `<span class="cw-tile-meta"><b>Дисциплина:</b> ${esc(disc)}</span>` : ''}
-                <span class="cw-tile-meta"><b>Сила крови:</b> ${esc(bp)} · <b>Человечность:</b> ${esc(hum)}</span>
-            </div>`;
+            const image = `/static/predator_gallery/${encodeURIComponent(name)}.png`;
+            return `<button type="button" class="cw-tile cw-gallery-card ${cur === name ? 'selected' : ''}" data-cw="pickPred" data-pred="${esc(name)}" aria-pressed="${cur === name}">
+                ${galleryImage(image, `Тип охоты ${name}`)}
+                <span class="cw-tile-body">
+                    <span class="cw-tile-name">${esc(name)}</span>
+                    <span class="cw-tile-desc">${esc(desc.length > 155 ? desc.slice(0, 152) + '…' : desc)}</span>
+                    ${disc ? `<span class="cw-tile-meta"><b>Дисциплина:</b> ${esc(disc)}</span>` : ''}
+                    <span class="cw-tile-meta"><b>Сила крови:</b> ${esc(bp)} · <b>Человечность:</b> ${esc(hum)}</span>
+                </span>
+            </button>`;
         }).join('');
         return shell('predator', 'Выбери тип охоты', cur ? `Выбран: ${cur}` : '',
-            `<div class="cw-gallery">${cards}</div>`,
+            `<div class="cw-gallery cw-gallery-visual">${cards}</div>`,
             navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
     };
     AFTER_RENDER.predator = () => {
@@ -435,8 +484,12 @@
                 if (typeof window.loadPredatorHint === 'function') window.loadPredatorHint();
                 if (typeof window.updateVitals === 'function') window.updateVitals();
                 markCompleted('predator');
-                el('cw-card').querySelectorAll('[data-cw="pickPred"]').forEach(t => t.classList.remove('selected'));
+                el('cw-card').querySelectorAll('[data-cw="pickPred"]').forEach(t => {
+                    t.classList.remove('selected');
+                    t.setAttribute('aria-pressed', 'false');
+                });
                 tile.classList.add('selected');
+                tile.setAttribute('aria-pressed', 'true');
                 const sub = el('cw-card').querySelector('h2.cw-sub');
                 if (sub) sub.textContent = 'Выбран: ' + name;
                 persist();
@@ -454,16 +507,63 @@
         { gen: 11, bp: 1, note: 'Анцилла. Сила крови 1.' },
         { gen: 10, bp: 2, note: 'Анцилла. Сила крови 2.' }
     ];
+    const GENERATION_GALLERY_GROUPS = [
+        {
+            key: 'ancilla',
+            title: 'Анциллы',
+            subtitle: 'Старшая кровь',
+            image: '/static/generation_gallery/ancilla.png',
+            accent: '#c9a84c',
+            generations: [10, 11]
+        },
+        {
+            key: 'neonate',
+            title: 'Неонаты',
+            subtitle: 'Молодая кровь',
+            image: '/static/generation_gallery/neonate.png',
+            accent: '#cc3333',
+            generations: [12, 13]
+        },
+        {
+            key: 'childe',
+            title: 'Птенцы',
+            subtitle: 'Первые ночи',
+            image: '/static/generation_gallery/childe.png',
+            accent: '#7a7aaa',
+            generations: [14, 15, 16]
+        }
+    ];
+    function generationOptionDisabled(gen) {
+        const select = el('generation-input');
+        if (!select) return false;
+        const option = Array.from(select.options || []).find(item => item.value === String(gen));
+        return Boolean(option && option.disabled);
+    }
     RENDERERS.generation = () => {
         const cur = val('generation-input');
-        const cards = GEN_INFO.map(g => `
-            <div class="cw-tile ${cur == g.gen ? 'selected' : ''}" data-cw="pickGen" data-gen="${g.gen}" data-bp="${g.bp}">
-                <span class="cw-tile-name">${g.gen}-е поколение</span>
-                <span class="cw-tile-meta"><b>Сила крови:</b> ${g.bp}</span>
-                <span class="cw-tile-desc">${esc(g.note)}</span>
-            </div>`).join('');
+        const cards = GENERATION_GALLERY_GROUPS.map(group => {
+            const selected = group.generations.some(gen => String(gen) === cur);
+            const options = group.generations.map(gen => {
+                const info = GEN_INFO.find(item => item.gen === gen);
+                if (!info) return '';
+                const disabled = generationOptionDisabled(gen);
+                const isSelected = String(gen) === cur;
+                return `<button type="button" class="cw-generation-option ${isSelected ? 'selected' : ''}" data-cw="pickGen" data-gen="${gen}" data-bp="${info.bp}" ${disabled ? 'disabled' : ''} aria-pressed="${isSelected}">
+                    <strong>${gen}-е поколение</strong>
+                    <span>Сила крови ${info.bp}</span>
+                </button>`;
+            }).join('');
+            return `<article class="cw-generation-card ${selected ? 'selected' : ''}" style="--cw-generation-accent:${group.accent}">
+                ${galleryImage(group.image, group.title)}
+                <div class="cw-generation-body">
+                    <span class="cw-generation-kicker">${group.subtitle}</span>
+                    <h3>${group.title}</h3>
+                    <div class="cw-generation-options">${options}</div>
+                </div>
+            </article>`;
+        }).join('');
         return shell('generation', 'Выбери поколение', cur ? `Выбрано: ${cur}-е` : '',
-            `<div class="cw-gallery">${cards}</div>`,
+            `<div class="cw-generation-gallery">${cards}</div>`,
             navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
     };
     AFTER_RENDER.generation = () => {
@@ -479,8 +579,14 @@
                 }
                 if (typeof window.updateBloodPotencyAndBonuses === 'function') window.updateBloodPotencyAndBonuses();
                 markCompleted('generation');
-                el('cw-card').querySelectorAll('[data-cw="pickGen"]').forEach(t => t.classList.remove('selected'));
+                el('cw-card').querySelectorAll('[data-cw="pickGen"]').forEach(t => {
+                    t.classList.remove('selected');
+                    t.setAttribute('aria-pressed', 'false');
+                });
+                el('cw-card').querySelectorAll('.cw-generation-card').forEach(card => card.classList.remove('selected'));
                 tile.classList.add('selected');
+                tile.setAttribute('aria-pressed', 'true');
+                tile.closest('.cw-generation-card')?.classList.add('selected');
                 const sub = el('cw-card').querySelector('h2.cw-sub');
                 if (sub) sub.textContent = 'Выбрано: ' + gen + '-е';
                 persist();

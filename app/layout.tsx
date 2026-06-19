@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import { LanguageProvider } from '@/lib/i18n/LanguageProvider'
 
 export const metadata: Metadata = {
   title: 'VTM V5 — Character Sheet & Table',
@@ -17,7 +18,7 @@ export default function RootLayout({
   return (
     <html lang="ru" className="dark">
       <body>
-        {children}
+        <LanguageProvider>{children}</LanguageProvider>
         <div
           id="global-music-engine"
           aria-hidden="true"

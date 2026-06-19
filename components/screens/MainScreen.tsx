@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { motion, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { FormEvent, ReactNode, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type TableRole = 'master' | 'player'
 type Accent = 'gold' | 'red' | 'cyan'
@@ -90,6 +91,7 @@ function EntryCard({
 }
 
 export default function MainScreen() {
+  const { lang, setLang, t } = useLang()
   const [roomDraft, setRoomDraft] = useState(DEFAULT_ROOM)
   const [role, setRole] = useState<TableRole>('player')
   const [chatUser, setChatUser] = useState<ChatUser | null>(null)
@@ -145,7 +147,7 @@ export default function MainScreen() {
         if (cancelled) return
         if (error) {
           console.error('Не удалось загрузить персонажей:', error)
-          setAuthStatus('Архив вошёл, но персонажи не загрузились')
+          setAuthStatus(t('Архив вошёл, но персонажи не загрузились'))
           return
         }
 
@@ -219,16 +221,16 @@ export default function MainScreen() {
     const password = passwordDraft.trim()
 
     if (username.length < 3) {
-      setAuthStatus('Имя пользователя минимум 3 символа')
+      setAuthStatus(t('Имя пользователя минимум 3 символа'))
       return
     }
     if (password.length < 6) {
-      setAuthStatus('Пароль минимум 6 символов')
+      setAuthStatus(t('Пароль минимум 6 символов'))
       return
     }
 
     setIsAuthBusy(true)
-    setAuthStatus(authMode === 'login' ? 'Проверяю доступ...' : 'Создаю запись в архиве...')
+    setAuthStatus(authMode === 'login' ? t('Проверяю доступ...') : t('Создаю запись в архиве...'))
     try {
       const supabase = createClient()
       const passwordHash = hashPassword(password)
@@ -242,7 +244,7 @@ export default function MainScreen() {
 
         if (error || !data) {
           console.error('Не удалось зарегистрировать пользователя:', error)
-          setAuthStatus(error?.code === '23505' ? 'Такой пользователь уже существует' : 'Регистрация не прошла')
+          setAuthStatus(error?.code === '23505' ? t('Такой пользователь уже существует') : t('Регистрация не прошла'))
           return
         }
 
@@ -258,7 +260,7 @@ export default function MainScreen() {
         .single()
 
       if (error || !data) {
-        setAuthStatus('Неверный логин или пароль')
+        setAuthStatus(t('Неверный логин или пароль'))
         return
       }
 
@@ -297,6 +299,16 @@ export default function MainScreen() {
     >
       <motion.div className="salon-background" style={{ x: backgroundX, y: backgroundY }} aria-hidden="true" />
       <div className="vignette" aria-hidden="true" />
+
+      <div className="lang-toggle" role="group" aria-label="Language">
+        <button type="button" className={lang === 'ru' ? 'active' : ''} onClick={() => setLang('ru')}>
+          RU
+        </button>
+        <button type="button" className={lang === 'en' ? 'active' : ''} onClick={() => setLang('en')}>
+          EN
+        </button>
+      </div>
+
       <div className="dust-field" aria-hidden="true">
         {particles.map(particle => (
           <span
@@ -337,8 +349,8 @@ export default function MainScreen() {
         <section className="card-grid" aria-label="Main entrances">
           <EntryCard
             accent="gold"
-            title="Архив личности"
-            description={chatUser ? 'Аккаунт активен. Последний персонаж доступен прямо из салона.' : 'Войдите в систему и получите доступ к персонажам, хроникам и сохранённым данным.'}
+            title={t('Архив личности')}
+            description={chatUser ? t('Аккаунт активен. Последний персонаж доступен прямо из салона.') : t('Войдите в систему и получите доступ к персонажам, хроникам и сохранённым данным.')}
             button={
               chatUser ? (
                 <div className="identity-panel">
@@ -350,9 +362,9 @@ export default function MainScreen() {
                     )}
                   </div>
                   <strong>{selectedCharacter?.name || chatUser.username}</strong>
-                  <small>{selectedCharacter?.clan || (characters.length ? 'Клан не указан' : 'Персонажей пока нет')}</small>
+                  <small>{selectedCharacter?.clan || (characters.length ? t('Клан не указан') : t('Персонажей пока нет'))}</small>
                   {characters.length > 1 ? (
-                    <select value={selectedCharacterId} onChange={event => chooseCharacter(event.target.value)} aria-label="Активный персонаж">
+                    <select value={selectedCharacterId} onChange={event => chooseCharacter(event.target.value)} aria-label={t('Активный персонаж')}>
                       {characters.map(character => (
                         <option value={character.id} key={character.id}>
                           {character.name}{character.clan ? ` · ${character.clan}` : ''}
@@ -362,10 +374,10 @@ export default function MainScreen() {
                   ) : null}
                   <div className="identity-actions">
                     <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
-                      Листы
+                      {t('Листы')}
                     </Link>
                     <button type="button" className="ghost-action" onClick={logout}>
-                      Выйти
+                      {t('Выйти')}
                     </button>
                     <Link
                       href={newSheetHref}
@@ -375,7 +387,7 @@ export default function MainScreen() {
                       }}
                       className="ghost-action new-character-action"
                     >
-                      Создать нового персонажа
+                      {t('Создать нового персонажа')}
                     </Link>
                   </div>
                 </div>
@@ -383,27 +395,27 @@ export default function MainScreen() {
                 <form className="auth-form" onSubmit={handleAuth}>
                   <div className="auth-tabs">
                     <button type="button" className={authMode === 'login' ? 'active' : ''} onClick={() => setAuthMode('login')}>
-                      Вход
+                      {t('Вход')}
                     </button>
                     <button type="button" className={authMode === 'register' ? 'active' : ''} onClick={() => setAuthMode('register')}>
-                      Регистрация
+                      {t('Регистрация')}
                     </button>
                   </div>
                   <input
                     value={usernameDraft}
                     onChange={event => setUsernameDraft(event.target.value)}
-                    placeholder="Имя пользователя"
+                    placeholder={t('Имя пользователя')}
                     autoComplete="username"
                   />
                   <input
                     value={passwordDraft}
                     onChange={event => setPasswordDraft(event.target.value)}
-                    placeholder="Пароль"
+                    placeholder={t('Пароль')}
                     type="password"
                     autoComplete={authMode === 'login' ? 'current-password' : 'new-password'}
                   />
                   <button type="submit" className="card-action" disabled={isAuthBusy}>
-                    {isAuthBusy ? '...' : authMode === 'login' ? 'Войти в аккаунт' : 'Создать аккаунт'}
+                    {isAuthBusy ? '...' : authMode === 'login' ? t('Войти в аккаунт') : t('Создать аккаунт')}
                   </button>
                 </form>
               )
@@ -414,28 +426,28 @@ export default function MainScreen() {
 
           <EntryCard
             accent="red"
-            title="Хроника"
-            description="Подключитесь к игровой комнате, синхронизируйте листы и играйте в реальном времени."
+            title={t('Хроника')}
+            description={t('Подключитесь к игровой комнате, синхронизируйте листы и играйте в реальном времени.')}
             button={
               <form onSubmit={handleRoomSubmit} className="chronicle-form">
                 <div className="room-line">
                   <input
                     value={roomDraft}
                     onChange={event => setRoomDraft(event.target.value)}
-                    placeholder="Название комнаты"
+                    placeholder={t('Название комнаты')}
                     autoComplete="off"
                   />
                   <select
                     value={role}
                     onChange={event => setRole(event.target.value as TableRole)}
-                    aria-label="Роль"
+                    aria-label={t('Роль')}
                   >
-                    <option value="player">Игрок</option>
-                    <option value="master">Мастер</option>
+                    <option value="player">{t('Игрок')}</option>
+                    <option value="master">{t('Мастер')}</option>
                   </select>
                 </div>
                 <button type="submit" className="card-action">
-                  Войти в игру
+                  {t('Войти в игру')}
                 </button>
               </form>
             }
@@ -445,12 +457,12 @@ export default function MainScreen() {
 
           <EntryCard
             accent="cyan"
-            title="Библиотека"
-            description="Открывайте листы персонажей и личные дневники, сохранённые во время игры."
+            title={t('Библиотека')}
+            description={t('Открывайте листы персонажей и личные дневники, сохранённые во время игры.')}
             button={
               <div className="library-actions">
                 <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
-                  Открыть редактор
+                  {t('Открыть редактор')}
                 </Link>
                 <Link
                   href={newSheetHref}
@@ -460,13 +472,13 @@ export default function MainScreen() {
                   }}
                   className="ghost-action"
                 >
-                  Создать нового персонажа
+                  {t('Создать нового персонажа')}
                 </Link>
                 <Link href="/journal" className="ghost-action">
-                  Дневник
+                  {t('Дневник')}
                 </Link>
                 <Link href="/reference" className="ghost-action">
-                  Справочник
+                  {t('Справочник')}
                 </Link>
               </div>
             }
@@ -497,6 +509,44 @@ export default function MainScreen() {
           box-shadow: inset 0 0 0 1px rgba(255,255,255,0.025), 0 0 70px rgba(0,0,0,0.65);
           pointer-events: none;
           z-index: 4;
+        }
+
+        .lang-toggle {
+          position: fixed;
+          top: 18px;
+          right: 18px;
+          z-index: 5;
+          display: flex;
+          gap: 2px;
+          padding: 3px;
+          border-radius: 999px;
+          background: rgba(10, 10, 10, 0.72);
+          border: 1px solid rgba(178, 126, 71, 0.35);
+          backdrop-filter: blur(6px);
+        }
+
+        .lang-toggle button {
+          appearance: none;
+          border: none;
+          background: transparent;
+          color: rgba(238, 232, 223, 0.55);
+          font-family: Inter, system-ui, sans-serif;
+          font-size: 12px;
+          font-weight: 600;
+          letter-spacing: 0.04em;
+          padding: 6px 12px;
+          border-radius: 999px;
+          cursor: pointer;
+          transition: background 0.2s ease, color 0.2s ease;
+        }
+
+        .lang-toggle button:hover {
+          color: rgba(238, 232, 223, 0.85);
+        }
+
+        .lang-toggle button.active {
+          background: rgba(178, 126, 71, 0.85);
+          color: #0a0a0a;
         }
 
         .salon-background {

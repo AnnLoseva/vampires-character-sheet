@@ -299,8 +299,31 @@ function getStandardDisciplineNames(clanName = getCurrentClan()) {
         .sort();
 }
 
+// Stable-identity name pairs for comparisons against clan/discipline/predator-type/merit
+// DISPLAY NAMES, which differ between rules.json (RU) and rules_eng.json (EN). The app
+// compares against these names directly in several places below; vtmName() keeps those
+// comparisons working regardless of which rules file is currently loaded. Keyed by the
+// Russian name (matches the i18n dictionary convention used elsewhere).
+const VTM_NAME_EN = {
+    'Тремер': 'Tremere',
+    'Вентру': 'Ventrue',
+    'Суррогатчик': 'Bagger',
+    'Фермер': 'Farmer',
+    'Кровавое чародейство': 'Blood Sorcery',
+    'Алхимик': 'Alchemist',
+    'Склонность к Дисциплине': 'Discipline Affinity',
+    'тремер': 'tremere',
+    'СЛАБОКРОВНЫЕ': 'THIN_BLOODED',
+    'Достоинства слабокровных': 'Thin-blooded Merits',
+    'Недостатки слабокровных': 'Thin-blooded Flaws',
+};
+
+function vtmName(ruName) {
+    return (window.VTM_LANG === 'en') ? (VTM_NAME_EN[ruName] || ruName) : ruName;
+}
+
 function hasThinBloodAlchemyMerit() {
-    return selectedThinBloodMerits.some(item => item.name === 'Алхимик');
+    return selectedThinBloodMerits.some(item => item.name === vtmName('Алхимик'));
 }
 
 function rebuildDisciplineListFromSources() {
@@ -318,20 +341,21 @@ function rebuildDisciplineListFromSources() {
 
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
 async function loadRules() {
+    const rulesFile = (window.VTM_LANG === 'en') ? 'rules_eng.json' : 'rules.json';
     try {
-        const response = await fetch('rules.json', { cache: 'no-cache' });
-        if (!response.ok) throw new Error('rules.json не найден');
+        const response = await fetch(rulesFile, { cache: 'no-cache' });
+        if (!response.ok) throw new Error(rulesFile + ' не найден');
 
         RULES = await response.json();
         window.VTM_RULES = RULES;
 
-        console.log('✅ RULES успешно загружены');
+        console.log('✅ RULES успешно загружены из ' + rulesFile);
         console.log('Преимуществ:', Object.keys(RULES.advantages?.merits || {}).length);
         console.log('Недостатков:', Object.keys(RULES.flaws || {}).length);
 
     } catch (err) {
-        console.error('❌ Ошибка загрузки rules.json:', err);
-        alert('Не удалось загрузить rules.json');
+        console.error('❌ Ошибка загрузки ' + rulesFile + ':', err);
+        alert(t('Не удалось загрузить rules.json'));
         return;
     }
 
@@ -1984,11 +2008,11 @@ function openPredatorDisciplineModal(predName) {
 
     const clanName = document.getElementById('clan-input')?.value || '';
     let options = [...predData.disciplines.increase.options].filter(name => canUseDiscipline(name));
-    if (clanName !== 'Тремер' && predData.disciplines.increase.restriction?.includes('тремер')) {
-        options = options.filter(option => option !== 'Кровавое чародейство');
+    if (clanName !== vtmName('Тремер') && predData.disciplines.increase.restriction?.toLowerCase().includes(vtmName('тремер'))) {
+        options = options.filter(option => option !== vtmName('Кровавое чародейство'));
     }
     if (options.length === 0) {
-        alert(`Для стиля «${predName}» нет доступной дисциплины с текущим кланом.`);
+        alert(tf('Для стиля «{pred}» нет доступной дисциплины с текущим кланом.', { pred: predName }));
         applyPredatorChoiceItems(predName);
         return;
     }
@@ -5732,13 +5756,13 @@ function validatePredatorRestrictions(predName) {
     const clan = document.getElementById('clan-input')?.value || '';
     const bloodPotency = getCurrentBloodPotencyEstimate();
 
-    if ((predName === 'Суррогатчик' || predName === 'Фермер') && clan === 'Вентру') {
-        alert(`${predName} недоступен для клана Вентру.`);
+    if ((predName === vtmName('Суррогатчик') || predName === vtmName('Фермер')) && clan === vtmName('Вентру')) {
+        alert(tf('{pred} недоступен для клана Вентру.', { pred: predName }));
         return false;
     }
 
-    if (predName === 'Фермер' && bloodPotency >= 3) {
-        alert('Фермер недоступен при Силе Крови 3 и выше.');
+    if (predName === vtmName('Фермер') && bloodPotency >= 3) {
+        alert(t('Фермер недоступен при Силе Крови 3 и выше.'));
         return false;
     }
 
@@ -6271,7 +6295,7 @@ function renderCategories(tab) {
     if (search) {
         const matches = [];
         Object.keys(source).forEach(catKey => {
-            if (catKey === 'СЛАБОКРОВНЫЕ') return;
+            if (catKey === vtmName('СЛАБОКРОВНЫЕ')) return;
             const category = source[catKey];
             (category.варианты || []).forEach(variant => {
                 if (traitMatchesSearch(category, variant, search)) matches.push({ category, variant });
@@ -6289,7 +6313,7 @@ function renderCategories(tab) {
     }
 
     Object.keys(source).forEach(catKey => {
-        if (catKey === 'СЛАБОКРОВНЫЕ') return;
+        if (catKey === vtmName('СЛАБОКРОВНЫЕ')) return;
         const category = source[catKey];
         const catName = category.название || catKey;
         const description = category.описание || "Нет описания";
