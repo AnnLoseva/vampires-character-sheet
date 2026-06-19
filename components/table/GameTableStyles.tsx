@@ -2173,7 +2173,6 @@ export default function GameTableStyles() {
         }
 
         .preview-roll-submit:disabled,
-        .opposed-roll-submit:disabled,
         .quick-roll-grid button:disabled,
         .discipline-power-roll-controls button:disabled,
         .discipline-activation-only button:disabled,
@@ -2199,6 +2198,14 @@ export default function GameTableStyles() {
           width: 18px !important;
           height: 18px !important;
           accent-color: #ff4949;
+        }
+
+        .roll-mode-field select {
+          border-color: #565656;
+        }
+
+        .contested-opponent-field select {
+          border-color: #2f7650;
         }
 
         .quick-roll-grid {
@@ -3358,41 +3365,12 @@ export default function GameTableStyles() {
           font-size: 19px;
         }
 
-        .opposed-roll-panel {
-          display: grid;
-          gap: 10px;
-          padding: 10px;
-          border-bottom: 1px solid #292929;
-          background: #101010;
-        }
-
-        .opposed-roll-panel header {
-          display: block;
-        }
-
-        .opposed-roll-panel header div {
-          border: 0;
-          padding: 0;
-        }
-
-        .opposed-roll-panel header span,
         .opposed-side-heading span,
         .opposed-side-builder label > span,
         .opposed-side-status {
           color: #9c9c9c;
           font-size: 10px;
           text-transform: uppercase;
-        }
-
-        .opposed-roll-panel header strong {
-          color: #f4f4f4;
-          font-size: 13px;
-        }
-
-        .opposed-roll-builders {
-          display: grid;
-          grid-template-columns: repeat(2, minmax(0, 1fr));
-          gap: 8px;
         }
 
         .opposed-side-builder {
@@ -3419,14 +3397,12 @@ export default function GameTableStyles() {
         }
 
         .opposed-side-builder label,
-        .opposed-manual-controls,
         .opposed-trait-controls {
           min-width: 0;
           display: grid;
           gap: 6px;
         }
 
-        .opposed-manual-controls,
         .opposed-trait-controls {
           grid-template-columns: minmax(0, 1fr);
         }
@@ -3451,18 +3427,6 @@ export default function GameTableStyles() {
           text-transform: none;
         }
 
-        .opposed-roll-submit {
-          min-height: 34px;
-          border: 1px solid #2f7650;
-          border-radius: 6px;
-          background: #164b2b;
-          color: #fff;
-          cursor: pointer;
-          font: inherit;
-          font-size: 12px;
-          font-weight: 700;
-        }
-
         .roll-card {
           border: 1px solid #303030;
           border-radius: 8px;
@@ -3473,6 +3437,32 @@ export default function GameTableStyles() {
         .roll-card.hidden-roll {
           border-color: rgba(214, 170, 101, 0.48);
           background: #191611;
+        }
+
+        .contested-request-result {
+          display: grid;
+          gap: 6px;
+          margin-top: 10px;
+          border: 1px solid #2f7650;
+          border-radius: 6px;
+          background: rgba(22, 75, 43, 0.22);
+          padding: 10px;
+        }
+
+        .contested-request-result strong {
+          color: #77e4a2;
+          font-size: 13px;
+        }
+
+        .contested-request-result span {
+          color: #e8e8e8;
+          font-size: 12px;
+          line-height: 1.35;
+        }
+
+        .contested-request-result small {
+          color: #aaa;
+          font-size: 11px;
         }
 
         .roll-meta,
@@ -4717,10 +4707,6 @@ export default function GameTableStyles() {
 
           .preview-blood-surge-toggle {
             grid-column: 1 / -1;
-          }
-
-          .opposed-roll-builders {
-            grid-template-columns: minmax(0, 1fr);
           }
 
           .discipline-detail-modal {

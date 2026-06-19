@@ -133,6 +133,7 @@ function normalizeRollMeta(value: unknown): RollMeta | undefined {
   const meta: RollMeta = {}
 
   if (typeof value.characterId === 'string') meta.characterId = value.characterId
+  if (value.rollMode === 'normal' || value.rollMode === 'contested') meta.rollMode = value.rollMode
   if (typeof value.hungerBefore === 'number') meta.hungerBefore = value.hungerBefore
   if (typeof value.hungerAfter === 'number') meta.hungerAfter = value.hungerAfter
   if (typeof value.hungerDice === 'number') meta.hungerDice = value.hungerDice
@@ -149,6 +150,30 @@ function normalizeRollMeta(value: unknown): RollMeta | undefined {
   if (typeof value.source === 'string') meta.source = value.source as RollMeta['source']
   if (Array.isArray(value.warnings)) meta.warnings = value.warnings.filter((warning): warning is string => typeof warning === 'string')
   if (Array.isArray(value.rouseChecks)) meta.rouseChecks = value.rouseChecks.filter(isRouseCheckResult)
+
+  if (isRecord(value.contested)) {
+    const status = ['requested', 'answered', 'resolved', 'cancelled'].includes(String(value.contested.status))
+      ? value.contested.status as NonNullable<RollMeta['contested']>['status']
+      : undefined
+    const winner = ['initiator', 'opponent', 'tie'].includes(String(value.contested.winner))
+      ? value.contested.winner as NonNullable<RollMeta['contested']>['winner']
+      : undefined
+    meta.contested = {
+      requestId: typeof value.contested.requestId === 'string' ? value.contested.requestId : undefined,
+      initiatorCharacterId: typeof value.contested.initiatorCharacterId === 'string' ? value.contested.initiatorCharacterId : undefined,
+      initiatorCharacterName: typeof value.contested.initiatorCharacterName === 'string' ? value.contested.initiatorCharacterName : undefined,
+      initiatorPoolName: typeof value.contested.initiatorPoolName === 'string' ? value.contested.initiatorPoolName : undefined,
+      initiatorDiceCount: typeof value.contested.initiatorDiceCount === 'number' ? value.contested.initiatorDiceCount : undefined,
+      opponentUserId: typeof value.contested.opponentUserId === 'string' ? value.contested.opponentUserId : undefined,
+      opponentCharacterId: typeof value.contested.opponentCharacterId === 'string' ? value.contested.opponentCharacterId : undefined,
+      opponentName: typeof value.contested.opponentName === 'string' ? value.contested.opponentName : undefined,
+      status,
+      initiatorSuccesses: typeof value.contested.initiatorSuccesses === 'number' ? value.contested.initiatorSuccesses : undefined,
+      opponentSuccesses: typeof value.contested.opponentSuccesses === 'number' ? value.contested.opponentSuccesses : undefined,
+      margin: typeof value.contested.margin === 'number' ? value.contested.margin : undefined,
+      winner,
+    }
+  }
 
   const willpowerBefore = normalizeWillpowerMetaState(value.willpowerBefore)
   const willpowerAfter = normalizeWillpowerMetaState(value.willpowerAfter)

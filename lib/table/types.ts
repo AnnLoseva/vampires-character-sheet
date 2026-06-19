@@ -22,6 +22,8 @@ export type OpposedRollResult = {
   summary: string
 }
 
+export type RollMode = 'normal' | 'contested'
+
 export type RouseCheckResult = {
   id: string
   reason: string
@@ -85,6 +87,22 @@ export type HealthMetaState = {
 
 export type RollMeta = {
   characterId?: string
+  rollMode?: RollMode
+  contested?: {
+    requestId?: string
+    initiatorCharacterId?: string
+    initiatorCharacterName?: string
+    initiatorPoolName?: string
+    initiatorDiceCount?: number
+    opponentUserId?: string
+    opponentCharacterId?: string
+    opponentName?: string
+    status?: 'requested' | 'answered' | 'resolved' | 'cancelled'
+    initiatorSuccesses?: number
+    opponentSuccesses?: number
+    margin?: number
+    winner?: 'initiator' | 'opponent' | 'tie'
+  }
   hungerBefore?: number
   hungerAfter?: number
   hungerDice?: number
