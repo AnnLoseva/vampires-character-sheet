@@ -2,7 +2,7 @@
 
 import { ChangeEvent, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { getAttributeDots } from '@/lib/i18n/ruleNames'
+import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkillValue, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
 import MusicPanel from '../music/MusicPanel'
 import GameTableStyles from './GameTableStyles'
 import LayerManager from './LayerManager'
@@ -305,17 +305,12 @@ function getSkillDotValue(value: unknown) {
   return Number((value as { dots?: number }).dots || 0)
 }
 
-function findCaseInsensitiveName(name: string, names: string[]) {
-  const normalized = name.trim().toLocaleLowerCase('ru')
-  return names.find(candidate => candidate.toLocaleLowerCase('ru') === normalized) || ''
-}
-
 function getCharacterPoolPartDots(character: CharacterOption, name: string) {
-  const attributeName = findCaseInsensitiveName(name, Object.keys(character.attributes))
-  if (attributeName) return Number(character.attributes[attributeName] || 0)
-  const skillName = findCaseInsensitiveName(name, Object.keys(character.skills))
+  const attributeName = findCrossLanguageName(name, Object.keys(character.attributes))
+  if (attributeName) return getAttributeDots(character.attributes, attributeName)
+  const skillName = findCrossLanguageName(name, Object.keys(character.skills))
   if (skillName) return getSkillDotValue(character.skills[skillName])
-  const disciplineName = findCaseInsensitiveName(name, Object.keys(character.disciplines))
+  const disciplineName = findCrossLanguageName(name, Object.keys(character.disciplines))
   if (disciplineName) return Object.values(character.disciplines[disciplineName] || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
   return 0
 }
@@ -634,15 +629,16 @@ function getDieImage(die: Die) {
 
 function parsePowerPool(pool: string, disciplineNames: string[]) {
   const normalizedPool = pool.trim()
-  if (!normalizedPool || normalizedPool === '—' || /^(зависит|как применяемая)/i.test(normalizedPool)) return []
-  const playerSide = normalizedPool.split(/\s+(?:vs|против)\s+/i)[0].split(';')[0].replace(/\s*\([^)]*\)\s*/g, '').trim()
+  if (!normalizedPool || normalizedPool === '—' || /^(зависит|как применяемая|depends|as\s)/i.test(normalizedPool)) return []
+  // pool text uses "vs." in English (rules_eng.json) and "против" (no period) in Russian.
+  const playerSide = normalizedPool.split(/\s+(?:vs\.?|против)\s+/i)[0].split(';')[0].replace(/\s*\([^)]*\)\s*/g, '').trim()
   if (!playerSide) return []
   const knownNames = [...ATTRIBUTE_NAMES, ...SKILL_NAMES, ...disciplineNames]
 
   const choices = playerSide.split(/\s*\+\s*/).map(source => {
     const options = source
-      .split(/\s+или\s+|\//i)
-      .map(option => findCaseInsensitiveName(option, knownNames))
+      .split(/\s+(?:или|or)\s+|\//i)
+      .map(option => findCrossLanguageName(option, knownNames))
       .filter(Boolean)
     return { source: source.trim(), options } as PowerPoolChoice
   })
@@ -662,7 +658,9 @@ function getSelectedPowerNames(value: unknown) {
 }
 
 function getExtraTraitNames(values: Record<string, unknown>, groups: ReadonlyArray<{ traits: readonly string[] }>) {
-  const known = new Set(groups.flatMap(group => [...group.traits]))
+  // groups list Russian trait names only; include each one's English spelling too so
+  // characters whose data was saved in English mode aren't all misfiled as "extra".
+  const known = new Set(groups.flatMap(group => group.traits.flatMap(name => [name, ATTRIBUTE_NAME_EN[name] || SKILL_NAME_EN[name] || name])))
   return Object.keys(values).filter(name => !known.has(name)).sort((a, b) => a.localeCompare(b, 'ru'))
 }
 
@@ -2046,9 +2044,9 @@ export default function VampireTable() {
   const getSkillDots = (value: number | { dots?: number }) => getSkillDotValue(value)
   const getSkillSpecs = (value: number | { specs?: string[] }) => typeof value === 'object' && Array.isArray(value.specs) ? value.specs : []
   const getDisciplineDots = (sources: Record<string, number>) => Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
-  const masterRollAttributeDots = selectedMasterRollCharacter ? Number(selectedMasterRollCharacter.attributes[masterRollAttribute] || 0) : 0
-  const masterRollAttributeTwoDots = selectedMasterRollCharacter ? Number(selectedMasterRollCharacter.attributes[masterRollAttributeTwo] || 0) : 0
-  const masterRollSkillDots = selectedMasterRollCharacter ? getSkillDots(selectedMasterRollCharacter.skills[masterRollSkill] || 0) : 0
+  const masterRollAttributeDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttribute) : 0
+  const masterRollAttributeTwoDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttributeTwo) : 0
+  const masterRollSkillDots = selectedMasterRollCharacter ? getSkillDots(resolveSkillValue(selectedMasterRollCharacter.skills, masterRollSkill)) : 0
   const masterRollDisciplineDots = selectedMasterRollCharacter ? getDisciplineDots(selectedMasterRollCharacter.disciplines[masterRollDiscipline] || {}) : 0
   const masterRollPoolBeforeLimit = masterRollAttributeDots + masterRollAttributeTwoDots + masterRollSkillDots + masterRollDisciplineDots + masterRollModifier
   const masterWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([masterRollAttribute, masterRollAttributeTwo], selectedMasterRollCharacter)
@@ -2078,9 +2076,9 @@ export default function VampireTable() {
     setOpposedResponseSide({ ...DEFAULT_OPPOSED_RESPONSE })
   }, [incomingOpposedProposal?.id, selectedActiveCharacter?.id])
 
-  const previewAttributeDots = previewCharacter ? Number(previewCharacter.attributes[previewRollAttribute] || 0) : 0
-  const previewAttributeTwoDots = previewCharacter ? Number(previewCharacter.attributes[previewRollAttributeTwo] || 0) : 0
-  const previewSkillDots = previewCharacter ? getSkillDots(previewCharacter.skills[previewRollSkill] || 0) : 0
+  const previewAttributeDots = previewCharacter ? getAttributeDots(previewCharacter.attributes, previewRollAttribute) : 0
+  const previewAttributeTwoDots = previewCharacter ? getAttributeDots(previewCharacter.attributes, previewRollAttributeTwo) : 0
+  const previewSkillDots = previewCharacter ? getSkillDots(resolveSkillValue(previewCharacter.skills, previewRollSkill)) : 0
   const previewDisciplineDots = previewCharacter ? getDisciplineDots(previewCharacter.disciplines[previewRollDiscipline] || {}) : 0
   const previewPoolBeforeLimit = previewAttributeDots + previewAttributeTwoDots + previewSkillDots + previewDisciplineDots + previewRollModifier
   const previewWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewCharacter)
@@ -2132,7 +2130,7 @@ export default function VampireTable() {
     ? resolvePowerPool(selectedPreviewPowerRollFormula, disciplineRules)
     : selectedPreviewPowerRollFormula
   const previewPowerPoolChoices = parsePowerPool(resolvedPreviewPowerPool, previewDisciplineNames)
-  const previewPowerOpposition = resolvedPreviewPowerPool.split(/\s+(?:vs|против)\s+/i)[1]?.trim() || ''
+  const previewPowerOpposition = resolvedPreviewPowerPool.split(/\s+(?:vs\.?|против)\s+/i)[1]?.trim() || ''
   const previewPowerPoolBeforeLimit = previewCharacter
     ? previewPowerPoolSelections.reduce((sum, name) => sum + getCharacterPoolPartDots(previewCharacter, name), 0) + previewPowerModifier
     : 0
@@ -2289,9 +2287,9 @@ export default function VampireTable() {
   }
 
   const getOpposedCharacterPool = (character: CharacterOption | null, sideState: RollPoolBuilder) => {
-    const attributeDots = character ? Number(character.attributes[sideState.attribute] || 0) : 0
-    const attributeTwoDots = character ? Number(character.attributes[sideState.attributeTwo] || 0) : 0
-    const skillDots = character ? getSkillDots(character.skills[sideState.skill] || 0) : 0
+    const attributeDots = character ? getAttributeDots(character.attributes, sideState.attribute) : 0
+    const attributeTwoDots = character ? getAttributeDots(character.attributes, sideState.attributeTwo) : 0
+    const skillDots = character ? getSkillDots(resolveSkillValue(character.skills, sideState.skill)) : 0
     const disciplineDots = character ? getDisciplineDots(character.disciplines[sideState.discipline] || {}) : 0
     const willpowerPenalty = getWillpowerImpairmentPenalty([sideState.attribute, sideState.attributeTwo], character)
     const healthPenalty = getHealthImpairmentPenalty([sideState.attribute, sideState.attributeTwo], getCharacterHealth(character))
@@ -6094,12 +6092,12 @@ export default function VampireTable() {
                 <option value="">Без характеристики</option>
                 {ATTRIBUTE_GROUPS.map(group => (
                   <optgroup key={group.name} label={group.name}>
-                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{name} · {Number(character.attributes[name] || 0)}</option>)}
+                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
                   </optgroup>
                 ))}
                 {pool.extraAttributes.length ? (
                   <optgroup label="Другие">
-                    {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{name} · {Number(character.attributes[name] || 0)}</option>)}
+                    {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
                   </optgroup>
                 ) : null}
               </select>
@@ -6113,12 +6111,12 @@ export default function VampireTable() {
                 <option value="">Без второй характеристики</option>
                 {ATTRIBUTE_GROUPS.map(group => (
                   <optgroup key={group.name} label={group.name}>
-                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{name} · {Number(character.attributes[name] || 0)}</option>)}
+                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
                   </optgroup>
                 ))}
                 {pool.extraAttributes.length ? (
                   <optgroup label="Другие">
-                    {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{name} · {Number(character.attributes[name] || 0)}</option>)}
+                    {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
                   </optgroup>
                 ) : null}
               </select>
@@ -6132,12 +6130,12 @@ export default function VampireTable() {
                 <option value="">Без навыка</option>
                 {SKILL_GROUPS.map(group => (
                   <optgroup key={group.name} label={group.name}>
-                    {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(character.skills[name] || 0)}</option>)}
+                    {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(character.skills, name))}</option>)}
                   </optgroup>
                 ))}
                 {pool.extraSkills.length ? (
                   <optgroup label="Другие">
-                    {pool.extraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(character.skills[name] || 0)}</option>)}
+                    {pool.extraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(character.skills, name))}</option>)}
                   </optgroup>
                 ) : null}
               </select>
@@ -6299,6 +6297,8 @@ export default function VampireTable() {
                 <span>{activeScene?.name || 'активная сцена'}</span>
               </header>
               <div className="scene-layer-groups">
+                {/* 'фон'/'токен' below match layer.name, a Storyteller-assigned scene-layer
+                    label (data, not UI copy) — not part of the RU/EN site translation. */}
                 {[
                   ['Фон', tableManagerLayers.filter(layer => layer.onTable && (layer.zIndex < 0 || layer.name.toLowerCase().includes('фон')))],
                   ['Картинки / декорации', tableManagerLayers.filter(layer => layer.onTable && ['image', 'video'].includes(layer.layerType) && layer.zIndex >= 0 && !layer.name.toLowerCase().includes('фон'))],
@@ -6893,12 +6893,12 @@ export default function VampireTable() {
                               <option value="">Без характеристики</option>
                               {ATTRIBUTE_GROUPS.map(group => (
                                 <optgroup key={group.name} label={group.name}>
-                                  {group.traits.map(name => <option key={name} value={name} disabled={masterRollAttributeTwo === name}>{name} · {Number(selectedMasterRollCharacter.attributes[name] || 0)}</option>)}
+                                  {group.traits.map(name => <option key={name} value={name} disabled={masterRollAttributeTwo === name}>{name} · {getAttributeDots(selectedMasterRollCharacter.attributes, name)}</option>)}
                                 </optgroup>
                               ))}
                               {masterRollExtraAttributes.length ? (
                                 <optgroup label="Другие">
-                                  {masterRollExtraAttributes.map(name => <option key={name} value={name} disabled={masterRollAttributeTwo === name}>{name} · {Number(selectedMasterRollCharacter.attributes[name] || 0)}</option>)}
+                                  {masterRollExtraAttributes.map(name => <option key={name} value={name} disabled={masterRollAttributeTwo === name}>{name} · {getAttributeDots(selectedMasterRollCharacter.attributes, name)}</option>)}
                                 </optgroup>
                               ) : null}
                             </select>
@@ -6909,12 +6909,12 @@ export default function VampireTable() {
                               <option value="">Без второй характеристики</option>
                               {ATTRIBUTE_GROUPS.map(group => (
                                 <optgroup key={group.name} label={group.name}>
-                                  {group.traits.map(name => <option key={name} value={name} disabled={masterRollAttribute === name}>{name} · {Number(selectedMasterRollCharacter.attributes[name] || 0)}</option>)}
+                                  {group.traits.map(name => <option key={name} value={name} disabled={masterRollAttribute === name}>{name} · {getAttributeDots(selectedMasterRollCharacter.attributes, name)}</option>)}
                                 </optgroup>
                               ))}
                               {masterRollExtraAttributes.length ? (
                                 <optgroup label="Другие">
-                                  {masterRollExtraAttributes.map(name => <option key={name} value={name} disabled={masterRollAttribute === name}>{name} · {Number(selectedMasterRollCharacter.attributes[name] || 0)}</option>)}
+                                  {masterRollExtraAttributes.map(name => <option key={name} value={name} disabled={masterRollAttribute === name}>{name} · {getAttributeDots(selectedMasterRollCharacter.attributes, name)}</option>)}
                                 </optgroup>
                               ) : null}
                             </select>
@@ -6925,12 +6925,12 @@ export default function VampireTable() {
                               <option value="">Без навыка</option>
                               {SKILL_GROUPS.map(group => (
                                 <optgroup key={group.name} label={group.name}>
-                                  {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(selectedMasterRollCharacter.skills[name] || 0)}</option>)}
+                                  {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(selectedMasterRollCharacter.skills, name))}</option>)}
                                 </optgroup>
                               ))}
                               {masterRollExtraSkills.length ? (
                                 <optgroup label="Другие">
-                                  {masterRollExtraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(selectedMasterRollCharacter.skills[name] || 0)}</option>)}
+                                  {masterRollExtraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(selectedMasterRollCharacter.skills, name))}</option>)}
                                 </optgroup>
                               ) : null}
                             </select>
@@ -7014,7 +7014,7 @@ export default function VampireTable() {
                             <section key={group.name}>
                               <strong>{group.name}</strong>
                               {group.traits.map(name => {
-                                const dots = Number(selectedMasterRollCharacter.attributes[name] || 0)
+                                const dots = getAttributeDots(selectedMasterRollCharacter.attributes, name)
                                 return (
                                   <button
                                     type="button"
@@ -7398,12 +7398,12 @@ export default function VampireTable() {
                           <option value="">Без характеристики</option>
                           {ATTRIBUTE_GROUPS.map(group => (
                             <optgroup key={group.name} label={group.name}>
-                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
+                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
                             </optgroup>
                           ))}
                           {previewExtraAttributes.length ? (
                             <optgroup label="Другие">
-                              {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
+                              {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
                             </optgroup>
                           ) : null}
                         </select>
@@ -7414,12 +7414,12 @@ export default function VampireTable() {
                           <option value="">Без второй характеристики</option>
                           {ATTRIBUTE_GROUPS.map(group => (
                             <optgroup key={group.name} label={group.name}>
-                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
+                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
                             </optgroup>
                           ))}
                           {previewExtraAttributes.length ? (
                             <optgroup label="Другие">
-                              {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{name} · {Number(previewCharacter.attributes[name] || 0)}</option>)}
+                              {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
                             </optgroup>
                           ) : null}
                         </select>
@@ -7430,12 +7430,12 @@ export default function VampireTable() {
                           <option value="">Без навыка</option>
                           {SKILL_GROUPS.map(group => (
                             <optgroup key={group.name} label={group.name}>
-                              {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(previewCharacter.skills[name] || 0)}</option>)}
+                              {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(previewCharacter.skills, name))}</option>)}
                             </optgroup>
                           ))}
                           {previewExtraSkills.length ? (
                             <optgroup label="Другие">
-                              {previewExtraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(previewCharacter.skills[name] || 0)}</option>)}
+                              {previewExtraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(previewCharacter.skills, name))}</option>)}
                             </optgroup>
                           ) : null}
                         </select>
@@ -7533,7 +7533,7 @@ export default function VampireTable() {
                         <div className="preview-trait-group" key={group.name}>
                           <h4>{group.name}</h4>
                           {group.traits.map(name => {
-                            const dots = Number(previewCharacter.attributes[name] || 0)
+                            const dots = getAttributeDots(previewCharacter.attributes, name)
                             return (
                               <button
                                 type="button"
@@ -7551,7 +7551,7 @@ export default function VampireTable() {
                         <div className="preview-trait-group">
                           <h4>Другие</h4>
                           {previewExtraAttributes.map(name => {
-                            const dots = Number(previewCharacter.attributes[name] || 0)
+                            const dots = getAttributeDots(previewCharacter.attributes, name)
                             return (
                               <button type="button" key={name} className={previewRollAttribute === name || previewRollAttributeTwo === name ? 'active' : ''} onClick={() => togglePreviewAttribute(name)}>
                                 <span>{name}</span><i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i>
@@ -7570,7 +7570,7 @@ export default function VampireTable() {
                         <div className="preview-trait-group" key={group.name}>
                           <h4>{group.name}</h4>
                           {group.traits.map(name => {
-                            const value = previewCharacter.skills[name] || 0
+                            const value = resolveSkillValue(previewCharacter.skills, name)
                             const dots = getSkillDots(value)
                             const specs = getSkillSpecs(value)
                             return (
@@ -7591,7 +7591,7 @@ export default function VampireTable() {
                         <div className="preview-trait-group">
                           <h4>Другие</h4>
                           {previewExtraSkills.map(name => {
-                            const value = previewCharacter.skills[name] || 0
+                            const value = resolveSkillValue(previewCharacter.skills, name)
                             const dots = getSkillDots(value)
                             const specs = getSkillSpecs(value)
                             return (

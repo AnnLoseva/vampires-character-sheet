@@ -42,7 +42,9 @@ export type HealthDamageResult = {
   warnings: string[]
 }
 
-const PHYSICAL_ATTRIBUTES = ['Сила', 'Ловкость', 'Выносливость']
+// character.attributes is keyed by whichever rules language was active when that
+// character was saved, independent of the table's current display language.
+const PHYSICAL_ATTRIBUTES = ['Сила', 'Ловкость', 'Выносливость', 'Strength', 'Dexterity', 'Stamina']
 const SUPERFICIAL_MEND_BY_BLOOD_POTENCY = [1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 5]
 
 function clampInteger(value: unknown, min: number, max: number) {
