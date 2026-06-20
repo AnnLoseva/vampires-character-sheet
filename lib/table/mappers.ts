@@ -3,6 +3,7 @@ import { getMusicProvider } from '@/components/music/utils'
 import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from '@/lib/vtm/health'
 import { getHumanityState, getHumanityStatus, normalizeMoralityState } from '@/lib/vtm/humanity'
 import type { HumanityStainEvent } from '@/lib/vtm/humanity'
+import { getAttributeDots } from '@/lib/i18n/ruleNames'
 
 const DIE_KINDS = new Set<Die['kind']>([
   'fail',
@@ -31,9 +32,9 @@ function clampInteger(value: unknown, min: number, max: number) {
   return Math.max(min, Math.min(max, number))
 }
 
-export function getWillpowerMaxFromAttributes(attributes: Record<string, number> = {}) {
-  const composure = Number(attributes['Самообладание'] || 0) || 0
-  const resolve = Number(attributes['Упорство'] || 0) || 0
+export function getWillpowerMaxFromAttributes(attributes: Record<string, unknown> = {}) {
+  const composure = getAttributeDots(attributes, 'Самообладание')
+  const resolve = getAttributeDots(attributes, 'Упорство')
   return Math.max(0, Math.floor(composure + resolve))
 }
 
@@ -348,7 +349,11 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     })
   const morality = { ...moralitySource, touchstones: legacyTouchstones }
   const damageProfile = normalizeDamageProfile(data.damageProfile || getDefaultDamageProfile(characterType))
-  const health = normalizeHealthTracker(data.vitalTrackers?.health, data.attributes?.['Выносливость'] || 0, damageProfile)
+  const health = normalizeHealthTracker(
+    data.vitalTrackers?.health,
+    getAttributeDots(data.attributes, 'Выносливость'),
+    damageProfile,
+  )
   const willpower = normalizeWillpowerTracker(data.vitalTrackers?.willpower, getWillpowerMaxFromAttributes(data.attributes || {}))
   return {
     id: row.id,

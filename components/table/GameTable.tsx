@@ -936,13 +936,23 @@ export default function VampireTable() {
     if (!previewDisciplineName || disciplineRules) return
     const controller = new AbortController()
     setDisciplineRulesStatus('Загружаю описание дисциплины...')
-    fetch('/rules.json', { signal: controller.signal })
-      .then(response => {
-        if (!response.ok) throw new Error('rules.json не найден')
-        return response.json() as Promise<{ disciplines?: Record<string, DisciplineRule> }>
+    Promise.all([
+      fetch('/rules.json', { signal: controller.signal }),
+      fetch('/rules_eng.json', { signal: controller.signal }),
+    ])
+      .then(async ([ruResponse, enResponse]) => {
+        if (!ruResponse.ok) throw new Error('rules.json не найден')
+        const ruRules = await ruResponse.json() as { disciplines?: Record<string, DisciplineRule> }
+        const enRules = enResponse.ok
+          ? await enResponse.json() as { disciplines?: Record<string, DisciplineRule> }
+          : {}
+        return {
+          ...(ruRules.disciplines || {}),
+          ...(enRules.disciplines || {}),
+        }
       })
-      .then(data => {
-        setDisciplineRules(data.disciplines || {})
+      .then(disciplines => {
+        setDisciplineRules(disciplines)
         setDisciplineRulesStatus('')
       })
       .catch(error => {
@@ -2041,8 +2051,12 @@ export default function VampireTable() {
       : message.fromUserId === selectedMasterChatUserId || message.toUserId === selectedMasterChatUserId
     return message.fromUserId === chatUser.id || message.toUserId === chatUser.id
   })
-  const getSkillDots = (value: number | { dots?: number }) => getSkillDotValue(value)
-  const getSkillSpecs = (value: number | { specs?: string[] }) => typeof value === 'object' && Array.isArray(value.specs) ? value.specs : []
+  const getSkillDots = (value: unknown) => getSkillDotValue(value)
+  const getSkillSpecs = (value: unknown) => {
+    if (!value || typeof value !== 'object') return []
+    const specs = (value as { specs?: unknown }).specs
+    return Array.isArray(specs) ? specs.filter((spec): spec is string => typeof spec === 'string') : []
+  }
   const getDisciplineDots = (sources: Record<string, number>) => Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
   const masterRollAttributeDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttribute) : 0
   const masterRollAttributeTwoDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttributeTwo) : 0
@@ -2665,7 +2679,7 @@ export default function VampireTable() {
     const profile = normalizeDamageProfile(
       characterData.damageProfile || getDefaultDamageProfile(characterType),
     )
-    const stamina = Number(characterData.attributes?.['Выносливость'] || 0) || 0
+    const stamina = getAttributeDots(characterData.attributes, 'Выносливость')
     const normalized = normalizeHealthTracker(toHealthTracker(nextTracker), stamina, profile)
     const nextData = {
       ...characterData,
