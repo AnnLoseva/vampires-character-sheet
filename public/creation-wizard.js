@@ -346,12 +346,17 @@
     STEP_ACTIONS.filterAll = () => { wizard.clanFilter = 'all'; markCompleted('clanFilter'); nextStep(); };
 
     /* ================= ШАГ 4: ГАЛЕРЕЯ КЛАНОВ ================= */
+    // name comes from iterating RULES.clans, so it's a Russian or English display name
+    // depending on which rules file is loaded; both spellings are listed here.
     const CLAN_V5_NAMES = new Set([
         'Бруха', 'Вентру', 'Гангрел', 'Малкавиан', 'Носферату',
-        'Тореадор', 'Тремер', 'Каитиф', 'Слабокровные'
+        'Тореадор', 'Тремер', 'Каитиф', 'Слабокровные',
+        'Brujah', 'Ventrue', 'Gangrel', 'Malkavian', 'Nosferatu',
+        'Toreador', 'Tremere', 'Caitiff', 'Thin-blood'
     ]);
     const CLAN_V20_NAMES = new Set([
-        'Ассамиты', 'Джованни', 'Ласомбра', 'Последователи Сета', 'Равнос', 'Цимисхи'
+        'Ассамиты', 'Джованни', 'Ласомбра', 'Последователи Сета', 'Равнос', 'Цимисхи',
+        'Assamite', 'Giovanni', 'Lasombra', 'Followers of Set', 'Ravnos', 'Tzimisce'
     ]);
     function clanSection(name) {
         if (CLAN_V5_NAMES.has(name)) return 'v5';
@@ -396,7 +401,7 @@
                 const desc = (d.description || '').split(/\n+/).find(Boolean) || '';
                 const image = clanImage(name, d);
                 return `<button type="button" class="cw-tile cw-gallery-card ${cur === name ? 'selected' : ''}" data-cw="pickClan" data-clan="${esc(name)}" aria-pressed="${cur === name}">
-                    ${galleryImage(image, `Клан ${name}`)}
+                    ${galleryImage(image, `${t("Клан")} ${name}`)}
                     <span class="cw-tile-body">
                         <span class="cw-tile-heading">
                             <span class="cw-tile-name">${esc(name)}</span>
@@ -761,10 +766,10 @@
         const src = sheetData().disciplines || {};
         return Object.values(src).reduce((total, sources) =>
             total + Object.entries(sources || {}).reduce((sum, [source, dots]) =>
-                source === `Клан ${clan}` ? sum + (parseInt(dots, 10) || 0) : sum, 0), 0);
+                source === `${t('Клан')} ${clan}` ? sum + (parseInt(dots, 10) || 0) : sum, 0), 0);
     }
     function disciplineStepValid() {
-        return getCurrentClanValue() === 'Слабокровные' || clanDisciplineDots() === 3;
+        return getCurrentClanValue() === vtmName('Слабокровные') || clanDisciplineDots() === 3;
     }
     RENDERERS.disciplines = () => {
         const clan = getCurrentClanValue();
@@ -789,7 +794,7 @@
         if (!box) return;
         const total = disciplineDotsTotal();
         const clanTotal = clanDisciplineDots();
-        const thinBlood = getCurrentClanValue() === 'Слабокровные';
+        const thinBlood = getCurrentClanValue() === vtmName('Слабокровные');
         const ok = disciplineStepValid();
         box.innerHTML = `<div class="cw-counter"><span>Всего точек: <b>${total}</b></span>
             <span>От клана: <b>${clanTotal}</b>${thinBlood ? ' (для слабокровного не требуется)' : ' / 3'}</span>

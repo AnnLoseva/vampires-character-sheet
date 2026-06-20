@@ -1233,14 +1233,11 @@ function renderVitalTracker(key) {
                 : index <= state.aggravated + state.superficial
                     ? 'superficial'
                     : 'empty';
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = `vital-box vital-health hp-${status}`;
-            button.textContent = status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : '';
-            button.setAttribute('aria-label', `Здоровье: клетка ${index} из ${state.max}, ${status === 'aggravated' ? 'тяжёлое повреждение' : status === 'superficial' ? 'лёгкое повреждение' : 'пусто'}`);
-            button.title = 'Пусто → / → X → пусто';
-            button.addEventListener('click', () => cycleHealthCell(index));
-            track.appendChild(button);
+            const cell = document.createElement('span');
+            cell.className = `vital-box vital-health hp-${status}`;
+            cell.textContent = status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : '';
+            cell.setAttribute('aria-label', `Здоровье: клетка ${index} из ${state.max}, ${status === 'aggravated' ? 'тяжёлое повреждение' : status === 'superficial' ? 'лёгкое повреждение' : 'пусто'}`);
+            track.appendChild(cell);
         }
         if (caption) caption.textContent = `Доступно ${state.current} / ${state.max} · / ${state.superficial} · X ${state.aggravated}${state.impaired ? ' · -2к10' : ''}`;
         const note = document.getElementById('health-state-note');
@@ -1258,15 +1255,11 @@ function renderVitalTracker(key) {
                 : index <= state.aggravated + state.superficial
                     ? 'superficial'
                     : 'empty';
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = `vital-box vital-willpower wp-${status}`;
-            button.textContent = status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : '';
-            button.setAttribute('aria-label', `Сила воли: клетка ${index} из ${max}, ${status === 'aggravated' ? 'тяжёлый стресс' : status === 'superficial' ? 'поверхностный стресс' : 'пусто'}`);
-            button.setAttribute('aria-pressed', status === 'empty' ? 'false' : 'true');
-            button.title = 'Пусто → / → X → пусто';
-            button.addEventListener('click', () => cycleWillpowerCell(index));
-            track.appendChild(button);
+            const cell = document.createElement('span');
+            cell.className = `vital-box vital-willpower wp-${status}`;
+            cell.textContent = status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : '';
+            cell.setAttribute('aria-label', `Сила воли: клетка ${index} из ${max}, ${status === 'aggravated' ? 'тяжёлый стресс' : status === 'superficial' ? 'поверхностный стресс' : 'пусто'}`);
+            track.appendChild(cell);
         }
         if (caption) {
             caption.textContent = `Доступно ${state.current} / ${state.max} · / ${state.superficial} · X ${state.aggravated}${state.impaired ? ' · -2' : ''}`;
@@ -1292,14 +1285,11 @@ function renderVitalTracker(key) {
 
     track.innerHTML = '';
     for (let index = 1; index <= max; index++) {
-        const button = document.createElement('button');
-        button.type = 'button';
-        button.className = `vital-box vital-${key}${index <= current ? ' filled' : ''}`;
-        button.setAttribute('aria-label', `${config.label}: ${index} из ${max}`);
-        button.setAttribute('aria-pressed', index <= current ? 'true' : 'false');
-        button.title = `${config.label}: ${index} / ${max}`;
-        button.addEventListener('click', () => setVitalTrackerValue(key, index));
-        track.appendChild(button);
+        const cell = document.createElement('span');
+        cell.className = `vital-box vital-${key}${index <= current ? ' filled' : ''}`;
+        cell.setAttribute('aria-label', `${config.label}: ${index} из ${max}`);
+        cell.title = `${config.label}: ${index} / ${max}`;
+        track.appendChild(cell);
     }
     if (caption) caption.textContent = `${current} / ${max}`;
 }

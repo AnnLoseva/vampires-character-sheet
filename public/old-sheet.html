@@ -893,14 +893,13 @@
             border: 2px solid #555;
             border-radius: 4px;
             background: #111;
-            cursor: pointer;
+            cursor: default;
             padding: 0;
             transition: background 0.15s, border-color 0.15s, box-shadow 0.15s, transform 0.15s;
         }
 
         .vital-box:hover {
-            border-color: #ff7777;
-            transform: translateY(-1px);
+            transform: none;
         }
 
         .vital-box.filled {
@@ -3417,22 +3416,7 @@
             <div id="val-hp-game" class="vital-value" style="color:white">4</div>
             <div id="track-health" class="vital-track" aria-label="Закрашенные клетки здоровья"></div>
             <small id="track-health-caption" class="vital-track-caption">0 / 4</small>
-            <div class="health-controls tracker-game-actions" aria-label="Управление Здоровьем">
-                <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('superficial', 1)">+1 лёгкое</button>
-                <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('aggravated', 1)">+1 тяжёлое</button>
-                <button type="button" class="rouse-check-btn" onclick="openSheetHealthDamagePrompt()">+N урона</button>
-                <button type="button" class="rouse-check-btn" onclick="mendSheetVampireSuperficial()">Заживить лёгкое</button>
-                <button type="button" class="rouse-check-btn" onclick="mendSheetVampireAggravated()">Заживить тяжёлое</button>
-                <button type="button" class="rouse-check-btn" onclick="recoverSheetMortalHealth()">Восстановление смертного</button>
-                <button type="button" class="rouse-check-btn" onclick="treatSheetMortalHealth()">Лечение смертного</button>
-                <div class="health-manual">
-                    <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('superficial', -1)">- /</button>
-                    <button type="button" class="rouse-check-btn" onclick="adjustSheetHealthDamage('aggravated', -1)">- X</button>
-                    <button type="button" class="rouse-check-btn" onclick="clearSheetHealth()">Очистить</button>
-                    <button type="button" class="rouse-check-btn" onclick="markSheetHealthDefeated()">Торпор/кома</button>
-                </div>
-                <p id="health-state-note" class="health-state-note"></p>
-            </div>
+            <p id="health-state-note" class="health-state-note"></p>
         </div>
     </div>
     <div class="vital-item">
@@ -3441,19 +3425,6 @@
             <div id="val-wp-game" class="vital-value" style="color:white">2</div>
             <div id="track-willpower" class="vital-track" aria-label="Закрашенные клетки силы воли"></div>
             <small id="track-willpower-caption" class="vital-track-caption">0 / 2</small>
-            <div class="willpower-controls tracker-game-actions" aria-label="Управление Волей">
-                <button type="button" class="rouse-check-btn" onclick="spendSheetWillpower()">Потратить</button>
-                <button type="button" class="rouse-check-btn" onclick="performSheetWillpowerCheck()">Проверка</button>
-                <button type="button" class="rouse-check-btn" onclick="recoverSheetWillpowerSessionStart()">Встреча</button>
-                <button type="button" class="rouse-check-btn" onclick="recoverSheetWillpowerDesire()">Прихоть +1</button>
-                <button type="button" class="rouse-check-btn" onclick="recoverSheetWillpowerAggravated()">Снять X</button>
-                <div class="willpower-manual">
-                    <button type="button" class="rouse-check-btn" onclick="adjustSheetWillpowerStress('superficial', 1)">+ /</button>
-                    <button type="button" class="rouse-check-btn" onclick="adjustSheetWillpowerStress('superficial', -1)">- /</button>
-                    <button type="button" class="rouse-check-btn" onclick="adjustSheetWillpowerStress('aggravated', 1)">+ X</button>
-                    <button type="button" class="rouse-check-btn" onclick="adjustSheetWillpowerStress('aggravated', -1)">- X</button>
-                </div>
-            </div>
         </div>
     </div>
     <div class="vital-item humanity-vital-item vampire-only" data-vampire-resource="true">
@@ -3463,64 +3434,8 @@
             <div id="track-humanity" class="vital-track" aria-label="Шкала Человечности и Сомнений"></div>
             <small id="track-humanity-caption" class="vital-track-caption">Человечность 7 · Сомнения 0/3</small>
             <div class="humanity-panel">
-                <div class="humanity-quick-controls">
-                    <input id="humanity-quick-reason" type="text" placeholder="Причина Сомнения (необязательно)">
-                    <div class="humanity-actions">
-                        <button type="button" onclick="addHumanityStains(null, 1, 'ручное решение', { source: 'manual', reasonText: document.getElementById('humanity-quick-reason').value.trim() })">+ Сомнение</button>
-                        <button type="button" onclick="addHumanityStains(null, 2, 'ручное решение', { source: 'manual', reasonText: document.getElementById('humanity-quick-reason').value.trim() })">+2 Сомнения</button>
-                        <button type="button" onclick="removeHumanityStains(1)">Снять 1 Сомнение</button>
-                        <button type="button" class="humanity-danger" onclick="clearHumanityStains()">Очистить Сомнения</button>
-                        <button id="humanity-remorse-btn" type="button" class="humanity-remorse" onclick="performRemorseCheck()" disabled>Проверка мук совести</button>
-                    </div>
-                </div>
                 <p id="humanity-risk-warning" class="humanity-risk-warning" hidden></p>
                 <p id="humanity-notice" class="humanity-notice" role="status" hidden></p>
-
-                <form class="humanity-event-form" onsubmit="submitHumanityEvent(event)">
-                    <h3>Моральное событие</h3>
-                    <div class="humanity-form-grid">
-                        <label>
-                            Тип события
-                            <select id="humanity-event-type">
-                                <option value="chronicle_tenet_violation">Нарушение Принципа хроники</option>
-                                <option value="conviction_violation">Нарушение Убеждения</option>
-                                <option value="touchstone_harmed">Вред Опоре</option>
-                                <option value="diablerie">Диаблери</option>
-                                <option value="cruelty">Жестокость</option>
-                                <option value="discipline_risk">Сила с риском Человечности</option>
-                                <option value="predator_type_flaw">Нарушение пищевого правила</option>
-                                <option value="storyteller">Решение Рассказчика</option>
-                            </select>
-                        </label>
-                        <label>
-                            Сомнения
-                            <select id="humanity-event-amount" onchange="updateHumanityEventAmountControl()">
-                                <option value="1">1 — небольшое нарушение</option>
-                                <option value="2">2 — серьёзное нарушение</option>
-                                <option value="3">3 — чудовищный поступок</option>
-                                <option value="custom">Другое число</option>
-                            </select>
-                        </label>
-                        <input id="humanity-event-custom-amount" type="number" min="0" max="10" value="1" hidden aria-label="Другое количество Сомнений">
-                        <label class="humanity-wide">
-                            Причина
-                            <textarea id="humanity-event-reason" rows="2" placeholder="Что произошло? Решение остаётся за Рассказчиком."></textarea>
-                        </label>
-                        <label>
-                            Связанное Убеждение
-                            <select id="humanity-event-conviction"><option value="">— Убеждение не выбрано —</option></select>
-                        </label>
-                        <label>
-                            Связанная Опора
-                            <select id="humanity-event-touchstone"><option value="">— Опора не выбрана —</option></select>
-                        </label>
-                        <label class="humanity-checkbox humanity-wide">
-                            <input id="humanity-event-mitigated" type="checkbox">
-                            Смягчено Убеждением
-                        </label>
-                        <button type="submit" class="humanity-wide">Зафиксировать Сомнения</button>
-                    </div>
-                </form>
 
                 <section class="morality-editor">
                     <h3>Принципы хроники и Убеждения</h3>
@@ -3547,9 +3462,6 @@
             <div id="val-hunger-game" class="vital-value" style="color:white">0</div>
             <div id="track-hunger" class="vital-track" aria-label="Закрашенные клетки голода"></div>
             <small id="track-hunger-caption" class="vital-track-caption">0 / 5</small>
-            <div class="tracker-game-actions">
-                <button type="button" class="rouse-check-btn" onclick="performSheetRouseCheck()">Проверить Голод</button>
-            </div>
         </div>
     </div>
     <div class="vital-item vampire-only" data-vampire-resource="true">
