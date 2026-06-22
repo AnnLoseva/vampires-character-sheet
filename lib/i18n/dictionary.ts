@@ -43,4 +43,39 @@ export const dictionary: Record<string, string> = {
   'Такой пользователь уже существует': 'This username is already taken',
   'Регистрация не прошла': 'Registration failed',
   'Неверный логин или пароль': 'Incorrect username or password',
+
+  // ReferencePage.tsx / ReferenceSidebar.tsx
+  'Навигация справочника': 'Reference navigation',
+  'Главная': 'Home',
+  'Игровой стол': 'Game table',
+  'Лист': 'Sheet',
+  'Правила, кланы, дисциплины, создание персонажа и материалы для мастера в одном тёмном архиве.':
+    'Rules, clans, Disciplines, character creation, and Storyteller material, all in one dark archive.',
+  'Поиск по справочнику': 'Search the reference',
+  'Поиск по словам': 'Search by words',
+  'Например: Голконда Бруха Голод': 'e.g.: Golconda Brujah Hunger',
+  'Найдено разделов: {count}': 'Sections found: {count}',
+  'Совпадение {current} из {total}': 'Match {current} of {total}',
+  'Совпадений нет': 'No matches',
+  'Переход по совпадениям': 'Jump between matches',
+  'Назад': 'Back',
+  'Вперёд': 'Next',
+  'Сбросить': 'Clear',
+  'Введите одно или несколько слов, чтобы оставить только подходящие разделы.':
+    'Enter one or more words to narrow the page down to matching sections.',
+  'Результаты поиска': 'Search results',
+  'Раздел': 'Section',
+  'Подраздел': 'Subsection',
+  'Справочник загружается...': 'Reference is loading...',
+  'Загружаю архив...': 'Loading the archive...',
+  'Архив открыт': 'Archive opened',
+  'Справочник не загрузился': 'Reference failed to load',
+  'Ничего не найдено': 'Nothing found',
+  'По запросу **{query}** разделы не найдены. Попробуйте другое слово или более общий термин.':
+    'No sections matched **{query}**. Try a different word, or a more general term.',
+  'Показаны только разделы, где найдены все слова запроса: **{query}**.':
+    'Showing only sections that contain every word of the query: **{query}**.',
+  'Оглавление справочника': 'Reference table of contents',
+  'Оглавление': 'Contents',
+  'Заголовки загружаются...': 'Headings are loading...',
 }

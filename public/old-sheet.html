@@ -3059,20 +3059,20 @@
         <div class="guide">
             <!-- Тип персонажа -->
             <div class="char-type-switcher">
-                <span class="char-type-group-label">Тип персонажа</span>
+                <span class="char-type-group-label" data-i18n="Тип персонажа">Тип персонажа</span>
                 <select id="char-type-select" onchange="setCharacterType(this.value)">
-                    <option value="vampire">🧛 Создать вампира</option>
-                    <option value="mortal">👤 Создать человека</option>
-                    <option value="npc-vampire">🧛 НПС Вампир</option>
-                    <option value="npc-ghost">👻 НПС Призрак</option>
-                    <option value="npc-mortal">👥 НПС Человек</option>
+                    <option value="vampire" data-i18n="🧛 Создать вампира">🧛 Создать вампира</option>
+                    <option value="mortal" data-i18n="👤 Создать человека">👤 Создать человека</option>
+                    <option value="npc-vampire" data-i18n="🧛 НПС Вампир">🧛 НПС Вампир</option>
+                    <option value="npc-ghost" data-i18n="👻 НПС Призрак">👻 НПС Призрак</option>
+                    <option value="npc-mortal" data-i18n="👥 НПС Человек">👥 НПС Человек</option>
                 </select>
             </div>
 
-            <nav class="sheet-tabs" aria-label="Разделы листа персонажа">
-                <button type="button" class="active" data-sheet-tab="social" onclick="switchSheetSection('social')">Социальное</button>
-                <button type="button" data-sheet-tab="mechanics" onclick="switchSheetSection('mechanics')">Броски / механика</button>
-                <button type="button" data-sheet-tab="inventory" onclick="switchSheetSection('inventory')">Инвентарь</button>
+            <nav class="sheet-tabs" data-i18n-aria-label="Разделы листа персонажа" aria-label="Разделы листа персонажа">
+                <button type="button" class="active" data-sheet-tab="social" onclick="switchSheetSection('social')" data-i18n="Социальное">Социальное</button>
+                <button type="button" data-sheet-tab="mechanics" onclick="switchSheetSection('mechanics')" data-i18n="Броски / механика">Броски / механика</button>
+                <button type="button" data-sheet-tab="inventory" onclick="switchSheetSection('inventory')" data-i18n="Инвентарь">Инвентарь</button>
             </nav>
             <div id="startup-trackers">
             <div id="creation-mode-note" class="creation-mode-note"></div>
@@ -3081,31 +3081,31 @@
             <!-- Вампирский: выбор набора навыков -->
             <div class="vampire-only" id="vampire-skill-tracker-block">
                 <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
-                <p style="font-size:12px;">Набор навыков:</p>
+                <p style="font-size:12px;" data-i18n="Набор навыков:">Набор навыков:</p>
                 <select id="skill-package" onchange="updateTrackers()" style="width:100%; background:#000; color:white; border:1px solid #444; padding:5px; margin-bottom:10px;">
-                    <option value="" selected disabled>— Выберите способ развития —</option>
-                    <option value="specialist">Специалист</option>
-                    <option value="balanced">Сбалансированный</option>
-                    <option value="versatile">Универсал</option>
+                    <option value="" selected disabled data-i18n="— Выберите способ развития —">— Выберите способ развития —</option>
+                    <option value="specialist" data-i18n="Специалист">Специалист</option>
+                    <option value="balanced" data-i18n="Сбалансированный">Сбалансированный</option>
+                    <option value="versatile" data-i18n="Универсал">Универсал</option>
                 </select>
             </div>
 
             <!-- Трекер навыков — общий для вампиров и смертных -->
             <div id="skill-tracker"></div>
             <hr style="border:0; border-top:1px solid #333; margin:15px 0;">
-            <div id="spec-tracker">Специализации (S): 0 / 5</div>
-            <p id="global-warning" style="color:#ffae00; display:none;">Внимание! Проверьте лимиты.</p>
+            <div id="spec-tracker" data-i18n="Специализации (S): 0 / 5">Специализации (S): 0 / 5</div>
+            <p id="global-warning" style="color:#ffae00; display:none;" data-i18n="Внимание! Проверьте лимиты.">Внимание! Проверьте лимиты.</p>
 
             <!-- Шаблоны смертных -->
             <div class="mortal-only" id="mortal-templates-panel">
                 <hr style="border:0; border-top:1px solid #333; margin:12px 0;">
-                <p style="font-size:12px; color:#888; margin-bottom:8px;">Шаблон смертного:</p>
+                <p style="font-size:12px; color:#888; margin-bottom:8px;" data-i18n="Шаблон смертного:">Шаблон смертного:</p>
                 <select id="mortal-template-select" onchange="selectMortalTemplate(this.value)" style="font-size:13px !important; padding:6px 30px 6px 10px !important; width:100% !important; margin-bottom:8px;">
-                    <option value="">— выберите шаблон —</option>
-                    <option value="weak">Слабый смертный</option>
-                    <option value="average">Обычный смертный</option>
-                    <option value="gifted">Одарённый смертный</option>
-                    <option value="formidable">Отчаянный смертный</option>
+                    <option value="" data-i18n="— выберите шаблон —">— выберите шаблон —</option>
+                    <option value="weak" data-i18n="Слабый смертный">Слабый смертный</option>
+                    <option value="average" data-i18n="Обычный смертный">Обычный смертный</option>
+                    <option value="gifted" data-i18n="Одарённый смертный">Одарённый смертный</option>
+                    <option value="formidable" data-i18n="Отчаянный смертный">Отчаянный смертный</option>
                 </select>
                 <div id="mortal-template-detail" class="mortal-tpl-detail" style="display:none;"></div>
             </div>
@@ -3115,23 +3115,23 @@
 
     <!-- Окно опыта -->
     <div class="exp-container">
-        <div class="exp-title">Свободный опыт</div>
-        <input type="number" id="free-exp" value="0" min="0" readonly title="Опыт меняется через покупки, продажи и кнопку добавления опыта">
-        <div id="exp-bonus-info" style="text-align:center; margin-top:8px; font-size:13px; color:#777;">
+        <div class="exp-title" data-i18n="Свободный опыт">Свободный опыт</div>
+        <input type="number" id="free-exp" value="0" min="0" readonly data-i18n-title="Опыт меняется через покупки, продажи и кнопку добавления опыта" title="Опыт меняется через покупки, продажи и кнопку добавления опыта">
+        <div id="exp-bonus-info" style="text-align:center; margin-top:8px; font-size:13px; color:#777;" data-i18n="Бонус от типа персонажа">
             Бонус от типа персонажа
         </div>
 
 
         <!-- ТРАТА ОПЫТА -->
 <div class="exp-spend-container" style="margin-top:20px; background:#111; padding:18px; border:1px solid #444; border-radius:8px;">
-    <h3 style="color:#ff3131; text-align:center; margin:0 0 15px 0;">Трата Опыта</h3>
+    <h3 style="color:#ff3131; text-align:center; margin:0 0 15px 0;" data-i18n="Трата Опыта">Трата Опыта</h3>
     
    <button onclick="openExpModal()" 
-        style="margin-top:15px; padding:14px 24px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:8px; cursor:pointer; width:100%;">
+        style="margin-top:15px; padding:14px 24px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:8px; cursor:pointer; width:100%;" data-i18n="Магазин опыта">
     Магазин опыта
 </button>
    <button onclick="addFreeExperience()" 
-        style="margin-top:10px; padding:12px 20px; font-size:15px; background:#222; color:#ffae00; border:1px solid #a14600; border-radius:8px; cursor:pointer; width:100%;">
+        style="margin-top:10px; padding:12px 20px; font-size:15px; background:#222; color:#ffae00; border:1px solid #a14600; border-radius:8px; cursor:pointer; width:100%;" data-i18n="Добавить опыт">
     Добавить опыт
 </button>
     <div id="exp-log" style="margin-top:12px; font-size:13px; color:#aaa; max-height:160px; overflow-y:auto; line-height:1.4;"></div>
@@ -3142,10 +3142,10 @@
     <button onclick="fixStartingSheet()"
         id="fix-start-btn"
         class="npc-hide"
-        style="width:100%; padding:14px; margin:15px 0; background:#ff3131; color:white; border:none; border-radius:8px; font-size:16px; font-weight:bold;">
+        style="width:100%; padding:14px; margin:15px 0; background:#ff3131; color:white; border:none; border-radius:8px; font-size:16px; font-weight:bold;" data-i18n="Завершить создание и зафиксировать">
     Завершить создание и зафиксировать
 </button>
-    <div class="sheet-lock-note">
+    <div class="sheet-lock-note" data-i18n="Стартовый лист зафиксирован. Повышения доступны через магазин опыта; игровые трекеры Голода, Здоровья и Воли остаются активными.">
         Стартовый лист зафиксирован. Повышения доступны через магазин опыта; игровые трекеры Голода, Здоровья и Воли остаются активными.
     </div>
         </div>
@@ -3159,61 +3159,61 @@
 
     <div class="character-profile">
         <div class="portrait-panel">
-            <div id="character-image-placeholder" class="portrait-placeholder">Портрет персонажа</div>
+            <div id="character-image-placeholder" class="portrait-placeholder" data-i18n="Портрет персонажа">Портрет персонажа</div>
             <img id="character-image-preview" class="character-portrait-preview" alt="Портрет персонажа" style="display:none;">
             <input type="file" id="character-image-input" accept="image/*" style="display:none;" onchange="uploadCharacterImage(event)">
             <div class="portrait-actions">
-                <button type="button" onclick="document.getElementById('character-image-input').click()">Загрузить</button>
-                <button type="button" onclick="deleteCharacterImage()">Удалить</button>
+                <button type="button" onclick="document.getElementById('character-image-input').click()" data-i18n="Загрузить">Загрузить</button>
+                <button type="button" onclick="deleteCharacterImage()" data-i18n="Удалить">Удалить</button>
             </div>
         </div>
 
         <div class="profile-fields">
             <div class="profile-field">
-                <span class="header-label">Имя</span>
-                <input type="text" id="char-name" placeholder="Имя персонажа" value="Kindred" style="font-size: 22px;">
+                <span class="header-label" data-i18n="Имя">Имя</span>
+                <input type="text" id="char-name" data-i18n-placeholder="Имя персонажа" placeholder="Имя персонажа" value="Kindred" style="font-size: 22px;">
             </div>
             <div class="profile-field">
-                <span class="header-label" data-tooltip="Сир — вампир, который обратил вашего персонажа. Он является вашим создателем, наставником и, нередко, цепью, которая удерживает вас в обществе Сородичей. Отношения с сиром могут быть всем — от любви до ненависти, от слепой покорности до кровной вражды.">Сир ⓘ</span>
-                <input type="text" id="sire-input" placeholder="Сир">
+                <span class="header-label" data-i18n-tooltip="Сир — вампир, который обратил вашего персонажа. Он является вашим создателем, наставником и, нередко, цепью, которая удерживает вас в обществе Сородичей. Отношения с сиром могут быть всем — от любви до ненависти, от слепой покорности до кровной вражды." data-tooltip="Сир — вампир, который обратил вашего персонажа. Он является вашим создателем, наставником и, нередко, цепью, которая удерживает вас в обществе Сородичей. Отношения с сиром могут быть всем — от любви до ненависти, от слепой покорности до кровной вражды." data-i18n="Сир ⓘ">Сир ⓘ</span>
+                <input type="text" id="sire-input" data-i18n-placeholder="Сир" placeholder="Сир">
             </div>
             <div class="profile-field">
-                <span class="header-label" data-tooltip="Концепция — краткое описание личности персонажа в нескольких словах или одном предложении. Это не архетип и не роль, а скорее суть того, кем персонаж себя считает. Примеры: «потерявшийся идеалист», «хищник в человеческой шкуре», «страж Маскарада».">Концепция ⓘ</span>
-                <input type="text" id="concept-input" placeholder="Концепция">
-            </div>
-            <div class="profile-field">
-                <span class="header-label" style="display:flex;align-items:center;gap:5px;">
-                    <span data-tooltip="Натура — истинная личность персонажа, его глубинная суть. Её опасно показывать окружающим, но именно она определяет, что персонаж представляет собой на самом деле. Действуя согласно натуре, персонаж восстанавливает пункт воли.">Натура ⓘ</span>
-                    <button class="archetype-hint-btn" onclick="openArchetypeModal('nature-input')" title="Список архетипов">?</button>
-                </span>
-                <input type="text" id="nature-input" placeholder="Натура">
+                <span class="header-label" data-i18n-tooltip="Концепция — краткое описание личности персонажа в нескольких словах или одном предложении. Это не архетип и не роль, а скорее суть того, кем персонаж себя считает. Примеры: «потерявшийся идеалист», «хищник в человеческой шкуре», «страж Маскарада»." data-tooltip="Концепция — краткое описание личности персонажа в нескольких словах или одном предложении. Это не архетип и не роль, а скорее суть того, кем персонаж себя считает. Примеры: «потерявшийся идеалист», «хищник в человеческой шкуре», «страж Маскарада»." data-i18n="Концепция ⓘ">Концепция ⓘ</span>
+                <input type="text" id="concept-input" data-i18n-placeholder="Концепция" placeholder="Концепция">
             </div>
             <div class="profile-field">
                 <span class="header-label" style="display:flex;align-items:center;gap:5px;">
-                    <span data-tooltip="Маска — фальшивое лицо, которое персонаж показывает окружающему миру. Маска позволяет взаимодействовать с обществом так, как это выгодно персонажу, скрывая его истинную суть. У персонажа может быть несколько масок для разных ситуаций.">Маска ⓘ</span>
-                    <button class="archetype-hint-btn" onclick="openArchetypeModal('mask-input')" title="Список архетипов">?</button>
+                    <span data-i18n-tooltip="Натура — истинная личность персонажа, его глубинная суть. Её опасно показывать окружающим, но именно она определяет, что персонаж представляет собой на самом деле. Действуя согласно натуре, персонаж восстанавливает пункт воли." data-tooltip="Натура — истинная личность персонажа, его глубинная суть. Её опасно показывать окружающим, но именно она определяет, что персонаж представляет собой на самом деле. Действуя согласно натуре, персонаж восстанавливает пункт воли." data-i18n="Натура ⓘ">Натура ⓘ</span>
+                    <button class="archetype-hint-btn" onclick="openArchetypeModal('nature-input')" data-i18n-title="Список архетипов" title="Список архетипов">?</button>
                 </span>
-                <input type="text" id="mask-input" placeholder="Маска">
+                <input type="text" id="nature-input" data-i18n-placeholder="Натура" placeholder="Натура">
             </div>
             <div class="profile-field">
-                <span class="header-label">Истинный возраст</span>
-                <input type="text" id="true-age-input" placeholder="Истинный возраст">
+                <span class="header-label" style="display:flex;align-items:center;gap:5px;">
+                    <span data-i18n-tooltip="Маска — фальшивое лицо, которое персонаж показывает окружающему миру. Маска позволяет взаимодействовать с обществом так, как это выгодно персонажу, скрывая его истинную суть. У персонажа может быть несколько масок для разных ситуаций." data-tooltip="Маска — фальшивое лицо, которое персонаж показывает окружающему миру. Маска позволяет взаимодействовать с обществом так, как это выгодно персонажу, скрывая его истинную суть. У персонажа может быть несколько масок для разных ситуаций." data-i18n="Маска ⓘ">Маска ⓘ</span>
+                    <button class="archetype-hint-btn" onclick="openArchetypeModal('mask-input')" data-i18n-title="Список архетипов" title="Список архетипов">?</button>
+                </span>
+                <input type="text" id="mask-input" data-i18n-placeholder="Маска" placeholder="Маска">
             </div>
             <div class="profile-field">
-                <span class="header-label">Видимый возраст</span>
-                <input type="text" id="apparent-age-input" placeholder="Видимый возраст">
+                <span class="header-label" data-i18n="Истинный возраст">Истинный возраст</span>
+                <input type="text" id="true-age-input" data-i18n-placeholder="Истинный возраст" placeholder="Истинный возраст">
             </div>
             <div class="profile-field">
-                <span class="header-label">Дата рождения</span>
-                <input type="text" id="birth-date-input" placeholder="Дата рождения">
+                <span class="header-label" data-i18n="Видимый возраст">Видимый возраст</span>
+                <input type="text" id="apparent-age-input" data-i18n-placeholder="Видимый возраст" placeholder="Видимый возраст">
             </div>
             <div class="profile-field">
-                <span class="header-label">Дата смерти</span>
-                <input type="text" id="death-date-input" placeholder="Дата смерти">
+                <span class="header-label" data-i18n="Дата рождения">Дата рождения</span>
+                <input type="text" id="birth-date-input" data-i18n-placeholder="Дата рождения" placeholder="Дата рождения">
+            </div>
+            <div class="profile-field">
+                <span class="header-label" data-i18n="Дата смерти">Дата смерти</span>
+                <input type="text" id="death-date-input" data-i18n-placeholder="Дата смерти" placeholder="Дата смерти">
             </div>
             <div class="profile-field wide">
-                <span class="header-label">Изъян клана</span>
-                <textarea id="clan-bane-input" class="readonly-field" readonly placeholder="Автоматически появится после выбора клана"></textarea>
+                <span class="header-label" data-i18n="Изъян клана">Изъян клана</span>
+                <textarea id="clan-bane-input" class="readonly-field" readonly data-i18n-placeholder="Автоматически появится после выбора клана" placeholder="Автоматически появится после выбора клана"></textarea>
             </div>
         </div>
     </div>
@@ -3224,7 +3224,7 @@
         <!-- Клан -->
         <div style="flex: 1.3; display: flex; align-items: center; gap: 8px;">
             <button class="locked-origin-control" onclick="resetAndOpenClanGallery()" 
-                    title="Открыть галерею кланов"
+                    data-i18n-title="Открыть галерею кланов" title="Открыть галерею кланов"
                     style="background:#111; border:1px solid #333; width:36px; height:32px; 
                            border-radius:4px; cursor:pointer; flex-shrink:0; 
                            display:flex; align-items:center; justify-content:center; 
@@ -3232,9 +3232,9 @@
                 ▿
             </button>
             <div style="flex:1;">
-                <span class="header-label">Клан</span>
+                <span class="header-label" data-i18n="Клан">Клан</span>
                 <select id="clan-input" onchange="loadClanHint(); updateClanIcon();">
-                    <option value="">Выберите клан</option>
+                    <option value="" data-i18n="Выберите клан">Выберите клан</option>
                 </select>
             </div>
             <div id="clan-icon-container" style="width:38px; height:38px; flex-shrink:0; display:flex; align-items:center; justify-content:center;"></div>
@@ -3243,7 +3243,7 @@
         <!-- Стиль Охоты -->
         <div style="flex: 1.2; display: flex; align-items: center; gap: 8px;">
             <button class="locked-origin-control" onclick="resetAndOpenPredatorGallery()" 
-                    title="Открыть галерею стилей охоты"
+                    data-i18n-title="Открыть галерею стилей охоты" title="Открыть галерею стилей охоты"
                     style="background:#111; border:1px solid #333; width:36px; height:32px; 
                            border-radius:4px; cursor:pointer; flex-shrink:0; 
                            display:flex; align-items:center; justify-content:center; 
@@ -3251,9 +3251,9 @@
                 ▿
             </button>
             <div style="flex:1;">
-                <span class="header-label">Стиль Охоты</span>
+                <span class="header-label" data-i18n="Стиль Охоты">Стиль Охоты</span>
                 <select id="predator-input">
-                    <option value="">Стиль Охоты</option>
+                    <option value="" data-i18n="Стиль Охоты">Стиль Охоты</option>
                 </select>
             </div>
         </div>
@@ -3265,7 +3265,7 @@
         <!-- Поколение -->
         <div style="flex: 1; display: flex; align-items: center; gap: 8px;">
             <button class="locked-origin-control" onclick="openGenerationGallery()"
-                    title="Открыть галерею поколений"
+                    data-i18n-title="Открыть галерею поколений" title="Открыть галерею поколений"
                     style="background:#111; border:1px solid #333; width:36px; height:32px;
                            border-radius:4px; cursor:pointer; flex-shrink:0;
                            display:flex; align-items:center; justify-content:center;
@@ -3273,37 +3273,37 @@
                 ▿
             </button>
             <div style="flex:1;">
-                <span class="header-label">Поколение</span>
+                <span class="header-label" data-i18n="Поколение">Поколение</span>
                 <select id="generation-input">
                     <option value=""selected>—</option>
-                    <option value="16">16 — Птенец Слабокровный</option>
-                    <option value="15">15 — Птенец Слабокровный</option>
-                    <option value="14">14 — Птенец Слабокровный</option>
-                    <option value="13">13 — Птенец/Неонат</option>
-                    <option value="12">12 — Птенец/Неонат</option>
-                    <option value="11">11 — Анцилла</option>
-                    <option value="10">10 — Анцилла</option>
-                    <option value="9">9 — Анцилла</option>
-                    <option value="8">8 — Анцилла</option>
-                    <option value="7">7 — Старейшина</option>
-                    <option value="6">6 — Старейшина</option>
-                    <option value="5">5 — Старейшина</option>
-                    <option value="4">4 — Старейшина</option>
+                    <option value="16" data-i18n="16 — Птенец Слабокровный">16 — Птенец Слабокровный</option>
+                    <option value="15" data-i18n="15 — Птенец Слабокровный">15 — Птенец Слабокровный</option>
+                    <option value="14" data-i18n="14 — Птенец Слабокровный">14 — Птенец Слабокровный</option>
+                    <option value="13" data-i18n="13 — Птенец/Неонат">13 — Птенец/Неонат</option>
+                    <option value="12" data-i18n="12 — Птенец/Неонат">12 — Птенец/Неонат</option>
+                    <option value="11" data-i18n="11 — Анцилла">11 — Анцилла</option>
+                    <option value="10" data-i18n="10 — Анцилла">10 — Анцилла</option>
+                    <option value="9" data-i18n="9 — Анцилла">9 — Анцилла</option>
+                    <option value="8" data-i18n="8 — Анцилла">8 — Анцилла</option>
+                    <option value="7" data-i18n="7 — Старейшина">7 — Старейшина</option>
+                    <option value="6" data-i18n="6 — Старейшина">6 — Старейшина</option>
+                    <option value="5" data-i18n="5 — Старейшина">5 — Старейшина</option>
+                    <option value="4" data-i18n="4 — Старейшина">4 — Старейшина</option>
                 </select>
             </div>
         </div>
 
         <!-- Тип вампира -->
         <div style="flex: 1.4;">
-            <span class="header-label">Тип</span>
+            <span class="header-label" data-i18n="Тип">Тип</span>
             <select id="type-input">
-                <option value=""selected>— Выберите тип —</option>
-                <option value="childe">Птенец (Childe)</option>
-                <option value="neonate" >Неонат (Neonate)</option>
-                <option value="ancilla">Анцилла (Ancilla)</option>
-                <option value="elder">Старейшина (Elder)</option>
-                <option value="methuselah">Матузалем (Methuselah)</option>
-                <option value="antediluvian">Антедилувиан</option>
+                <option value=""selected data-i18n="— Выберите тип —">— Выберите тип —</option>
+                <option value="childe" data-i18n="Птенец (Childe)">Птенец (Childe)</option>
+                <option value="neonate"  data-i18n="Неонат (Neonate)">Неонат (Neonate)</option>
+                <option value="ancilla" data-i18n="Анцилла (Ancilla)">Анцилла (Ancilla)</option>
+                <option value="elder" data-i18n="Старейшина (Elder)">Старейшина (Elder)</option>
+                <option value="methuselah" data-i18n="Матузалем (Methuselah)">Матузалем (Methuselah)</option>
+                <option value="antediluvian" data-i18n="Антедилувиан">Антедилувиан</option>
             </select>
         </div>
 
@@ -3312,148 +3312,148 @@
 </div>
 
 <div class="story-section">
-    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ОПОРЫ И ПРИНЦИПЫ</h2>
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;" data-i18n="ОПОРЫ И ПРИНЦИПЫ">ОПОРЫ И ПРИНЦИПЫ</h2>
     <div id="touchstones-list"></div>
-    <button type="button" onclick="addTouchstone()" class="merit-add-btn" style="width:100%; padding:12px; background:#222; color:#fff; border:1px solid #ff3131; border-radius:6px; font-size:16px; cursor:pointer;">
+    <button type="button" onclick="addTouchstone()" class="merit-add-btn" style="width:100%; padding:12px; background:#222; color:#fff; border:1px solid #ff3131; border-radius:6px; font-size:16px; cursor:pointer;" data-i18n="+ Добавить опору">
         + Добавить опору
     </button>
 </div>
 
 <div class="story-section">
-    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ВНЕШНОСТЬ</h2>
-    <textarea id="appearance-input" placeholder="Описание внешности"></textarea>
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;" data-i18n="ВНЕШНОСТЬ">ВНЕШНОСТЬ</h2>
+    <textarea id="appearance-input" data-i18n-placeholder="Описание внешности" placeholder="Описание внешности"></textarea>
 </div>
 
 <div class="story-section">
-    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ПРЕДЫСТОРИЯ</h2>
-    <textarea id="backstory-input" placeholder="Предыстория персонажа"></textarea>
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;" data-i18n="ПРЕДЫСТОРИЯ">ПРЕДЫСТОРИЯ</h2>
+    <textarea id="backstory-input" data-i18n-placeholder="Предыстория персонажа" placeholder="Предыстория персонажа"></textarea>
 </div>
 
 <div class="story-section">
-    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ЗАМЕТКИ ПЕРСОНАЖА</h2>
-    <textarea id="notes-input" placeholder="Личные заметки, связи, привычки, важные детали"></textarea>
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;" data-i18n="ЗАМЕТКИ ПЕРСОНАЖА">ЗАМЕТКИ ПЕРСОНАЖА</h2>
+    <textarea id="notes-input" data-i18n-placeholder="Личные заметки, связи, привычки, важные детали" placeholder="Личные заметки, связи, привычки, важные детали"></textarea>
 </div>
 </section>
 
 <section class="sheet-section" data-sheet-section="mechanics">
-    <h2>Характеристики</h2>
+    <h2 data-i18n="Характеристики">Характеристики</h2>
     <div class="grid" id="attributes-grid"></div>
 
-    <h2>Навыки</h2>
+    <h2 data-i18n="Навыки">Навыки</h2>
     <div class="grid" id="skills-grid"></div>
 
-<section class="vitals vitals-creation-summary" data-visible-before-fixed="true" aria-label="Стартовые витальные параметры">
+<section class="vitals vitals-creation-summary" data-visible-before-fixed="true" data-i18n-aria-label="Стартовые витальные параметры" aria-label="Стартовые витальные параметры">
     <div class="creation-vital-card">
-        <span class="creation-vital-title">Здоровье</span>
-        <strong id="val-hp" class="creation-vital-value" data-tooltip="Здоровье = Выносливость + 3">4</strong>
-        <small id="creation-health-formula" class="creation-vital-formula">Выносливость 1 + 3</small>
+        <span class="creation-vital-title" data-i18n="Здоровье">Здоровье</span>
+        <strong id="val-hp" class="creation-vital-value" data-i18n-tooltip="Здоровье = Выносливость + 3" data-tooltip="Здоровье = Выносливость + 3">4</strong>
+        <small id="creation-health-formula" class="creation-vital-formula" data-i18n="Выносливость 1 + 3">Выносливость 1 + 3</small>
     </div>
     <div class="creation-vital-card">
-        <span class="creation-vital-title">Сила воли</span>
-        <strong id="val-wp" class="creation-vital-value" data-tooltip="Сила воли = Самообладание + Упорство">2</strong>
-        <small id="creation-willpower-formula" class="creation-vital-formula">Самообладание 1 + Упорство 1</small>
+        <span class="creation-vital-title" data-i18n="Сила воли">Сила воли</span>
+        <strong id="val-wp" class="creation-vital-value" data-i18n-tooltip="Сила воли = Самообладание + Упорство" data-tooltip="Сила воли = Самообладание + Упорство">2</strong>
+        <small id="creation-willpower-formula" class="creation-vital-formula" data-i18n="Самообладание 1 + Упорство 1">Самообладание 1 + Упорство 1</small>
     </div>
     <div class="creation-vital-card vampire-only" data-vampire-resource="true">
-        <span class="creation-vital-title">Человечность</span>
-        <strong id="val-humanity" class="creation-vital-value" data-tooltip="Стартовая Человечность с модификаторами">7</strong>
-        <small id="creation-humanity-formula" class="creation-vital-formula">Стартовая человечность: 7</small>
+        <span class="creation-vital-title" data-i18n="Человечность">Человечность</span>
+        <strong id="val-humanity" class="creation-vital-value" data-i18n-tooltip="Стартовая Человечность с модификаторами" data-tooltip="Стартовая Человечность с модификаторами">7</strong>
+        <small id="creation-humanity-formula" class="creation-vital-formula" data-i18n="Стартовая человечность: 7">Стартовая человечность: 7</small>
         <label class="creation-vital-control">
-            <select id="base-humanity" aria-label="Стартовая человечность">
-                <option value="1">Старт 1</option>
-                <option value="2">Старт 2</option>
-                <option value="3">Старт 3</option>
-                <option value="4">Старт 4</option>
-                <option value="5">Старт 5</option>
-                <option value="6">Старт 6</option>
-                <option value="7" selected>Старт 7</option>
-                <option value="8">Старт 8</option>
-                <option value="9">Старт 9</option>
-                <option value="10">Старт 10</option>
+            <select id="base-humanity" data-i18n-aria-label="Стартовая человечность" aria-label="Стартовая человечность">
+                <option value="1" data-i18n="Старт 1">Старт 1</option>
+                <option value="2" data-i18n="Старт 2">Старт 2</option>
+                <option value="3" data-i18n="Старт 3">Старт 3</option>
+                <option value="4" data-i18n="Старт 4">Старт 4</option>
+                <option value="5" data-i18n="Старт 5">Старт 5</option>
+                <option value="6" data-i18n="Старт 6">Старт 6</option>
+                <option value="7" selected data-i18n="Старт 7">Старт 7</option>
+                <option value="8" data-i18n="Старт 8">Старт 8</option>
+                <option value="9" data-i18n="Старт 9">Старт 9</option>
+                <option value="10" data-i18n="Старт 10">Старт 10</option>
             </select>
         </label>
     </div>
     <div class="creation-vital-card vampire-only" data-vampire-resource="true">
-        <span class="creation-vital-title">Голод</span>
-        <strong id="val-hunger" class="creation-vital-value" data-tooltip="Начальный уровень Голода">1</strong>
-        <small class="creation-vital-formula">Игрок: фиксированное значение 1</small>
+        <span class="creation-vital-title" data-i18n="Голод">Голод</span>
+        <strong id="val-hunger" class="creation-vital-value" data-i18n-tooltip="Начальный уровень Голода" data-tooltip="Начальный уровень Голода">1</strong>
+        <small class="creation-vital-formula" data-i18n="Игрок: фиксированное значение 1">Игрок: фиксированное значение 1</small>
         <label class="creation-vital-control">
-            <select id="initial-hunger" onchange="setInitialHunger(this.value)" aria-label="Начальный голод">
-                <option value="0">Начальный голод: 0</option>
-                <option value="1" selected>Начальный голод: 1</option>
-                <option value="2">Начальный голод: 2</option>
-                <option value="3">Начальный голод: 3</option>
-                <option value="4">Начальный голод: 4</option>
-                <option value="5">Начальный голод: 5</option>
+            <select id="initial-hunger" onchange="setInitialHunger(this.value)" data-i18n-aria-label="Начальный голод" aria-label="Начальный голод">
+                <option value="0" data-i18n="Начальный голод: 0">Начальный голод: 0</option>
+                <option value="1" selected data-i18n="Начальный голод: 1">Начальный голод: 1</option>
+                <option value="2" data-i18n="Начальный голод: 2">Начальный голод: 2</option>
+                <option value="3" data-i18n="Начальный голод: 3">Начальный голод: 3</option>
+                <option value="4" data-i18n="Начальный голод: 4">Начальный голод: 4</option>
+                <option value="5" data-i18n="Начальный голод: 5">Начальный голод: 5</option>
             </select>
         </label>
     </div>
     <div class="creation-vital-card vampire-only" data-vampire-resource="true">
-        <span class="creation-vital-title">Сила крови</span>
+        <span class="creation-vital-title" data-i18n="Сила крови">Сила крови</span>
         <strong id="val-blood-potency-summary" class="creation-vital-value">0</strong>
-        <small class="creation-vital-formula">Автоматически от поколения, типа и охоты</small>
+        <small class="creation-vital-formula" data-i18n="Автоматически от поколения, типа и охоты">Автоматически от поколения, типа и охоты</small>
         <label class="creation-vital-control">
-            <select id="val-blood-potency" aria-label="Сила крови">
-                <option value="0" selected>Сила крови: 0</option>
-                <option value="1">Сила крови: 1</option>
-                <option value="2">Сила крови: 2</option>
-                <option value="3">Сила крови: 3</option>
-                <option value="4">Сила крови: 4</option>
-                <option value="5">Сила крови: 5</option>
-                <option value="6">Сила крови: 6</option>
-                <option value="7">Сила крови: 7</option>
-                <option value="8">Сила крови: 8</option>
-                <option value="9">Сила крови: 9</option>
-                <option value="10">Сила крови: 10</option>
+            <select id="val-blood-potency" data-i18n-aria-label="Сила крови" aria-label="Сила крови">
+                <option value="0" selected data-i18n="Сила крови: 0">Сила крови: 0</option>
+                <option value="1" data-i18n="Сила крови: 1">Сила крови: 1</option>
+                <option value="2" data-i18n="Сила крови: 2">Сила крови: 2</option>
+                <option value="3" data-i18n="Сила крови: 3">Сила крови: 3</option>
+                <option value="4" data-i18n="Сила крови: 4">Сила крови: 4</option>
+                <option value="5" data-i18n="Сила крови: 5">Сила крови: 5</option>
+                <option value="6" data-i18n="Сила крови: 6">Сила крови: 6</option>
+                <option value="7" data-i18n="Сила крови: 7">Сила крови: 7</option>
+                <option value="8" data-i18n="Сила крови: 8">Сила крови: 8</option>
+                <option value="9" data-i18n="Сила крови: 9">Сила крови: 9</option>
+                <option value="10" data-i18n="Сила крови: 10">Сила крови: 10</option>
             </select>
         </label>
     </div>
 </section>
 
-<section class="vitals vitals-game-trackers" data-visible-after-fixed="true" aria-label="Игровые витальные трекеры">
+<section class="vitals vitals-game-trackers" data-visible-after-fixed="true" data-i18n-aria-label="Игровые витальные трекеры" aria-label="Игровые витальные трекеры">
     <div class="vital-item">
-        <span>Здоровье</span>
+        <span data-i18n="Здоровье">Здоровье</span>
         <div class="vital-stack">
             <div id="val-hp-game" class="vital-value" style="color:white">4</div>
-            <div id="track-health" class="vital-track" aria-label="Закрашенные клетки здоровья"></div>
+            <div id="track-health" class="vital-track" data-i18n-aria-label="Закрашенные клетки здоровья" aria-label="Закрашенные клетки здоровья"></div>
             <small id="track-health-caption" class="vital-track-caption">0 / 4</small>
             <p id="health-state-note" class="health-state-note"></p>
         </div>
     </div>
     <div class="vital-item">
-        <span>Сила воли</span>
+        <span data-i18n="Сила воли">Сила воли</span>
         <div class="vital-stack">
             <div id="val-wp-game" class="vital-value" style="color:white">2</div>
-            <div id="track-willpower" class="vital-track" aria-label="Закрашенные клетки силы воли"></div>
+            <div id="track-willpower" class="vital-track" data-i18n-aria-label="Закрашенные клетки силы воли" aria-label="Закрашенные клетки силы воли"></div>
             <small id="track-willpower-caption" class="vital-track-caption">0 / 2</small>
         </div>
     </div>
     <div class="vital-item humanity-vital-item vampire-only" data-vampire-resource="true">
-        <span>Человечность</span>
+        <span data-i18n="Человечность">Человечность</span>
         <div class="vital-humanity-stack">
             <div id="val-humanity-game" class="vital-value" style="color:white">7</div>
-            <div id="track-humanity" class="vital-track" aria-label="Шкала Человечности и Сомнений"></div>
-            <small id="track-humanity-caption" class="vital-track-caption">Человечность 7 · Сомнения 0/3</small>
+            <div id="track-humanity" class="vital-track" data-i18n-aria-label="Шкала Человечности и Сомнений" aria-label="Шкала Человечности и Сомнений"></div>
+            <small id="track-humanity-caption" class="vital-track-caption" data-i18n="Человечность 7 · Сомнения 0/3">Человечность 7 · Сомнения 0/3</small>
         </div>
     </div>
     <div class="vital-item vampire-only" data-vampire-resource="true">
-        <span>Голод</span>
+        <span data-i18n="Голод">Голод</span>
         <div class="vital-stack">
             <div id="val-hunger-game" class="vital-value" style="color:white">0</div>
-            <div id="track-hunger" class="vital-track" aria-label="Закрашенные клетки голода"></div>
+            <div id="track-hunger" class="vital-track" data-i18n-aria-label="Закрашенные клетки голода" aria-label="Закрашенные клетки голода"></div>
             <small id="track-hunger-caption" class="vital-track-caption">0 / 5</small>
         </div>
     </div>
     <div class="vital-item vampire-only" data-vampire-resource="true">
-        <span>Сила крови</span>
+        <span data-i18n="Сила крови">Сила крови</span>
         <div id="val-blood-potency-game" class="vital-value" style="color:white">0</div>
     </div>
 </section>
 
     <div class="vampire-only" style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333;">
-        <h2 style="text-align:center; margin-bottom:15px;">Дисциплины</h2>
+        <h2 style="text-align:center; margin-bottom:15px;" data-i18n="Дисциплины">Дисциплины</h2>
         <div id="disciplines-list"></div>
         <button type="button" class="npc-only" onclick="openNpcDisciplineModal()"
-                style="margin-top:12px; width:100%; padding:10px; background:#171717; color:#ffae00; border:1px solid #665020; border-radius:6px; cursor:pointer;">
+                style="margin-top:12px; width:100%; padding:10px; background:#171717; color:#ffae00; border:1px solid #665020; border-radius:6px; cursor:pointer;" data-i18n="+ Добавить любую дисциплину НПС">
             + Добавить любую дисциплину НПС
         </button>
     </div>
@@ -3461,12 +3461,12 @@
 
    <!-- === ПРЕИМУЩЕСТВА И НЕДОСТАТКИ === -->
 <div style="margin-top:40px; padding:20px; background:#080808; border:1px solid #333; border-radius:8px;">
-    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;">ПРЕИМУЩЕСТВА И НЕДОСТАТКИ</h2>
+    <h2 style="margin:0 0 20px 0; color:#ff3131; text-align:center;" data-i18n="ПРЕИМУЩЕСТВА И НЕДОСТАТКИ">ПРЕИМУЩЕСТВА И НЕДОСТАТКИ</h2>
     
     <!-- Преимущества -->
     <div id="merits-section" style="margin-bottom:25px;">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <h3 style="margin:0; color:#ffcc00;">Преимущества</h3>
+            <h3 style="margin:0; color:#ffcc00;" data-i18n="Преимущества">Преимущества</h3>
             <div id="merits-dots" style="display:flex; gap:6px;"></div>
         </div>
         <div id="selected-merits-list" style="min-height:60px;"></div>
@@ -3475,7 +3475,7 @@
     <!-- Недостатки -->
     <div id="flaws-section">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <h3 style="margin:0; color:#ff6666;">Недостатки</h3>
+            <h3 style="margin:0; color:#ff6666;" data-i18n="Недостатки">Недостатки</h3>
             <div id="flaws-dots" style="display:flex; gap:6px;"></div>
         </div>
         <div id="selected-flaws-list" style="min-height:60px;"></div>
@@ -3483,28 +3483,28 @@
 
     <button onclick="openMeritsFlawsModal()" 
             class="merit-add-btn"
-            style="margin-top:20px; width:100%; padding:12px; background:#222; color:#fff; border:1px solid #ff3131; border-radius:6px; font-size:16px; cursor:pointer;">
+            style="margin-top:20px; width:100%; padding:12px; background:#222; color:#fff; border:1px solid #ff3131; border-radius:6px; font-size:16px; cursor:pointer;" data-i18n="+ Добавить преимущество / недостаток">
         + Добавить преимущество / недостаток
     </button>
 
 </div>
 
 <div id="thin-blood-traits-section" class="vampire-only" style="display:none; margin-top:24px; padding:20px; background:#080808; border:1px solid #553300; border-radius:8px;">
-    <h2 style="margin:0 0 12px 0; color:#ffae00; text-align:center;">ПРЕИМУЩЕСТВА И НЕДОСТАТКИ СЛАБОКРОВНЫХ</h2>
+    <h2 style="margin:0 0 12px 0; color:#ffae00; text-align:center;" data-i18n="ПРЕИМУЩЕСТВА И НЕДОСТАТКИ СЛАБОКРОВНЫХ">ПРЕИМУЩЕСТВА И НЕДОСТАТКИ СЛАБОКРОВНЫХ</h2>
     <div id="thin-blood-balance" style="text-align:center; color:#aaa; margin-bottom:18px; font-size:14px;"></div>
     <div style="display:grid; grid-template-columns:1fr 1fr; gap:16px;">
         <div>
-            <h3 style="margin:0 0 10px; color:#ffcc00;">Преимущества</h3>
+            <h3 style="margin:0 0 10px; color:#ffcc00;" data-i18n="Преимущества">Преимущества</h3>
             <div id="selected-thin-blood-merits-list" style="min-height:60px;"></div>
         </div>
         <div>
-            <h3 style="margin:0 0 10px; color:#ff6666;">Недостатки</h3>
+            <h3 style="margin:0 0 10px; color:#ff6666;" data-i18n="Недостатки">Недостатки</h3>
             <div id="selected-thin-blood-flaws-list" style="min-height:60px;"></div>
         </div>
     </div>
     <button onclick="openThinBloodTraitsModal()" 
             class="merit-add-btn"
-            style="margin-top:20px; width:100%; padding:12px; background:#221609; color:#ffcc66; border:1px solid #a14600; border-radius:6px; font-size:16px; cursor:pointer;">
+            style="margin-top:20px; width:100%; padding:12px; background:#221609; color:#ffcc66; border:1px solid #a14600; border-radius:6px; font-size:16px; cursor:pointer;" data-i18n="+ Добавить слабокровное преимущество / недостаток">
         + Добавить слабокровное преимущество / недостаток
     </button>
 </div>
@@ -3514,26 +3514,26 @@
 <div class="story-section inventory-section">
     <div class="inventory-head">
         <div>
-            <h2>ИНВЕНТАРЬ</h2>
-            <p>Предметы сохраняются вместе с персонажем.</p>
+            <h2 data-i18n="ИНВЕНТАРЬ">ИНВЕНТАРЬ</h2>
+            <p data-i18n="Предметы сохраняются вместе с персонажем.">Предметы сохраняются вместе с персонажем.</p>
         </div>
-        <button type="button" onclick="addInventoryItem()">+ Предмет</button>
+        <button type="button" onclick="addInventoryItem()" data-i18n="+ Предмет">+ Предмет</button>
     </div>
     <div class="inventory-toolbar">
         <label>
-            <span>Категория</span>
+            <span data-i18n="Категория">Категория</span>
             <select id="inventory-filter" onchange="renderInventory()">
-                <option value="Все">Все</option>
-                <option value="Оружие">Оружие</option>
-                <option value="Одежда">Одежда</option>
-                <option value="Документы">Документы</option>
-                <option value="Деньги">Деньги</option>
-                <option value="Артефакты">Артефакты</option>
-                <option value="Расходники">Расходники</option>
-                <option value="Другое">Другое</option>
+                <option data-i18n-value="Все" value="Все" data-i18n="Все">Все</option>
+                <option data-i18n-value="Оружие" value="Оружие" data-i18n="Оружие">Оружие</option>
+                <option data-i18n-value="Одежда" value="Одежда" data-i18n="Одежда">Одежда</option>
+                <option data-i18n-value="Документы" value="Документы" data-i18n="Документы">Документы</option>
+                <option data-i18n-value="Деньги" value="Деньги" data-i18n="Деньги">Деньги</option>
+                <option data-i18n-value="Артефакты" value="Артефакты" data-i18n="Артефакты">Артефакты</option>
+                <option data-i18n-value="Расходники" value="Расходники" data-i18n="Расходники">Расходники</option>
+                <option data-i18n-value="Другое" value="Другое" data-i18n="Другое">Другое</option>
             </select>
         </label>
-        <span id="inventory-count">0 предметов</span>
+        <span id="inventory-count" data-i18n="0 предметов">0 предметов</span>
     </div>
     <div id="inventory-list" class="inventory-list"></div>
 </div>
@@ -3554,17 +3554,17 @@
                        background:none; border:none; cursor:pointer; z-index:10; line-height:1;">
             ×
         </button>
-        <h2 style="text-align:center; color:#ff3131; margin-bottom:20px;">Преимущества & Недостатки</h2>
+        <h2 style="text-align:center; color:#ff3131; margin-bottom:20px;" data-i18n="Преимущества & Недостатки">Преимущества & Недостатки</h2>
         
         <!-- Вкладки -->
         <div style="display:flex; margin-bottom:20px; border-bottom:1px solid #333;">
             <button onclick="switchMeritsTab(0)" id="tab-merits" 
-                    style="flex:1; padding:12px; background:#222; border:none; color:white; font-weight:bold;">Преимущества</button>
+                    style="flex:1; padding:12px; background:#222; border:none; color:white; font-weight:bold;" data-i18n="Преимущества">Преимущества</button>
             <button onclick="switchMeritsTab(1)" id="tab-flaws" 
-                    style="flex:1; padding:12px; background:#111; border:none; color:white; font-weight:bold;">Недостатки</button>
+                    style="flex:1; padding:12px; background:#111; border:none; color:white; font-weight:bold;" data-i18n="Недостатки">Недостатки</button>
         </div>
 
-        <input type="search" id="merits-search" placeholder="Название, описание, механика или точки..." autocomplete="off"
+        <input type="search" id="merits-search" data-i18n-placeholder="Название, описание, механика или точки..." placeholder="Название, описание, механика или точки..." autocomplete="off"
                style="width:100%; padding:10px; background:#000; border:1px solid #444; color:white; margin-bottom:15px; font-size:16px;">
 
         <div id="merits-list" style="max-height:550px; overflow-y:auto;"></div>
@@ -3577,7 +3577,7 @@
 
 
 
-  <button id="auth-btn" style="padding:16px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
+  <button id="auth-btn" style="padding:16px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;" data-i18n="Войти в свой акк">
                 Войти в свой акк
             </button>
 
@@ -3585,7 +3585,7 @@
     <!-- Подсказка Клана -->
     <div id="clan-hint-box" class="hint-box vampire-only">
         <div class="hint-header" onclick="toggleHint('clan-hint-box')">
-            <strong>Клан</strong>
+            <strong data-i18n="Клан">Клан</strong>
             <span class="toggle-btn">▼</span>
         </div>
         <div class="hint-content" id="clan-hint-content"></div>
@@ -3594,7 +3594,7 @@
     <!-- Подсказка Стиля Охоты -->
     <div id="predator-hint-box" class="hint-box vampire-only">
         <div class="hint-header" onclick="toggleHint('predator-hint-box')">
-            <strong>Стиль Охоты</strong>
+            <strong data-i18n="Стиль Охоты">Стиль Охоты</strong>
             <span class="toggle-btn">▼</span>
         </div>
         <div class="hint-content" id="predator-hint-content"></div>
@@ -3603,41 +3603,41 @@
     <!-- Подсказка Поколения -->
     <div id="generation-hint-box" class="hint-box vampire-only">
         <div class="hint-header" onclick="toggleHint('generation-hint-box')">
-            <strong>Поколение / Тип</strong>
+            <strong data-i18n="Поколение / Тип">Поколение / Тип</strong>
             <span class="toggle-btn">▼</span>
         </div>
         <div class="hint-content" id="generation-hint-content"></div>
     </div>
 
             <div class="sheet-import-actions">
-                <button type="button" onclick="importFromJSON()">Импорт персонажа (JSON)</button>
+                <button type="button" onclick="importFromJSON()" data-i18n="Импорт персонажа (JSON)">Импорт персонажа (JSON)</button>
             </div>
 
             <!-- Кнопки сохранения и экспорта -->
             <div class="sheet-save-export-actions">
-                <button id="btn-save" style="padding:18px; font-size:16px;">
+                <button id="btn-save" style="padding:18px; font-size:16px;" data-i18n="Скачать как картинку (JPG)">
                     Скачать как картинку (JPG)
                 </button>
-                <button id="btn-pdf" onclick="generateSheetPDF()">
+                <button id="btn-pdf" onclick="generateSheetPDF()" data-i18n="Скачать социалку (PDF)">
                     Скачать социалку (PDF)
                 </button>
 
-                <button onclick="exportToJSON()" style="padding:16px; font-size:16px; background:#111; color:#ffae00; border:2px solid #a14600;">
+                <button onclick="exportToJSON()" style="padding:16px; font-size:16px; background:#111; color:#ffae00; border:2px solid #a14600;" data-i18n="Экспорт в JSON">
                     Экспорт в JSON
                 </button>
 
                 <!-- Кнопка сохранения в Supabase -->
-                <button onclick="saveCharacter()" style="padding:16px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
+                <button onclick="saveCharacter()" style="padding:16px; font-size:16px; background:#ff3131; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;" data-i18n="💾 Сохранить в Личный кабинет">
                     💾 Сохранить в Личный кабинет
                 </button>
             </div>
             <div id="autosave-status" class="autosave-status" role="status" aria-live="polite"></div>
 
-            <button type="button" onclick="startNewCharacter()" style="padding:16px; font-size:16px; background:#2a1111; color:white; border:1px solid #ff3131; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
+            <button type="button" onclick="startNewCharacter()" style="padding:16px; font-size:16px; background:#2a1111; color:white; border:1px solid #ff3131; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;" data-i18n="+ Создать нового персонажа">
                 + Создать нового персонажа
             </button>
 
-            <button onclick="showMyCharacters()" style="padding:16px; font-size:16px; background:#444; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;">
+            <button onclick="showMyCharacters()" style="padding:16px; font-size:16px; background:#444; color:white; border:none; border-radius:6px; margin-top:8px; cursor:pointer; width:100%;" data-i18n="📋 Мои персонажи">
                 📋 Мои персонажи
             </button>
         </div>
@@ -3647,10 +3647,10 @@
 <div id="archetype-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.96); z-index:10000; overflow:auto; padding:20px; box-sizing:border-box;">
     <div style="max-width:900px; margin:30px auto; background:#111; padding:28px; border-radius:8px; border:1px solid #ff3131; position:relative; font-family:'Courier New',Courier,monospace;">
         <button onclick="closeArchetypeModal()" style="position:absolute;top:14px;right:18px;background:transparent;color:#ff3131;border:none;font-size:28px;cursor:pointer;line-height:1;">×</button>
-        <h2 style="text-align:center;color:#ff3131;margin:0 0 6px;letter-spacing:3px;font-size:18px;">АРХЕТИПЫ</h2>
-        <p id="archetype-modal-subtitle" style="text-align:center;color:#888;font-size:13px;margin:0 0 20px;">Нажмите на архетип, чтобы прочитать полное описание</p>
+        <h2 style="text-align:center;color:#ff3131;margin:0 0 6px;letter-spacing:3px;font-size:18px;" data-i18n="АРХЕТИПЫ">АРХЕТИПЫ</h2>
+        <p id="archetype-modal-subtitle" style="text-align:center;color:#888;font-size:13px;margin:0 0 20px;" data-i18n="Нажмите на архетип, чтобы прочитать полное описание">Нажмите на архетип, чтобы прочитать полное описание</p>
         <div style="margin-bottom:14px;">
-            <input id="archetype-search" type="text" placeholder="Поиск архетипа..." oninput="filterArchetypes(this.value)"
+            <input id="archetype-search" type="text" data-i18n-placeholder="Поиск архетипа..." placeholder="Поиск архетипа..." oninput="filterArchetypes(this.value)"
                 style="width:100%;box-sizing:border-box;background:#1a1a1a;border:1px solid #444;border-radius:6px;color:#eee;padding:9px 14px;font-family:inherit;font-size:14px;outline:none;">
         </div>
         <div id="archetype-list" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px;"></div>
@@ -3658,8 +3658,8 @@
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
                 <h3 id="archetype-detail-name" style="margin:0;color:#ff3131;font-size:17px;letter-spacing:1px;"></h3>
                 <div style="display:flex;gap:8px;">
-                    <button id="archetype-select-btn" onclick="selectArchetype()" style="background:#ff3131;color:#fff;border:none;border-radius:5px;padding:7px 16px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:bold;">Выбрать</button>
-                    <button onclick="closeArchetypeDetail()" style="background:transparent;color:#888;border:1px solid #444;border-radius:5px;padding:7px 12px;cursor:pointer;font-family:inherit;font-size:13px;">Закрыть</button>
+                    <button id="archetype-select-btn" onclick="selectArchetype()" style="background:#ff3131;color:#fff;border:none;border-radius:5px;padding:7px 16px;cursor:pointer;font-family:inherit;font-size:13px;font-weight:bold;" data-i18n="Выбрать">Выбрать</button>
+                    <button onclick="closeArchetypeDetail()" style="background:transparent;color:#888;border:1px solid #444;border-radius:5px;padding:7px 12px;cursor:pointer;font-family:inherit;font-size:13px;" data-i18n="Закрыть">Закрыть</button>
                 </div>
             </div>
             <p id="archetype-detail-text" style="margin:0;color:#d0d0d0;font-size:14px;line-height:1.7;white-space:pre-line;"></p>
@@ -3671,7 +3671,7 @@
 <div id="clan-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 10000; overflow: auto; padding: 20px;">
     <div style="max-width: 1300px; margin: 40px auto; background: #111; padding: 30px; border-radius: 8px; border: 1px solid #ff3131; position: relative;">
         <button onclick="closeClanModal()" style="position: absolute; top: 15px; right: 20px; background: transparent; color: #ff3131; border: none; font-size: 28px; cursor: pointer;">×</button>
-        <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px;">Выбор Клана</h2>
+        <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px;" data-i18n="Выбор Клана">Выбор Клана</h2>
         <div id="clan-gallery" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px;"></div>
     </div>
 </div>
@@ -3679,7 +3679,7 @@
 <div id="predator-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 10000; overflow: auto; padding: 20px;">
     <div style="max-width: 1300px; margin: 40px auto; background: #111; padding: 30px; border-radius: 8px; border: 1px solid #ff3131; position: relative;">
         <button onclick="closePredatorModal()" style="position: absolute; top: 15px; right: 20px; background: transparent; color: #ff3131; border: none; font-size: 28px; cursor: pointer;">×</button>
-        <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px;">Выбор Стиля Охоты</h2>
+        <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px;" data-i18n="Выбор Стиля Охоты">Выбор Стиля Охоты</h2>
         <div id="predator-gallery" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px;"></div>
     </div>
 </div>
@@ -3687,7 +3687,7 @@
 <div id="generation-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.96); z-index: 10000; overflow: auto; padding: 20px;">
     <div style="max-width: 1300px; margin: 40px auto; background: #111; padding: 30px; border-radius: 8px; border: 1px solid #ff3131; position: relative;">
         <button onclick="closeGenerationModal()" style="position: absolute; top: 15px; right: 20px; background: transparent; color: #ff3131; border: none; font-size: 28px; cursor: pointer;">×</button>
-        <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px; font-family: 'Courier New', monospace; letter-spacing: 3px;">ВЫБОР ПОКОЛЕНИЯ</h2>
+        <h2 style="text-align: center; color: #ff3131; margin-bottom: 30px; font-family: 'Courier New', monospace; letter-spacing: 3px;" data-i18n="ВЫБОР ПОКОЛЕНИЯ">ВЫБОР ПОКОЛЕНИЯ</h2>
         <div id="generation-gallery" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 25px;"></div>
     </div>
 </div>
@@ -3697,37 +3697,37 @@
 <!-- МОДАЛЬНОЕ ОКНО ТРАТЫ ОПЫТА -->
 <div id="exp-modal" class="modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.9); z-index:10000; align-items:center; justify-content:center;">
     <div style="background:#1a1a1a; width:90%; max-width:820px; border-radius:12px; padding:25px; border:2px solid #ff3131; color:#eee; max-height:92vh; overflow-y:auto;">
-        <h2 style="text-align:center; color:#ff3131; margin-top:0;">💰 Трата Опыта</h2>
+        <h2 style="text-align:center; color:#ff3131; margin-top:0;" data-i18n="💰 Трата Опыта">💰 Трата Опыта</h2>
         
         <table style="width:100%; border-collapse:collapse; margin:20px 0; font-size:14px;">
-            <tr style="background:#222;"><th style="padding:10px; text-align:left;">Параметр</th><th style="padding:10px;">Стоимость</th></tr>
-            <tr><td>Характеристика</td><td>Новое значение × 5</td></tr>
-            <tr><td>Навык</td><td>Новое значение × 3</td></tr>
-            <tr><td>Новая специализация</td><td>3 XP</td></tr>
-            <tr><td>Клановая дисциплина</td><td>Новое значение × 5</td></tr>
-            <tr><td>Сторонняя дисциплина</td><td>Новое значение × 7</td></tr>
-            <tr><td>Любая дисциплина для каитифа</td><td>Новое значение × 6</td></tr>
-            <tr><td>Ритуал Кровавого чародейства</td><td>Уровень ритуала × 3</td></tr>
-            <tr><td>Рецептура Алхимии слабокровных</td><td>Уровень рецептуры × 3</td></tr>
-            <tr><td>Сила дисциплины</td><td>Бесплатно, максимум = уровень дисциплины</td></tr>
-            <tr><td>Преимущество</td><td>3 XP за каждый пункт</td></tr>
-            <tr><td>Недостаток</td><td>Бесплатно</td></tr>
-            <tr><td>Сила Крови</td><td>Новое значение × 10</td></tr>
+            <tr style="background:#222;"><th style="padding:10px; text-align:left;" data-i18n="Параметр">Параметр</th><th style="padding:10px;" data-i18n="Стоимость">Стоимость</th></tr>
+            <tr><td data-i18n="Характеристика">Характеристика</td><td data-i18n="Новое значение × 5">Новое значение × 5</td></tr>
+            <tr><td data-i18n="Навык">Навык</td><td data-i18n="Новое значение × 3">Новое значение × 3</td></tr>
+            <tr><td data-i18n="Новая специализация">Новая специализация</td><td>3 XP</td></tr>
+            <tr><td data-i18n="Клановая дисциплина">Клановая дисциплина</td><td data-i18n="Новое значение × 5">Новое значение × 5</td></tr>
+            <tr><td data-i18n="Сторонняя дисциплина">Сторонняя дисциплина</td><td data-i18n="Новое значение × 7">Новое значение × 7</td></tr>
+            <tr><td data-i18n="Любая дисциплина для каитифа">Любая дисциплина для каитифа</td><td data-i18n="Новое значение × 6">Новое значение × 6</td></tr>
+            <tr><td data-i18n="Ритуал Кровавого чародейства">Ритуал Кровавого чародейства</td><td data-i18n="Уровень ритуала × 3">Уровень ритуала × 3</td></tr>
+            <tr><td data-i18n="Рецептура Алхимии слабокровных">Рецептура Алхимии слабокровных</td><td data-i18n="Уровень рецептуры × 3">Уровень рецептуры × 3</td></tr>
+            <tr><td data-i18n="Сила дисциплины">Сила дисциплины</td><td data-i18n="Бесплатно, максимум = уровень дисциплины">Бесплатно, максимум = уровень дисциплины</td></tr>
+            <tr><td data-i18n="Преимущество">Преимущество</td><td data-i18n="3 XP за каждый пункт">3 XP за каждый пункт</td></tr>
+            <tr><td data-i18n="Недостаток">Недостаток</td><td data-i18n="Бесплатно">Бесплатно</td></tr>
+            <tr><td data-i18n="Сила Крови">Сила Крови</td><td data-i18n="Новое значение × 10">Новое значение × 10</td></tr>
         </table>
 
         <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:12px; margin-top:20px;">
-            <button onclick="spendModalAttribute()" class="modal-btn">Характеристика</button>
-            <button onclick="spendModalSkill()" class="modal-btn">Навык</button>
-            <button onclick="spendModalSpecialty()" class="modal-btn">Специализация (3 XP)</button>
-            <button onclick="spendModalMerit()" class="modal-btn">Преимущество</button>
-            <button onclick="spendModalDiscipline()" class="modal-btn">Дисциплина</button>
-            <button onclick="spendModalRitual()" class="modal-btn">Ритуал / Рецептура</button>
-            <button onclick="spendModalBloodPotency()" class="modal-btn" style="grid-column: span 2;">Сила Крови</button>
+            <button onclick="spendModalAttribute()" class="modal-btn" data-i18n="Характеристика">Характеристика</button>
+            <button onclick="spendModalSkill()" class="modal-btn" data-i18n="Навык">Навык</button>
+            <button onclick="spendModalSpecialty()" class="modal-btn" data-i18n="Специализация (3 XP)">Специализация (3 XP)</button>
+            <button onclick="spendModalMerit()" class="modal-btn" data-i18n="Преимущество">Преимущество</button>
+            <button onclick="spendModalDiscipline()" class="modal-btn" data-i18n="Дисциплина">Дисциплина</button>
+            <button onclick="spendModalRitual()" class="modal-btn" data-i18n="Ритуал / Рецептура">Ритуал / Рецептура</button>
+            <button onclick="spendModalBloodPotency()" class="modal-btn" style="grid-column: span 2;" data-i18n="Сила Крови">Сила Крови</button>
         </div>
 
         <div id="modal-log" style="margin-top:20px; background:#111; padding:12px; border-radius:6px; min-height:80px; font-size:14px;"></div>
 
-        <button onclick="closeExpModal()" style="margin-top:20px; padding:12px 30px; background:#333; border:none; color:white; border-radius:8px; float:right;">Закрыть</button>
+        <button onclick="closeExpModal()" style="margin-top:20px; padding:12px 30px; background:#333; border:none; color:white; border-radius:8px; float:right;" data-i18n="Закрыть">Закрыть</button>
     </div>
 </div>
 
@@ -3735,10 +3735,10 @@
 
 
 <!-- ==================== МАСТЕР СОЗДАНИЯ ПЕРСОНАЖА ==================== -->
-<div id="cw-overlay" role="dialog" aria-modal="true" aria-label="Создание персонажа">
+<div id="cw-overlay" role="dialog" aria-modal="true" data-i18n-aria-label="Создание персонажа" aria-label="Создание персонажа">
     <div class="cw-card" id="cw-card"></div>
 </div>
-<button type="button" id="cw-return-btn" onclick="returnToCreationWizard()">↩ Вернуться к пошаговому созданию персонажа</button>
+<button type="button" id="cw-return-btn" onclick="returnToCreationWizard()" data-i18n="↩ Вернуться к пошаговому созданию персонажа">↩ Вернуться к пошаговому созданию персонажа</button>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
@@ -4014,7 +4014,7 @@
             </div>`;
         const portrait = window.characterImageData
             ? `<img class="cw-portrait-preview" src="${esc(window.characterImageData)}" alt="Портрет">`
-            : `<div class="cw-portrait-placeholder">Портрет персонажа</div>`;
+            : `<div class="cw-portrait-placeholder" data-i18n="Портрет персонажа">Портрет персонажа</div>`;
         return shell('identity', 'Кто этот персонаж?', '',
             `<div class="cw-error" id="cw-identity-error" style="display:none"></div>
              <div class="cw-portrait-row">
@@ -4022,7 +4022,7 @@
                 <div style="flex:1">
                     <p style="color:#888;font-size:13px;margin:0 0 10px;line-height:1.5;">Изображение персонажа (необязательно)</p>
                     <button type="button" class="cw-btn" id="cw-portrait-upload">Загрузить изображение</button>
-                    ${window.characterImageData ? '<button type="button" class="cw-btn ghost" id="cw-portrait-remove" style="margin-left:8px">Удалить</button>' : ''}
+                    ${window.characterImageData ? '<button type="button" class="cw-btn ghost" id="cw-portrait-remove" style="margin-left:8px" data-i18n="Удалить">Удалить</button>' : ''}
                 </div>
              </div>
              <div class="cw-fields">
@@ -4260,7 +4260,7 @@
         return shell('touchstones', 'Опоры (Touchstones)', 'Люди и принципы, удерживающие человечность',
             `<div class="cw-intro" style="margin-bottom:14px">Опоры — это смертные и убеждения, которые связывают персонажа с человечностью. Можно добавить несколько.</div>
              <div class="cw-summary" style="margin-bottom:16px">${rows}</div>
-             <button type="button" class="cw-btn" data-cw="addTouchstone">+ Добавить опору</button>`,
+             <button type="button" class="cw-btn" data-cw="addTouchstone" data-i18n="+ Добавить опору">+ Добавить опору</button>`,
             navBtn('Назад', 'prev') + navBtn('Пропустить', 'skip') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
     };
     STEP_ACTIONS.addTouchstone = () => {
@@ -4349,10 +4349,10 @@
             skillBlock = `<div class="cw-counter">` + schemeRemaining(limits, sc).map(r =>
                 `<span class="${r.used === r.max ? 'ok' : 'bad'}">×${r.n}: ${r.used}/${r.max}</span>`).join('') + `</div>`;
         }
-        box.innerHTML = `<div class="cw-section-title">Характеристики</div>
+        box.innerHTML = `<div class="cw-section-title" data-i18n="Характеристики">Характеристики</div>
             <div class="cw-counter">` + schemeRemaining(ATTR_SCHEME, ac).map(r =>
                 `<span class="${r.used === r.max ? 'ok' : 'bad'}">×${r.n}: ${r.used}/${r.max}</span>`).join('') + `</div>
-            <div class="cw-section-title">Навыки</div>${skillBlock}
+            <div class="cw-section-title" data-i18n="Навыки">Навыки</div>${skillBlock}
             <p style="color:${attrOk && skillOk ? '#36d675' : '#ff9500'};font-size:13px;margin-top:10px">
             ${attrOk && skillOk ? '✓ Характеристики и навыки распределены верно.' : 'Распределение ещё не завершено.'}</p>`;
         if (attrOk && skillOk) markCompleted('attributes'); else markSkipped('attributes');

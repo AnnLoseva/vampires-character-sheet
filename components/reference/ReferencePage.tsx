@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 import MarkdownRenderer from './MarkdownRenderer'
 import ReferenceSidebar, { ReferenceHeading } from './ReferenceSidebar'
 
@@ -61,8 +62,8 @@ function normalizeSearchText(value: string) {
     .replace(/\s+/g, ' ')
 }
 
-function getFirstHeading(markdown: string) {
-  return markdown.split(/\r?\n/).find(line => /^#\s+/.test(line)) || '# Справочник'
+function getFirstHeading(markdown: string, fallback: string) {
+  return markdown.split(/\r?\n/).find(line => /^#\s+/.test(line)) || fallback
 }
 
 function getSearchSnippet(text: string, terms: string[]) {
@@ -83,12 +84,17 @@ function getSearchSnippet(text: string, terms: string[]) {
   return `${prefix}${plain.slice(start, end)}${suffix}`
 }
 
-function filterMarkdown(markdown: string, query: string) {
+function filterMarkdown(
+  markdown: string,
+  query: string,
+  t: (ru: string) => string,
+  tf: (ru: string, vars: Record<string, string | number>) => string,
+) {
   const terms = getSearchTerms(query)
   if (terms.length === 0) return { markdown, results: [] as SearchResult[] }
 
   const lines = markdown.split(/\r?\n/)
-  const title = getFirstHeading(markdown)
+  const title = getFirstHeading(markdown, `# ${t('Справочник')}`)
   const blocks: Array<{ heading: string; title: string; level: 2 | 3; content: string }> = []
   let current: string[] = []
   let currentHeading = ''
@@ -139,27 +145,36 @@ function filterMarkdown(markdown: string, query: string) {
 
   if (matchingBlocks.length === 0) {
     return {
-      markdown: `${title}\n\n## Ничего не найдено\n\nПо запросу **${query.trim()}** разделы не найдены. Попробуйте другое слово или более общий термин.`,
+      markdown: `${title}\n\n## ${t('Ничего не найдено')}\n\n${tf('По запросу **{query}** разделы не найдены. Попробуйте другое слово или более общий термин.', { query: query.trim() })}`,
       results,
     }
   }
 
   return {
-    markdown: `${title}\n\n> Показаны только разделы, где найдены все слова запроса: **${query.trim()}**.\n\n${matchingBlocks.map(block => block.content).join('\n\n')}`,
+    markdown: `${title}\n\n> ${tf('Показаны только разделы, где найдены все слова запроса: **{query}**.', { query: query.trim() })}\n\n${matchingBlocks.map(block => block.content).join('\n\n')}`,
     results,
   }
 }
 
+const STATUS_TEXT: Record<'loading' | 'ready' | 'error', string> = {
+  loading: 'Загружаю архив...',
+  ready: 'Архив открыт',
+  error: 'Справочник не загрузился',
+}
+
 export default function ReferencePage() {
+  const { lang, t, tf } = useLang()
   const [markdown, setMarkdown] = useState('')
-  const [status, setStatus] = useState('Загружаю архив...')
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [query, setQuery] = useState('')
   const [activeMatchIndex, setActiveMatchIndex] = useState(0)
   const [matchCount, setMatchCount] = useState(0)
 
   useEffect(() => {
     let cancelled = false
-    fetch('/reference/VtM_v5_new.md')
+    const path = lang === 'en' ? '/reference/VtM_v5_new_eng.md' : '/reference/VtM_v5_new.md'
+    setStatus('loading')
+    fetch(path)
       .then(response => {
         if (!response.ok) throw new Error(`Markdown fetch failed: ${response.status}`)
         return response.text()
@@ -167,19 +182,19 @@ export default function ReferencePage() {
       .then(text => {
         if (cancelled) return
         setMarkdown(text)
-        setStatus('Архив открыт')
+        setStatus('ready')
       })
       .catch(error => {
         console.error(error)
-        if (!cancelled) setStatus('Справочник не загрузился')
+        if (!cancelled) setStatus('error')
       })
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [lang])
 
-  const searchState = useMemo(() => filterMarkdown(markdown, query), [markdown, query])
+  const searchState = useMemo(() => filterMarkdown(markdown, query, t, tf), [markdown, query, t, tf])
   const searchTerms = useMemo(() => getSearchTerms(query), [query])
   const headings = useMemo(() => collectHeadings(searchState.markdown), [searchState.markdown])
   const isSearching = searchTerms.length > 0
@@ -226,51 +241,51 @@ export default function ReferencePage() {
       <section className="reference-topbar">
         <div>
           <p className="reference-kicker">VTM V5 Archive</p>
-          <h1>Справочник</h1>
+          <h1>{t('Справочник')}</h1>
         </div>
-        <nav aria-label="Навигация справочника">
-          <Link href="/">Главная</Link>
-          <Link href="/table">Игровой стол</Link>
-          <Link href="/character-sheet">Лист</Link>
+        <nav aria-label={t('Навигация справочника')}>
+          <Link href="/">{t('Главная')}</Link>
+          <Link href="/table">{t('Игровой стол')}</Link>
+          <Link href="/character-sheet">{t('Лист')}</Link>
         </nav>
       </section>
 
       <section className="reference-intro">
-        <span>{status}</span>
-        <strong>Правила, кланы, дисциплины, создание персонажа и материалы для мастера в одном тёмном архиве.</strong>
+        <span>{t(STATUS_TEXT[status])}</span>
+        <strong>{t('Правила, кланы, дисциплины, создание персонажа и материалы для мастера в одном тёмном архиве.')}</strong>
       </section>
 
-      <section className="reference-searchbar" aria-label="Поиск по справочнику">
+      <section className="reference-searchbar" aria-label={t('Поиск по справочнику')}>
         <label className="reference-search">
-          <span>Поиск по словам</span>
+          <span>{t('Поиск по словам')}</span>
           <input
             value={query}
             onChange={event => setQuery(event.target.value)}
-            placeholder="Например: Голконда Бруха Голод"
+            placeholder={t('Например: Голконда Бруха Голод')}
           />
         </label>
         <div className="reference-search-status">
           {isSearching ? (
             <>
-              <strong>Найдено разделов: {searchState.results.length}</strong>
-              <span>{matchCount ? `Совпадение ${activeMatchIndex + 1} из ${matchCount}` : 'Совпадений нет'}</span>
-              <div className="reference-match-controls" aria-label="Переход по совпадениям">
-                <button type="button" onClick={goToPreviousMatch} disabled={matchCount === 0}>Назад</button>
-                <button type="button" onClick={goToNextMatch} disabled={matchCount === 0}>Вперёд</button>
+              <strong>{tf('Найдено разделов: {count}', { count: searchState.results.length })}</strong>
+              <span>{matchCount ? tf('Совпадение {current} из {total}', { current: activeMatchIndex + 1, total: matchCount }) : t('Совпадений нет')}</span>
+              <div className="reference-match-controls" aria-label={t('Переход по совпадениям')}>
+                <button type="button" onClick={goToPreviousMatch} disabled={matchCount === 0}>{t('Назад')}</button>
+                <button type="button" onClick={goToNextMatch} disabled={matchCount === 0}>{t('Вперёд')}</button>
               </div>
-              <button type="button" onClick={() => setQuery('')}>Сбросить</button>
+              <button type="button" onClick={() => setQuery('')}>{t('Сбросить')}</button>
             </>
           ) : (
-            <span>Введите одно или несколько слов, чтобы оставить только подходящие разделы.</span>
+            <span>{t('Введите одно или несколько слов, чтобы оставить только подходящие разделы.')}</span>
           )}
         </div>
       </section>
 
       {isSearching && searchState.results.length > 0 ? (
-        <section className="reference-results" aria-label="Результаты поиска">
+        <section className="reference-results" aria-label={t('Результаты поиска')}>
           {searchState.results.slice(0, 12).map(result => (
             <a href={`#${result.slug}`} key={`${result.slug}-${result.title}`}>
-              <span>{result.level === 2 ? 'Раздел' : 'Подраздел'}</span>
+              <span>{result.level === 2 ? t('Раздел') : t('Подраздел')}</span>
               <strong>{result.title}</strong>
               <small>{result.snippet}</small>
             </a>
@@ -282,7 +297,7 @@ export default function ReferencePage() {
         <ReferenceSidebar headings={headings} />
         <MarkdownRenderer
           activeMatchIndex={activeMatchIndex}
-          markdown={searchState.markdown || '# Справочник загружается...'}
+          markdown={searchState.markdown || `# ${t('Справочник загружается...')}`}
           searchTerms={isSearching ? searchTerms : []}
         />
       </section>

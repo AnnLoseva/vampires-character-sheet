@@ -51,6 +51,7 @@
     'data-i18n-title': 'title',
     'data-i18n-aria-label': 'aria-label',
     'data-i18n-value': 'value',
+    'data-i18n-tooltip': 'data-tooltip',
   };
 
   function applyDataI18n() {
@@ -62,8 +63,8 @@
         var translated = window.t(source);
         if (prop === 'textContent') {
           el.textContent = translated;
-        } else if (prop === 'aria-label') {
-          el.setAttribute('aria-label', translated);
+        } else if (prop === 'aria-label' || prop === 'data-tooltip') {
+          el.setAttribute(prop, translated);
         } else {
           el[prop] = translated;
         }
