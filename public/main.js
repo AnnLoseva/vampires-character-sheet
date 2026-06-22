@@ -94,6 +94,45 @@ const VTM_NAME_EN = {
     'Налётчик': 'Alleycat',
     'Семьянин': 'Cleaver',
     'Тусовщик': 'Scene Queen',
+    // The 9 core Attributes and 27 Skills. input[name=...] / data-attr / data-skill / data-name
+    // in the DOM always stay Russian (renderAttributes/renderSkills hardcode it); RULES.attributes
+    // and RULES.skills are keyed in whichever language rules.json/rules_eng.json provides.
+    'Сила': 'Strength',
+    'Ловкость': 'Dexterity',
+    'Выносливость': 'Stamina',
+    'Обаяние': 'Charisma',
+    'Манипуляция': 'Manipulation',
+    'Самообладание': 'Composure',
+    'Интеллект': 'Intelligence',
+    'Смекалка': 'Wits',
+    'Упорство': 'Resolve',
+    'Атлетика': 'Athletics',
+    'Вождение': 'Drive',
+    'Воровство': 'Larceny',
+    'Выживание': 'Survival',
+    'Драка': 'Brawl',
+    'Ремесло': 'Craft',
+    'Скрытность': 'Stealth',
+    'Стрельба': 'Firearms',
+    'Фехтование': 'Melee',
+    'Запугивание': 'Intimidation',
+    'Исполнение': 'Performance',
+    'Лидерство': 'Leadership',
+    'Обращение с животными': 'Animal Ken',
+    'Проницательность': 'Insight',
+    'Убеждение': 'Persuasion',
+    'Уличное чутьё': 'Streetwise',
+    'Хитрость': 'Subterfuge',
+    'Этикет': 'Etiquette',
+    'Гуманитарные науки': 'Academics',
+    'Естественные науки': 'Science',
+    'Медицина': 'Medicine',
+    'Наблюдательность': 'Awareness',
+    'Оккультизм': 'Occult',
+    'Политика': 'Politics',
+    'Расследование': 'Investigation',
+    'Техника': 'Technology',
+    'Финансы': 'Finance',
 };
 
 const VTM_NAME_RU = Object.entries(VTM_NAME_EN).reduce((map, [ru, en]) => {
@@ -536,30 +575,30 @@ function renderAttributes() {
 
     Object.keys(categories).forEach(cat => {
         const col = document.createElement('div');
-        col.className = 'col';  
-        col.innerHTML = `<div class="cat-name">${cat}</div>`;
+        col.className = 'col';
+        col.innerHTML = `<div class="cat-name">${t(cat)}</div>`;
 
         categories[cat].forEach(name => {
             let dotsHTML = '';
-            
+
             // Только точки 1–5 (как у навыков)
             for (let i = 5; i >= 1; i--) {
                 dotsHTML += `
-                    <input type="radio" id="a-${name}-${i}" name="${name}" 
-                           value="${i}" class="dot-input" data-type="attr" 
+                    <input type="radio" id="a-${name}-${i}" name="${name}"
+                           value="${i}" class="dot-input" data-type="attr"
                            style="display:none;">
-                    <label for="a-${name}-${i}" class="dot-label" 
+                    <label for="a-${name}-${i}" class="dot-label"
                            data-level="${i}" data-name="${name}"></label>`;
             }
 
             // Скрытое радио для сброса в 0
             dotsHTML += `
-                <input type="radio" id="a-${name}-0" name="${name}" value="0" 
+                <input type="radio" id="a-${name}-0" name="${name}" value="0"
                        class="dot-input" data-type="attr" style="display:none;" checked>`;
 
             col.innerHTML += `
                 <div class="row">
-                    <span class="attr-name tooltip-trigger" data-attr="${name}">${name}</span>
+                    <span class="attr-name tooltip-trigger" data-attr="${name}">${t(name)}</span>
                     <div class="dots">${dotsHTML}</div>
                 </div>`;
         });
@@ -608,7 +647,7 @@ function renderSkills() {
     Object.keys(categories).forEach(cat => {
         const col = document.createElement('div');
         col.className = 'col';
-        col.innerHTML = `<div class="cat-name">${cat}</div>`;
+        col.innerHTML = `<div class="cat-name">${t(cat)}</div>`;
 
         categories[cat].forEach(name => {
             let dotsHTML = '';
@@ -626,7 +665,7 @@ function renderSkills() {
                     <div class="label-group">
                         <input type="checkbox" id="s-${name}" class="spec-checkbox" style="display:none;">
                         <label for="s-${name}" class="s-badge">S</label>
-                        <span class="skill-name tooltip-trigger" data-skill="${name}">${name}</span>
+                        <span class="skill-name tooltip-trigger" data-skill="${name}">${t(name)}</span>
                     </div>
                     <div class="dots">${dotsHTML}</div>
                 </div>
@@ -2665,7 +2704,7 @@ function updateAllDisciplineRows() {
 function openPowerSelectionModal(discName, maxLevel) {
     const disc = RULES.disciplines?.[discName];
     if (!disc?.powers) {
-        alert(`Нет способностей для ${discName}`);
+        alert(tf('Нет способностей для {discName}', { discName }));
         return;
     }
 
@@ -3305,39 +3344,39 @@ async function showSinglePredator(pred) {
                 <img src="${pred.image}" style="max-width:100%; max-height:65vh; border:4px solid #ff3131; border-radius:12px; box-shadow:0 0 40px rgba(255,49,49,0.6);">
             </div>
 
-            <h2 style="color:#ff3131; margin:25px 0 15px;">${pred.name}</h2>
+            <h2 style="color:#ff3131; margin:25px 0 15px;">${t(pred.name)}</h2>
 
             <div style="background:#1a1a1a; border:1px solid #ff3131; border-radius:8px; padding:25px; text-align:left; font-size:15px; line-height:1.7;">
-                <p style="color:#ddd;">${data.description || 'Описание отсутствует'}</p>
+                <p style="color:#ddd;">${data.description || t('Описание отсутствует')}</p>
     `;
 
     if (data.specialty?.options) {
         html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffae00;">Специализация:</strong><br>
+                 <strong style="color:#ffae00;">${t('Специализация:')}</strong><br>
                  ${data.specialty.options.join(', ')}`;
     }
 
     if (data.advantages && data.advantages.length) {
         html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ffcc00;">Преимущества:</strong><br>`;
+                 <strong style="color:#ffcc00;">${t('Преимущества:')}</strong><br>`;
         data.advantages.forEach(a => html += `• ${formatPredatorTraitLine(a, true)}<br>`);
     }
 
     if (data.disadvantages && data.disadvantages.length) {
         html += `<hr style="border-color:#333;margin:20px 0;">
-                 <strong style="color:#ff6666;">Недостатки:</strong><br>`;
+                 <strong style="color:#ff6666;">${t('Недостатки:')}</strong><br>`;
         data.disadvantages.forEach(d => html += `• ${formatPredatorTraitLine(d, false)}<br>`);
     }
 
     html += `</div>
             <div style="margin-top:25px;">
-                <button onclick="selectThisPredator('${pred.name}')" 
+                <button onclick="selectThisPredator('${vtmName(pred.name)}')"
                         style="background:#ff3131;color:black;border:none;padding:16px 40px;font-size:18px;border-radius:6px;cursor:pointer;">
-                    Выбрать этот стиль охоты
+                    ${t('Выбрать этот стиль охоты')}
                 </button>
-                <button onclick="openPredatorGallery()" 
+                <button onclick="openPredatorGallery()"
                         style="background:transparent;color:#ff3131;border:2px solid #ff3131;padding:16px 40px;font-size:18px;border-radius:6px;cursor:pointer;">
-                    ← Назад к списку
+                    ← ${t('Назад к списку')}
                 </button>
             </div>
         </div>`;
@@ -3394,64 +3433,64 @@ function closePredatorModal() {
 const GENERATION_GROUPS = [
     {
         key: 'ancilla',
-        title: 'АНЦИЛЛЫ',
-        subtitle: 'Старшая Кровь',
-        motto: 'Они пережили тех, кто считал себя бессмертными',
+        title: t('АНЦИЛЛЫ'),
+        subtitle: t('Старшая Кровь'),
+        motto: t('Они пережили тех, кто считал себя бессмертными'),
         accent: '#c9a84c',
         image: '/static/generation_gallery/ancilla.png',
         icon: '♛',
-        age: '1780–1940 гг.',
-        potency: 'Сила Крови 2',
-        gens: '10–11 поколение',
-        traits: ['Опытные манипуляторы', 'Политическое влияние', 'Контроль Голода', 'Посредники между старейшинами и молодыми'],
-        philosophy: ['власть требует терпения', 'контроль важнее эмоций', 'влияние сильнее силы'],
-        archetypes: ['Княжеский советник', 'Древний манипулятор', 'Хозяин домена', 'Хранитель традиций'],
+        age: t('1780–1940 гг.'),
+        potency: tf('Сила Крови {n}', { n: 2 }),
+        gens: tf('{range} поколение', { range: '10–11' }),
+        traits: [t('Опытные манипуляторы'), t('Политическое влияние'), t('Контроль Голода'), t('Посредники между старейшинами и молодыми')],
+        philosophy: [t('власть требует терпения'), t('контроль важнее эмоций'), t('влияние сильнее силы')],
+        archetypes: [t('Княжеский советник'), t('Древний манипулятор'), t('Хозяин домена'), t('Хранитель традиций')],
         options: [
-            { value: '11', label: '11 — Анцилла (Сила Крови 2)' },
-            { value: '10', label: '10 — Анцилла (Сила Крови 2)' },
-            { value: '9',  label: '9 — Анцилла (Сила Крови 2)' },
-            { value: '8',  label: '8 — Анцилла (Сила Крови 2)' },
+            { value: '11', label: t('11 — Анцилла (Сила Крови 2)') },
+            { value: '10', label: t('10 — Анцилла (Сила Крови 2)') },
+            { value: '9',  label: t('9 — Анцилла (Сила Крови 2)') },
+            { value: '8',  label: t('8 — Анцилла (Сила Крови 2)') },
         ]
     },
     {
         key: 'childe',
-        title: 'ПТЕНЦЫ',
-        subtitle: 'Первые Ночи',
-        motto: 'Они ещё помнят, как были людьми',
+        title: t('ПТЕНЦЫ'),
+        subtitle: t('Первые Ночи'),
+        motto: t('Они ещё помнят, как были людьми'),
         accent: '#7a7aaa',
         image: '/static/generation_gallery/childe.png',
         icon: '◈',
-        age: 'менее 15 лет назад',
-        potency: 'Сила Крови 0–1',
-        gens: '12–16 поколение',
-        traits: ['Мало опыта', 'Слабый контроль Голода', 'Современные взгляды', 'Высокая адаптивность'],
-        philosophy: ['страх неизвестного', 'поиск себя', 'борьба с голодом', 'сохранить человечность'],
-        archetypes: ['Случайная жертва', 'Потерянный студент', 'Молодой анарх', 'Новообращённый хищник'],
+        age: t('менее 15 лет назад'),
+        potency: t('Сила Крови 0–1'),
+        gens: tf('{range} поколение', { range: '12–16' }),
+        traits: [t('Мало опыта'), t('Слабый контроль Голода'), t('Современные взгляды'), t('Высокая адаптивность')],
+        philosophy: [t('страх неизвестного'), t('поиск себя'), t('борьба с голодом'), t('сохранить человечность')],
+        archetypes: [t('Случайная жертва'), t('Потерянный студент'), t('Молодой анарх'), t('Новообращённый хищник')],
         options: [
-            { value: '12', label: '12 — Птенец / Неонат (Сила Крови 1)' },
-            { value: '13', label: '13 — Птенец / Неонат (Сила Крови 1)' },
-            { value: '14', label: '14 — Птенец Слабокровный (Сила Крови 0)' },
-            { value: '15', label: '15 — Птенец Слабокровный (Сила Крови 0)' },
-            { value: '16', label: '16 — Птенец Слабокровный (Сила Крови 0)' },
+            { value: '12', label: t('12 — Птенец / Неонат (Сила Крови 1)') },
+            { value: '13', label: t('13 — Птенец / Неонат (Сила Крови 1)') },
+            { value: '14', label: t('14 — Птенец Слабокровный (Сила Крови 0)') },
+            { value: '15', label: t('15 — Птенец Слабокровный (Сила Крови 0)') },
+            { value: '16', label: t('16 — Птенец Слабокровный (Сила Крови 0)') },
         ]
     },
     {
         key: 'neonate',
-        title: 'НЕОНАТЫ',
-        subtitle: 'Молодая Кровь',
-        motto: 'Они уже поняли, что мир принадлежит хищникам',
+        title: t('НЕОНАТЫ'),
+        subtitle: t('Молодая Кровь'),
+        motto: t('Они уже поняли, что мир принадлежит хищникам'),
         accent: '#cc3333',
         image: '/static/generation_gallery/neonate.png',
         icon: '✦',
-        age: 'после 1940 года',
-        potency: 'Сила Крови 1',
-        gens: '12–13 поколение',
-        traits: ['Понимают современный мир', 'Умеют скрываться среди людей', 'Практический опыт', 'Ещё не настоящая элита'],
-        philosophy: ['свобода', 'адаптация', 'амбиции', 'выживание'],
-        archetypes: ['Городской хищник', 'Молодой манипулятор', 'Неоновый анарх', 'Восходящий каннит'],
+        age: t('после 1940 года'),
+        potency: tf('Сила Крови {n}', { n: 1 }),
+        gens: tf('{range} поколение', { range: '12–13' }),
+        traits: [t('Понимают современный мир'), t('Умеют скрываться среди людей'), t('Практический опыт'), t('Ещё не настоящая элита')],
+        philosophy: [t('свобода'), t('адаптация'), t('амбиции'), t('выживание')],
+        archetypes: [t('Городской хищник'), t('Молодой манипулятор'), t('Неоновый анарх'), t('Восходящий каннит')],
         options: [
-            { value: '12', label: '12 — Неонат (Сила Крови 1)' },
-            { value: '13', label: '13 — Неонат (Сила Крови 1)' },
+            { value: '12', label: t('12 — Неонат (Сила Крови 1)') },
+            { value: '13', label: t('13 — Неонат (Сила Крови 1)') },
         ]
     }
 ];
@@ -3553,37 +3592,37 @@ function showSingleGeneration(key) {
 
         <div style="display: flex; justify-content: center; gap: 16px; flex-wrap: wrap; margin-bottom: 28px;">
             <div style="background:#0d0d0d; border:1px solid ${g.accent}33; border-radius:8px; padding:12px 20px;">
-                <div style="color:#555; font-size:10px; letter-spacing:2px; margin-bottom:4px;">ПОКОЛЕНИЕ</div>
+                <div style="color:#555; font-size:10px; letter-spacing:2px; margin-bottom:4px;">${t('ПОКОЛЕНИЕ')}</div>
                 <div style="color:#ddd; font-size:15px;">${g.gens}</div>
             </div>
             <div style="background:#0d0d0d; border:1px solid ${g.accent}33; border-radius:8px; padding:12px 20px;">
-                <div style="color:#555; font-size:10px; letter-spacing:2px; margin-bottom:4px;">СТАНОВЛЕНИЕ</div>
+                <div style="color:#555; font-size:10px; letter-spacing:2px; margin-bottom:4px;">${t('СТАНОВЛЕНИЕ')}</div>
                 <div style="color:#ddd; font-size:15px;">${g.age}</div>
             </div>
             <div style="background:#0d0d0d; border:1px solid ${g.accent}55; border-radius:8px; padding:12px 20px;">
-                <div style="color:#555; font-size:10px; letter-spacing:2px; margin-bottom:4px;">СИЛА КРОВИ</div>
+                <div style="color:#555; font-size:10px; letter-spacing:2px; margin-bottom:4px;">${t('СИЛА КРОВИ')}</div>
                 <div style="color:${g.accent}; font-size:15px; font-weight:bold;">${g.potency}</div>
             </div>
         </div>
 
         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px; text-align: left;">
             <div style="background:#0d0d0d; border:1px solid #1e1e1e; border-radius:8px; padding:18px 20px;">
-                <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:12px;">ОСОБЕННОСТИ</div>
+                <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:12px;">${t('ОСОБЕННОСТИ')}</div>
                 <ul style="list-style:disc; padding-left:18px; margin:0;">${traits}</ul>
             </div>
             <div style="background:#0d0d0d; border:1px solid #1e1e1e; border-radius:8px; padding:18px 20px;">
-                <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:12px;">ТИПАЖИ</div>
+                <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:12px;">${t('ТИПАЖИ')}</div>
                 <ul style="list-style:disc; padding-left:18px; margin:0;">${archetypes}</ul>
             </div>
         </div>
 
         <div style="background:#0d0d0d; border:1px solid #1e1e1e; border-radius:8px; padding:18px 20px; margin-bottom:28px; text-align:left;">
-            <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:12px;">ФИЛОСОФИЯ</div>
+            <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:12px;">${t('ФИЛОСОФИЯ')}</div>
             <div style="display:flex; gap:10px; flex-wrap:wrap;">${philosophy}</div>
         </div>
 
         <div style="background:#0d0d0d; border:1px solid ${g.accent}33; border-radius:8px; padding:20px 24px; margin-bottom:28px; text-align:left;">
-            <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:16px;">ВЫБЕРИТЕ ПОКОЛЕНИЕ</div>
+            <div style="color:${g.accent}; font-size:11px; letter-spacing:2px; margin-bottom:16px;">${t('ВЫБЕРИТЕ ПОКОЛЕНИЕ')}</div>
             ${optionButtons}
         </div>
 
@@ -3595,7 +3634,7 @@ function showSingleGeneration(key) {
             background: transparent; color: ${g.accent}; border: 2px solid ${g.accent};
             padding: 14px 36px; font-size: 16px; border-radius: 6px;
             cursor: pointer; font-family: 'Courier New', monospace; letter-spacing: 2px;
-        ">← Назад к списку</button>
+        ">← ${t('Назад к списку')}</button>
     </div>`;
 }
 
@@ -3629,13 +3668,13 @@ function closeGenerationModal() {
 const MORTAL_TEMPLATES = [
     {
         id: 'weak',
-        name: 'Слабый смертный',
-        short: 'Рядовой обыватель без особых способностей',
-        detail:
+        name: t('Слабый смертный'),
+        short: t('Рядовой обыватель без особых способностей'),
+        detail: t(
 `Характеристики: две по 2 пункта, остальные по 1 пункту.
 Навыки: три по 2 пункта, пять по 1 пункту.
-Преимущества: нет.`,
-        attrs: { total: 11, budget: [{v:2,n:2},{v:1,n:'все остальные'}] },
+Преимущества: нет.`),
+        attrs: { total: 11, budget: [{v:2,n:2},{v:1,n:t('все остальные')}] },
         skills: { total: 11, budget: [{v:2,n:3},{v:1,n:5}] },
         merits: 0, maxFlaws: 0, specs: 0,
         attrLimits:  { 5:0, 4:0, 3:0, 2:2, 1:7 },
@@ -3643,13 +3682,13 @@ const MORTAL_TEMPLATES = [
     },
     {
         id: 'average',
-        name: 'Обычный смертный',
-        short: 'Среднестатистический человек',
-        detail:
+        name: t('Обычный смертный'),
+        short: t('Среднестатистический человек'),
+        detail: t(
 `Характеристики: две по 3 пункта, три по 2 пункта, остальные по 1 пункту.
 Навыки: три по 3 пункта, четыре по 2 пункта, пять по 1 пункту.
-Преимущества: до 3 пунктов (недостатков не больше чем на 2 пункта).`,
-        attrs: { total: 18, budget: [{v:3,n:2},{v:2,n:3},{v:1,n:'остальные'}] },
+Преимущества: до 3 пунктов (недостатков не больше чем на 2 пункта).`),
+        attrs: { total: 18, budget: [{v:3,n:2},{v:2,n:3},{v:1,n:t('остальные')}] },
         skills: { total: 21, budget: [{v:3,n:3},{v:2,n:4},{v:1,n:5}] },
         merits: 3, maxFlaws: 2, specs: 0,
         attrLimits:  { 5:0, 4:0, 3:2, 2:3, 1:4 },
@@ -3657,13 +3696,13 @@ const MORTAL_TEMPLATES = [
     },
     {
         id: 'gifted',
-        name: 'Одарённый смертный',
-        short: 'Человек с выдающимися талантами',
-        detail:
+        name: t('Одарённый смертный'),
+        short: t('Человек с выдающимися талантами'),
+        detail: t(
 `Характеристики: одна — 4 пункта, две по 3 пункта, две по 2 пункта, остальные по 1 пункту.
 Навыки: два по 4 пункта (одна специализация на любой из них), четыре по 3 пункта, четыре по 2 пункта, четыре по 1 пункту.
-Преимущества: до 10 пунктов (недостатков не больше чем на 4 пункта).`,
-        attrs: { total: 23, budget: [{v:4,n:1},{v:3,n:2},{v:2,n:2},{v:1,n:'остальные'}] },
+Преимущества: до 10 пунктов (недостатков не больше чем на 4 пункта).`),
+        attrs: { total: 23, budget: [{v:4,n:1},{v:3,n:2},{v:2,n:2},{v:1,n:t('остальные')}] },
         skills: { total: 30, budget: [{v:4,n:2},{v:3,n:4},{v:2,n:4},{v:1,n:4}] },
         merits: 10, maxFlaws: 4, specs: 1,
         attrLimits:  { 5:0, 4:1, 3:2, 2:2, 1:4 },
@@ -3671,13 +3710,13 @@ const MORTAL_TEMPLATES = [
     },
     {
         id: 'formidable',
-        name: 'Отчаянный смертный',
-        short: 'Исключительный человек, опасный противник',
-        detail:
+        name: t('Отчаянный смертный'),
+        short: t('Исключительный человек, опасный противник'),
+        detail: t(
 `Характеристики: две по 5 пунктов, две по 4 пункта, две по 3 пункта, остальные по 2 пункта.
 Навыки: один — 5 пунктов, три по 4 пункта, пять по 3 пункта, шесть по 2 пункта; три специализации.
-Преимущества: до 15 пунктов (нет недостатков).`,
-        attrs: { total: 39, budget: [{v:5,n:2},{v:4,n:2},{v:3,n:2},{v:2,n:'остальные'}] },
+Преимущества: до 15 пунктов (нет недостатков).`),
+        attrs: { total: 39, budget: [{v:5,n:2},{v:4,n:2},{v:3,n:2},{v:2,n:t('остальные')}] },
         skills: { total: 44, budget: [{v:5,n:1},{v:4,n:3},{v:3,n:5},{v:2,n:6}] },
         merits: 15, maxFlaws: 0, specs: 3,
         attrLimits:  { 5:2, 4:2, 3:2, 2:3, 1:0 },
@@ -3784,19 +3823,19 @@ function renderMortalAttrTracker() {
     const skillOk = skillSpent <= tpl.skills.total;
 
     const meritsEl = tpl.merits > 0
-        ? `<div class="mortal-tracker-row"><span>Преимущества</span><span>до ${tpl.merits} пт${tpl.maxFlaws ? ` (недост. ≤ ${tpl.maxFlaws})` : ''}</span></div>`
+        ? `<div class="mortal-tracker-row"><span>${t('Преимущества')}</span><span>${tf('до {merits} пт{flawsNote}', { merits: tpl.merits, flawsNote: tpl.maxFlaws ? tf(' (недост. ≤ {maxFlaws})', { maxFlaws: tpl.maxFlaws }) : '' })}</span></div>`
         : '';
     const specsEl = tpl.specs > 0
-        ? `<div class="mortal-tracker-row"><span>Специализации</span><span>${tpl.specs}</span></div>`
+        ? `<div class="mortal-tracker-row"><span>${t('Специализации')}</span><span>${tpl.specs}</span></div>`
         : '';
 
     container.innerHTML = `
         <div class="mortal-tracker-row">
-            <span>Характеристики</span>
+            <span>${t('Характеристики')}</span>
             <span class="${attrOk ? 'ok' : 'bad'}">${attrSpent} / ${tpl.attrs.total}</span>
         </div>
         <div class="mortal-tracker-row">
-            <span>Навыки</span>
+            <span>${t('Навыки')}</span>
             <span class="${skillOk ? 'ok' : 'bad'}">${skillSpent} / ${tpl.skills.total}</span>
         </div>
         ${meritsEl}
@@ -3821,9 +3860,9 @@ function openArchetypeModal(fieldId) {
     if (!modal) return;
 
     // Subtitle — показываем для какого поля
-    const fieldLabel = fieldId === 'nature-input' ? 'натуры' : 'маски';
+    const fieldLabel = fieldId === 'nature-input' ? t('натуры') : t('маски');
     const subtitle = document.getElementById('archetype-modal-subtitle');
-    if (subtitle) subtitle.textContent = `Выберите архетип ${fieldLabel} — нажмите на карточку, чтобы прочитать описание`;
+    if (subtitle) subtitle.textContent = tf('Выберите архетип {fieldLabel} — нажмите на карточку, чтобы прочитать описание', { fieldLabel });
 
     // Сбросить поиск
     const searchEl = document.getElementById('archetype-search');
@@ -4323,12 +4362,14 @@ function addSpecLine(skillName, value = '') {
     const currentSpecs = container.children.length;
 
     if (isStrictPlayerCreation() && getSpecialtyCount() >= VAMPIRE_SPECIALTY_LIMIT) {
-        alert(`В стартовом листе можно взять не больше ${VAMPIRE_SPECIALTY_LIMIT} специализаций.`);
+        alert(tf('В стартовом листе можно взять не больше {limit} специализаций.', { limit: VAMPIRE_SPECIALTY_LIMIT }));
         return;
     }
 
     if (currentSpecs >= currentDots) {
-        alert(`У навыка "${skillName}" только ${currentDots} точ${currentDots === 1 ? 'ка' : 'ки'}.`);
+        alert(window.VTM_LANG === 'en'
+            ? tf('The "{skillName}" Skill only has {dots} dot{plural}.', { skillName, dots: currentDots, plural: currentDots === 1 ? '' : 's' })
+            : tf('У навыка "{skillName}" только {dots} точ{suffix}.', { skillName, dots: currentDots, suffix: currentDots === 1 ? 'ка' : 'ки' }));
         return;
     }
 
@@ -4513,7 +4554,7 @@ function showMasterItem(kind, title, body = '', meta = '') {
             title,
             body,
             meta,
-            characterName: character.name || 'Безымянный',
+            characterName: character.name || t('Безымянный'),
             userId: user?.id || '',
             username: user?.username || 'Игрок',
             createdAt: new Date().toISOString()
@@ -4584,12 +4625,12 @@ function getDicePartName(partValue) {
 function getDicePoolOptions(selectedValue = '') {
     const sections = [
         {
-            label: 'Характеристики',
-            items: DICE_ATTRIBUTES.map(name => ({ value: makeDicePart('attr', name), label: `${name} (${getAttributeDots(name)})` }))
+            label: t('Характеристики'),
+            items: DICE_ATTRIBUTES.map(name => ({ value: makeDicePart('attr', name), label: `${t(name)} (${getAttributeDots(name)})` }))
         },
         {
-            label: 'Навыки',
-            items: DICE_SKILLS.map(name => ({ value: makeDicePart('skill', name), label: `${name} (${getSkillDots(name)})` }))
+            label: t('Навыки'),
+            items: DICE_SKILLS.map(name => ({ value: makeDicePart('skill', name), label: `${t(name)} (${getSkillDots(name)})` }))
         },
         {
             label: 'Дисциплины',
@@ -5263,18 +5304,19 @@ function updateSBadgeState(skillName) {
 async function preloadAllSkills() {
     const skills = Object.keys(RULES.skills || {});
     console.log(`Загружаем подсказки для ${skills.length} навыков`);
-    
+
     for (let skill of skills) {
         const data = RULES.skills[skill];
         if (!data) continue;
+        const canonicalSkill = vtmCanonicalName(skill);
 
-        let fullText = `${skill}\n\n${data.description || 'Описание отсутствует'}`;
+        let fullText = `${skill}\n\n${data.description || t('Описание отсутствует')}`;
         if (data.specialties && data.specialties.length) {
-            fullText += `\n\nСпециализации: ${data.specialties.join(', ')}`;
+            fullText += tf('\n\n{label}: {specs}', { label: t('Специализации'), specs: data.specialties.join(', ') });
         }
 
         // Название навыка
-        document.querySelectorAll(`[data-skill="${skill}"]`).forEach(el => {
+        document.querySelectorAll(`[data-skill="${canonicalSkill}"]`).forEach(el => {
             el.setAttribute('data-tooltip', fullText);
         });
 
@@ -5283,7 +5325,7 @@ async function preloadAllSkills() {
             const dotDesc = data[`dot${level}`];
             if (dotDesc) {
                 const text = `${skill} ● ${level}\n${dotDesc}`;
-                document.querySelectorAll(`label[data-name="${skill}"][data-level="${level}"]`)
+                document.querySelectorAll(`label[data-name="${canonicalSkill}"][data-level="${level}"]`)
                     .forEach(label => label.setAttribute('data-tooltip', text));
             }
         }
@@ -5292,18 +5334,18 @@ async function preloadAllSkills() {
 
 async function preloadAllAttributes() {
     const attributes = ["Сила", "Ловкость", "Выносливость", "Обаяние", "Манипуляция", "Самообладание", "Интеллект", "Смекалка", "Упорство"];
-    
+
     for (let attr of attributes) {
-        const data = RULES.attributes?.[attr] || { description: "Характеристика персонажа." };
-        
-        let fullText = `${attr}\n\n${data.description || 'Нет описания.'}`;
-        
+        const data = RULES.attributes?.[vtmName(attr)] || { description: t("Характеристика персонажа.") };
+
+        let fullText = `${attr}\n\n${data.description || t('Нет описания.')}`;
+
         document.querySelectorAll(`[data-attr="${attr}"]`).forEach(el => {
             el.setAttribute('data-tooltip', fullText);
         });
 
         for (let level = 1; level <= 5; level++) {
-            const dotDesc = data[`dot${level}`] || `Уровень ${level}`;
+            const dotDesc = data[`dot${level}`] || tf('Уровень {level}', { level });
             document.querySelectorAll(`label[data-name="${attr}"][data-level="${level}"]`)
                 .forEach(label => {
                     label.setAttribute('data-tooltip', `${attr} ● ${level}\n${dotDesc}`);
@@ -5365,7 +5407,7 @@ function applyTraitVariant(item, points, isMerit = true) {
     if (!resolved) return null;
     const predatorDetails = item.predatorDetails || '';
     const descParts = [resolved.variant.полное_описание || ''];
-    if (predatorDetails) descParts.push(`<em>Уточнение от типа охоты:</em> ${predatorDetails}`);
+    if (predatorDetails) descParts.push(tf('<em>{label}</em> {details}', { label: t('Уточнение от типа охоты:'), details: predatorDetails }));
 
     return {
         ...item,
@@ -5423,10 +5465,10 @@ function buildPredatorTrait(rawItem, isMerit, predName) {
     const descParts = [];
     const baseDesc = rawItem?.desc || rawItem?.полное_описание || variant?.полное_описание || '';
     if (baseDesc) descParts.push(baseDesc);
-    if (details) descParts.push(`<em>Уточнение от типа охоты:</em> ${details}`);
+    if (details) descParts.push(tf('<em>{label}</em> {details}', { label: t('Уточнение от типа охоты:'), details }));
 
     return {
-        category: rawItem?.category || category?.название || 'Стиль охоты',
+        category: rawItem?.category || category?.название || t('Стиль охоты'),
         categoryDesc: rawItem?.categoryDesc || category?.описание || '',
         name,
         points,
@@ -5546,12 +5588,12 @@ function renderCharacterImage() {
 function readImageAsCompressedDataURL(file, maxSize = 900, quality = 0.82) {
     return new Promise((resolve, reject) => {
         if (!file || !file.type.startsWith('image/')) {
-            reject(new Error('Выберите файл изображения.'));
+            reject(new Error(t('Выберите файл изображения.')));
             return;
         }
 
         const reader = new FileReader();
-        reader.onerror = () => reject(new Error('Не удалось прочитать изображение.'));
+        reader.onerror = () => reject(new Error(t('Не удалось прочитать изображение.')));
         reader.onload = () => {
             const img = new Image();
             img.onload = () => {
@@ -5563,7 +5605,7 @@ function readImageAsCompressedDataURL(file, maxSize = 900, quality = 0.82) {
                 ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
                 resolve(canvas.toDataURL('image/jpeg', quality));
             };
-            img.onerror = () => reject(new Error('Не удалось обработать изображение.'));
+            img.onerror = () => reject(new Error(t('Не удалось обработать изображение.')));
             img.src = reader.result;
         };
         reader.readAsDataURL(file);
@@ -5578,7 +5620,7 @@ async function uploadCharacterImage(event) {
         characterImageData = await readImageAsCompressedDataURL(file);
         renderCharacterImage();
     } catch (err) {
-        alert(err.message || 'Ошибка загрузки изображения.');
+        alert(err.message || t('Ошибка загрузки изображения.'));
     } finally {
         event.target.value = '';
     }
@@ -5601,20 +5643,20 @@ function renderTouchstones() {
         row.className = 'touchstone-item';
         row.innerHTML = `
             <div>
-                ${item.image ? `<img class="touchstone-image" src="${item.image}" alt="Изображение опоры">` : `<div class="touchstone-placeholder">Изображение опоры</div>`}
+                ${item.image ? `<img class="touchstone-image" src="${item.image}" alt="${t('Изображение опоры')}">` : `<div class="touchstone-placeholder">${t('Изображение опоры')}</div>`}
                 <input type="file" accept="image/*" style="display:none;" data-touchstone-file="${index}">
             </div>
-            <textarea data-touchstone-text="${index}" placeholder="Опора или принцип">${escapeHTML(item.text || '')}</textarea>
+            <textarea data-touchstone-text="${index}" placeholder="${t('Опора или принцип')}">${escapeHTML(item.text || '')}</textarea>
             <div class="touchstone-actions">
-                <select data-touchstone-status="${index}" aria-label="Статус Опоры">
-                    <option value="safe"${item.status === 'safe' ? ' selected' : ''}>В безопасности</option>
-                    <option value="threatened"${item.status === 'threatened' ? ' selected' : ''}>Под угрозой</option>
-                    <option value="harmed"${item.status === 'harmed' ? ' selected' : ''}>Пострадала</option>
-                    <option value="lost"${item.status === 'lost' ? ' selected' : ''}>Утрачена</option>
+                <select data-touchstone-status="${index}" aria-label="${t('Статус Опоры')}">
+                    <option value="safe"${item.status === 'safe' ? ' selected' : ''}>${t('В безопасности')}</option>
+                    <option value="threatened"${item.status === 'threatened' ? ' selected' : ''}>${t('Под угрозой')}</option>
+                    <option value="harmed"${item.status === 'harmed' ? ' selected' : ''}>${t('Пострадала')}</option>
+                    <option value="lost"${item.status === 'lost' ? ' selected' : ''}>${t('Утрачена')}</option>
                 </select>
-                <button type="button" data-touchstone-upload="${index}">Загрузить</button>
-                <button type="button" data-touchstone-remove-image="${index}">Удалить фото</button>
-                <button type="button" data-touchstone-delete="${index}">Удалить</button>
+                <button type="button" data-touchstone-upload="${index}">${t('Загрузить')}</button>
+                <button type="button" data-touchstone-remove-image="${index}">${t('Удалить фото')}</button>
+                <button type="button" data-touchstone-delete="${index}">${t('Удалить')}</button>
             </div>
         `;
         list.appendChild(row);
@@ -5643,7 +5685,7 @@ function renderTouchstones() {
                 const related = document.getElementById('humanity-event-touchstone');
                 if (type) type.value = 'touchstone_harmed';
                 if (related) related.value = touchstones[index].id;
-                setHumanityNotice('Опора пострадала. Рассказчик может добавить Сомнения через форму морального события.', 'warning');
+                setHumanityNotice(t('Опора пострадала. Рассказчик может добавить Сомнения через форму морального события.'), 'warning');
             }
         });
     });
@@ -5665,7 +5707,7 @@ function renderTouchstones() {
                 renderTouchstones();
                 autoSaveVitalState();
             } catch (err) {
-                alert(err.message || 'Ошибка загрузки изображения.');
+                alert(err.message || t('Ошибка загрузки изображения.'));
             }
         });
     });
@@ -5736,8 +5778,8 @@ function updateInventoryCardSummary(id) {
     if (!item || !card) return;
     const title = card.querySelector('[data-inventory-title]');
     const summary = card.querySelector('[data-inventory-summary]');
-    if (title) title.textContent = item.name || 'Без названия';
-    if (summary) summary.textContent = `${item.category} · ${item.quantity} шт.`;
+    if (title) title.textContent = item.name || t('Без названия');
+    if (summary) summary.textContent = tf('{category} · {quantity} шт.', { category: t(item.category), quantity: item.quantity });
 }
 
 function updateInventoryItem(id, patch, shouldRender = false) {
@@ -5750,13 +5792,13 @@ function updateInventoryItem(id, patch, shouldRender = false) {
 }
 
 function addInventoryItem() {
-    inventory = [createInventoryItem({ name: 'Новый предмет' }), ...inventory];
+    inventory = [createInventoryItem({ name: t('Новый предмет') }), ...inventory];
     renderInventory();
 }
 
 function deleteInventoryItem(id) {
     const item = inventory.find(entry => entry.id === id);
-    if (!confirm(`Удалить «${item?.name || 'предмет'}»?`)) return;
+    if (!confirm(tf('Удалить «{name}»?', { name: item?.name || t('предмет') }))) return;
     inventory = inventory.filter(entry => entry.id !== id);
     renderInventory();
 }
@@ -5812,7 +5854,7 @@ function setupInventoryEditor() {
             const id = showMaster.dataset.inventoryShowMaster;
             const item = inventory.find(entry => entry.id === id);
             if (!item) return;
-            showMasterItem('Инвентарь', item.name || 'Без названия', item.description || item.note || 'Описание не указано', `${item.category} · ${item.quantity} шт.`);
+            showMasterItem(t('Инвентарь'), item.name || t('Без названия'), item.description || item.note || t('Описание не указано'), tf('{category} · {quantity} шт.', { category: t(item.category), quantity: item.quantity }));
             return;
         }
         if (toggle && !target.closest('button, input, select, textarea')) {
@@ -5860,32 +5902,32 @@ function renderInventory() {
     if (!list) return;
     const filter = document.getElementById('inventory-filter')?.value || 'Все';
     const visible = filter === 'Все' ? inventory : inventory.filter(item => item.category === filter);
-    if (count) count.textContent = `${visible.length} из ${inventory.length} предметов`;
+    if (count) count.textContent = tf('{visible} из {total} предметов', { visible: visible.length, total: inventory.length });
     if (!visible.length) {
-        list.innerHTML = `<p class="inventory-empty">Инвентарь пуст. Добавь первый предмет кнопкой выше.</p>`;
+        list.innerHTML = `<p class="inventory-empty">${t('Инвентарь пуст. Добавь первый предмет кнопкой выше.')}</p>`;
         return;
     }
     list.innerHTML = visible.map(item => {
         const categoryOptions = INVENTORY_CATEGORIES.map(category => (
-            `<option value="${category}" ${item.category === category ? 'selected' : ''}>${category}</option>`
+            `<option value="${category}" ${item.category === category ? 'selected' : ''}>${t(category)}</option>`
         )).join('');
         return `
             <article class="inventory-card" data-inventory-id="${item.id}" draggable="true">
                 <div class="inventory-card-head" data-inventory-toggle="${item.id}">
-                    <button type="button" class="inventory-drag-handle" data-inventory-drag-handle title="Перетащить предмет">☰</button>
+                    <button type="button" class="inventory-drag-handle" data-inventory-drag-handle title="${t('Перетащить предмет')}">☰</button>
                     <div class="inventory-card-title">
-                        <strong data-inventory-title>${escapeHTML(item.name || 'Без названия')}</strong>
-                        <span data-inventory-summary>${escapeHTML(item.category)} · ${item.quantity} шт.</span>
+                        <strong data-inventory-title>${escapeHTML(item.name || t('Без названия'))}</strong>
+                        <span data-inventory-summary>${escapeHTML(t(item.category))} · ${item.quantity} шт.</span>
                     </div>
                 </div>
                 <div class="inventory-card-fields">
-                    <label>Название
+                    <label>${t('Название')}
                         <input value="${escapeHTML(item.name)}" data-inventory-field="name">
                     </label>
-                    <label>Категория
+                    <label>${t('Категория')}
                         <select data-inventory-field="category">${categoryOptions}</select>
                     </label>
-                    <label>Количество
+                    <label>${t('Количество')}
                         <div class="inventory-quantity">
                             <button type="button" onclick="changeInventoryQuantity('${item.id}', -1)">−</button>
                             <input type="number" min="0" value="${item.quantity}" data-inventory-field="quantity">
@@ -5894,19 +5936,19 @@ function renderInventory() {
                     </label>
                 </div>
                 <div class="inventory-description ${item.collapsed ? 'collapsed' : ''}">
-                    <label>Описание
+                    <label>${t('Описание')}
                         <textarea data-inventory-field="description">${escapeHTML(item.description)}</textarea>
                     </label>
                 </div>
                 <div class="inventory-note ${item.collapsed ? 'collapsed' : ''}">
-                    <label>Заметка
+                    <label>${t('Заметка')}
                         <textarea data-inventory-field="note">${escapeHTML(item.note)}</textarea>
                     </label>
                 </div>
                 <div class="inventory-card-actions">
-                    <button type="button" onclick="updateInventoryItem('${item.id}', { collapsed: ${!item.collapsed} }, true)">${item.collapsed ? 'Раскрыть описание' : 'Свернуть описание'}</button>
-                    <button type="button" data-inventory-show-master="${item.id}">Показать мастеру</button>
-                    <button type="button" class="danger" onclick="deleteInventoryItem('${item.id}')">Удалить</button>
+                    <button type="button" onclick="updateInventoryItem('${item.id}', { collapsed: ${!item.collapsed} }, true)">${item.collapsed ? t('Раскрыть описание') : t('Свернуть описание')}</button>
+                    <button type="button" data-inventory-show-master="${item.id}">${t('Показать мастеру')}</button>
+                    <button type="button" class="danger" onclick="deleteInventoryItem('${item.id}')">${t('Удалить')}</button>
                 </div>
             </article>
         `;
@@ -6040,9 +6082,9 @@ function showPredatorChoiceModal(predName, entries) {
         modal.innerHTML = `
             <div style="width:min(620px,100%);background:#111;border:2px solid #ff3131;border-radius:10px;padding:24px;color:#eee;box-shadow:0 0 36px rgba(255,49,49,0.35);">
                 <h2 style="margin:0 0 8px;text-align:center;color:#ff3131;">${escapeHTML(predName)}</h2>
-                <p style="margin:0 0 18px;text-align:center;color:#aaa;line-height:1.45;">Выберите один вариант от стиля охоты</p>
+                <p style="margin:0 0 18px;text-align:center;color:#aaa;line-height:1.45;">${t('Выберите один вариант от стиля охоты')}</p>
                 <div id="pred-choice-list" style="display:grid;gap:10px;"></div>
-                <button id="pred-choice-cancel" style="margin-top:16px;width:100%;padding:11px;background:#333;color:#eee;border:none;border-radius:6px;cursor:pointer;">Отмена</button>
+                <button id="pred-choice-cancel" style="margin-top:16px;width:100%;padding:11px;background:#333;color:#eee;border:none;border-radius:6px;cursor:pointer;">${t('Отмена')}</button>
             </div>
         `;
 
@@ -6054,7 +6096,7 @@ function showPredatorChoiceModal(predName, entries) {
             const btn = document.createElement('button');
             btn.style.cssText = 'padding:14px 16px;background:#1a1a1a;color:#eee;border:1px solid #444;border-left:4px solid #ff9500;border-radius:6px;cursor:pointer;text-align:left;line-height:1.45;';
             btn.innerHTML = `
-                <strong style="color:${entry.isMerit ? '#ffcc00' : '#ff6666'};">${entry.isMerit ? 'Преимущество' : 'Недостаток'}</strong><br>
+                <strong style="color:${entry.isMerit ? '#ffcc00' : '#ff6666'};">${entry.isMerit ? t('Преимущество') : t('Недостаток')}</strong><br>
                 ${escapeHTML(formatPredatorTraitLine(entry.item, entry.isMerit))}
             `;
             btn.onclick = () => {
@@ -6080,7 +6122,7 @@ function showPredatorAllocationModal(predName, group) {
         const rows = group.entries.map((entry, index) => `
             <label style="display:grid;grid-template-columns:1fr 76px;gap:12px;align-items:center;background:#1a1a1a;border:1px solid #333;border-radius:6px;padding:12px;">
                 <span>
-                    <strong style="color:${entry.isMerit ? '#ffcc00' : '#ff6666'};">${entry.isMerit ? 'Преимущество' : 'Недостаток'}</strong><br>
+                    <strong style="color:${entry.isMerit ? '#ffcc00' : '#ff6666'};">${entry.isMerit ? t('Преимущество') : t('Недостаток')}</strong><br>
                     ${escapeHTML(entry.item.category || entry.item.name)}
                 </span>
                 <input class="pred-allocation-input" data-index="${index}" type="number" min="0" max="${group.total}" value="0" style="width:100%;background:#000;color:#ffcc66;border:1px solid #555;border-radius:4px;padding:8px;text-align:center;font-size:18px;">
@@ -6090,12 +6132,12 @@ function showPredatorAllocationModal(predName, group) {
         modal.innerHTML = `
             <div style="width:min(660px,100%);background:#111;border:2px solid #ff3131;border-radius:10px;padding:24px;color:#eee;box-shadow:0 0 36px rgba(255,49,49,0.35);">
                 <h2 style="margin:0 0 8px;text-align:center;color:#ff3131;">${escapeHTML(predName)}</h2>
-                <p style="margin:0 0 10px;text-align:center;color:#aaa;line-height:1.45;">Распределите <strong style="color:#ffcc66;">${group.total}</strong> пункт(а/ов)</p>
-                <div id="pred-allocation-left" style="text-align:center;color:#ffcc66;margin-bottom:14px;">Осталось: ${group.total}</div>
+                <p style="margin:0 0 10px;text-align:center;color:#aaa;line-height:1.45;">${tf('Распределите <strong style="color:#ffcc66;">{total}</strong> пункт(а/ов)', { total: group.total })}</p>
+                <div id="pred-allocation-left" style="text-align:center;color:#ffcc66;margin-bottom:14px;">${tf('Осталось: {left}', { left: group.total })}</div>
                 <div style="display:grid;gap:10px;">${rows}</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;">
-                    <button id="pred-allocation-confirm" style="padding:12px;background:#ff9500;color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">Применить</button>
-                    <button id="pred-allocation-cancel" style="padding:12px;background:#333;color:#eee;border:none;border-radius:6px;cursor:pointer;">Отмена</button>
+                    <button id="pred-allocation-confirm" style="padding:12px;background:#ff9500;color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">${t('Применить')}</button>
+                    <button id="pred-allocation-cancel" style="padding:12px;background:#333;color:#eee;border:none;border-radius:6px;cursor:pointer;">${t('Отмена')}</button>
                 </div>
             </div>
         `;
@@ -6113,7 +6155,7 @@ function showPredatorAllocationModal(predName, group) {
         function updateLeft() {
             const used = getValues().reduce((sum, value) => sum + value, 0);
             const left = group.total - used;
-            leftEl.textContent = `Осталось: ${left}`;
+            leftEl.textContent = tf('Осталось: {left}', { left });
             leftEl.style.color = left < 0 ? '#ff6666' : '#ffcc66';
             return left;
         }
@@ -6124,7 +6166,7 @@ function showPredatorAllocationModal(predName, group) {
         modal.querySelector('#pred-allocation-confirm').onclick = () => {
             const left = updateLeft();
             if (left !== 0) {
-                alert(left > 0 ? `Осталось распределить ${left} пункт(а/ов).` : `Распределено на ${Math.abs(left)} пункт(а/ов) больше.`);
+                alert(left > 0 ? tf('Осталось распределить {left} пункт(а/ов).', { left }) : tf('Распределено на {over} пункт(а/ов) больше.', { over: Math.abs(left) }));
                 return;
             }
             const values = getValues();
@@ -6566,7 +6608,7 @@ document.addEventListener('change', function(e) {
 // ==================== ПРЕИМУЩЕСТВА И НЕДОСТАТКИ ====================
 
 function openMeritsFlawsModal() {
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Преимущества и недостатки меняются только через расфиксацию или магазин опыта.");
+    if (startingSheetFixed && !expShopMode) return alert(t("Лист зафиксирован. Преимущества и недостатки меняются только через расфиксацию или магазин опыта."));
     document.getElementById('merits-flaws-modal').style.display = 'block';
     switchMeritsTab(0); // по умолчанию открываем Преимущества
 }
@@ -6647,8 +6689,8 @@ function traitMatchesSearch(category, variant, search) {
 function formatTraitRollLine(item) {
     return [
         item?.roll || '',
-        item?.difficulty ? `сложность: ${item.difficulty}` : '',
-        item?.bonus ? `бонус: ${item.bonus}` : ''
+        item?.difficulty ? tf('сложность: {value}', { value: item.difficulty }) : '',
+        item?.bonus ? tf('бонус: {value}', { value: item.bonus }) : ''
     ].filter(Boolean).join(' · ');
 }
 
@@ -6672,11 +6714,11 @@ function createTraitVariantCard(category, variant, tab, { showCategory = false }
     `;
     div.innerHTML = `
         ${showCategory ? `<small style="display:block;color:#888;margin-bottom:5px;">${category.название}</small>` : ''}
-        <strong>${name} — ${points} точек</strong>
-        ${alreadyTaken ? '<span style="color:#888;margin-left:8px;">уже добавлено</span>' : ''}
+        <strong>${tf('{name} — {points} точек', { name, points })}</strong>
+        ${alreadyTaken ? `<span style="color:#888;margin-left:8px;">${t('уже добавлено')}</span>` : ''}
         ${expShopMode ? `<span style="color:#ffcc00;font-weight:bold;margin-left:8px;">${tab === 0 ? points * 3 : 0} XP</span>` : ''}<br>
         <small style="display:block;color:#aaa;margin-top:7px;line-height:1.45;">${variant.полное_описание || ''}</small>
-        ${rollLine ? `<small style="display:block;color:#ffd166;margin-top:7px;line-height:1.45;"><strong>Бросок:</strong> ${rollLine}</small>` : ''}
+        ${rollLine ? `<small style="display:block;color:#ffd166;margin-top:7px;line-height:1.45;"><strong>${t('Бросок:')}</strong> ${rollLine}</small>` : ''}
         ${variant.механика ? `<small style="display:block;color:#ffae00;margin-top:7px;line-height:1.45;">${variant.механика}</small>` : ''}
     `;
 
@@ -6721,7 +6763,7 @@ function renderCategories(tab) {
 
     if (Object.keys(source).length === 0) {
         container.innerHTML = `<p style="color:#ff6666; text-align:center; padding:60px 20px;">
-            Данные не загружены
+            ${t('Данные не загружены')}
         </p>`;
         return;
     }
@@ -6736,12 +6778,12 @@ function renderCategories(tab) {
             });
         });
 
-        container.innerHTML = `<p style="color:#888;margin:0 0 12px;">Найдено: ${matches.length}</p>`;
+        container.innerHTML = `<p style="color:#888;margin:0 0 12px;">${tf('Найдено: {count}', { count: matches.length })}</p>`;
         matches.forEach(({ category, variant }) => {
             container.appendChild(createTraitVariantCard(category, variant, tab, { showCategory: true }));
         });
         if (matches.length === 0) {
-            container.innerHTML = `<p style="color:#666;text-align:center;padding:60px;">Ничего не найдено. Попробуйте название, слово из описания или количество точек.</p>`;
+            container.innerHTML = `<p style="color:#666;text-align:center;padding:60px;">${t('Ничего не найдено. Попробуйте название, слово из описания или количество точек.')}</p>`;
         }
         return;
     }
@@ -6750,7 +6792,7 @@ function renderCategories(tab) {
         if (catKey === vtmName('СЛАБОКРОВНЫЕ')) return;
         const category = source[catKey];
         const catName = category.название || catKey;
-        const description = category.описание || "Нет описания";
+        const description = category.описание || t("Нет описания");
 
         if (search && !catName.toLowerCase().includes(search)) return;
 
@@ -6758,13 +6800,13 @@ function renderCategories(tab) {
 
         const div = document.createElement('div');
         div.style.cssText = `
-            background:#1a1a1a; padding:16px; margin-bottom:10px; border-radius:6px; 
+            background:#1a1a1a; padding:16px; margin-bottom:10px; border-radius:6px;
             border:1px solid #444; cursor:pointer; font-size:16px;
         `;
 
         div.innerHTML = `
-            <strong>${catName}</strong> 
-            <span style="color:#666; font-size:14px;">(${count} вариантов)</span>
+            <strong>${catName}</strong>
+            <span style="color:#666; font-size:14px;">${tf('({count} вариантов)', { count })}</span>
             <div style="margin-top:8px; font-size:14px; color:#aaa; line-height:1.4;">
                 ${description}
             </div>
@@ -6775,7 +6817,7 @@ function renderCategories(tab) {
     });
 
     if (container.children.length === 0) {
-        container.innerHTML = `<p style="color:#666; text-align:center; padding:60px;">Ничего не найдено</p>`;
+        container.innerHTML = `<p style="color:#666; text-align:center; padding:60px;">${t('Ничего не найдено')}</p>`;
     }
 }
 
@@ -6783,9 +6825,9 @@ function renderCategories(tab) {
 function renderVariantsInCategory(category, tab) {
     const container = document.getElementById('merits-list');
     container.innerHTML = `
-        <button onclick="switchMeritsTab(${tab})" 
+        <button onclick="switchMeritsTab(${tab})"
                 style="margin-bottom:15px; background:#333; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">
-            ← Назад к категориям
+            ← ${t('Назад к категориям')}
         </button>
         <h3 style="color:#ffae00; margin-bottom:15px;">${category.название}</h3>
     `;
@@ -6902,10 +6944,10 @@ function createSelectedItem(item, index, isMerit) {
         const hasVariantAtLevel = Boolean(getTraitVariantAtPoints(item, i, true));
         const editable = isMerit && isFromPredator && i >= predatorBasePoints && hasVariantAtLevel;
         const title = i <= predatorBasePoints
-            ? `Точка от типа охоты (${i}/${predatorBasePoints})`
+            ? tf('Точка от типа охоты ({i}/{base})', { i, base: predatorBasePoints })
             : filled
-                ? `Своя точка. Нажать, чтобы изменить уровень до ${i === points ? Math.max(predatorBasePoints, i - 1) : i}`
-                : `Добавить свои точки до уровня ${i}`;
+                ? tf('Своя точка. Нажать, чтобы изменить уровень до {level}', { level: i === points ? Math.max(predatorBasePoints, i - 1) : i })
+                : tf('Добавить свои точки до уровня {level}', { level: i });
         dotsHTML += `
             <button type="button" class="merit-dot ${dotClass}" title="${title}" aria-label="${title}"
                     ${editable ? `onclick="event.stopImmediatePropagation(); setPredatorMeritPoints(${index}, ${i})"` : 'disabled'}
@@ -6917,9 +6959,9 @@ function createSelectedItem(item, index, isMerit) {
 
     if (isFromPredator) {
         dotsHTML += `
-            <span style="color:#ffae00; font-weight:bold; background:#1a1a1a; 
+            <span style="color:#ffae00; font-weight:bold; background:#1a1a1a;
                          padding:4px 8px; border-radius:6px; border:1px solid #444; margin-left:6px; white-space:nowrap;">
-                Тип охоты: ${item.predatorType || ''} • ${predatorBasePoints} бесплатно${paidPoints ? ` • +${paidPoints} своих` : ''}
+                ${tf('Тип охоты: {pred} • {base} бесплатно{paid}', { pred: item.predatorType || '', base: predatorBasePoints, paid: paidPoints ? tf(' • +{paid} своих', { paid: paidPoints }) : '' })}
             </span>`;
     } else if (expShopMode && isPendingPurchase) {
         dotsHTML += `
@@ -6951,31 +6993,31 @@ function createSelectedItem(item, index, isMerit) {
             ${(!isFromPredator || expShopMode) ? `
             <button class="selected-item-remove" onclick="event.stopImmediatePropagation(); ${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
                     style="background:none; border:none; color:#ff3131; font-size:22px; cursor:pointer; padding:0 8px;">×</button>` : ''}
-            <button type="button" class="selected-item-show-master" style="background:#111; color:#ffae00; border:1px solid #553500; border-radius:6px; padding:6px 9px; cursor:pointer;">Показать мастеру</button>
+            <button type="button" class="selected-item-show-master" style="background:#111; color:#ffae00; border:1px solid #553500; border-radius:6px; padding:6px 9px; cursor:pointer;">${t('Показать мастеру')}</button>
         </div>
         
         <!-- Раскрывающаяся часть -->
         <div class="detail-content" style="display:none; margin-top:12px; padding-top:12px; border-top:1px solid #333; color:#ccc; font-size:14.5px; line-height:1.55;">
             ${item.categoryDesc ? `
             <div style="margin-bottom:16px;">
-                <strong style="color:#ffae00;">Раздел «${item.category}»:</strong><br>
+                <strong style="color:#ffae00;">${tf('Раздел «{category}»:', { category: item.category })}</strong><br>
                 ${item.categoryDesc}
             </div>` : ''}
-            
+
             <div>
-                <strong style="color:#ffae00;">Описание пункта:</strong><br>
+                <strong style="color:#ffae00;">${t('Описание пункта:')}</strong><br>
                 ${item.desc || item.полное_описание || '—'}
             </div>
-            
+
             ${rollLine ? `
             <div style="margin-top:16px;">
-                <strong style="color:#ffae00;">Бросок:</strong><br>
+                <strong style="color:#ffae00;">${t('Бросок:')}</strong><br>
                 ${rollLine}
             </div>` : ''}
 
             ${item.mechanic ? `
             <div style="margin-top:16px;">
-                <strong style="color:#ffae00;">Механика:</strong><br>
+                <strong style="color:#ffae00;">${t('Механика:')}</strong><br>
                 ${item.mechanic}
             </div>` : ''}
         </div>
@@ -6990,10 +7032,10 @@ function createSelectedItem(item, index, isMerit) {
     div.querySelector('.selected-item-show-master')?.addEventListener('click', (event) => {
         event.stopImmediatePropagation();
         const masterDescription = [
-            rollLine ? `Бросок: ${rollLine}` : '',
-            item.mechanic || item.desc || item.полное_описание || 'Описание не указано'
+            rollLine ? tf('Бросок: {rollLine}', { rollLine }) : '',
+            item.mechanic || item.desc || item.полное_описание || t('Описание не указано')
         ].filter(Boolean).join('\n\n');
-        showMasterItem(isMerit ? 'Преимущество' : 'Недостаток', displayName, masterDescription, `${item.category || ''}${points ? ` · ${points} точек` : ''}`);
+        showMasterItem(isMerit ? t('Преимущество') : t('Недостаток'), displayName, masterDescription, tf('{category}{pointsNote}', { category: item.category || '', pointsNote: points ? tf(' · {points} точек', { points }) : '' }));
     });
 
     return div;
@@ -7028,7 +7070,7 @@ window.setPredatorMeritPoints = function(index, targetPoints) {
         predatorBaseName: item.predatorBaseName || item.name
     }, nextPoints, true);
     if (!upgraded) {
-        alert(`Для преимущества «${item.category}» нет варианта на ${nextPoints} точек.`);
+        alert(tf('Для преимущества «{category}» нет варианта на {points} точек.', { category: item.category, points: nextPoints }));
         return;
     }
 
@@ -7062,10 +7104,10 @@ function syncThinBloodAlchemy() {
 
     if (hasThinBloodAlchemyMerit()) {
         if (!disciplineSources[THIN_BLOOD_ALCHEMY]) disciplineSources[THIN_BLOOD_ALCHEMY] = {};
-        disciplineSources[THIN_BLOOD_ALCHEMY]['Достоинство слабокровного: Алхимик'] = 1;
+        disciplineSources[THIN_BLOOD_ALCHEMY][t('Достоинство слабокровного: Алхимик')] = 1;
     } else {
         if (disciplineSources[THIN_BLOOD_ALCHEMY]) {
-            delete disciplineSources[THIN_BLOOD_ALCHEMY]['Достоинство слабокровного: Алхимик'];
+            delete disciplineSources[THIN_BLOOD_ALCHEMY][t('Достоинство слабокровного: Алхимик')];
             if (Object.keys(disciplineSources[THIN_BLOOD_ALCHEMY]).length === 0) {
                 delete disciplineSources[THIN_BLOOD_ALCHEMY];
                 delete selectedPowers[THIN_BLOOD_ALCHEMY];
@@ -7111,7 +7153,7 @@ function renderThinBloodMeritsFlaws() {
     const meritCount = selectedThinBloodMerits.length;
     const flawCount = selectedThinBloodFlaws.length;
     const isBalanced = meritCount === flawCount && meritCount <= 3;
-    balance.innerHTML = `Выбрано: достоинства ${meritCount}/3, недостатки ${flawCount}/3. Нужно равное количество, максимум 3.`;
+    balance.innerHTML = tf('Выбрано: достоинства {meritCount}/3, недостатки {flawCount}/3. Нужно равное количество, максимум 3.', { meritCount, flawCount });
     balance.style.color = isBalanced ? '#78d878' : '#ffcc66';
 
     syncThinBloodAlchemy();
@@ -7130,16 +7172,16 @@ function validateThinBloodBalance({ silent = false } = {}) {
 
 function openThinBloodTraitsModal(tab = 0) {
     if (!isThinBloodClan()) return alert(t('Этот раздел доступен только слабокровным.'));
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Достоинства и недостатки слабокровных сейчас нельзя менять.");
+    if (startingSheetFixed && !expShopMode) return alert(t("Лист зафиксирован. Достоинства и недостатки слабокровных сейчас нельзя менять."));
 
     const html = `
     <div id="thin-blood-traits-modal" style="position:fixed; inset:0; background:rgba(0,0,0,0.96); z-index:12000; overflow:auto; padding:20px;">
         <div style="max-width:980px; margin:30px auto; background:#111; padding:25px; border-radius:8px; border:2px solid #a14600; position:relative;">
             <button onclick="closeThinBloodTraitsModal()" style="position:absolute; top:18px; right:25px; font-size:36px; color:#ffae00; background:none; border:none; cursor:pointer; z-index:10; line-height:1;">×</button>
-            <h2 style="text-align:center; color:#ffae00; margin-bottom:20px;">Слабокровные особенности</h2>
+            <h2 style="text-align:center; color:#ffae00; margin-bottom:20px;">${t('Слабокровные особенности')}</h2>
             <div style="display:flex; margin-bottom:20px; border-bottom:1px solid #333;">
-                <button onclick="renderThinBloodTraitChoices(0)" id="tab-thin-merits" style="flex:1; padding:12px; background:${tab === 0 ? '#222' : '#111'}; border:none; color:white; font-weight:bold;">Преимущества</button>
-                <button onclick="renderThinBloodTraitChoices(1)" id="tab-thin-flaws" style="flex:1; padding:12px; background:${tab === 1 ? '#222' : '#111'}; border:none; color:white; font-weight:bold;">Недостатки</button>
+                <button onclick="renderThinBloodTraitChoices(0)" id="tab-thin-merits" style="flex:1; padding:12px; background:${tab === 0 ? '#222' : '#111'}; border:none; color:white; font-weight:bold;">${t('Преимущества')}</button>
+                <button onclick="renderThinBloodTraitChoices(1)" id="tab-thin-flaws" style="flex:1; padding:12px; background:${tab === 1 ? '#222' : '#111'}; border:none; color:white; font-weight:bold;">${t('Недостатки')}</button>
             </div>
             <div id="thin-blood-traits-list"></div>
         </div>
@@ -7168,13 +7210,13 @@ function renderThinBloodTraitChoices(tab) {
     const titleColor = isMerit ? '#ffcc00' : '#ff6666';
 
     if (!category?.варианты?.length) {
-        container.innerHTML = `<p style="color:#777;text-align:center;padding:40px;">Данные не найдены.</p>`;
+        container.innerHTML = `<p style="color:#777;text-align:center;padding:40px;">${t('Данные не найдены.')}</p>`;
         return;
     }
 
     container.innerHTML = `
         <p style="color:#aaa;line-height:1.5;margin-top:0;">${category.описание || ''}</p>
-        <p style="color:#ffcc66;">Баланс: достоинства ${selectedThinBloodMerits.length}/3, недостатки ${selectedThinBloodFlaws.length}/3.</p>
+        <p style="color:#ffcc66;">${tf('Баланс: достоинства {meritCount}/3, недостатки {flawCount}/3.', { meritCount: selectedThinBloodMerits.length, flawCount: selectedThinBloodFlaws.length })}</p>
     `;
 
     category.варианты.forEach((raw, index) => {
@@ -7185,12 +7227,12 @@ function renderThinBloodTraitChoices(tab) {
         const wouldOverrunBalance = selected.length >= other.length + 1;
         const disabled = alreadyTaken || limitReached || wouldOverrunBalance;
         const reason = alreadyTaken
-            ? 'Уже выбрано'
+            ? t('Уже выбрано')
             : limitReached
-                ? 'Максимум 3'
+                ? t('Максимум 3')
                 : wouldOverrunBalance
-                    ? 'Сначала уравновесь другой стороной'
-                    : 'Добавить';
+                    ? t('Сначала уравновесь другой стороной')
+                    : t('Добавить');
 
         const div = document.createElement('div');
         div.style.cssText = `
@@ -7202,7 +7244,7 @@ function renderThinBloodTraitChoices(tab) {
                 <div>
                     <strong style="color:${titleColor};">${escapeHTML(item.name)}</strong>
                     <div style="color:#aaa; margin-top:8px; line-height:1.45;">${escapeHTML(item.desc)}</div>
-                    ${item.mechanic ? `<div style="color:#ddd; margin-top:8px; line-height:1.45;"><strong>Механика:</strong> ${escapeHTML(item.mechanic)}</div>` : ''}
+                    ${item.mechanic ? `<div style="color:#ddd; margin-top:8px; line-height:1.45;"><strong>${t("Механика:")}</strong> ${escapeHTML(item.mechanic)}</div>` : ''}
                 </div>
                 <button ${disabled ? 'disabled' : ''} style="min-width:120px; padding:9px 12px; border-radius:5px; border:1px solid #a14600; background:${disabled ? '#222' : '#2a1805'}; color:#ffcc66; cursor:${disabled ? 'not-allowed' : 'pointer'};">${reason}</button>
             </div>
@@ -7213,7 +7255,7 @@ function renderThinBloodTraitChoices(tab) {
 }
 
 function addThinBloodTrait(index, isMerit) {
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Достоинства и недостатки слабокровных сейчас нельзя менять.");
+    if (startingSheetFixed && !expShopMode) return alert(t("Лист зафиксирован. Достоинства и недостатки слабокровных сейчас нельзя менять."));
     const category = getThinBloodCategory(isMerit);
     const raw = category?.варианты?.[index];
     if (!raw) return;
@@ -7232,13 +7274,13 @@ function addThinBloodTrait(index, isMerit) {
 }
 
 window.removeThinBloodMerit = function(index) {
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Достоинства слабокровных сейчас нельзя менять.");
+    if (startingSheetFixed && !expShopMode) return alert(t("Лист зафиксирован. Достоинства слабокровных сейчас нельзя менять."));
     selectedThinBloodMerits.splice(index, 1);
     renderThinBloodMeritsFlaws();
 };
 
 window.removeThinBloodFlaw = function(index) {
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Недостатки слабокровных сейчас нельзя менять.");
+    if (startingSheetFixed && !expShopMode) return alert(t("Лист зафиксирован. Недостатки слабокровных сейчас нельзя менять."));
     selectedThinBloodFlaws.splice(index, 1);
     renderThinBloodMeritsFlaws();
 };
@@ -7258,13 +7300,13 @@ function showPredatorMeritsFlawsSelection(predName, predData) {
                     style="position:absolute; top:15px; right:20px; font-size:32px; color:#ff3131; background:none; border:none; cursor:pointer;">×</button>
             
             <h2 style="color:#ff3131; text-align:center; margin:0 0 10px;">${predName}</h2>
-            <p style="text-align:center; color:#aaa; margin-bottom:20px;">Выберите, что добавить от этого стиля охоты</p>
-            
+            <p style="text-align:center; color:#aaa; margin-bottom:20px;">${t('Выберите, что добавить от этого стиля охоты')}</p>
+
             <div style="display:grid; grid-template-columns:1fr 1fr; gap:25px;">`;
 
     // Преимущества
     if (predData.advantages && predData.advantages.length > 0) {
-        html += `<div><strong style="color:#ffcc00; display:block; margin-bottom:12px;">Преимущества:</strong>`;
+        html += `<div><strong style="color:#ffcc00; display:block; margin-bottom:12px;">${t('Преимущества:')}</strong>`;
         predData.advantages.forEach((adv, index) => {
             const name = formatPredatorTraitLine(adv, true);
             html += `<label style="display:block; margin:8px 0; color:#ddd; cursor:pointer;">
@@ -7276,7 +7318,7 @@ function showPredatorMeritsFlawsSelection(predName, predData) {
 
     // Недостатки
     if (predData.disadvantages && predData.disadvantages.length > 0) {
-        html += `<div><strong style="color:#ff6666; display:block; margin-bottom:12px;">Недостатки:</strong>`;
+        html += `<div><strong style="color:#ff6666; display:block; margin-bottom:12px;">${t('Недостатки:')}</strong>`;
         predData.disadvantages.forEach((dis, index) => {
             const name = formatPredatorTraitLine(dis, false);
             html += `<label style="display:block; margin:8px 0; color:#ddd; cursor:pointer;">
@@ -7288,13 +7330,13 @@ function showPredatorMeritsFlawsSelection(predName, predData) {
 
     html += `</div>
             <div style="margin-top:30px; text-align:center;">
-                <button id="pred-confirm-btn" 
+                <button id="pred-confirm-btn"
                         style="background:#ff3131; color:black; padding:14px 40px; border:none; border-radius:6px; font-size:17px; margin-right:15px;">
-                    Применить выбранное
+                    ${t('Применить выбранное')}
                 </button>
-                <button onclick="closePredatorSelectionModal()" 
+                <button onclick="closePredatorSelectionModal()"
                         style="background:#333; color:white; padding:14px 35px; border:none; border-radius:6px; font-size:17px;">
-                    Отмена
+                    ${t('Отмена')}
                 </button>
             </div>
         </div>
@@ -7391,8 +7433,8 @@ function showLimitWarning(isMerit) {
     const meritLimit = getMeritsLimit();
     const flawLimit = getFlawsLimit();
     const msg = isMerit
-        ? `❌ Максимум ${meritLimit} точек преимуществ для выбранного типа!`
-        : `❌ Максимум ${flawLimit} точек недостатков для выбранного типа!`;
+        ? tf('❌ Максимум {limit} точек преимуществ для выбранного типа!', { limit: meritLimit })
+        : tf('❌ Максимум {limit} точек недостатков для выбранного типа!', { limit: flawLimit });
     
     const warning = document.createElement('div');
     warning.style.cssText = `
@@ -7411,27 +7453,27 @@ function createMeritItem(item, index, isMerit) {
     div.style.cssText = 'background:#1f1f1f; padding:12px 16px; border-radius:6px; border-left:4px solid #ff3131; display:flex; justify-content:space-between; align-items:center;';
     div.innerHTML = `
         <div style="flex:1">
-            <strong>${item.category} — ${item.name}</strong> 
+            <strong>${item.category} — ${item.name}</strong>
             <span style="color:#ffae00">(${item.points} т.)</span><br>
             <small style="color:#ccc">${item.desc}</small>
         </div>
-        <button onclick="${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}" 
+        <button onclick="${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}"
                 style="background:#330000; color:#ff6666; border:none; width:30px; height:30px; border-radius:50%; cursor:pointer; font-size:18px;">×</button>
     `;
     return div;
 }
 
-window.removeMerit = function(i) { 
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Преимущества сейчас нельзя менять.");
-    selectedMerits.splice(i,1); 
-    renderSelectedMeritsFlaws(); 
+window.removeMerit = function(i) {
+    if (startingSheetFixed && !expShopMode) return alert(t("Лист зафиксирован. Преимущества сейчас нельзя менять."));
+    selectedMerits.splice(i,1);
+    renderSelectedMeritsFlaws();
     if (expShopMode) renderExpShopPanel();
 };
 
-window.removeFlaw = function(i) { 
-    if (startingSheetFixed && !expShopMode) return alert("Лист зафиксирован. Недостатки сейчас нельзя менять.");
-    selectedFlaws.splice(i,1); 
-    renderSelectedMeritsFlaws(); 
+window.removeFlaw = function(i) {
+    if (startingSheetFixed && !expShopMode) return alert(t("Лист зафиксирован. Недостатки сейчас нельзя менять."));
+    selectedFlaws.splice(i,1);
+    renderSelectedMeritsFlaws();
     if (expShopMode) renderExpShopPanel();
 };
 
@@ -7455,7 +7497,7 @@ function getFullCharacterData() {
     const character = {
         version: "1.0",
         timestamp: new Date().toISOString(),
-        name: document.getElementById('char-name').value.trim() || "Безымянный",
+        name: document.getElementById('char-name').value.trim() || t("Безымянный"),
         clan: document.getElementById('clan-input').value,
         sire: getInputValue('sire-input'),
         concept: getInputValue('concept-input'),
@@ -7603,7 +7645,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         setCharacterSavedState(sourceName !== 'JSON' || Boolean(d.hasBeenSaved));
 
         // Основная информация
-        document.getElementById('char-name').value = d.name || 'Безымянный';
+        document.getElementById('char-name').value = d.name || t('Безымянный');
         document.getElementById('clan-input').value = d.clan || '';
         setInputValue('sire-input', d.sire);
         setInputValue('concept-input', d.concept);
@@ -7766,10 +7808,10 @@ function importFromJSON() {
                 const d = JSON.parse(ev.target.result);
                 applyCharacterData(d, 'JSON');
 
-                alert(`✅ Персонаж «${d.name || 'Без имени'}» полностью загружен из JSON!`);
+                alert(tf('✅ Персонаж «{name}» полностью загружен из JSON!', { name: d.name || t('Без имени') }));
 
             } catch (err) {
-                alert('Ошибка при чтении JSON: ' + err.message);
+                alert(t('Ошибка при чтении JSON: ') + err.message);
                 console.error(err);
             }
         };
@@ -7838,7 +7880,7 @@ function formatExpHistoryEntry(entry) {
     const details = Array.isArray(entry.details) && entry.details.length
         ? `<div style="margin-left:10px;color:#777;">${entry.details.map(escapeHTML).join('<br>')}</div>`
         : '';
-    return `${sign}${amount} XP → ${escapeHTML(entry.text || 'Операция')}${date ? ` <small style="color:#666;">${date}</small>` : ''}${details}`;
+    return `${sign}${amount} XP → ${escapeHTML(entry.text || t('Операция'))}${date ? ` <small style="color:#666;">${date}</small>` : ''}${details}`;
 }
 
 function renderExpHistory() {
@@ -7846,7 +7888,7 @@ function renderExpHistory() {
     if (!logEl) return;
     logEl.innerHTML = (expHistory || []).length
         ? expHistory.map(formatExpHistoryEntry).join('<br>')
-        : '<span style="color:#666;">История опыта пуста.</span>';
+        : `<span style="color:#666;">${t('История опыта пуста.')}</span>`;
 }
 
 function recordExpHistory(text, amount, details = []) {
@@ -7861,13 +7903,13 @@ function recordExpHistory(text, amount, details = []) {
 }
 
 function addFreeExperience() {
-    const raw = prompt('Сколько опыта добавить?');
+    const raw = prompt(t('Сколько опыта добавить?'));
     const amount = parseInt(raw, 10);
     if (!amount || amount < 1) return alert(t('Введите положительное количество опыта.'));
 
     const freeExp = document.getElementById('free-exp');
     if (freeExp) freeExp.value = getCurrentXP() + amount;
-    recordExpHistory('Добавлен свободный опыт', amount);
+    recordExpHistory(t('Добавлен свободный опыт'), amount);
     renderExpShopPanel();
 }
 
@@ -7881,28 +7923,28 @@ function updateExperienceBonus() {
     if (!expInput) return;
 
     let bonus = 0;
-    let text = 'Базовый опыт';
+    let text = t('Базовый опыт');
 
     switch(type) {
         case 'childe':
             bonus = 0;
-            text = '0 опыта (Птенец)';
+            text = t('0 опыта (Птенец)');
             break;
         case 'neonate':
             bonus = 15;
-            text = '+15 опыта (Неонат)';
+            text = t('+15 опыта (Неонат)');
             break;
         case 'ancilla':
             bonus = 35;
-            text = '+35 опыта (Анцилла)';
+            text = t('+35 опыта (Анцилла)');
             break;
         case 'elder':
             bonus = 50;
-            text = '+50 опыта (Старейшина)';
+            text = t('+50 опыта (Старейшина)');
             break;
         case 'methuselah':
             bonus = 75;
-            text = '+75 опыта (Матузалем)';
+            text = t('+75 опыта (Матузалем)');
             break;
         default:
             bonus = 0;
@@ -7963,11 +8005,11 @@ document.getElementById('type-input').addEventListener('change', updateExperienc
 // ==================== УЛУЧШЕННАЯ ГЕНЕРАЦИЯ JPG ====================
 async function generateSheetImage() {
     const area = document.getElementById('capture-area');
-    if (!area) return alert("Не найден #capture-area");
+    if (!area) return alert(t("Не найден #capture-area"));
 
     const charName = (document.getElementById('char-name')?.value || 'Kindred').trim();
     const btn = document.getElementById('btn-save');
-    const originalText = btn?.textContent || 'Сохранить в JPG';
+    const originalText = btn?.textContent || t('Сохранить в JPG');
 
     if (btn) { btn.textContent = t('Генерируем...'); btn.disabled = true; }
     let restoreTextareaHeights = null;
@@ -7975,7 +8017,7 @@ async function generateSheetImage() {
 
     try {
         if (typeof window.html2canvas !== 'function') {
-            throw new Error('html2canvas не загружен');
+            throw new Error(t('html2canvas не загружен'));
         }
         restoreTextareaHeights = expandTextareasForCapture(area);
         restoreImageStyles = stabilizeImagesForCapture(area);
@@ -8002,7 +8044,7 @@ async function generateSheetImage() {
 
     } catch (err) {
         console.error(err);
-        alert("Ошибка генерации JPG. Проверь, что html2canvas подключён.");
+        alert(t("Ошибка генерации JPG. Проверь, что html2canvas подключён."));
     } finally {
         if (restoreImageStyles) restoreImageStyles();
         if (restoreTextareaHeights) restoreTextareaHeights();
@@ -8073,38 +8115,38 @@ function buildPDFHTML(d) {
     // SECTION 1: SOCIAL
     // ============================================================
     const infoRows = [
-        _pdfField('Имя', d.charName),
-        _pdfField('Сир', d.sire),
-        _pdfField('Концепция', d.concept),
-        _pdfField('Натура', d.nature),
-        _pdfField('Маска', d.mask),
-        _pdfField('Истинный возраст', d.trueAge),
-        _pdfField('Видимый возраст', d.apparentAge),
-        _pdfField('Дата рождения', d.birthDate),
-        _pdfField('Дата смерти', d.deathDate),
-        _pdfField('Клан', d.clan),
-        _pdfField('Стиль охоты', d.predator),
-        _pdfField('Поколение', d.generation),
-        _pdfField('Тип', d.type),
+        _pdfField(t('Имя'), d.charName),
+        _pdfField(t('Сир'), d.sire),
+        _pdfField(t('Концепция'), d.concept),
+        _pdfField(t('Натура'), d.nature),
+        _pdfField(t('Маска'), d.mask),
+        _pdfField(t('Истинный возраст'), d.trueAge),
+        _pdfField(t('Видимый возраст'), d.apparentAge),
+        _pdfField(t('Дата рождения'), d.birthDate),
+        _pdfField(t('Дата смерти'), d.deathDate),
+        _pdfField(t('Клан'), d.clan),
+        _pdfField(t('Стиль охоты'), d.predator),
+        _pdfField(t('Поколение'), d.generation),
+        _pdfField(t('Тип'), d.type),
     ].join('');
 
     const social = `
         <div style="text-align:center;margin-bottom:20px;">
             <div style="font-size:20pt;font-weight:bold;color:#8b0000;letter-spacing:2px;">${_pdfEsc(d.charName)}</div>
-            <div style="font-size:9pt;color:#666;margin-top:2px;">Vampire: the Masquerade V5 — Лист персонажа</div>
+            <div style="font-size:9pt;color:#666;margin-top:2px;">Vampire: the Masquerade V5 — ${t("Лист персонажа")}</div>
         </div>
 
-        ${_pdfSection('ОСНОВНАЯ ИНФОРМАЦИЯ', `<table style="width:100%;border-collapse:collapse;">${infoRows}</table>`)}
+        ${_pdfSection(t('ОСНОВНАЯ ИНФОРМАЦИЯ'), `<table style="width:100%;border-collapse:collapse;">${infoRows}</table>`)}
 
-        ${d.clanBane ? _pdfSection('ИЗЪЯН КЛАНА', `<div style="font-size:9.5pt;line-height:1.5;color:#1a1a1a;white-space:pre-wrap;">${_pdfEsc(d.clanBane)}</div>`) : ''}
+        ${d.clanBane ? _pdfSection(t('ИЗЪЯН КЛАНА'), `<div style="font-size:9.5pt;line-height:1.5;color:#1a1a1a;white-space:pre-wrap;">${_pdfEsc(d.clanBane)}</div>`) : ''}
 
-        ${d.touchstones.length ? _pdfSection('ОПОРЫ И ПРИНЦИПЫ',
+        ${d.touchstones.length ? _pdfSection(t('ОПОРЫ И ПРИНЦИПЫ'),
             d.touchstones.map((t, i) => t.text ? `<div style="margin-bottom:6px;"><span style="color:#8b0000;font-weight:bold;">${i+1}.</span> ${_pdfEsc(t.text)}</div>` : '').join('')
         ) : ''}
 
-        ${_pdfTextBlock('ВНЕШНОСТЬ', d.appearance)}
-        ${_pdfTextBlock('ПРЕДЫСТОРИЯ', d.backstory)}
-        ${_pdfTextBlock('ЗАМЕТКИ', d.notes)}
+        ${_pdfTextBlock(t('ВНЕШНОСТЬ'), d.appearance)}
+        ${_pdfTextBlock(t('ПРЕДЫСТОРИЯ'), d.backstory)}
+        ${_pdfTextBlock(t('ЗАМЕТКИ'), d.notes)}
     `;
 
     // ============================================================
@@ -8114,10 +8156,10 @@ function buildPDFHTML(d) {
     // Attributes columns
     const attrColsHTML = Object.entries(ATTR_CATS).map(([cat, names]) => `
         <div style="flex:1;">
-            <div style="font-weight:bold;color:#8b0000;margin-bottom:6px;font-size:9pt;">${_pdfEsc(cat)}</div>
+            <div style="font-weight:bold;color:#8b0000;margin-bottom:6px;font-size:9pt;">${_pdfEsc(t(cat))}</div>
             ${names.map(name => `
                 <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:9.5pt;">
-                    <span>${_pdfEsc(name)}</span>
+                    <span>${_pdfEsc(t(name))}</span>
                     <span style="font-size:8pt;letter-spacing:1px;">${_pdfDots(d.attrs[name])}</span>
                 </div>
             `).join('')}
@@ -8127,12 +8169,12 @@ function buildPDFHTML(d) {
     // Skills columns
     const skillColsHTML = Object.entries(SKILL_CATS).map(([cat, names]) => `
         <div style="flex:1;">
-            <div style="font-weight:bold;color:#8b0000;margin-bottom:6px;font-size:9pt;">${_pdfEsc(cat)}</div>
+            <div style="font-weight:bold;color:#8b0000;margin-bottom:6px;font-size:9pt;">${_pdfEsc(t(cat))}</div>
             ${names.map(name => {
                 const val = d.skills[name] || 0;
                 return `
                     <div style="display:flex;justify-content:space-between;margin-bottom:4px;font-size:9.5pt;">
-                        <span>${_pdfEsc(name)}</span>
+                        <span>${_pdfEsc(t(name))}</span>
                         <span style="font-size:8pt;letter-spacing:1px;">${_pdfDots(val)}</span>
                     </div>
                 `;
@@ -8143,10 +8185,10 @@ function buildPDFHTML(d) {
     // Vitals
     const vitalsHTML = `
         <div style="display:flex;gap:30px;flex-wrap:wrap;margin-top:6px;">
-            <div><span style="color:#555;font-weight:600;">Здоровье:</span> ${_pdfEsc(d.hp)}</div>
-            <div><span style="color:#555;font-weight:600;">Сила воли:</span> ${_pdfEsc(d.wp)}</div>
-            <div><span style="color:#555;font-weight:600;">Человечность:</span> ${_pdfEsc(d.humanity)}</div>
-            <div><span style="color:#555;font-weight:600;">Сила крови:</span> ${_pdfEsc(d.bloodPotency)}</div>
+            <div><span style="color:#555;font-weight:600;">${t("Здоровье")}:</span> ${_pdfEsc(d.hp)}</div>
+            <div><span style="color:#555;font-weight:600;">${t("Сила воли")}:</span> ${_pdfEsc(d.wp)}</div>
+            <div><span style="color:#555;font-weight:600;">${t("Человечность")}:</span> ${_pdfEsc(d.humanity)}</div>
+            <div><span style="color:#555;font-weight:600;">${t("Сила крови")}:</span> ${_pdfEsc(d.bloodPotency)}</div>
         </div>
     `;
 
@@ -8172,13 +8214,13 @@ function buildPDFHTML(d) {
     ).join('');
 
     const mechanics = `
-        ${_pdfSection('ХАРАКТЕРИСТИКИ', `<div style="display:flex;gap:24px;">${attrColsHTML}</div>`)}
-        ${_pdfSection('НАВЫКИ', `<div style="display:flex;gap:24px;">${skillColsHTML}</div>`)}
-        ${_pdfSection('ВИТАЛЫ', vitalsHTML)}
-        ${discHTML ? _pdfSection('ДИСЦИПЛИНЫ', discHTML) : ''}
-        ${meritRows || flawRows ? _pdfSection('ПРЕИМУЩЕСТВА И НЕДОСТАТКИ', `
-            ${meritRows ? `<div style="margin-bottom:12px;"><div style="font-weight:bold;color:#555;margin-bottom:4px;">Преимущества</div>${meritRows}</div>` : ''}
-            ${flawRows ? `<div><div style="font-weight:bold;color:#555;margin-bottom:4px;">Недостатки</div>${flawRows}</div>` : ''}
+        ${_pdfSection(t('ХАРАКТЕРИСТИКИ'), `<div style="display:flex;gap:24px;">${attrColsHTML}</div>`)}
+        ${_pdfSection(t('НАВЫКИ'), `<div style="display:flex;gap:24px;">${skillColsHTML}</div>`)}
+        ${_pdfSection(t('ВИТАЛЫ'), vitalsHTML)}
+        ${discHTML ? _pdfSection(t('ДИСЦИПЛИНЫ'), discHTML) : ''}
+        ${meritRows || flawRows ? _pdfSection(t('ПРЕИМУЩЕСТВА И НЕДОСТАТКИ'), `
+            ${meritRows ? `<div style="margin-bottom:12px;"><div style="font-weight:bold;color:#555;margin-bottom:4px;">${t("Преимущества")}</div>${meritRows}</div>` : ''}
+            ${flawRows ? `<div><div style="font-weight:bold;color:#555;margin-bottom:4px;">${t("Недостатки")}</div>${flawRows}</div>` : ''}
         `) : ''}
     `;
 
@@ -8189,7 +8231,7 @@ function buildPDFHTML(d) {
     if (d.inventory.length) {
         invHTML = d.inventory.map(item => `
             <div style="margin-bottom:10px;padding:8px 10px;border:1px solid #ddd;border-radius:4px;">
-                <div style="font-weight:bold;font-size:10pt;">${_pdfEsc(item.name || 'Без названия')}
+                <div style="font-weight:bold;font-size:10pt;">${_pdfEsc(item.name || t('Без названия'))}
                     <span style="font-weight:normal;color:#666;font-size:9pt;"> — ${_pdfEsc(item.category)} · ${item.quantity} шт.</span>
                 </div>
                 ${item.description ? `<div style="font-size:9pt;color:#444;margin-top:3px;white-space:pre-wrap;">${_pdfEsc(item.description)}</div>` : ''}
@@ -8197,11 +8239,11 @@ function buildPDFHTML(d) {
             </div>
         `).join('');
     } else {
-        invHTML = `<div style="color:#888;font-style:italic;">Инвентарь пуст.</div>`;
+        invHTML = `<div style="color:#888;font-style:italic;">${t('Инвентарь пуст.')}</div>`;
     }
 
     const inventory_section = `
-        <div style="font-size:15pt;font-weight:bold;color:#8b0000;margin-bottom:16px;letter-spacing:1px;">ИНВЕНТАРЬ</div>
+        <div style="font-size:15pt;font-weight:bold;color:#8b0000;margin-bottom:16px;letter-spacing:1px;">${t("ИНВЕНТАРЬ")}</div>
         ${invHTML}
     `;
 
@@ -8245,7 +8287,7 @@ function getSheetPdfData() {
         'Физические': ['Сила', 'Ловкость', 'Выносливость'],
         'Социальные': ['Обаяние', 'Манипуляция', 'Самообладание'],
         'Ментальные': ['Интеллект', 'Смекалка', 'Упорство']
-    };
+    }; // category keys + trait names translated for display in renderPdfMechanics
     const skillGroups = {
         'Физические': ['Атлетика', 'Вождение', 'Воровство', 'Выживание', 'Драка', 'Ремесло', 'Скрытность', 'Стрельба', 'Фехтование'],
         'Социальные': ['Запугивание', 'Исполнение', 'Лидерство', 'Обращение с животными', 'Проницательность', 'Убеждение', 'Уличное чутьё', 'Хитрость', 'Этикет'],
@@ -8261,18 +8303,18 @@ function getSheetPdfData() {
     return {
         name: getInputValue('char-name') || 'Kindred',
         info: [
-            ['Сир', getInputValue('sire-input')],
-            ['Концепция', getInputValue('concept-input')],
-            ['Натура', getInputValue('nature-input')],
-            ['Маска', getInputValue('mask-input')],
-            ['Истинный возраст', getInputValue('true-age-input')],
-            ['Видимый возраст', getInputValue('apparent-age-input')],
-            ['Дата рождения', getInputValue('birth-date-input')],
-            ['Дата смерти', getInputValue('death-date-input')],
-            ['Клан', getSelectText('clan-input')],
-            ['Стиль охоты', getSelectText('predator-input')],
-            ['Поколение', getSelectText('generation-input')],
-            ['Тип', getSelectText('type-input')]
+            [t('Сир'), getInputValue('sire-input')],
+            [t('Концепция'), getInputValue('concept-input')],
+            [t('Натура'), getInputValue('nature-input')],
+            [t('Маска'), getInputValue('mask-input')],
+            [t('Истинный возраст'), getInputValue('true-age-input')],
+            [t('Видимый возраст'), getInputValue('apparent-age-input')],
+            [t('Дата рождения'), getInputValue('birth-date-input')],
+            [t('Дата смерти'), getInputValue('death-date-input')],
+            [t('Клан'), getSelectText('clan-input')],
+            [t('Стиль охоты'), getSelectText('predator-input')],
+            [t('Поколение'), getSelectText('generation-input')],
+            [t('Тип'), getSelectText('type-input')]
         ],
         clanBane: getInputValue('clan-bane-input'),
         touchstones: (touchstones || []).map(item => item.text || '').filter(Boolean),
@@ -8284,12 +8326,12 @@ function getSheetPdfData() {
         attrValues: Object.values(attrGroups).flat().reduce((acc, name) => ({ ...acc, [name]: getCheckedDots(name, 1) }), {}),
         skillValues: Object.values(skillGroups).flat().reduce((acc, name) => ({ ...acc, [name]: getCheckedDots(name, 0) }), {}),
         vitals: [
-            ['Здоровье', getVitalTrackerSummary('health')],
-            ['Сила воли', getVitalTrackerSummary('willpower')],
-            ['Человечность', getVitalTrackerSummary('humanity')],
-            ['Голод', getVitalTrackerSummary('hunger')],
-            ['Сила крови', getTextValue('val-blood-potency')],
-            ['Свободный опыт', getInputValue('free-exp')]
+            [t('Здоровье'), getVitalTrackerSummary('health')],
+            [t('Сила воли'), getVitalTrackerSummary('willpower')],
+            [t('Человечность'), getVitalTrackerSummary('humanity')],
+            [t('Голод'), getVitalTrackerSummary('hunger')],
+            [t('Сила крови'), getTextValue('val-blood-potency')],
+            [t('Свободный опыт'), getInputValue('free-exp')]
         ],
         disciplines,
         merits: (selectedMerits || []).map(item => ({ name: item.name, points: item.points || 0 })),
@@ -8297,8 +8339,8 @@ function getSheetPdfData() {
         thinBloodMerits: (selectedThinBloodMerits || []).map(item => ({ name: item.name, points: item.points || 0 })),
         thinBloodFlaws: (selectedThinBloodFlaws || []).map(item => ({ name: item.name, points: item.points || 0 })),
         inventory: (inventory || []).map(item => ({
-            name: item.name || 'Без названия',
-            category: item.category || 'Другое',
+            name: item.name || t('Без названия'),
+            category: t(item.category || 'Другое'),
             quantity: item.quantity || 1,
             description: item.description || '',
             note: item.note || ''
@@ -8429,10 +8471,10 @@ function drawPdfSheet(pdf, data) {
     fillPage();
 
     text(data.name, page.w / 2, y + 14, { size: 20, bold: true, color: colors.red, align: 'center' });
-    text('Vampire: the Masquerade V5 - лист персонажа', page.w / 2, y + 30, { size: 8, color: colors.muted, align: 'center' });
+    text('Vampire: the Masquerade V5 - ' + t('лист персонажа'), page.w / 2, y + 30, { size: 8, color: colors.muted, align: 'center' });
     y += 46;
 
-    section('Социальное');
+    section(t('Социальное'));
     const fieldW = (page.w - page.margin * 2 - 24) / 3;
     data.info.forEach(([label, value], index) => {
         const x = page.margin + 14 + (index % 3) * (fieldW + 8);
@@ -8440,11 +8482,11 @@ function drawPdfSheet(pdf, data) {
         field(label, value, x, y, fieldW, 29);
     });
     y += 43;
-    blockText('Изъян клана', data.clanBane);
-    if (data.touchstones.length) blockText('Опоры и принципы', data.touchstones.map((item, index) => `${index + 1}. ${item}`).join('\n'));
-    blockText('Внешность', data.appearance);
-    blockText('Предыстория', data.backstory);
-    blockText('Заметки персонажа', data.notes);
+    blockText(t('Изъян клана'), data.clanBane);
+    if (data.touchstones.length) blockText(t('Опоры и принципы'), data.touchstones.map((item, index) => `${index + 1}. ${item}`).join('\n'));
+    blockText(t('Внешность'), data.appearance);
+    blockText(t('Предыстория'), data.backstory);
+    blockText(t('Заметки персонажа'), data.notes);
 }
 
 async function generateSheetPDF() {
@@ -8461,7 +8503,7 @@ async function generateSheetPDF() {
         pdf.save(getSheetPdfFileName());
     } catch (err) {
         console.error(err);
-        alert('Ошибка генерации PDF: ' + err.message);
+        alert(t('Ошибка генерации PDF: ') + err.message);
     } finally {
         if (btn) { btn.textContent = originalText; btn.disabled = false; }
     }
@@ -8494,58 +8536,61 @@ function calculateCumulativeCost(current, target, multiplier) {
 
 // ====================== ХАРАКТЕРИСТИКА ======================
 function spendOnAttribute() {
-    const name = prompt("Какую характеристику хочешь повысить?");
-    if (!name) return;
+    const typedName = prompt(t("Какую характеристику хочешь повысить?"));
+    if (!typedName) return;
+    const name = vtmCanonicalName(typedName);
 
     // Автоматически берём текущий уровень
     const currentRadio = document.querySelector(`input[name="${name}"]:checked`);
     const current = currentRadio ? parseInt(currentRadio.value) : 0;
 
-    const target = parseInt(prompt(`Текущий уровень: ${current}\nНовый уровень?`));
-    if (!target || target <= current || target > 5) return alert("Неверный уровень");
+    const target = parseInt(prompt(tf("Текущий уровень: {current}\nНовый уровень?", { current })));
+    if (!target || target <= current || target > 5) return alert(t("Неверный уровень"));
 
     const cost = target * 5;
     if (!assertEnoughXP(cost)) return;
 
-    if (confirm(`Повысить ${name} с ${current} → ${target} за ${cost} XP?`)) {
+    if (confirm(tf("Повысить {name} с {current} → {target} за {cost} XP?", { name: t(name), current, target, cost }))) {
         const newRadio = document.querySelector(`input[name="${name}"][value="${target}"]`);
         if (newRadio) newRadio.checked = true;
 
-        logExp(`${name} ${current}→${target}`, cost);
+        logExp(`${t(name)} ${current}→${target}`, cost);
         updateVitals();
-        alert(`✅ ${name} повышена!`);
+        alert(tf("✅ {name} повышена!", { name: t(name) }));
     }
 }
 
 // ====================== НАВЫК ======================
 function spendOnSkill() {
-    const name = prompt("Какой навык хочешь повысить?");
-    if (!name) return;
+    const typedName = prompt(t("Какой навык хочешь повысить?"));
+    if (!typedName) return;
+    const name = vtmCanonicalName(typedName);
 
     const currentRadio = document.querySelector(`input[name="${name}"]:checked`);
     const current = currentRadio ? parseInt(currentRadio.value) : 0;
 
-    const target = parseInt(prompt(`Текущий уровень: ${current}\nНовый уровень?`));
-    if (!target || target <= current || target > 5) return alert("Неверный уровень");
+    const target = parseInt(prompt(tf("Текущий уровень: {current}\nНовый уровень?", { current })));
+    if (!target || target <= current || target > 5) return alert(t("Неверный уровень"));
 
     const cost = calculateCumulativeCost(current, target, 3);
 
-    if (confirm(`Повысить ${name} с ${current} → ${target} за ${cost} XP?`)) {
+    if (confirm(tf("Повысить {name} с {current} → {target} за {cost} XP?", { name: t(name), current, target, cost }))) {
         const newRadio = document.querySelector(`input[name="${name}"][value="${target}"]`);
         if (newRadio) newRadio.checked = true;
 
-        logExp(`${name} ${current}→${target}`, cost);
-        alert(`✅ ${name} повышен!`);
+        logExp(`${t(name)} ${current}→${target}`, cost);
+        alert(tf("✅ {name} повышен!", { name: t(name) }));
     }
 }
 
 // ====================== СПЕЦИАЛИЗАЦИЯ ======================
 function spendOnSpecialty() {
-    const skill = prompt("Для какого навыка добавляем специализацию?");
-    if (!skill) return;
-    const spec = prompt("Название специализации?");
+    const typedSkill = prompt(t("Для какого навыка добавляем специализацию?"));
+    if (!typedSkill) return;
+    const skill = vtmCanonicalName(typedSkill);
+    const spec = prompt(t("Название специализации?"));
 
-    if (confirm(`Добавить "${spec}" за 3 XP?`)) {
+    if (confirm(tf('Добавить "{spec}" за 3 XP?', { spec }))) {
         const container = document.getElementById(`specs-${skill}`);
         if (container) {
             const div = document.createElement('div');
@@ -8560,21 +8605,21 @@ function spendOnSpecialty() {
 
 // ====================== ПРЕИМУЩЕСТВО ======================
 function spendOnMerit() {
-    const name = prompt("Какое преимущество покупаешь/повышаешь?");
+    const name = prompt(t("Какое преимущество покупаешь/повышаешь?"));
     if (!name) return;
-    const dots = parseInt(prompt("Сколько пунктов добавить?") || "1");
+    const dots = parseInt(prompt(t("Сколько пунктов добавить?")) || "1");
 
     const cost = dots * 3;
 
-    if (confirm(`Добавить "${name}" (+${dots} пунктов) за ${cost} XP?`)) {
-        logExp(`Преимущество "${name}" +${dots}`, cost);
-        alert(`✅ Добавлено!`);
+    if (confirm(tf('Добавить "{name}" (+{dots} пунктов) за {cost} XP?', { name, dots, cost }))) {
+        logExp(tf('Преимущество "{name}" +{dots}', { name, dots }), cost);
+        alert(t("✅ Добавлено!"));
     }
 }
 
 // ====================== ДИСЦИПЛИНА ======================
 function spendOnDiscipline() {
-    const name = prompt("Название дисциплины?");
+    const name = prompt(t("Название дисциплины?"));
     if (!name) return;
     if (!canUseDiscipline(name) || isThinBloodClan()) return alert(t('Эта дисциплина недоступна текущему клану.'));
 
@@ -8584,17 +8629,17 @@ function spendOnDiscipline() {
         current = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
     }
 
-    const target = parseInt(prompt(`Текущий уровень: ${current}\nНовый уровень?`));
+    const target = parseInt(prompt(tf("Текущий уровень: {current}\nНовый уровень?", { current })));
     if (!target || target <= current || target > 5) return;
 
-    const isClan = confirm("Это **клановая** дисциплина?");
+    const isClan = confirm(t("Это **клановая** дисциплина?"));
     const multiplier = isClan ? 5 : 7;
 
     const cost = calculateCumulativeCost(current, target, multiplier);
 
-    if (confirm(`Повысить ${name} с ${current} → ${target} за ${cost} XP?`)) {
+    if (confirm(tf("Повысить {name} с {current} → {target} за {cost} XP?", { name, current, target, cost }))) {
         mergeDiscipline(name, target - current, t("Опыт"));
-        logExp(`Дисциплина ${name} ${current}→${target}`, cost);
+        logExp(tf("Дисциплина {name} {current}→{target}", { name, current, target }), cost);
     }
 }
 
@@ -8623,14 +8668,14 @@ function closeExpModal() {
 }
 
 function getTraitKindLabel(type) {
-    if (type === 'attr') return 'Характеристика';
-    if (type === 'skill') return 'Навык';
-    if (type === 'discipline') return 'Дисциплина';
-    if (type === 'merit') return 'Преимущество';
-    if (type === 'flaw') return 'Недостаток';
-    if (type === 'specialty') return 'Специализация';
-    if (type === 'power') return 'Сила дисциплины';
-    return 'Покупка';
+    if (type === 'attr') return t('Характеристика');
+    if (type === 'skill') return t('Навык');
+    if (type === 'discipline') return t('Дисциплина');
+    if (type === 'merit') return t('Преимущество');
+    if (type === 'flaw') return t('Недостаток');
+    if (type === 'specialty') return t('Специализация');
+    if (type === 'power') return t('Сила дисциплины');
+    return t('Покупка');
 }
 
 function getTraitMultiplier(type) {
@@ -8889,40 +8934,40 @@ function renderExpShopPanel() {
                 ${shouldShowCartCost(item) ? `<strong>${getCartCostLabel(item.cost)}</strong>` : ''}
             </div>
         `).join('')
-        : `<div style="color:#777; font-size:13px; line-height:1.45;">Кликай по листу. Покупки и продажи появятся здесь отдельными строками.</div>`;
+        : `<div style="color:#777; font-size:13px; line-height:1.45;">${t('Кликай по листу. Покупки и продажи появятся здесь отдельными строками.')}</div>`;
 
     panel.innerHTML = `
-        <h3 style="margin:0 0 8px; color:#ff9500; text-align:center;">Касса опыта</h3>
+        <h3 style="margin:0 0 8px; color:#ff9500; text-align:center;">${t('Касса опыта')}</h3>
         <table>
-            <tr><th>Покупка</th><th>Цена</th></tr>
-            <tr><td>Характеристика</td><td>Новое значение × 5</td></tr>
-            <tr><td>Навык</td><td>Новое значение × 3</td></tr>
-            <tr><td>Новая специализация</td><td>3 XP</td></tr>
-            <tr><td>Клановая дисциплина</td><td>Новое значение × 5</td></tr>
-            <tr><td>Сторонняя дисциплина</td><td>Новое значение × 7</td></tr>
-            <tr><td>Дисциплина каитифа</td><td>Новое значение × 6</td></tr>
-            <tr><td>Сила дисциплины</td><td>Бесплатно, максимум = уровень дисциплины</td></tr>
-            <tr><td>Ритуал / рецептура</td><td>Уровень × 3</td></tr>
-            <tr><td>Преимущество</td><td>3 XP за пункт</td></tr>
-            <tr><td>Недостаток</td><td>Бесплатно</td></tr>
-            <tr><td>Сила Крови</td><td>Новое значение × 10</td></tr>
+            <tr><th>${t('Покупка')}</th><th>${t('Цена')}</th></tr>
+            <tr><td>${t('Характеристика')}</td><td>${t('Новое значение × 5')}</td></tr>
+            <tr><td>${t('Навык')}</td><td>${t('Новое значение × 3')}</td></tr>
+            <tr><td>${t('Новая специализация')}</td><td>3 XP</td></tr>
+            <tr><td>${t('Клановая дисциплина')}</td><td>${t('Новое значение × 5')}</td></tr>
+            <tr><td>${t('Сторонняя дисциплина')}</td><td>${t('Новое значение × 7')}</td></tr>
+            <tr><td>${t('Дисциплина каитифа')}</td><td>${t('Новое значение × 6')}</td></tr>
+            <tr><td>${t('Сила дисциплины')}</td><td>${t('Бесплатно, максимум = уровень дисциплины')}</td></tr>
+            <tr><td>${t('Ритуал / рецептура')}</td><td>${t('Уровень × 3')}</td></tr>
+            <tr><td>${t('Преимущество')}</td><td>${t('3 XP за пункт')}</td></tr>
+            <tr><td>${t('Недостаток')}</td><td>${t('Бесплатно')}</td></tr>
+            <tr><td>${t('Сила Крови')}</td><td>${t('Новое значение × 10')}</td></tr>
         </table>
-        <label style="display:block;color:#aaa;font-size:12px;margin:10px 0 6px;">Цена новых дисциплин</label>
+        <label style="display:block;color:#aaa;font-size:12px;margin:10px 0 6px;">${t('Цена новых дисциплин')}</label>
         <select id="xp-discipline-mode" onchange="expShopDisciplineMode=this.value; renderDisciplines(); renderExpShopPanel();" style="width:100%;margin-bottom:10px;">
-            <option value="клановая" ${expShopDisciplineMode === 'клановая' ? 'selected' : ''}>Клановая ×5</option>
-            <option value="сторонняя" ${expShopDisciplineMode === 'сторонняя' ? 'selected' : ''}>Сторонняя ×7</option>
-            <option value="каитиф" ${expShopDisciplineMode === 'каитиф' ? 'selected' : ''}>Каитиф ×6</option>
+            <option value="клановая" ${expShopDisciplineMode === 'клановая' ? 'selected' : ''}>${t('Клановая ×5')}</option>
+            <option value="сторонняя" ${expShopDisciplineMode === 'сторонняя' ? 'selected' : ''}>${t('Сторонняя ×7')}</option>
+            <option value="каитиф" ${expShopDisciplineMode === 'каитиф' ? 'selected' : ''}>${t('Каитиф ×6')}</option>
         </select>
-        <div style="color:#aaa; font-size:12px; margin-bottom:8px;">Чек покупок и продаж</div>
+        <div style="color:#aaa; font-size:12px; margin-bottom:8px;">${t('Чек покупок и продаж')}</div>
         ${cartHTML}
         <div class="xp-cart-total">
-            <span>Итого</span>
+            <span>${t('Итого')}</span>
             <span style="color:${overBudget ? '#ff6666' : '#ffcc66'}">${getCartCostLabel(total)} / ${freeXP} XP</span>
         </div>
-        ${overBudget ? `<div style="color:#ff6666; font-size:12px; margin-top:8px;">Не хватает ${total - freeXP} XP.</div>` : ''}
+        ${overBudget ? `<div style="color:#ff6666; font-size:12px; margin-top:8px;">${tf('Не хватает {amount} XP.', { amount: total - freeXP })}</div>` : ''}
         <div class="xp-shop-actions">
-            <button onclick="acceptExpShopPurchases()" style="background:#ff9500; color:#111;">Принять</button>
-            <button onclick="cancelExpShopPurchases()" style="background:#333; color:#eee;">Отмена</button>
+            <button onclick="acceptExpShopPurchases()" style="background:#ff9500; color:#111;">${t('Принять')}</button>
+            <button onclick="cancelExpShopPurchases()" style="background:#333; color:#eee;">${t('Отмена')}</button>
         </div>
     `;
 }
@@ -8932,13 +8977,13 @@ function getDisciplineNamesForPrompt() {
     return getStandardDisciplineNames();
 }
 
-function askDisciplineName(message = 'Название дисциплины?') {
+function askDisciplineName(message = t('Название дисциплины?')) {
     const known = getDisciplineNamesForPrompt();
     if (known.length === 0) {
         alert(t('Для текущего клана покупка дисциплин здесь недоступна.'));
         return '';
     }
-    const hint = known.length ? `\n\nДоступные: ${known.join(', ')}` : '';
+    const hint = known.length ? tf('\n\nДоступные: {names}', { names: known.join(', ') }) : '';
     const name = prompt(`${message}${hint}`);
     return name ? name.trim() : '';
 }
@@ -8961,7 +9006,7 @@ function buildDisciplineSourcesAtTotal(name, target, modeLabel = 'кланова
     });
 
     if (left > 0) {
-        result[`Опыт: ${modeLabel}`] = (result[`Опыт: ${modeLabel}`] || 0) + left;
+        result[tf('Опыт: {modeLabel}', { modeLabel: t(modeLabel) })] = (result[tf('Опыт: {modeLabel}', { modeLabel: t(modeLabel) })] || 0) + left;
     }
 
     return result;
@@ -8987,14 +9032,14 @@ function setDisciplineTotal(name, target, modeLabel = 'клановая') {
 }
 
 function shopBuyDiscipline() {
-    const name = askDisciplineName('Какую дисциплину купить или повысить?');
+    const name = askDisciplineName(t('Какую дисциплину купить или повысить?'));
     if (!name) return;
 
     const current = getDisciplineTotal(name);
-    const target = parseInt(prompt(`Текущий уровень: ${current}\nДо какого уровня повысить?`, String(Math.min(5, current + 1))), 10);
+    const target = parseInt(prompt(tf('Текущий уровень: {current}\nДо какого уровня повысить?', { current }), String(Math.min(5, current + 1))), 10);
     if (!target || target <= current || target > 5) return alert(t('Неверный уровень.'));
 
-    const mode = prompt('Тип покупки: clan / out / caitiff', 'clan');
+    const mode = prompt(t('Тип покупки: clan / out / caitiff'), 'clan');
     if (!mode) return;
     const normalized = mode.toLowerCase();
     const label = normalized === 'out' ? 'сторонняя' : normalized === 'caitiff' ? 'каитиф' : 'клановая';
@@ -9006,11 +9051,11 @@ function shopSellDiscipline() {
     const currentNames = Object.keys(disciplineSources).filter(name => getDisciplineTotal(name) > 0);
     if (currentNames.length === 0) return alert(t('Нет дисциплин для продажи.'));
 
-    const name = prompt(`Какую дисциплину продать?\n\nМожно: ${currentNames.join(', ')}`);
+    const name = prompt(tf('Какую дисциплину продать?\n\nМожно: {names}', { names: currentNames.join(', ') }));
     if (!name || !disciplineSources[name]) return;
 
     const current = getDisciplineTotal(name);
-    const target = parseInt(prompt(`Текущий уровень: ${current}\nДо какого уровня снизить?`, String(Math.max(0, current - 1))), 10);
+    const target = parseInt(prompt(tf('Текущий уровень: {current}\nДо какого уровня снизить?', { current }), String(Math.max(0, current - 1))), 10);
     if (Number.isNaN(target) || target < 0 || target >= current) return alert(t('Неверный уровень.'));
 
     setDisciplineTotal(name, target, getExistingDisciplineModeLabel(name));
@@ -9020,7 +9065,7 @@ function shopAddPower() {
     const names = Object.keys(disciplineSources).filter(name => getDisciplineTotal(name) > 0);
     if (names.length === 0) return alert(t('Сначала купи или получи дисциплину.'));
 
-    const name = prompt(`Для какой дисциплины добавить силу?\n\nДоступные: ${names.join(', ')}`);
+    const name = prompt(tf('Для какой дисциплины добавить силу?\n\nДоступные: {names}', { names: names.join(', ') }));
     if (!name || !disciplineSources[name]) return;
 
     openPowerSelectionModal(name, getDisciplineTotal(name));
@@ -9037,8 +9082,8 @@ function shopSellMerit() {
 
     if (removable.length === 0) return alert(t('Нет преимуществ для продажи.'));
 
-    const list = removable.map(({ item }, i) => `${i + 1}. ${item.category} — ${item.name} (${getTraitPoints(item)} XP-точ.)`).join('\n');
-    const choice = parseInt(prompt(`Какое преимущество продать?\n\n${list}`), 10);
+    const list = removable.map(({ item }, i) => tf('{n}. {category} — {name} ({points} XP-точ.)', { n: i + 1, category: item.category, name: item.name, points: getTraitPoints(item) })).join('\n');
+    const choice = parseInt(prompt(tf('Какое преимущество продать?\n\n{list}', { list })), 10);
     if (!choice || !removable[choice - 1]) return;
 
     selectedMerits.splice(removable[choice - 1].index, 1);
@@ -9048,7 +9093,7 @@ function shopSellMerit() {
 
 function startExpShopMode() {
     if (!startingSheetFixed) {
-        alert("Сначала зафиксируй стартовый лист.");
+        alert(t("Сначала зафиксируй стартовый лист."));
         return;
     }
 
@@ -9078,7 +9123,7 @@ function stopExpShopMode() {
 
 function cancelExpShopPurchases() {
     if (expShopSnapshot) {
-        applyCharacterData(expShopSnapshot, 'отмены покупок');
+        applyCharacterData(expShopSnapshot, t('отмены покупок'));
     }
     stopExpShopMode();
 }
@@ -9088,7 +9133,7 @@ function acceptExpShopPurchases() {
     const total = cart.reduce((sum, item) => sum + item.cost, 0);
 
     if (cart.length === 0) {
-        alert("В корзине пока нет покупок.");
+        alert(t("В корзине пока нет покупок."));
         return;
     }
 
@@ -9101,7 +9146,7 @@ function acceptExpShopPurchases() {
         const costText = shouldShowCartCost(item) ? ` (${getCartCostLabel(item.cost)})` : '';
         return `${getTraitKindLabel(item.type)}: ${item.name} ${item.from}→${item.to}${costText}`;
     });
-    recordExpHistory(total >= 0 ? 'Покупки приняты' : 'Продажа принята', -total, lines);
+    recordExpHistory(total >= 0 ? t('Покупки приняты') : t('Продажа принята'), -total, lines);
 
     sheetLockSnapshot = captureSheetSnapshot();
     stopExpShopMode();
@@ -9186,23 +9231,24 @@ function setupExpShopDotEditing() {
 
 function spendModalAttribute() {
     if (!startingSheetFixed) {
-        alert("Сначала зафиксируй стартовый лист!");
+        alert(t("Сначала зафиксируй стартовый лист!"));
         return;
     }
 
-    const name = prompt("Какую характеристику повышаем?");
-    if (!name) return;
+    const typedName = prompt(t("Какую характеристику повышаем?"));
+    if (!typedName) return;
+    const name = vtmCanonicalName(typedName);
 
     const current = getCurrentLevel(name);
-    const target = parseInt(prompt(`Текущий: ${current}\nНовый уровень?`));
+    const target = parseInt(prompt(tf(`Текущий: {current}\nНовый уровень?`, { current })));
     if (!target || target <= current) return;
 
     const cost = target * 5;
     if (!assertEnoughXP(cost)) return;
-    if (confirm(`Повысить ${name} → ${target} за ${cost} XP?`)) {
+    if (confirm(tf("Повысить {name} → {target} за {cost} XP?", { name: t(name), target, cost }))) {
         runExperiencePurchase(() => {
             setLevel(name, target, true);   // true = за опыт
-            logModal(`${name} ${current}→${target}`, cost);
+            logModal(`${t(name)} ${current}→${target}`, cost);
         });
     }
 }
@@ -9218,120 +9264,119 @@ function hasEnoughXP(cost) {
 
 function assertEnoughXP(cost) {
     if (!hasEnoughXP(cost)) {
-        alert(`Недостаточно опыта: нужно ${cost} XP, доступно ${getCurrentXP()} XP.`);
+        alert(tf("Недостаточно опыта: нужно {cost} XP, доступно {available} XP.", { cost, available: getCurrentXP() }));
         return false;
     }
     return true;
 }
 
 function spendModalSkill() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const name = prompt("Какой навык повышаем?");
-    if (!name) return;
+    if (!startingSheetFixed) return alert(t("Сначала зафиксируй стартовый лист!"));
+    const typedName = prompt(t("Какой навык повышаем?"));
+    if (!typedName) return;
+    const name = vtmCanonicalName(typedName);
     const current = getCurrentLevel(name);
-    const target = parseInt(prompt(`Текущий: ${current}
-Новый уровень?`));
+    const target = parseInt(prompt(tf("Текущий: {current}\nНовый уровень?", { current })));
     if (!target || target <= current || target > 5) return;
     const cost = target * 3;
     if (!assertEnoughXP(cost)) return;
-    if (confirm(`Повысить навык ${name} до ${target} за ${cost} XP?`)) {
+    if (confirm(tf("Повысить навык {name} до {target} за {cost} XP?", { name: t(name), target, cost }))) {
         runExperiencePurchase(() => {
             setLevel(name, target, true);
-            logModal(`Навык ${name} ${current}→${target}`, cost);
+            logModal(tf("Навык {name} {current}→{target}", { name: t(name), current, target }), cost);
         });
     }
 }
 
 function spendModalSpecialty() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const skill = prompt("Для какого навыка добавляем специализацию?");
-    if (!skill) return;
-    const spec = prompt("Название специализации?");
+    if (!startingSheetFixed) return alert(t("Сначала зафиксируй стартовый лист!"));
+    const typedSkill = prompt(t("Для какого навыка добавляем специализацию?"));
+    if (!typedSkill) return;
+    const skill = vtmCanonicalName(typedSkill);
+    const spec = prompt(t("Название специализации?"));
     if (!spec) return;
     const cost = 3;
     if (!assertEnoughXP(cost)) return;
-    if (confirm(`Добавить специализацию "${spec}" для ${skill} за ${cost} XP?`)) {
+    if (confirm(tf('Добавить специализацию "{spec}" для {skill} за {cost} XP?', { spec, skill: t(skill), cost }))) {
         runExperiencePurchase(() => {
             const container = document.getElementById(`specs-${skill}`);
             if (container) {
                 container.style.display = 'flex';
-                addSpecLine(skill, `${spec} (за опыт)`);
+                addSpecLine(skill, tf('{spec} (за опыт)', { spec }));
             }
-            logModal(`Специализация "${spec}" (${skill})`, cost);
+            logModal(tf('Специализация "{spec}" ({skill})', { spec, skill: t(skill) }), cost);
         });
     }
 }
 
 function spendModalMerit() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const name = prompt("Какое преимущество повышаем/покупаем?");
+    if (!startingSheetFixed) return alert(t("Сначала зафиксируй стартовый лист!"));
+    const name = prompt(t("Какое преимущество повышаем/покупаем?"));
     if (!name) return;
-    const dots = parseInt(prompt("Сколько пунктов добавить?") || '1');
+    const dots = parseInt(prompt(t("Сколько пунктов добавить?")) || '1');
     if (!dots || dots < 1) return;
     const cost = dots * 3;
     if (!assertEnoughXP(cost)) return;
-    if (confirm(`Добавить ${dots} п. к "${name}" за ${cost} XP?`)) {
+    if (confirm(tf('Добавить {dots} п. к "{name}" за {cost} XP?', { dots, name, cost }))) {
         runExperiencePurchase(() => {
-            logModal(`Преимущество "${name}" +${dots}`, cost);
+            logModal(tf('Преимущество "{name}" +{dots}', { name, dots }), cost);
         });
     }
 }
 
 function spendModalDiscipline() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const name = prompt("Название дисциплины?");
+    if (!startingSheetFixed) return alert(t("Сначала зафиксируй стартовый лист!"));
+    const name = prompt(t("Название дисциплины?"));
     if (!name) return;
     if (!canUseDiscipline(name) || isThinBloodClan()) return alert(t('Эта дисциплина недоступна текущему клану.'));
     let current = 0;
     if (disciplineSources[name]) current = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
-    const target = parseInt(prompt(`Текущий: ${current}
-Новый уровень?`));
+    const target = parseInt(prompt(tf("Текущий: {current}\nНовый уровень?", { current })));
     if (!target || target <= current || target > 5) return;
-    const mode = prompt('Тип дисциплины: clan / out / caitiff', 'clan');
+    const mode = prompt(t('Тип дисциплины: clan / out / caitiff'), 'clan');
     if (!mode) return;
     const normalized = mode.toLowerCase();
     const mult = normalized === 'out' ? 7 : normalized === 'caitiff' ? 6 : 5;
     const cost = target * mult;
     if (!assertEnoughXP(cost)) return;
-    if (confirm(`Повысить дисциплину ${name} до ${target} за ${cost} XP?`)) {
+    if (confirm(tf("Повысить дисциплину {name} до {target} за {cost} XP?", { name, target, cost }))) {
         runExperiencePurchase(() => {
             mergeDiscipline(name, target - current, t('Опыт'));
-            logModal(`Дисциплина ${name} ${current}→${target}`, cost);
+            logModal(tf("Дисциплина {name} {current}→{target}", { name, current, target }), cost);
         });
     }
 }
 
 function spendModalRitual() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const ritualType = prompt('Что изучаем: ritual / alchemy', 'ritual');
+    if (!startingSheetFixed) return alert(t("Сначала зафиксируй стартовый лист!"));
+    const ritualType = prompt(t('Что изучаем: ritual / alchemy'), 'ritual');
     if (!ritualType) return;
-    const level = parseInt(prompt('Уровень ритуала/рецептуры?'));
+    const level = parseInt(prompt(t('Уровень ритуала/рецептуры?')));
     if (!level || level < 1 || level > 5) return;
     const cost = level * 3;
     if (!assertEnoughXP(cost)) return;
-    const label = ritualType.toLowerCase() === 'alchemy' ? 'Рецептура алхимии' : 'Ритуал Кровавого чародейства';
-    if (confirm(`${label} ур. ${level} за ${cost} XP?`)) {
+    const label = ritualType.toLowerCase() === 'alchemy' ? t('Рецептура алхимии') : t('Ритуал Кровавого чародейства');
+    if (confirm(tf("{label} ур. {level} за {cost} XP?", { label, level, cost }))) {
         runExperiencePurchase(() => {
-            logModal(`${label} ур. ${level}`, cost);
+            logModal(tf("{label} ур. {level}", { label, level }), cost);
         });
     }
 }
 
 function spendModalBloodPotency() {
-    if (!startingSheetFixed) return alert("Сначала зафиксируй стартовый лист!");
-    const current = parseInt(prompt('Текущая Сила Крови?', '0'));
+    if (!startingSheetFixed) return alert(t("Сначала зафиксируй стартовый лист!"));
+    const current = parseInt(prompt(t('Текущая Сила Крови?'), '0'));
     if (Number.isNaN(current) || current < 0) return;
-    const target = parseInt(prompt(`Текущая: ${current}
-Новая Сила Крови?`));
+    const target = parseInt(prompt(tf("Текущая: {current}\nНовая Сила Крови?", { current })));
     if (!target || target <= current) return;
     const cost = target * 10;
     if (!assertEnoughXP(cost)) return;
-    if (confirm(`Повысить Силу Крови до ${target} за ${cost} XP?`)) {
+    if (confirm(tf("Повысить Силу Крови до {target} за {cost} XP?", { target, cost }))) {
         runExperiencePurchase(() => {
             explicitBloodPotency = clampBloodPotency(target);
             updateBloodPotencyVital();
             autoSaveVitalState();
-            logModal(`Сила Крови ${current}→${target}`, cost);
+            logModal(tf("Сила Крови {current}→{target}", { current, target }), cost);
         });
     }
 }
@@ -9461,14 +9506,14 @@ function applySheetLockState() {
     const btn = document.getElementById('fix-start-btn');
     if (btn) {
         btn.textContent = startingSheetFixed
-            ? isPlayerVampire() ? "Стартовый лист зафиксирован" : "Расфиксировать лист"
-            : isPlayerVampire() ? "Завершить создание и зафиксировать" : "Зафиксировать стартовый лист";
+            ? isPlayerVampire() ? t("Стартовый лист зафиксирован") : t("Расфиксировать лист")
+            : isPlayerVampire() ? t("Завершить создание и зафиксировать") : t("Зафиксировать стартовый лист");
         btn.style.background = startingSheetFixed ? "#555" : "#ff3131";
         btn.title = startingSheetFixed
             ? isPlayerVampire()
-                ? "Дальнейшие изменения доступны через магазин опыта"
-                : "Снять фиксацию и снова редактировать лист вручную"
-            : "Проверить правила создания и зафиксировать стартовый лист";
+                ? t("Дальнейшие изменения доступны через магазин опыта")
+                : t("Снять фиксацию и снова редактировать лист вручную")
+            : t("Проверить правила создания и зафиксировать стартовый лист");
     }
 
     const lockedControls = document.querySelectorAll('#char-type-select, #clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #initial-hunger, #val-blood-potency, .locked-origin-control');
@@ -9594,7 +9639,7 @@ function setupCreationRuleGuards() {
         if (target > 0 && projected[target] > (limits[target] || 0)) {
             event.preventDefault();
             event.stopImmediatePropagation();
-            alert(`В стартовом листе значений ${target} может быть только ${limits[target] || 0}.`);
+            alert(tf('В стартовом листе значений {target} может быть только {limit}.', { target, limit: limits[target] || 0 }));
         }
     }, true);
 
@@ -9646,14 +9691,14 @@ function fixStartingSheet({ silent = false } = {}) {
     }
     if (startingSheetFixed) {
         if (isPlayerVampire()) {
-            alert("Стартовый лист уже зафиксирован. Дальнейшие изменения делаются через магазин опыта.");
+            alert(t("Стартовый лист уже зафиксирован. Дальнейшие изменения делаются через магазин опыта."));
             return;
         }
-        if (confirm("Расфиксировать лист?\nПосле этого поля снова можно будет менять вручную.")) {
+        if (confirm(t("Расфиксировать лист?\nПосле этого поля снова можно будет менять вручную."))) {
             startingSheetFixed = false;
             applySheetLockState();
             autoSaveSheetLockState();
-            alert("Лист расфиксирован. Ручное редактирование снова доступно.");
+            alert(t("Лист расфиксирован. Ручное редактирование снова доступно."));
         }
         return;
     }
@@ -9661,7 +9706,7 @@ function fixStartingSheet({ silent = false } = {}) {
     if (!validatePlayerCreation()) return;
     if (!validateThinBloodBalance()) return;
 
-    if (!confirm("Завершить создание и зафиксировать стартовый лист?\nПосле этого значения меняются только через магазин опыта.")) {
+    if (!confirm(t("Завершить создание и зафиксировать стартовый лист?\nПосле этого значения меняются только через магазин опыта."))) {
         return;
     }
 
@@ -9684,7 +9729,7 @@ function fixStartingSheet({ silent = false } = {}) {
     autoSaveVitalState({ immediate: true });
     updateExpPurchasedStyles();
 
-    alert("Создание завершено. Теперь изменения характеристик проходят через магазин опыта.");
+    alert(t("Создание завершено. Теперь изменения характеристик проходят через магазин опыта."));
 }
 
 window.validatePlayerCreation = validatePlayerCreation;

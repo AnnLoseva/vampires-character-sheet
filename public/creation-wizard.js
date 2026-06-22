@@ -186,7 +186,7 @@
     function shell(stepKey, title, sub, body, nav) {
         const idx = STEP_ORDER.indexOf(stepKey);
         return progressHtml()
-            + `<div class="cw-step-meta">Шаг ${idx + 1} из ${STEP_ORDER.length}</div>`
+            + `<div class="cw-step-meta">${tf('Шаг {idx} из {total}', { idx: idx + 1, total: STEP_ORDER.length })}</div>`
             + `<h1>${esc(title)}</h1>`
             + (sub ? `<h2 class="cw-sub">${esc(sub)}</h2>` : '')
             + '<div class="cw-error" id="cw-step-error" style="display:none"></div>'
@@ -205,7 +205,7 @@
     function navBtn(label, handler, cls) {
         return `<button type="button" class="cw-btn ${cls || ''}" data-cw="${handler}">${esc(label)}</button>`;
     }
-    const toSheetBtn = navBtn('Перейти к листу персонажа', 'toSheet', 'to-sheet');
+    const toSheetBtn = navBtn(t('Перейти к листу персонажа'), 'toSheet', 'to-sheet');
 
     function bindNav(root) {
         root.querySelectorAll('[data-cw]').forEach(b => {
@@ -257,10 +257,9 @@
     const RENDERERS = {};
 
     /* ================= ШАГ 1: ПРЕДУПРЕЖДЕНИЕ ================= */
-    RENDERERS.warning = () => shell('warning', 'Лёгкое создание персонажа', '',
-        `<div class="cw-intro">Сейчас система проведёт тебя по основным шагам создания персонажа.
-        Всё, что ты выберешь здесь, можно будет изменить после окончания опросника в полном листе.</div>`,
-        navBtn('Начать', 'start', 'primary') + toSheetBtn);
+    RENDERERS.warning = () => shell('warning', t('Лёгкое создание персонажа'), '',
+        `<div class="cw-intro">${t('Сейчас система проведёт тебя по основным шагам создания персонажа.\n        Всё, что ты выберешь здесь, можно будет изменить после окончания опросника в полном листе.')}</div>`,
+        navBtn(t('Начать'), 'start', 'primary') + toSheetBtn);
 
     /* ================= ШАГ 2: СОЦИАЛКА + АВАТАР ================= */
     RENDERERS.identity = () => {
@@ -268,20 +267,20 @@
         const portraitValue = data.characterImage || data.image || data.portrait || '';
         const f = (id, label, req) => `
             <div class="cw-field ${req ? 'required' : ''}">
-                <label for="cw-${id}">${esc(label)}${req ? '' : ' (необязательно)'}</label>
+                <label for="cw-${id}">${esc(t(label))}${req ? '' : tf(' ({optional})', { optional: t('необязательно') })}</label>
                 <input type="text" id="cw-${id}" data-mirror="${id}" value="${esc(val(id))}">
             </div>`;
         const portrait = portraitValue
-            ? `<img class="cw-portrait-preview" src="${esc(portraitValue)}" alt="Портрет">`
-            : `<div class="cw-portrait-placeholder">Портрет персонажа</div>`;
-        return shell('identity', 'Кто этот персонаж?', '',
+            ? `<img class="cw-portrait-preview" src="${esc(portraitValue)}" alt="${t('Портрет')}">`
+            : `<div class="cw-portrait-placeholder">${t('Портрет персонажа')}</div>`;
+        return shell('identity', t('Кто этот персонаж?'), '',
             `<div class="cw-error" id="cw-identity-error" style="display:none"></div>
              <div class="cw-portrait-row">
                 ${portrait}
                 <div style="flex:1">
-                    <p style="color:#888;font-size:13px;margin:0 0 10px;line-height:1.5;">Изображение персонажа (необязательно)</p>
-                    <button type="button" class="cw-btn" id="cw-portrait-upload">Загрузить изображение</button>
-                    ${portraitValue ? '<button type="button" class="cw-btn ghost" id="cw-portrait-remove" style="margin-left:8px">Удалить</button>' : ''}
+                    <p style="color:#888;font-size:13px;margin:0 0 10px;line-height:1.5;">${t('Изображение персонажа (необязательно)')}</p>
+                    <button type="button" class="cw-btn" id="cw-portrait-upload">${t('Загрузить изображение')}</button>
+                    ${portraitValue ? `<button type="button" class="cw-btn ghost" id="cw-portrait-remove" style="margin-left:8px">${t('Удалить')}</button>` : ''}
                 </div>
              </div>
              <div class="cw-fields">
@@ -295,8 +294,8 @@
                 ${f('birth-date-input', 'Дата рождения')}
                 ${f('death-date-input', 'Дата смерти')}
              </div>`,
-            navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary')
-            + navBtn('Пропустить необязательное', 'skipOptionalIdentity')
+            navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary')
+            + navBtn(t('Пропустить необязательное'), 'skipOptionalIdentity')
             + toSheetBtn);
     };
     AFTER_RENDER.identity = () => {
@@ -327,17 +326,17 @@
     };
     function showIdentityError() {
         const e = el('cw-identity-error');
-        if (e) { e.textContent = 'Имя обязательно для заполнения.'; e.style.display = 'block'; }
+        if (e) { e.textContent = t('Имя обязательно для заполнения.'); e.style.display = 'block'; }
     }
 
     /* ================= ШАГ 3: ФИЛЬТР КЛАНОВ ================= */
-    RENDERERS.clanFilter = () => shell('clanFilter', 'Какие кланы показывать?', '',
+    RENDERERS.clanFilter = () => shell('clanFilter', t('Какие кланы показывать?'), '',
         `<div class="cw-choice-grid">
-            ${choiceBtn('Кланы только V5 (для новичков)', 'filterV5', wizard.clanFilter === 'v5')}
-            ${choiceBtn('Кланы V5 и V20', 'filterV5V20', wizard.clanFilter === 'v5_v20')}
-            ${choiceBtn('Все кланы', 'filterAll', wizard.clanFilter === 'all')}
+            ${choiceBtn(t('Кланы только V5 (для новичков)'), 'filterV5', wizard.clanFilter === 'v5')}
+            ${choiceBtn(t('Кланы V5 и V20'), 'filterV5V20', wizard.clanFilter === 'v5_v20')}
+            ${choiceBtn(t('Все кланы'), 'filterAll', wizard.clanFilter === 'all')}
         </div>`,
-        navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+        navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     function choiceBtn(label, action, sel, sub) {
         return `<button type="button" class="cw-choice-btn ${sel ? 'selected' : ''}" data-cw="${action}" style="${sel ? 'border-color:#ff3131;background:#2a1111' : ''}">${esc(label)}${sub ? `<small>${esc(sub)}</small>` : ''}</button>`;
     }
@@ -380,15 +379,15 @@
         'Каитиф': '/static/clan_gallery/caitiff_full.png'
     };
     const CLAN_EDITION_LABELS = {
-        v5: '5 версия',
-        v20: '20 версия',
-        legacy: 'Линии крови'
+        v5: t('5 версия'),
+        v20: t('20 версия'),
+        legacy: t('Линии крови')
     };
     function clanImage(name, data) {
         return CLAN_IMAGE_OVERRIDES[name] || data.gallery_image || '';
     }
     function galleryImage(src, alt) {
-        if (!src) return '<span class="cw-tile-media cw-tile-media-empty">Изображение не найдено</span>';
+        if (!src) return `<span class="cw-tile-media cw-tile-media-empty">${t('Изображение не найдено')}</span>`;
         return `<span class="cw-tile-media"><img src="${esc(src)}" alt="${esc(alt)}" loading="lazy"></span>`;
     }
     RENDERERS.clan = () => {
@@ -408,7 +407,7 @@
                             <span class="cw-tile-badge">${edition === 'legacy' ? 'Legacy' : edition.toUpperCase()}</span>
                         </span>
                         <span class="cw-tile-desc">${esc(desc.length > 150 ? desc.slice(0, 147) + '…' : desc)}</span>
-                        ${disc ? `<span class="cw-tile-meta"><b>Дисциплины:</b> ${esc(disc)}</span>` : ''}
+                        ${disc ? `<span class="cw-tile-meta"><b>${t('Дисциплины:')}</b> ${esc(disc)}</span>` : ''}
                     </span>
                 </button>`;
             }).join('');
@@ -419,9 +418,9 @@
                 </section>`
                 : '';
         }).join('');
-        return shell('clan', 'Выбери клан', cur ? `Выбран: ${cur}` : '',
+        return shell('clan', t('Выбери клан'), cur ? tf('Выбран: {cur}', { cur }) : '',
             sections,
-            navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+            navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     function getCurrentClanValue() { return val('clan-input'); }
     STEP_ACTIONS.pickClan = function () {}; // заменяется делегированием
@@ -445,7 +444,7 @@
                 tile.classList.add('selected');
                 tile.setAttribute('aria-pressed', 'true');
                 const sub = el('cw-card').querySelector('h2.cw-sub');
-                if (sub) sub.textContent = 'Выбран: ' + name;
+                if (sub) sub.textContent = tf('Выбран: {name}', { name });
                 persist();
             });
         });
@@ -464,18 +463,18 @@
             const bp = d.blood_potency ? '+' + d.blood_potency : '0';
             const image = `/static/predator_gallery/${encodeURIComponent(name)}.png`;
             return `<button type="button" class="cw-tile cw-gallery-card ${cur === name ? 'selected' : ''}" data-cw="pickPred" data-pred="${esc(name)}" aria-pressed="${cur === name}">
-                ${galleryImage(image, `Тип охоты ${name}`)}
+                ${galleryImage(image, tf('Тип охоты {name}', { name }))}
                 <span class="cw-tile-body">
                     <span class="cw-tile-name">${esc(name)}</span>
                     <span class="cw-tile-desc">${esc(desc.length > 155 ? desc.slice(0, 152) + '…' : desc)}</span>
-                    ${disc ? `<span class="cw-tile-meta"><b>Дисциплина:</b> ${esc(disc)}</span>` : ''}
-                    <span class="cw-tile-meta"><b>Сила крови:</b> ${esc(bp)} · <b>Человечность:</b> ${esc(hum)}</span>
+                    ${disc ? `<span class="cw-tile-meta"><b>${t('Дисциплина:')}</b> ${esc(disc)}</span>` : ''}
+                    <span class="cw-tile-meta"><b>${t('Сила крови:')}</b> ${esc(bp)} · <b>${t('Человечность:')}</b> ${esc(hum)}</span>
                 </span>
             </button>`;
         }).join('');
-        return shell('predator', 'Выбери тип охоты', cur ? `Выбран: ${cur}` : '',
+        return shell('predator', t('Выбери тип охоты'), cur ? tf('Выбран: {cur}', { cur }) : '',
             `<div class="cw-gallery cw-gallery-visual">${cards}</div>`,
-            navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+            navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     AFTER_RENDER.predator = () => {
         el('cw-card').querySelectorAll('[data-cw="pickPred"]').forEach(tile => {
@@ -496,7 +495,7 @@
                 tile.classList.add('selected');
                 tile.setAttribute('aria-pressed', 'true');
                 const sub = el('cw-card').querySelector('h2.cw-sub');
-                if (sub) sub.textContent = 'Выбран: ' + name;
+                if (sub) sub.textContent = tf('Выбран: {name}', { name });
                 persist();
             });
         });
@@ -504,35 +503,35 @@
 
     /* ================= ШАГ 6: ГАЛЕРЕЯ ПОКОЛЕНИЙ ================= */
     const GEN_INFO = [
-        { gen: 16, bp: 0, note: 'Слабокровный птенец. Сила крови 0.' },
-        { gen: 15, bp: 0, note: 'Слабокровный птенец. Сила крови 0.' },
-        { gen: 14, bp: 0, note: 'Слабокровный птенец. Сила крови 0.' },
-        { gen: 13, bp: 1, note: 'Птенец/Неонат. Стандартный старт для игрока.' },
-        { gen: 12, bp: 1, note: 'Птенец/Неонат. Сила крови 1.' },
-        { gen: 11, bp: 1, note: 'Анцилла. Сила крови 1.' },
-        { gen: 10, bp: 2, note: 'Анцилла. Сила крови 2.' }
+        { gen: 16, bp: 0, note: t('Слабокровный птенец. Сила крови 0.') },
+        { gen: 15, bp: 0, note: t('Слабокровный птенец. Сила крови 0.') },
+        { gen: 14, bp: 0, note: t('Слабокровный птенец. Сила крови 0.') },
+        { gen: 13, bp: 1, note: t('Птенец/Неонат. Стандартный старт для игрока.') },
+        { gen: 12, bp: 1, note: t('Птенец/Неонат. Сила крови 1.') },
+        { gen: 11, bp: 1, note: t('Анцилла. Сила крови 1.') },
+        { gen: 10, bp: 2, note: t('Анцилла. Сила крови 2.') }
     ];
     const GENERATION_GALLERY_GROUPS = [
         {
             key: 'ancilla',
-            title: 'Анциллы',
-            subtitle: 'Старшая кровь',
+            title: t('Анциллы'),
+            subtitle: t('Старшая кровь'),
             image: '/static/generation_gallery/ancilla.png',
             accent: '#c9a84c',
             generations: [10, 11]
         },
         {
             key: 'neonate',
-            title: 'Неонаты',
-            subtitle: 'Молодая кровь',
+            title: t('Неонаты'),
+            subtitle: t('Молодая кровь'),
             image: '/static/generation_gallery/neonate.png',
             accent: '#cc3333',
             generations: [12, 13]
         },
         {
             key: 'childe',
-            title: 'Птенцы',
-            subtitle: 'Первые ночи',
+            title: t('Птенцы'),
+            subtitle: t('Первые ночи'),
             image: '/static/generation_gallery/childe.png',
             accent: '#7a7aaa',
             generations: [14, 15, 16]
@@ -554,8 +553,8 @@
                 const disabled = generationOptionDisabled(gen);
                 const isSelected = String(gen) === cur;
                 return `<button type="button" class="cw-generation-option ${isSelected ? 'selected' : ''}" data-cw="pickGen" data-gen="${gen}" data-bp="${info.bp}" ${disabled ? 'disabled' : ''} aria-pressed="${isSelected}">
-                    <strong>${gen}-е поколение</strong>
-                    <span>Сила крови ${info.bp}</span>
+                    <strong>${tf('{gen}-е поколение', { gen })}</strong>
+                    <span>${tf('Сила крови {bp}', { bp: info.bp })}</span>
                 </button>`;
             }).join('');
             return `<article class="cw-generation-card ${selected ? 'selected' : ''}" style="--cw-generation-accent:${group.accent}">
@@ -567,9 +566,9 @@
                 </div>
             </article>`;
         }).join('');
-        return shell('generation', 'Выбери поколение', cur ? `Выбрано: ${cur}-е` : '',
+        return shell('generation', t('Выбери поколение'), cur ? tf('Выбрано: {cur}-е', { cur }) : '',
             `<div class="cw-generation-gallery">${cards}</div>`,
-            navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+            navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     AFTER_RENDER.generation = () => {
         el('cw-card').querySelectorAll('[data-cw="pickGen"]').forEach(tile => {
@@ -593,7 +592,7 @@
                 tile.setAttribute('aria-pressed', 'true');
                 tile.closest('.cw-generation-card')?.classList.add('selected');
                 const sub = el('cw-card').querySelector('h2.cw-sub');
-                if (sub) sub.textContent = 'Выбрано: ' + gen + '-е';
+                if (sub) sub.textContent = tf('Выбрано: {gen}-е', { gen });
                 persist();
             });
         });
@@ -609,14 +608,14 @@
         const cur = parseInt(val('base-humanity') || '7', 10);
         const mod = predatorHumanityMod();
         const hint = mod
-            ? `<div class="cw-hint">Тип охоты «${esc(val('predator-input'))}» изменяет Человечность на ${mod > 0 ? '+' + mod : mod}. Итоговое значение будет пересчитано на листе.</div>`
+            ? `<div class="cw-hint">${tf('Тип охоты «{pred}» изменяет Человечность на {mod}. Итоговое значение будет пересчитано на листе.', { pred: val('predator-input'), mod: mod > 0 ? '+' + mod : mod })}</div>`
             : '';
-        return shell('humanity', 'Начальная Человечность', '',
+        return shell('humanity', t('Начальная Человечность'), '',
             hint + `<div class="cw-choice-grid" style="grid-template-columns:1fr 1fr;max-width:360px">
                 ${choiceBtn('7', 'humanity7', cur === 7)}
                 ${choiceBtn('8', 'humanity8', cur === 8)}
             </div>`,
-            navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+            navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     function setHumanity(v) {
         setVal('base-humanity', String(v));
@@ -633,13 +632,13 @@
     RENDERERS.touchstones = () => {
         const ts = sheetData().touchstones || [];
         const rows = ts.length
-            ? ts.map((t, i) => `<div class="cw-summary-row"><span class="lbl">${esc(t.name || 'Без имени')}</span><span class="val">${esc((t.description || '').slice(0, 80))}</span></div>`).join('')
-            : '<p style="color:#888;font-size:14px">Опоры пока не добавлены.</p>';
-        return shell('touchstones', 'Опоры (Touchstones)', 'Люди и принципы, удерживающие человечность',
-            `<div class="cw-intro" style="margin-bottom:14px">Опоры — это смертные и убеждения, которые связывают персонажа с человечностью. Можно добавить несколько.</div>
+            ? ts.map((touchstone, i) => `<div class="cw-summary-row"><span class="lbl">${esc(touchstone.name || t('Без имени'))}</span><span class="val">${esc((touchstone.description || '').slice(0, 80))}</span></div>`).join('')
+            : `<p style="color:#888;font-size:14px">${t('Опоры пока не добавлены.')}</p>`;
+        return shell('touchstones', t('Опоры (Touchstones)'), t('Люди и принципы, удерживающие человечность'),
+            `<div class="cw-intro" style="margin-bottom:14px">${t('Опоры — это смертные и убеждения, которые связывают персонажа с человечностью. Можно добавить несколько.')}</div>
              <div class="cw-summary" style="margin-bottom:16px">${rows}</div>
-             <button type="button" class="cw-btn" data-cw="addTouchstone">+ Добавить опору</button>`,
-            navBtn('Назад', 'prev') + navBtn('Пропустить', 'skip') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+             <button type="button" class="cw-btn" data-cw="addTouchstone">+ ${t('Добавить опору')}</button>`,
+            navBtn(t('Назад'), 'prev') + navBtn(t('Пропустить'), 'skip') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     STEP_ACTIONS.addTouchstone = () => {
         if (typeof window.addTouchstone === 'function') window.addTouchstone();
@@ -649,17 +648,17 @@
     };
 
     function textStep(step, title, sub, mirrorId, placeholder) {
-        RENDERERS[step] = () => shell(step, title, sub,
+        RENDERERS[step] = () => shell(step, t(title), sub,
             `<div class="cw-field wide">
-                <label for="cw-${mirrorId}">${esc(title)}</label>
-                <textarea id="cw-${mirrorId}" data-mirror="${mirrorId}" placeholder="${esc(placeholder)}">${esc(val(mirrorId))}</textarea>
+                <label for="cw-${mirrorId}">${esc(t(title))}</label>
+                <textarea id="cw-${mirrorId}" data-mirror="${mirrorId}" placeholder="${esc(t(placeholder))}">${esc(val(mirrorId))}</textarea>
              </div>`,
-            navBtn('Назад', 'prev') + navBtn('Пропустить', 'skip') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+            navBtn(t('Назад'), 'prev') + navBtn(t('Пропустить'), 'skip') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
         AFTER_RENDER[step] = () => {
-            const t = el('cw-' + mirrorId);
-            if (t) t.addEventListener('input', () => {
-                setVal(mirrorId, t.value);
-                if (t.value.trim()) markCompleted(step);
+            const textEl = el('cw-' + mirrorId);
+            if (textEl) textEl.addEventListener('input', () => {
+                setVal(mirrorId, textEl.value);
+                if (textEl.value.trim()) markCompleted(step);
             });
         };
     }
@@ -670,9 +669,9 @@
     /* ================= ШАГ 12: ХАРАКТЕРИСТИКИ И НАВЫКИ ================= */
     const ATTR_SCHEME = { 4: 1, 3: 3, 2: 4, 1: 1 };
     const SKILL_SCHEMES = {
-        versatile: { label: 'Мастер на все руки', limits: { 3: 1, 2: 8, 1: 10 } },
-        balanced: { label: 'Сбалансированный', limits: { 3: 3, 2: 5, 1: 7 } },
-        specialist: { label: 'Специалист', limits: { 4: 1, 3: 3, 2: 3, 1: 3 } }
+        versatile: { label: t('Мастер на все руки'), limits: { 3: 1, 2: 8, 1: 10 } },
+        balanced: { label: t('Сбалансированный'), limits: { 3: 3, 2: 5, 1: 7 } },
+        specialist: { label: t('Специалист'), limits: { 4: 1, 3: 3, 2: 3, 1: 3 } }
     };
     function counts(type) {
         const r = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
@@ -697,16 +696,15 @@
         const pkgButtons = Object.entries(SKILL_SCHEMES).map(([id, s]) =>
             `<button type="button" class="cw-choice-btn ${pkg === id ? 'selected' : ''}" data-cw="setPkg" data-pkg="${id}" style="${pkg === id ? 'border-color:#ff3131;background:#2a1111' : ''}">${esc(s.label)}<small>${esc(formatScheme(s.limits))}</small></button>`
         ).join('');
-        return shell('attributes', 'Характеристики и навыки',
-            'Распредели точки прямо на листе по схеме',
-            `<div class="cw-intro" style="margin-bottom:14px">Характеристики: распредели по схеме <b>${esc(formatScheme(ATTR_SCHEME))}</b>.
-             Навыки: выбери способ развития и распредели согласно схеме. Точки ставятся на листе персонажа — нажми «Открыть характеристики на листе», расставь кружки, затем вернись сюда для проверки.</div>
-             <div class="cw-section-title">Способ развития навыков</div>
+        return shell('attributes', t('Характеристики и навыки'),
+            t('Распредели точки прямо на листе по схеме'),
+            `<div class="cw-intro" style="margin-bottom:14px">${tf('Характеристики: распредели по схеме <b>{scheme}</b>.\n             Навыки: выбери способ развития и распредели согласно схеме. Точки ставятся на листе персонажа — нажми «Открыть характеристики на листе», расставь кружки, затем вернись сюда для проверки.', { scheme: esc(formatScheme(ATTR_SCHEME)) })}</div>
+             <div class="cw-section-title">${t('Способ развития навыков')}</div>
              <div class="cw-choice-grid" style="margin-bottom:18px">${pkgButtons}</div>
              <div id="cw-attr-status"></div>
-             <button type="button" class="cw-btn" data-cw="openAttrSheet">Открыть характеристики на листе</button>
-             <button type="button" class="cw-btn ghost" data-cw="recheckAttr" style="margin-left:8px">Проверить заполнение</button>`,
-            navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+             <button type="button" class="cw-btn" data-cw="openAttrSheet">${t('Открыть характеристики на листе')}</button>
+             <button type="button" class="cw-btn ghost" data-cw="recheckAttr" style="margin-left:8px">${t('Проверить заполнение')}</button>`,
+            navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     function formatScheme(limits) {
         return [5, 4, 3, 2, 1].filter(v => limits[v]).map(v => `${limits[v]}×${v}`).join(', ');
@@ -719,7 +717,7 @@
         const attrOk = schemeComplete(ATTR_SCHEME, ac);
         const pkg = val('skill-package');
         const sc = counts('skill');
-        let skillBlock = '<div class="cw-counter bad">Сначала выбери способ развития навыков.</div>';
+        let skillBlock = `<div class="cw-counter bad">${t('Сначала выбери способ развития навыков.')}</div>`;
         let skillOk = false;
         if (pkg && SKILL_SCHEMES[pkg]) {
             const limits = SKILL_SCHEMES[pkg].limits;
@@ -727,12 +725,12 @@
             skillBlock = `<div class="cw-counter">` + schemeRemaining(limits, sc).map(r =>
                 `<span class="${r.used === r.max ? 'ok' : 'bad'}">×${r.n}: ${r.used}/${r.max}</span>`).join('') + `</div>`;
         }
-        box.innerHTML = `<div class="cw-section-title">Характеристики</div>
+        box.innerHTML = `<div class="cw-section-title">${t('Характеристики')}</div>
             <div class="cw-counter">` + schemeRemaining(ATTR_SCHEME, ac).map(r =>
                 `<span class="${r.used === r.max ? 'ok' : 'bad'}">×${r.n}: ${r.used}/${r.max}</span>`).join('') + `</div>
-            <div class="cw-section-title">Навыки</div>${skillBlock}
+            <div class="cw-section-title">${t('Навыки')}</div>${skillBlock}
             <p style="color:${attrOk && skillOk ? '#36d675' : '#ff9500'};font-size:13px;margin-top:10px">
-            ${attrOk && skillOk ? '✓ Характеристики и навыки распределены верно.' : 'Распределение ещё не завершено.'}</p>`;
+            ${attrOk && skillOk ? '✓ ' + t('Характеристики и навыки распределены верно.') : t('Распределение ещё не завершено.')}</p>`;
         if (attrOk && skillOk) markCompleted('attributes'); else markSkipped('attributes');
     }
     STEP_ACTIONS.setPkg = function () {};
@@ -780,13 +778,12 @@
             ? (pd.disciplines.increase.options || []) : [];
         const allowed = Array.from(new Set([...cd, ...predDisc]));
         const total = disciplineDotsTotal();
-        return shell('disciplines', 'Дисциплины', 'Распредели 3 точки по клановым дисциплинам',
-            `<div class="cw-intro" style="margin-bottom:14px">Стартовому персонажу доступно <b>3 точки</b> дисциплин: одна дисциплина на 2 точки и одна на 1 (только из клановых и предоставленной типом охоты).
-            Доступные дисциплины: <b>${esc(allowed.join(', ') || '—')}</b>. Точки и конкретные силы выбираются на листе.</div>
+        return shell('disciplines', t('Дисциплины'), t('Распредели 3 точки по клановым дисциплинам'),
+            `<div class="cw-intro" style="margin-bottom:14px">${tf('Стартовому персонажу доступно <b>3 точки</b> дисциплин: одна дисциплина на 2 точки и одна на 1 (только из клановых и предоставленной типом охоты).\n            Доступные дисциплины: <b>{allowed}</b>. Точки и конкретные силы выбираются на листе.', { allowed: esc(allowed.join(', ') || '—') })}</div>
              <div id="cw-disc-status"></div>
-             <button type="button" class="cw-btn" data-cw="openDiscSheet">Открыть дисциплины на листе</button>
-             <button type="button" class="cw-btn ghost" data-cw="recheckDisc" style="margin-left:8px">Проверить</button>`,
-            navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+             <button type="button" class="cw-btn" data-cw="openDiscSheet">${t('Открыть дисциплины на листе')}</button>
+             <button type="button" class="cw-btn ghost" data-cw="recheckDisc" style="margin-left:8px">${t('Проверить')}</button>`,
+            navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     AFTER_RENDER.disciplines = () => renderDiscStatus();
     function renderDiscStatus() {
@@ -796,9 +793,9 @@
         const clanTotal = clanDisciplineDots();
         const thinBlood = getCurrentClanValue() === vtmName('Слабокровные');
         const ok = disciplineStepValid();
-        box.innerHTML = `<div class="cw-counter"><span>Всего точек: <b>${total}</b></span>
-            <span>От клана: <b>${clanTotal}</b>${thinBlood ? ' (для слабокровного не требуется)' : ' / 3'}</span>
-            <span class="${ok ? 'ok' : 'bad'}">${ok ? '✓ готово' : 'нужно выбрать клановые 2 + 1'}</span></div>`;
+        box.innerHTML = `<div class="cw-counter"><span>${tf('Всего точек: <b>{total}</b>', { total })}</span>
+            <span>${tf('От клана: <b>{clanTotal}</b>{note}', { clanTotal, note: thinBlood ? t(' (для слабокровного не требуется)') : ' / 3' })}</span>
+            <span class="${ok ? 'ok' : 'bad'}">${ok ? '✓ ' + t('готово') : t('нужно выбрать клановые 2 + 1')}</span></div>`;
         if (ok) markCompleted('disciplines'); else markSkipped('disciplines');
     }
     STEP_ACTIONS.openDiscSheet = () => {
@@ -832,12 +829,12 @@
     function meritsLimit() { return typeof window.getMeritsLimit === 'function' ? window.getMeritsLimit() : 7; }
     function flawsLimit() { return typeof window.getFlawsLimit === 'function' ? window.getFlawsLimit() : 2; }
     RENDERERS.meritsFlaws = () => {
-        return shell('meritsFlaws', 'Преимущества и недостатки', 'Распредели точки по правилам',
-            `<div class="cw-intro" style="margin-bottom:14px">Распредели ровно <b>${meritsLimit()}</b> точек преимуществ и возьми ровно <b>${flawsLimit()}</b> точки недостатков (бонусы типа охоты уже учтены).</div>
+        return shell('meritsFlaws', t('Преимущества и недостатки'), t('Распредели точки по правилам'),
+            `<div class="cw-intro" style="margin-bottom:14px">${tf('Распредели ровно <b>{ml}</b> точек преимуществ и возьми ровно <b>{fl}</b> точки недостатков (бонусы типа охоты уже учтены).', { ml: meritsLimit(), fl: flawsLimit() })}</div>
              <div id="cw-mf-status"></div>
-             <button type="button" class="cw-btn" data-cw="openMfSheet">Открыть список преимуществ / недостатков</button>
-             <button type="button" class="cw-btn ghost" data-cw="recheckMf" style="margin-left:8px">Проверить</button>`,
-            navBtn('Назад', 'prev') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+             <button type="button" class="cw-btn" data-cw="openMfSheet">${t('Открыть список преимуществ / недостатков')}</button>
+             <button type="button" class="cw-btn ghost" data-cw="recheckMf" style="margin-left:8px">${t('Проверить')}</button>`,
+            navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     AFTER_RENDER.meritsFlaws = () => renderMfStatus();
     function renderMfStatus() {
@@ -847,9 +844,9 @@
         const fp = flawPoints(), fl = flawsLimit();
         const ok = mp === ml && fp === fl;
         box.innerHTML = `<div class="cw-counter">
-            <span>Преимущества: <span class="${mp === ml ? 'ok' : 'bad'}">${mp} / ${ml}</span></span>
-            <span>Недостатки: <span class="${fp === fl ? 'ok' : 'bad'}">${fp} / ${fl}</span></span>
-            </div><p style="color:${ok ? '#36d675' : '#ff9500'};font-size:13px">${ok ? '✓ распределено верно' : 'распределение не завершено'}</p>`;
+            <span>${t('Преимущества:')} <span class="${mp === ml ? 'ok' : 'bad'}">${mp} / ${ml}</span></span>
+            <span>${t('Недостатки:')} <span class="${fp === fl ? 'ok' : 'bad'}">${fp} / ${fl}</span></span>
+            </div><p style="color:${ok ? '#36d675' : '#ff9500'};font-size:13px">${ok ? '✓ ' + t('распределено верно') : t('распределение не завершено')}</p>`;
         if (ok) markCompleted('meritsFlaws'); else markSkipped('meritsFlaws');
     }
     STEP_ACTIONS.openMfSheet = () => {
@@ -862,13 +859,13 @@
     RENDERERS.inventory = () => {
         const inv = sheetData().inventory || [];
         const rows = inv.length
-            ? inv.map(it => `<div class="cw-summary-row"><span class="lbl">${esc(it.name || 'Предмет')}</span><span class="val">${esc(it.category || '')} ×${esc(it.quantity || 1)}</span></div>`).join('')
-            : '<p style="color:#888;font-size:14px">Инвентарь пуст.</p>';
-        return shell('inventory', 'Инвентарь', 'Необязательный шаг',
-            `<div class="cw-intro" style="margin-bottom:14px">Добавь стартовые предметы: название, описание, количество, категорию, заметку. Можно пропустить.</div>
+            ? inv.map(it => `<div class="cw-summary-row"><span class="lbl">${esc(it.name || t('Предмет'))}</span><span class="val">${esc(t(it.category || ''))} ×${esc(it.quantity || 1)}</span></div>`).join('')
+            : `<p style="color:#888;font-size:14px">${t('Инвентарь пуст.')}</p>`;
+        return shell('inventory', t('Инвентарь'), t('Необязательный шаг'),
+            `<div class="cw-intro" style="margin-bottom:14px">${t('Добавь стартовые предметы: название, описание, количество, категорию, заметку. Можно пропустить.')}</div>
              <div class="cw-summary" style="margin-bottom:16px">${rows}</div>
-             <button type="button" class="cw-btn" data-cw="addInv">+ Добавить предмет на листе</button>`,
-            navBtn('Назад', 'prev') + navBtn('Пропустить', 'skip') + navBtn('Дальше', 'next', 'primary') + toSheetBtn);
+             <button type="button" class="cw-btn" data-cw="addInv">+ ${t('Добавить предмет на листе')}</button>`,
+            navBtn(t('Назад'), 'prev') + navBtn(t('Пропустить'), 'skip') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     STEP_ACTIONS.addInv = () => {
         goToSheet();
