@@ -1,5 +1,6 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
 import type { ActiveParticipant, ChatUser, MasterReveal, MasterWhisper, RightRailTab } from '@/lib/table/types'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type MasterPanelProps = {
   rightRailTab: RightRailTab
@@ -32,28 +33,29 @@ export default function MasterPanel({
   setMasterChatDraft,
   sendMasterWhisper,
 }: MasterPanelProps) {
+  const { t } = useLang()
   return (
-    <section className={`master-sidebar table-right-panel ${rightRailTab === 'master' ? '' : 'table-right-panel-hidden'}`} aria-label="Связь с мастером">
+    <section className={`master-sidebar table-right-panel ${rightRailTab === 'master' ? '' : 'table-right-panel-hidden'}`} aria-label={t('Связь с мастером')}>
       <header>
         <div>
-          <span>{isMaster ? 'Панель мастера' : 'Чат с мастером'}</span>
+          <span>{isMaster ? t('Панель мастера') : t('Чат с мастером')}</span>
           <strong>{isMaster ? masterReveals.length : visibleMasterWhispers.length}</strong>
         </div>
         <div>
-          <span>Комната</span>
+          <span>{t('Комната')}</span>
           <strong>{room}</strong>
         </div>
       </header>
 
       {!chatUser ? (
-        <p className="panel-empty">Войдите в аккаунт, чтобы писать мастеру.</p>
+        <p className="panel-empty">{t('Войдите в аккаунт, чтобы писать мастеру.')}</p>
       ) : (
         <>
           {isMaster ? (
             <section className="master-reveal-list">
-              <strong>Показано мастеру</strong>
+              <strong>{t('Показано мастеру')}</strong>
               {masterReveals.length === 0 ? (
-                <p className="panel-empty">Игроки пока ничего не показывали.</p>
+                <p className="panel-empty">{t('Игроки пока ничего не показывали.')}</p>
               ) : masterReveals.map(item => (
                 <article key={item.id}>
                   <span>{item.kind} · {item.characterName} · {item.username}</span>
@@ -69,9 +71,9 @@ export default function MasterPanel({
           <section className="master-chat-panel">
             {isMaster ? (
               <label>
-                <span>Игрок</span>
+                <span>{t('Игрок')}</span>
                 <select value={selectedMasterChatUserId} onChange={event => setSelectedMasterChatUserId(event.target.value)}>
-                  <option value="">Все сообщения</option>
+                  <option value="">{t('Все сообщения')}</option>
                   {masterChatPlayers.map(player => (
                     <option value={player.userId} key={player.userId}>{player.username} · {player.characterName}</option>
                   ))}
@@ -80,10 +82,10 @@ export default function MasterPanel({
             ) : null}
             <div className="master-chat-list">
               {visibleMasterWhispers.length === 0 ? (
-                <p className="panel-empty">{isMaster ? 'Выберите игрока или дождитесь сообщения.' : 'Здесь будет приватный диалог с мастером.'}</p>
+                <p className="panel-empty">{isMaster ? t('Выберите игрока или дождитесь сообщения.') : t('Здесь будет приватный диалог с мастером.')}</p>
               ) : visibleMasterWhispers.map(message => (
                 <article className={message.fromUserId === chatUser.id ? 'own' : ''} key={message.id}>
-                  <strong>{message.fromMaster ? 'Мастер' : message.fromUsername}</strong>
+                  <strong>{message.fromMaster ? t('Мастер') : message.fromUsername}</strong>
                   <p>{message.message}</p>
                   <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
                 </article>
@@ -93,11 +95,11 @@ export default function MasterPanel({
               <textarea
                 value={masterChatDraft}
                 onChange={event => setMasterChatDraft(event.target.value)}
-                placeholder={isMaster ? 'Ответ игроку...' : 'Сообщение мастеру...'}
+                placeholder={isMaster ? t('Ответ игроку...') : t('Сообщение мастеру...')}
                 rows={3}
               />
               <button type="submit" disabled={!masterChatDraft.trim() || (isMaster && !selectedMasterChatUserId)}>
-                Отправить
+                {t('Отправить')}
               </button>
             </form>
           </section>

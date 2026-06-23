@@ -3,6 +3,7 @@
 import { type Dispatch, type SetStateAction, useMemo, useRef } from 'react'
 import type { ChatUser, JournalEntry, RightRailTab } from '@/lib/table/types'
 import JournalEditor, { type JournalEditorHandle } from '@/components/journal/JournalEditor'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 // ─── markdown → HTML (for legacy plain-text entries) ─────────────────────────
 
@@ -87,6 +88,8 @@ export default function JournalPanel({
   deleteJournalEntry,
   addLayerToJournal: _addLayerToJournal,
 }: JournalPanelProps) {
+  const { t, lang } = useLang()
+  const locale = lang === 'en' ? 'en-US' : 'ru-RU'
   const editorRef = useRef<JournalEditorHandle>(null)
 
   // Convert legacy markdown to HTML.
@@ -103,21 +106,21 @@ export default function JournalPanel({
   return (
     <section
       className={`diary-sidebar table-right-panel ${rightRailTab === 'diary' ? '' : 'table-right-panel-hidden'}`}
-      aria-label="Дневник игрока"
+      aria-label={t('Дневник игрока')}
     >
       <header>
         <div>
-          <span>Дневник</span>
+          <span>{t('Дневник')}</span>
           <strong>{journalEntries.length}</strong>
         </div>
         <div>
-          <span>Статус</span>
-          <strong>{journalSaveStatus}</strong>
+          <span>{t('Статус')}</span>
+          <strong>{t(journalSaveStatus)}</strong>
         </div>
       </header>
 
       {!chatUser ? (
-        <p className="panel-empty">Войдите в аккаунт, чтобы вести личный дневник комнаты.</p>
+        <p className="panel-empty">{t('Войдите в аккаунт, чтобы вести личный дневник комнаты.')}</p>
       ) : (
         <div className="diary-layout">
           {/* ── Sidebar: search + list ── */}
@@ -125,12 +128,12 @@ export default function JournalPanel({
             <input
               value={journalSearch}
               onChange={e => setJournalSearch(e.target.value)}
-              placeholder="Поиск"
+              placeholder={t('Поиск')}
             />
-            <button type="button" onClick={createJournalEntry}>+ Запись</button>
+            <button type="button" onClick={createJournalEntry}>+ {t('Запись')}</button>
             <div className="diary-entries">
               {filteredJournalEntries.length === 0 ? (
-                <p className="panel-empty">Записей не найдено.</p>
+                <p className="panel-empty">{t('Записей не найдено.')}</p>
               ) : filteredJournalEntries.map(entry => (
                 <button
                   type="button"
@@ -138,8 +141,8 @@ export default function JournalPanel({
                   key={entry.id}
                   onClick={() => setSelectedJournalEntryId(entry.id)}
                 >
-                  <strong>{entry.title || 'Без названия'}</strong>
-                  <span>{new Date(entry.updatedAt).toLocaleString('ru-RU')}</span>
+                  <strong>{entry.title || t('Без названия')}</strong>
+                  <span>{new Date(entry.updatedAt).toLocaleString(locale)}</span>
                 </button>
               ))}
             </div>
@@ -153,7 +156,7 @@ export default function JournalPanel({
                   className="diary-title"
                   value={selectedJournalEntry.title}
                   onChange={e => updateJournalEntry({ title: e.target.value })}
-                  placeholder="Заголовок"
+                  placeholder={t('Заголовок')}
                 />
 
                 {/* Rich text editor in compact mode */}
@@ -163,18 +166,18 @@ export default function JournalPanel({
                     compact
                     value={editorValue}
                     onChange={html => updateJournalEntry({ text: html })}
-                    placeholder="Текст записи… Картинки можно перетащить прямо сюда."
+                    placeholder={t('Текст записи… Картинки можно перетащить прямо сюда.')}
                   />
                 </div>
 
                 <footer className="diary-footer">
-                  <span>{new Date(selectedJournalEntry.updatedAt).toLocaleString('ru-RU')}</span>
-                  <button type="button" onClick={persistCurrentJournal}>Сохранить</button>
-                  <button type="button" className="danger" onClick={deleteJournalEntry}>Удалить</button>
+                  <span>{new Date(selectedJournalEntry.updatedAt).toLocaleString(locale)}</span>
+                  <button type="button" onClick={persistCurrentJournal}>{t('Сохранить')}</button>
+                  <button type="button" className="danger" onClick={deleteJournalEntry}>{t('Удалить')}</button>
                 </footer>
               </>
             ) : (
-              <p className="panel-empty">Создайте первую запись.</p>
+              <p className="panel-empty">{t('Создайте первую запись.')}</p>
             )}
           </section>
         </div>

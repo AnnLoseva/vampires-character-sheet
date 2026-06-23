@@ -3,6 +3,7 @@
 import { ChangeEvent, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkillValue, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 import MusicPanel from '../music/MusicPanel'
 import GameTableStyles from './GameTableStyles'
 import LayerManager from './LayerManager'
@@ -782,6 +783,7 @@ function SmartContextMenu({
 }
 
 export default function VampireTable() {
+  const { t, tf } = useLang()
   const [room, setRoom] = useState('campaign-666')
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
   const [rolls, setRolls] = useState<RollMessage[]>([])
@@ -1153,7 +1155,7 @@ export default function VampireTable() {
     event.preventDefault()
     const currentPassword = window.localStorage.getItem(MASTER_PASSWORD_KEY) || '1234'
     if (masterPasswordDraft !== currentPassword) {
-      window.alert('Пароль мастера не подошёл.')
+      window.alert(t('Пароль мастера не подошёл.'))
       return
     }
     setMasterPasswordDraft('')
@@ -1162,7 +1164,7 @@ export default function VampireTable() {
 
   const saveMasterPassword = () => {
     window.localStorage.setItem(MASTER_PASSWORD_KEY, masterPasswordEdit)
-    window.alert('Пароль мастера обновлён.')
+    window.alert(t('Пароль мастера обновлён.'))
   }
 
   const resetTableRole = () => {
@@ -1274,7 +1276,7 @@ export default function VampireTable() {
 
   const createScene = async () => {
     if (!isMaster) return
-    const name = window.prompt('Название сцены', 'Новая сцена')?.trim()
+    const name = window.prompt(t('Название сцены'), t('Новая сцена'))?.trim()
     if (!name) return
     const now = new Date().toISOString()
     const scene: TableScene = {
@@ -1309,7 +1311,7 @@ export default function VampireTable() {
 
   const renameScene = async () => {
     if (!isMaster || !selectedScene) return
-    const name = window.prompt('Новое название сцены', selectedScene.name)?.trim()
+    const name = window.prompt(t('Новое название сцены'), selectedScene.name)?.trim()
     if (!name || name === selectedScene.name) return
     const updatedAt = new Date().toISOString()
     const next = { ...selectedScene, name, updatedAt }
@@ -1363,9 +1365,9 @@ export default function VampireTable() {
 
   const raiseHand = () => {
     const character = chatCharacters.find(item => item.id === selectedChatCharacterId)
-    const name = character?.name || chatUser?.username || (isMaster ? 'Мастер' : 'Игрок')
+    const name = character?.name || chatUser?.username || (isMaster ? t('Мастер') : t('Игрок'))
     const payload = { room, name, at: new Date().toISOString() }
-    setHandNotice(`${name} поднял руку`)
+    setHandNotice(tf('{name} поднял руку', { name }))
     window.setTimeout(() => setHandNotice(''), 5200)
     broadcast('hand-raise', payload)
   }
@@ -1409,10 +1411,10 @@ export default function VampireTable() {
   const deleteScene = async () => {
     if (!isMaster || !selectedScene) return
     if (scenes.length <= 1) {
-      window.alert('Нельзя удалить единственную сцену.')
+      window.alert(t('Нельзя удалить единственную сцену.'))
       return
     }
-    const ok = window.confirm(`Удалить сцену "${selectedScene.name}" вместе с её слоями, медиа и музыкой?`)
+    const ok = window.confirm(tf('Удалить сцену "{name}" вместе с её слоями, медиа и музыкой?', { name: selectedScene.name }))
     if (!ok) return
     const nextActive = selectedScene.isActive ? scenes.find(scene => scene.id !== selectedScene.id) : activeScene
     const supabase = createClient()
@@ -1434,7 +1436,7 @@ export default function VampireTable() {
     if (!isMaster || !selectedScene) return
     const layer = layers.find(item => selectedLayerIds.has(item.id) && item.layerType === 'image')
     if (!layer) {
-      window.alert('Выдели картинку на активной сцене, чтобы сделать её preview.')
+      window.alert(t('Выдели картинку на активной сцене, чтобы сделать её preview.'))
       return
     }
     const updatedAt = new Date().toISOString()
@@ -1446,7 +1448,7 @@ export default function VampireTable() {
 
   const saveSelectionAsGroup = async () => {
     if (!isMaster || selectedLayerIds.size === 0) return
-    const name = window.prompt('Название группы', 'Группа сцены')?.trim()
+    const name = window.prompt(t('Название группы'), t('Группа сцены'))?.trim()
     if (!name) return
     const folderId = await createFolder(null, name, true, false)
     if (!folderId) return
@@ -1491,7 +1493,7 @@ export default function VampireTable() {
     for (const [index, url] of urls.entries()) {
       const now = new Date().toISOString()
       const provider = getMusicProvider(url)
-      const defaultTitle = `Трек ${baseOrder + index + 2}`
+      const defaultTitle = tf('Трек {n}', { n: baseOrder + index + 2 })
       const youtubeTitle = provider === 'youtube' ? await fetchYouTubeTitle(url) : null
       const track: SceneMusicTrack = {
         id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
@@ -1551,7 +1553,7 @@ export default function VampireTable() {
   }
 
   const renameSceneMusic = async (track: SceneMusicTrack) => {
-    const title = window.prompt('Название трека', track.title)?.trim()
+    const title = window.prompt(t('Название трека'), track.title)?.trim()
     if (!title || title === track.title) return
     await patchSceneMusic(track, { title })
   }
@@ -1567,7 +1569,7 @@ export default function VampireTable() {
     if (!isMaster || !selectedScene) return
     const audioFiles = Array.from(files).filter(file => file.type.startsWith('audio/'))
     if (audioFiles.length === 0) {
-      window.alert('Для музыки сцены можно загрузить только аудиофайлы.')
+      window.alert(t('Для музыки сцены можно загрузить только аудиофайлы.'))
       return
     }
 
@@ -1586,7 +1588,7 @@ export default function VampireTable() {
 
         if (uploadError) {
           console.error('Не удалось загрузить музыку сцены:', uploadError)
-          window.alert('Аудиофайл не загрузился. Проверь bucket table-music и policies из SQL.')
+          window.alert(t('Аудиофайл не загрузился. Проверь bucket table-music и policies из SQL.'))
           continue
         }
 
@@ -1824,7 +1826,7 @@ export default function VampireTable() {
       .on('broadcast', { event: 'hand-raise' }, payload => {
         const notice = payload.payload as { room?: string; name?: string; at?: string }
         if (notice.room !== currentRoom || !notice.name) return
-        setHandNotice(`${notice.name} поднял руку`)
+        setHandNotice(tf('{name} поднял руку', { name: notice.name }))
         window.setTimeout(() => setHandNotice(''), 5200)
       })
       .on('broadcast', { event: 'active-character' }, payload => {
@@ -2035,7 +2037,7 @@ export default function VampireTable() {
         if (character.id === initiator?.id) return
         addOption({
           id: `npc:${character.id}`,
-          label: `${character.name} · НПС`,
+          label: tf('{name} · НПС', { name: character.name }),
           actorKind: 'npc',
           characterId: character.id,
         })
@@ -2074,11 +2076,11 @@ export default function VampireTable() {
     ? Array.from(new Set([...Object.keys(selectedMasterRollCharacter.disciplines), ...Object.keys(selectedMasterRollCharacter.selectedPowers)])).sort((a, b) => a.localeCompare(b, 'ru'))
     : []
   const masterRollPoolParts = [
-    masterRollAttribute ? `${masterRollAttribute} ${masterRollAttributeDots}` : '',
-    masterRollAttributeTwo ? `${masterRollAttributeTwo} ${masterRollAttributeTwoDots}` : '',
-    masterRollSkill ? `${masterRollSkill} ${masterRollSkillDots}` : '',
+    masterRollAttribute ? `${t(masterRollAttribute)} ${masterRollAttributeDots}` : '',
+    masterRollAttributeTwo ? `${t(masterRollAttributeTwo)} ${masterRollAttributeTwoDots}` : '',
+    masterRollSkill ? `${t(masterRollSkill)} ${masterRollSkillDots}` : '',
     masterRollDiscipline ? `${masterRollDiscipline} ${masterRollDisciplineDots}` : '',
-    masterRollModifier ? `модификатор ${masterRollModifier > 0 ? '+' : ''}${masterRollModifier}` : '',
+    masterRollModifier ? `${t('модификатор')} ${masterRollModifier > 0 ? '+' : ''}${masterRollModifier}` : '',
   ].filter(Boolean)
   const masterRollPoolName = masterRollPoolParts.join(' + ') || `${masterRollDiceCount || 1}к10`
   const masterRollHidden = masterRollVisibility === 'hidden'
@@ -2190,7 +2192,7 @@ export default function VampireTable() {
     const now = new Date().toISOString()
     const entry: JournalEntry = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      title: 'Новая запись',
+      title: t('Новая запись'),
       text: '',
       createdAt: now,
       updatedAt: now,
@@ -2215,7 +2217,7 @@ export default function VampireTable() {
 
   const deleteJournalEntry = () => {
     if (!selectedJournalEntry) return
-    if (!window.confirm(`Удалить запись "${selectedJournalEntry.title || 'Без названия'}"?`)) return
+    if (!window.confirm(tf('Удалить запись "{title}"?', { title: selectedJournalEntry.title || t('Без названия') }))) return
     const next = journalEntries.filter(entry => entry.id !== selectedJournalEntry.id)
     saveJournalEntries(next, 'Сохранено')
     setSelectedJournalEntryId(next[0]?.id || '')
@@ -2259,7 +2261,7 @@ export default function VampireTable() {
     if (!participant.characterId) {
       setPreviewCharacter({
         id: '',
-        name: 'Без персонажа',
+        name: t('Без персонажа'),
         clan: null,
         image: '',
         username: participant.username,
@@ -2309,13 +2311,13 @@ export default function VampireTable() {
     const healthPenalty = getHealthImpairmentPenalty([sideState.attribute, sideState.attributeTwo], getCharacterHealth(character))
     const diceCount = Math.max(0, Math.min(20, attributeDots + attributeTwoDots + skillDots + disciplineDots + sideState.modifier + willpowerPenalty + healthPenalty))
     const poolParts = [
-      sideState.attribute ? `${sideState.attribute} ${attributeDots}` : '',
-      sideState.attributeTwo ? `${sideState.attributeTwo} ${attributeTwoDots}` : '',
-      sideState.skill ? `${sideState.skill} ${skillDots}` : '',
+      sideState.attribute ? `${t(sideState.attribute)} ${attributeDots}` : '',
+      sideState.attributeTwo ? `${t(sideState.attributeTwo)} ${attributeTwoDots}` : '',
+      sideState.skill ? `${t(sideState.skill)} ${skillDots}` : '',
       sideState.discipline ? `${sideState.discipline} ${disciplineDots}` : '',
-      sideState.modifier ? `модификатор ${sideState.modifier > 0 ? '+' : ''}${sideState.modifier}` : '',
-      willpowerPenalty ? 'Истощение Воли -2' : '',
-      healthPenalty ? 'Изнурение по здоровью -2' : '',
+      sideState.modifier ? `${t('модификатор')} ${sideState.modifier > 0 ? '+' : ''}${sideState.modifier}` : '',
+      willpowerPenalty ? t('Истощение Воли -2') : '',
+      healthPenalty ? t('Изнурение по здоровью -2') : '',
     ].filter(Boolean)
 
     return {
@@ -2510,7 +2512,10 @@ export default function VampireTable() {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       room,
       characterName: character.name,
-      poolName: `${character.name} получает ${result.applied} Сомнение: ${options.reasonText || reason}. Человечность: ${state.value}, Сомнения: ${state.stains}/${10 - state.value}.`,
+      poolName: tf('{name} получает {applied} Сомнение: {sourceText}. Человечность: {value}, Сомнения: {stains}/{remaining}.', {
+        name: character.name, applied: result.applied, sourceText: options.reasonText || t(reason),
+        value: state.value, stains: state.stains, remaining: 10 - state.value
+      }),
       poolType: 'humanity-event',
       diceCount: 0,
       dice: [],
@@ -3548,24 +3553,24 @@ export default function VampireTable() {
 
   const rollPreviewPool = async () => {
     if (!previewCharacter || !canRollPreview) {
-      window.alert('Броски доступны мастеру или владельцу активного персонажа.')
+      window.alert(t('Броски доступны мастеру или владельцу активного персонажа.'))
       return
     }
     if (previewDiceCount < 1) {
-      window.alert('Выбери характеристику, навык или положительный модификатор.')
+      window.alert(t('Выбери характеристику, навык или положительный модификатор.'))
       return
     }
     if (previewRollMode === 'contested' && !selectedPreviewContestedOpponent) {
-      window.alert('Выбери оппонента для встречного броска.')
+      window.alert(t('Выбери оппонента для встречного броска.'))
       return
     }
 
     const poolParts = []
-    if (previewRollAttribute) poolParts.push(`${previewRollAttribute} ${previewAttributeDots}`)
-    if (previewRollAttributeTwo) poolParts.push(`${previewRollAttributeTwo} ${previewAttributeTwoDots}`)
-    if (previewRollSkill) poolParts.push(`${previewRollSkill} ${previewSkillDots}`)
+    if (previewRollAttribute) poolParts.push(`${t(previewRollAttribute)} ${previewAttributeDots}`)
+    if (previewRollAttributeTwo) poolParts.push(`${t(previewRollAttributeTwo)} ${previewAttributeTwoDots}`)
+    if (previewRollSkill) poolParts.push(`${t(previewRollSkill)} ${previewSkillDots}`)
     if (previewRollDiscipline) poolParts.push(`${previewRollDiscipline} ${previewDisciplineDots}`)
-    if (previewRollModifier) poolParts.push(`модификатор ${previewRollModifier > 0 ? '+' : ''}${previewRollModifier}`)
+    if (previewRollModifier) poolParts.push(`${t('модификатор')} ${previewRollModifier > 0 ? '+' : ''}${previewRollModifier}`)
     const poolName = poolParts.join(' + ') || `${previewDiceCount}к10`
     const options: QuickRollOptions = {
       useBloodSurge: previewBloodSurgeEnabled,
@@ -6026,58 +6031,61 @@ export default function VampireTable() {
     return (
       <div className="roll-v5-meta">
         {meta.discipline ? (
-          <span className="roll-note">Дисциплина: {meta.discipline.name} · {meta.discipline.power}{meta.discipline.cost && meta.discipline.cost !== '—' ? ` · ${meta.discipline.cost}` : ''}</span>
+          <span className="roll-note">{tf('Дисциплина: {name} · {power}', { name: meta.discipline.name, power: meta.discipline.power })}{meta.discipline.cost && meta.discipline.cost !== '—' ? ` · ${meta.discipline.cost}` : ''}</span>
         ) : null}
         {meta.bloodSurge?.enabled ? (
-          <span className="roll-note">Прилив Крови: +{meta.bloodSurge.bonusDice}к10</span>
+          <span className="roll-note">{tf('Прилив Крови: +{bonus}к10', { bonus: meta.bloodSurge.bonusDice })}</span>
         ) : null}
         {rouseChecks.map(result => (
           <span className="roll-note" key={result.id}>
-            {result.reason}: {result.value} · {result.success ? 'успех' : 'провал'}
+            {tf('{reason}: {value} · {outcome}', { reason: t(result.reason), value: result.value, outcome: result.success ? t('успех') : t('провал') })}
           </span>
         ))}
-        {hasHungerChange ? <span className="roll-note">Голод: {meta.hungerBefore} → {meta.hungerAfter}</span> : null}
-        {meta.spentWillpower ? <span className="roll-note">Воля потрачена: {meta.spentWillpower}</span> : null}
-        {meta.recoveredWillpower ? <span className="roll-note">Воля восстановлена: {meta.recoveredWillpower}</span> : null}
+        {hasHungerChange ? <span className="roll-note">{tf('Голод: {before} → {after}', { before: meta.hungerBefore, after: meta.hungerAfter })}</span> : null}
+        {meta.spentWillpower ? <span className="roll-note">{tf('Воля потрачена: {n}', { n: meta.spentWillpower })}</span> : null}
+        {meta.recoveredWillpower ? <span className="roll-note">{tf('Воля восстановлена: {n}', { n: meta.recoveredWillpower })}</span> : null}
         {hasWillpowerChange && meta.willpowerBefore && meta.willpowerAfter ? (
-          <span className="roll-note">Воля: {meta.willpowerBefore.current} → {meta.willpowerAfter.current} / {meta.willpowerAfter.max}</span>
+          <span className="roll-note">{tf('Воля: {before} → {after} / {max}', { before: meta.willpowerBefore.current, after: meta.willpowerAfter.current, max: meta.willpowerAfter.max })}</span>
         ) : null}
         {meta.willpowerReroll?.used ? (
-          <span className="roll-note">Переброс Воли: {meta.willpowerReroll.oldDice.map(die => die.value).join(', ')} → {meta.willpowerReroll.newDice.map(die => die.value).join(', ')}</span>
+          <span className="roll-note">{tf('Переброс Воли: {before} → {after}', { before: meta.willpowerReroll.oldDice.map(die => die.value).join(', '), after: meta.willpowerReroll.newDice.map(die => die.value).join(', ') })}</span>
         ) : null}
-        {meta.impairmentPenaltyApplied ? <span className="roll-note">Истощение Воли: {meta.impairmentPenaltyApplied}к10</span> : null}
-        {meta.healthImpairmentPenaltyApplied ? <span className="roll-note">Изнурение по здоровью: {meta.healthImpairmentPenaltyApplied}к10</span> : null}
+        {meta.impairmentPenaltyApplied ? <span className="roll-note">{tf('Истощение Воли: {n}к10', { n: meta.impairmentPenaltyApplied })}</span> : null}
+        {meta.healthImpairmentPenaltyApplied ? <span className="roll-note">{tf('Изнурение по здоровью: {n}к10', { n: meta.healthImpairmentPenaltyApplied })}</span> : null}
         {meta.damage ? (
           <span className="roll-note">
-            Урон: {meta.damage.originalAmount} {meta.damage.severity === 'aggravated' ? 'тяжёлых' : 'лёгких'}
-            {meta.damage.halved ? ` → после деления ${meta.damage.finalAmount}` : ''}
-            {meta.damage.targetCharacterName ? ` · цель: ${meta.damage.targetCharacterName}` : ''}
+            {tf('Урон: {amount} {severity}', { amount: meta.damage.originalAmount, severity: meta.damage.severity === 'aggravated' ? t('тяжёлых') : t('лёгких') })}
+            {meta.damage.halved ? tf(' → после деления {final}', { final: meta.damage.finalAmount }) : ''}
+            {meta.damage.targetCharacterName ? tf(' · цель: {name}', { name: meta.damage.targetCharacterName }) : ''}
           </span>
         ) : null}
         {meta.healthBefore && meta.healthAfter ? (
           <span className="roll-note">
-            Здоровье: {meta.healthBefore.current} → {meta.healthAfter.current} / {meta.healthAfter.max} · / {meta.healthAfter.superficial} · X {meta.healthAfter.aggravated}
+            {tf('Здоровье: {before} → {after} / {max} · / {superficial} · X {aggravated}', {
+              before: meta.healthBefore.current, after: meta.healthAfter.current, max: meta.healthAfter.max,
+              superficial: meta.healthAfter.superficial, aggravated: meta.healthAfter.aggravated
+            })}
           </span>
         ) : null}
         {meta.healing ? (
           <span className="roll-note">
-            Лечение: / {meta.healing.amountSuperficial || 0} · X {meta.healing.amountAggravated || 0}
+            {tf('Лечение: / {superficial} · X {aggravated}', { superficial: meta.healing.amountSuperficial || 0, aggravated: meta.healing.amountAggravated || 0 })}
           </span>
         ) : null}
         {meta.rollKind === 'remorse_check' ? (
           <span className="roll-note">
-            Проверка мук совести: {meta.automaticFailure ? 'автоматический провал' : `${meta.remorseDice || 0}к10 без кубиков Голода`}
+            {tf('Проверка мук совести: {result}', { result: meta.automaticFailure ? t('автоматический провал') : tf('{dice}к10 без кубиков Голода', { dice: meta.remorseDice || 0 }) })}
           </span>
         ) : null}
         {typeof meta.humanityBefore === 'number' && typeof meta.humanityAfter === 'number' ? (
-          <span className="roll-note">Человечность: {meta.humanityBefore} → {meta.humanityAfter}</span>
+          <span className="roll-note">{tf('Человечность: {before} → {after}', { before: meta.humanityBefore, after: meta.humanityAfter })}</span>
         ) : null}
         {typeof meta.stainsBefore === 'number' && typeof meta.stainsAfter === 'number' ? (
-          <span className="roll-note">Сомнения: {meta.stainsBefore} → {meta.stainsAfter}</span>
+          <span className="roll-note">{tf('Сомнения: {before} → {after}', { before: meta.stainsBefore, after: meta.stainsAfter })}</span>
         ) : null}
-        {meta.messyCritical ? <strong className="roll-alert">Кровавый триумф</strong> : null}
-        {meta.bestialFailure ? <strong className="roll-alert">Кровавый провал</strong> : null}
-        {warnings.map((warning, index) => <span className="roll-warning" key={`${roll.id}-warning-${index}`}>{warning}</span>)}
+        {meta.messyCritical ? <strong className="roll-alert">{t('Кровавый триумф')}</strong> : null}
+        {meta.bestialFailure ? <strong className="roll-alert">{t('Кровавый провал')}</strong> : null}
+        {warnings.map((warning, index) => <span className="roll-warning" key={`${roll.id}-warning-${index}`}>{t(warning)}</span>)}
       </div>
     )
   }
@@ -6089,85 +6097,85 @@ export default function VampireTable() {
     return (
       <section className="opposed-side-builder opposed-response-builder">
         <div className="opposed-side-heading">
-          <span>Твой ответ</span>
+          <span>{t('Твой ответ')}</span>
           <strong>{pool.diceCount || 0}к10</strong>
         </div>
 
         {!character ? (
-          <p className="opposed-side-status">Выбери активного персонажа.</p>
+          <p className="opposed-side-status">{t('Выбери активного персонажа.')}</p>
         ) : (
           <div className="opposed-trait-controls">
             <label>
-              <span>Характеристика 1</span>
+              <span>{t('Характеристика 1')}</span>
               <select
                 value={opposedResponseSide.attribute}
                 onChange={event => updateOpposedResponseSide({ attribute: event.target.value })}
               >
-                <option value="">Без характеристики</option>
+                <option value="">{t('Без характеристики')}</option>
                 {ATTRIBUTE_GROUPS.map(group => (
-                  <optgroup key={group.name} label={group.name}>
-                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
+                  <optgroup key={group.name} label={t(group.name)}>
+                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{t(name)} · {getAttributeDots(character.attributes, name)}</option>)}
                   </optgroup>
                 ))}
                 {pool.extraAttributes.length ? (
-                  <optgroup label="Другие">
+                  <optgroup label={t('Другие')}>
                     {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
                   </optgroup>
                 ) : null}
               </select>
             </label>
             <label>
-              <span>Характеристика 2</span>
+              <span>{t('Характеристика 2')}</span>
               <select
                 value={opposedResponseSide.attributeTwo}
                 onChange={event => updateOpposedResponseSide({ attributeTwo: event.target.value })}
               >
-                <option value="">Без второй характеристики</option>
+                <option value="">{t('Без второй характеристики')}</option>
                 {ATTRIBUTE_GROUPS.map(group => (
-                  <optgroup key={group.name} label={group.name}>
-                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
+                  <optgroup key={group.name} label={t(group.name)}>
+                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{t(name)} · {getAttributeDots(character.attributes, name)}</option>)}
                   </optgroup>
                 ))}
                 {pool.extraAttributes.length ? (
-                  <optgroup label="Другие">
+                  <optgroup label={t('Другие')}>
                     {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
                   </optgroup>
                 ) : null}
               </select>
             </label>
             <label>
-              <span>Навык</span>
+              <span>{t('Навык')}</span>
               <select
                 value={opposedResponseSide.skill}
                 onChange={event => updateOpposedResponseSide({ skill: event.target.value })}
               >
-                <option value="">Без навыка</option>
+                <option value="">{t('Без навыка')}</option>
                 {SKILL_GROUPS.map(group => (
-                  <optgroup key={group.name} label={group.name}>
-                    {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(character.skills, name))}</option>)}
+                  <optgroup key={group.name} label={t(group.name)}>
+                    {group.traits.map(name => <option key={name} value={name}>{t(name)} · {getSkillDots(resolveSkillValue(character.skills, name))}</option>)}
                   </optgroup>
                 ))}
                 {pool.extraSkills.length ? (
-                  <optgroup label="Другие">
+                  <optgroup label={t('Другие')}>
                     {pool.extraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(character.skills, name))}</option>)}
                   </optgroup>
                 ) : null}
               </select>
             </label>
             <label>
-              <span>Дисциплина</span>
+              <span>{t('Дисциплина')}</span>
               <select
                 value={opposedResponseSide.discipline}
                 onChange={event => updateOpposedResponseSide({ discipline: event.target.value })}
               >
-                <option value="">Без дисциплины</option>
+                <option value="">{t('Без дисциплины')}</option>
                 {pool.disciplineNames.map(name => (
                   <option key={name} value={name}>{name} · {getDisciplineDots(character.disciplines[name] || {})}</option>
                 ))}
               </select>
             </label>
             <label>
-              <span>Модификатор</span>
+              <span>{t('Модификатор')}</span>
               <input
                 type="number"
                 min="-20"
@@ -6189,26 +6197,26 @@ export default function VampireTable() {
     <main className="table-page-shell">
       <section className="table-topbar">
         <div>
-          <p className="table-kicker">Игровой стол</p>
+          <p className="table-kicker">{t('Игровой стол')}</p>
           <h1>{room}</h1>
         </div>
         <div className="table-actions">
-          <a href="/" title="Вернуться на главную страницу">Главная</a>
+          <a href="/" title={t('Вернуться на главную страницу')}>{t('Главная')}</a>
           <button type="button" className="role-pill" onClick={resetTableRole}>
-            {isMaster ? 'Мастер' : tableRole === 'player' ? 'Игрок' : 'Выбрать роль'}
+            {isMaster ? t('Мастер') : tableRole === 'player' ? t('Игрок') : t('Выбрать роль')}
           </button>
           {isMaster ? (
             <label className="master-password-control">
-              <span>Пароль мастера</span>
+              <span>{t('Пароль мастера')}</span>
               <input
                 value={masterPasswordEdit}
                 onChange={event => setMasterPasswordEdit(event.target.value)}
-                aria-label="Пароль мастера"
+                aria-label={t('Пароль мастера')}
               />
-              <button type="button" onClick={saveMasterPassword}>Сменить</button>
+              <button type="button" onClick={saveMasterPassword}>{t('Сменить')}</button>
             </label>
           ) : null}
-          <a href={getCharacterSheetHref(selectedActiveCharacter?.id)} title="Открыть лист персонажа">Лист</a>
+          <a href={getCharacterSheetHref(selectedActiveCharacter?.id)} title={t('Открыть лист персонажа')}>{t('Лист')}</a>
           <input ref={fileInputRef} type="file" multiple onChange={handleImageUpload} />
           <input ref={folderInputRef} type="file" multiple onChange={handleFolderUpload} />
           <input ref={backgroundFileInputRef} type="file" accept="image/*" multiple onChange={handleBackgroundUpload} />
@@ -6216,7 +6224,7 @@ export default function VampireTable() {
         </div>
       </section>
 
-      {!isMaster ? <section className="active-character-strip" aria-label="Активный персонаж">
+      {!isMaster ? <section className="active-character-strip" aria-label={t('Активный персонаж')}>
         <div className="active-character-card">
           <div className="chat-avatar large" aria-hidden="true">
             {selectedActiveCharacter?.image ? (
@@ -6226,24 +6234,24 @@ export default function VampireTable() {
             )}
           </div>
           <div>
-            <span>Активный персонаж</span>
-            <strong>{selectedActiveCharacter?.name || 'Персонаж не выбран'}</strong>
-            <small>{selectedActiveCharacter?.clan || (chatUser ? 'без клана' : 'войдите в аккаунт')}</small>
+            <span>{t('Активный персонаж')}</span>
+            <strong>{selectedActiveCharacter?.name || t('Персонаж не выбран')}</strong>
+            <small>{selectedActiveCharacter?.clan || (chatUser ? t('без клана') : t('войдите в аккаунт'))}</small>
           </div>
           <button type="button" onClick={() => selectedActiveCharacter ? void openCharacterPreview(selectedActiveCharacter) : setRightRailTab('chat')} disabled={!selectedActiveCharacter}>
-            Быстрый просмотр
+            {t('Быстрый просмотр')}
           </button>
-          <a href={getCharacterSheetHref(selectedActiveCharacter?.id)}>Открыть полный лист</a>
+          <a href={getCharacterSheetHref(selectedActiveCharacter?.id)}>{t('Открыть полный лист')}</a>
         </div>
         <div className="active-character-picker">
           <label>
-            <span>Смена персонажа</span>
+            <span>{t('Смена персонажа')}</span>
             <select
               value={selectedChatCharacterId}
               onChange={event => chooseActiveCharacter(event.target.value)}
               disabled={!chatUser || chatCharacters.length === 0}
             >
-              {chatCharacters.length === 0 ? <option value="">Нет сохранённых персонажей</option> : null}
+              {chatCharacters.length === 0 ? <option value="">{t('Нет сохранённых персонажей')}</option> : null}
               {chatCharacters.map(character => (
                 <option value={character.id} key={character.id}>
                   {character.name}{character.clan ? `, ${character.clan}` : ''}
@@ -6251,7 +6259,7 @@ export default function VampireTable() {
               ))}
             </select>
           </label>
-          {!selectedActiveCharacter ? <button type="button" onClick={() => setRightRailTab('chat')}>Выбрать персонажа</button> : null}
+          {!selectedActiveCharacter ? <button type="button" onClick={() => setRightRailTab('chat')}>{t('Выбрать персонажа')}</button> : null}
         </div>
       </section> : null}
 
@@ -6270,12 +6278,12 @@ export default function VampireTable() {
           setLeftPanelOpen={setLeftPanelOpen}
         >
         {isMaster && leftPanelOpen ? (
-          <aside className="left-toolbar" aria-label="Мастерская панель сцен">
-            <nav className="left-tabs" aria-label="Разделы сцен">
-              <button type="button" className={leftToolbarTab === 'scenes' ? 'active' : ''} onClick={() => setLeftToolbarTab('scenes')}>Сцены</button>
-              <button type="button" className={leftToolbarTab === 'layers' ? 'active' : ''} onClick={() => setLeftToolbarTab('layers')}>Слои</button>
-              <button type="button" className={leftToolbarTab === 'media' ? 'active' : ''} onClick={() => setLeftToolbarTab('media')}>Медиа</button>
-              <button type="button" className={leftToolbarTab === 'music' ? 'active' : ''} onClick={() => setLeftToolbarTab('music')}>Музыка</button>
+          <aside className="left-toolbar" aria-label={t('Мастерская панель сцен')}>
+            <nav className="left-tabs" aria-label={t('Разделы сцен')}>
+              <button type="button" className={leftToolbarTab === 'scenes' ? 'active' : ''} onClick={() => setLeftToolbarTab('scenes')}>{t('Сцены')}</button>
+              <button type="button" className={leftToolbarTab === 'layers' ? 'active' : ''} onClick={() => setLeftToolbarTab('layers')}>{t('Слои')}</button>
+              <button type="button" className={leftToolbarTab === 'media' ? 'active' : ''} onClick={() => setLeftToolbarTab('media')}>{t('Медиа')}</button>
+              <button type="button" className={leftToolbarTab === 'music' ? 'active' : ''} onClick={() => setLeftToolbarTab('music')}>{t('Музыка')}</button>
             </nav>
 
             <SceneManager
@@ -6307,8 +6315,8 @@ export default function VampireTable() {
 
             <section className={`scene-layer-panel ${leftToolbarTab === 'layers' ? '' : 'table-right-panel-hidden'}`}>
               <header>
-                <strong>Слои сцены</strong>
-                <span>{activeScene?.name || 'активная сцена'}</span>
+                <strong>{t('Слои сцены')}</strong>
+                <span>{activeScene?.name || t('активная сцена')}</span>
               </header>
               <div className="scene-layer-groups">
                 {/* 'фон'/'токен' below match layer.name, a Storyteller-assigned scene-layer
@@ -6321,13 +6329,13 @@ export default function VampireTable() {
                   ['Текст / документы', tableManagerLayers.filter(layer => layer.onTable && ['text', 'file'].includes(layer.layerType))],
                 ].map(([title, items]) => (
                   <details open key={title as string}>
-                    <summary>{title as string}<span>{(items as TableLayer[]).length}</span></summary>
+                    <summary>{t(title as string)}<span>{(items as TableLayer[]).length}</span></summary>
                     <div
                       className={`layer-list ${layerDropTarget?.layerId === ROOT_LAYER_DROP_ID ? 'drop-root' : ''}`}
                       onDragOver={handleLayerRootDragOver}
                       onDrop={handleLayerRootDrop}
                     >
-                      {(items as TableLayer[]).length === 0 ? <p className="panel-empty">Пусто</p> : <LayerManager layers={buildLayerTree(items as TableLayer[])}
+                      {(items as TableLayer[]).length === 0 ? <p className="panel-empty">{t('Пусто')}</p> : <LayerManager layers={buildLayerTree(items as TableLayer[])}
                             isMaster={isMaster}
                             expandedFolders={expandedFolders}
                             layerDropTarget={layerDropTarget}
@@ -6361,21 +6369,21 @@ export default function VampireTable() {
               onDrop={handleSceneMediaDrop}
             >
               <header>
-                <strong>Медиа сцены</strong>
-                <span>{selectedScene?.name || activeScene?.name || 'сцена'}</span>
+                <strong>{t('Медиа сцены')}</strong>
+                <span>{selectedScene?.name || activeScene?.name || t('сцена')}</span>
               </header>
               <div className="media-manager-toolbar">
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                  {isUploading ? 'Загрузка...' : 'Загрузить'}
+                  {isUploading ? t('Загрузка...') : t('Загрузить')}
                 </button>
                 <button type="button" onClick={() => folderInputRef.current?.click()} disabled={isUploading}>
-                  Папка файлов
+                  {t('Папка файлов')}
                 </button>
                 <button type="button" onClick={() => backgroundFileInputRef.current?.click()} disabled={isUploading}>
-                  Фон
+                  {t('Фон')}
                 </button>
-                <button type="button" onClick={() => createNamedFolder(null, false)}>Папка</button>
-                <button type="button" onClick={saveSelectionAsGroup} disabled={selectedLayerIds.size === 0}>Группа</button>
+                <button type="button" onClick={() => createNamedFolder(null, false)}>{t('Папка')}</button>
+                <button type="button" onClick={saveSelectionAsGroup} disabled={selectedLayerIds.size === 0}>{t('Группа')}</button>
                 <button type="button" onClick={setSceneThumbnailFromSelection} disabled={selectedLayerIds.size === 0}>Preview</button>
               </div>
               <form className="media-url-form" onSubmit={event => {
@@ -6388,17 +6396,17 @@ export default function VampireTable() {
                 <input
                   value={mediaUrlDraft}
                   onChange={event => setMediaUrlDraft(event.target.value)}
-                  placeholder="Ссылка на картинку, видео или YouTube"
+                  placeholder={t('Ссылка на картинку, видео или YouTube')}
                   disabled={isUploading}
                 />
-                <button type="submit" disabled={isUploading || !mediaUrlDraft.trim()}>В папку</button>
+                <button type="submit" disabled={isUploading || !mediaUrlDraft.trim()}>{t('В папку')}</button>
               </form>
               <input
                 className="media-search-input"
                 data-media-search
                 value={mediaSearchDraft}
                 onChange={event => setMediaSearchDraft(event.target.value)}
-                placeholder="Поиск медиа"
+                placeholder={t('Поиск медиа')}
               />
               <div
                 className="layer-list library-list scene-media-drop-zone"
@@ -6414,7 +6422,7 @@ export default function VampireTable() {
                   await handleLayerRootDrop(event as React.DragEvent<HTMLDivElement>)
                 }}
               >
-                {libraryTree.length === 0 ? <p className="panel-empty">Подготовленные медиа этой сцены появятся здесь.</p> : <LayerManager layers={libraryTree}
+                {libraryTree.length === 0 ? <p className="panel-empty">{t('Подготовленные медиа этой сцены появятся здесь.')}</p> : <LayerManager layers={libraryTree}
                             isMaster={isMaster}
                             expandedFolders={expandedFolders}
                             layerDropTarget={layerDropTarget}
@@ -6498,17 +6506,17 @@ export default function VampireTable() {
           setRightPanelOpen={setRightPanelOpen}
           setRightRailTab={setRightRailTab}
         >
-          <section className={`media-sidebar table-right-panel ${rightRailTab === 'media' ? '' : 'table-right-panel-hidden'}`} aria-label="Медиа стола">
+          <section className={`media-sidebar table-right-panel ${rightRailTab === 'media' ? '' : 'table-right-panel-hidden'}`} aria-label={t('Медиа стола')}>
             {!isMaster ? (
-              <nav className="sub-tabs" aria-label="Медиа панели">
+              <nav className="sub-tabs" aria-label={t('Медиа панели')}>
                 <button type="button" className={mediaTab === 'layers' ? 'active' : ''} onClick={() => setMediaTab('layers')}>
-                  Стол
+                  {t('Стол')}
                 </button>
                 <button type="button" className={mediaTab === 'library' ? 'active' : ''} onClick={() => setMediaTab('library')}>
-                  Мои медиа
+                  {t('Мои медиа')}
                 </button>
                 <button type="button" className={mediaTab === 'music' ? 'active' : ''} onClick={() => setMediaTab('music')}>
-                  Музыка
+                  {t('Музыка')}
                 </button>
               </nav>
             ) : null}
@@ -6516,24 +6524,24 @@ export default function VampireTable() {
             {!isMaster ? (
             <section
               className={`layer-panel table-right-panel ${mediaTab === 'layers' ? '' : 'table-right-panel-hidden'}`}
-              aria-label="Слои стола"
+              aria-label={t('Слои стола')}
               onDragOver={event => {
                 if (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/uri-list') || event.dataTransfer.types.includes('text/plain')) event.preventDefault()
               }}
               onDrop={handleTableLayerPanelDrop}
             >
               <header>
-                <strong>Изображения и видео</strong>
-                <span>{selectedManagerLayer?.name || 'папки выше перекрывают ниже'}</span>
+                <strong>{t('Изображения и видео')}</strong>
+                <span>{selectedManagerLayer?.name || t('папки выше перекрывают ниже')}</span>
               </header>
 
               <div className="media-manager-toolbar">
-                <button type="button" onClick={() => createNamedFolder()}>Папка</button>
+                <button type="button" onClick={() => createNamedFolder()}>{t('Папка')}</button>
                 <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                  {isUploading ? 'Загрузка...' : 'Новый слой'}
+                  {isUploading ? t('Загрузка...') : t('Новый слой')}
                 </button>
                 <button type="button" onClick={() => folderInputRef.current?.click()} disabled={isUploading}>
-                  Папка файлов
+                  {t('Папка файлов')}
                 </button>
               </div>
 
@@ -6541,11 +6549,11 @@ export default function VampireTable() {
                 <input
                   value={mediaUrlDraft}
                   onChange={event => setMediaUrlDraft(event.target.value)}
-                  placeholder="Ссылка на картинку, видео или YouTube"
+                  placeholder={t('Ссылка на картинку, видео или YouTube')}
                   disabled={isUploading}
                 />
                 <button type="submit" disabled={isUploading || !mediaUrlDraft.trim()}>
-                  Вставить
+                  {t('Вставить')}
                 </button>
               </form>
 
@@ -6558,7 +6566,7 @@ export default function VampireTable() {
                 }}
               >
                 {layerTree.length === 0 ? (
-                  <p className="panel-empty">Слоёв пока нет.</p>
+                  <p className="panel-empty">{t('Слоёв пока нет.')}</p>
                 ) : (
                   <LayerManager layers={layerTree}
                             isMaster={isMaster}
@@ -6586,7 +6594,7 @@ export default function VampireTable() {
                   onDragOver={handleLayerRootDragOver}
                   onDrop={handleLayerRootDrop}
                 >
-                  Перетащи сюда, чтобы вынести в корень
+                  {t('Перетащи сюда, чтобы вынести в корень')}
                 </div>
               </div>
             </section>
@@ -6639,10 +6647,10 @@ export default function VampireTable() {
             ) : null}
           </section>
 
-          <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label="История бросков">
+          <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label={t('История бросков')}>
             <section className="roll-list">
               {rolls.length === 0 ? (
-                <p className="panel-empty">Бросков пока нет.</p>
+                <p className="panel-empty">{t('Бросков пока нет.')}</p>
               ) : (
                 rolls.map(roll => {
                   const rerollDraftForRoll = willpowerRerollDraft?.rollId === roll.id ? willpowerRerollDraft : null
@@ -6652,20 +6660,20 @@ export default function VampireTable() {
                   <article className={`roll-card ${roll.hidden ? 'hidden-roll' : ''}`} key={roll.id}>
                     <div className="roll-meta">
                       <strong>{roll.characterName}</strong>
-                      {roll.hidden ? <span className="roll-hidden-badge">скрытый</span> : null}
+                      {roll.hidden ? <span className="roll-hidden-badge">{t('скрытый')}</span> : null}
                       <time dateTime={roll.createdAt}>{formatTime(roll.createdAt)}</time>
                     </div>
-                    <span className="roll-pool">{roll.poolName}</span>
+                    <span className="roll-pool">{t(roll.poolName)}</span>
 
                     {contestedRequest ? (
                       <div className="contested-request-result">
-                        <strong>Запрошен встречный бросок</strong>
-                        <span>Пул инициатора: {roll.meta?.contested?.initiatorPoolName || `${roll.diceCount}к10`}, {roll.meta?.contested?.initiatorDiceCount || roll.diceCount}к10.</span>
-                        <span>Оппонент: {roll.meta?.contested?.opponentName || 'не выбран'}.</span>
-                        <small>Ожидается ответный бросок.</small>
+                        <strong>{t('Запрошен встречный бросок')}</strong>
+                        <span>{tf('Пул инициатора: {pool}, {count}к10.', { pool: roll.meta?.contested?.initiatorPoolName || `${roll.diceCount}к10`, count: roll.meta?.contested?.initiatorDiceCount || roll.diceCount })}</span>
+                        <span>{tf('Оппонент: {name}.', { name: roll.meta?.contested?.opponentName || t('не выбран') })}</span>
+                        <small>{t('Ожидается ответный бросок.')}</small>
                       </div>
                     ) : roll.poolType === 'humanity-event' ? (
-                      <div className="humanity-history-event">Событие Человечности</div>
+                      <div className="humanity-history-event">{t('Событие Человечности')}</div>
                     ) : roll.opposed ? (
                       <div className="opposed-roll-result">
                         <strong className={`opposed-result-badge outcome-${roll.opposed.outcome}`}>{roll.opposed.summary}</strong>
@@ -6675,17 +6683,18 @@ export default function VampireTable() {
                             <section className={`opposed-result-side ${sideOutcome}`} key={`${roll.id}-${side.id}`}>
                               <div>
                                 <strong>{side.actorName}</strong>
-                                <span>{side.poolName}</span>
+                                <span>{t(side.poolName)}</span>
                               </div>
-                              <div className="dice-row" aria-label={`Результаты кубиков ${side.actorName}: ${side.dice.map(die => die.value).join(', ')}`}>
+                              <div className="dice-row" aria-label={tf('Результаты кубиков {actor}: {values}', { actor: side.actorName, values: side.dice.map(die => die.value).join(', ') })}>
                                 {side.dice.map((die, index) => {
                                   const dieImage = getDieImage(die)
+                                  const dieLabel = t(dieImage.label)
                                   return (
                                     <span
                                       className={`die die-${die.kind}`}
                                       key={`${roll.id}-${side.id}-${index}`}
-                                      aria-label={`${dieImage.label}: ${die.value}`}
-                                      title={`${die.value} - ${dieImage.label}`}
+                                      aria-label={`${dieLabel}: ${die.value}`}
+                                      title={`${die.value} - ${dieLabel}`}
                                     >
                                       <img src={dieImage.src} alt="" draggable={false} />
                                     </span>
@@ -6702,9 +6711,10 @@ export default function VampireTable() {
                       </div>
                     ) : (
                       <>
-                        <div className="dice-row" aria-label={`Результаты кубиков: ${roll.dice.map(die => die.value).join(', ')}`}>
+                        <div className="dice-row" aria-label={tf('Результаты кубиков: {values}', { values: roll.dice.map(die => die.value).join(', ') })}>
                           {roll.dice.map((die, index) => {
                             const dieImage = getDieImage(die)
+                            const dieLabel = t(dieImage.label)
                             const dieId = getRollDieId(roll, index)
                             const rerollSelectable = canRerollWithWillpower && !String(die.kind).startsWith('hunger')
                             const rerollSelected = Boolean(rerollDraftForRoll?.selectedDieIds.includes(dieId))
@@ -6712,8 +6722,8 @@ export default function VampireTable() {
                               <span
                                 className={`die die-${die.kind}${die.rerolled ? ' die-rerolled' : ''}${rerollSelectable ? ' reroll-selectable' : ''}${rerollSelected ? ' reroll-selected' : ''}`}
                                 key={`${roll.id}-${index}`}
-                                aria-label={`${dieImage.label}: ${die.value}`}
-                                title={rerollSelectable ? `${die.value} - ${dieImage.label}. Выбрать для переброса Воли` : `${die.value} - ${dieImage.label}`}
+                                aria-label={`${dieLabel}: ${die.value}`}
+                                title={rerollSelectable ? tf('{value} - {label}. Выбрать для переброса Воли', { value: die.value, label: dieLabel }) : `${die.value} - ${dieLabel}`}
                                 onClick={rerollSelectable ? () => toggleWillpowerRerollDie(roll, dieId) : undefined}
                               >
                                 <img src={dieImage.src} alt="" draggable={false} />
@@ -6730,17 +6740,17 @@ export default function VampireTable() {
                           <div className="roll-reroll-actions">
                             {rerollDraftForRoll ? (
                               <>
-                                <span>Выбрано {rerollDraftForRoll.selectedDieIds.length} / 3</span>
+                                <span>{tf('Выбрано {n} / 3', { n: rerollDraftForRoll.selectedDieIds.length })}</span>
                                 <button type="button" onClick={() => confirmWillpowerReroll(roll)} disabled={rerollDraftForRoll.selectedDieIds.length < 1}>
-                                  Перебросить за Волю
+                                  {t('Перебросить за Волю')}
                                 </button>
                                 <button type="button" onClick={() => setWillpowerRerollDraft(null)}>
-                                  Отмена
+                                  {t('Отмена')}
                                 </button>
                               </>
                             ) : (
                               <button type="button" onClick={() => setWillpowerRerollDraft({ rollId: roll.id, selectedDieIds: [] })}>
-                                Переброс Воли
+                                {t('Переброс Воли')}
                               </button>
                             )}
                           </div>
@@ -6748,7 +6758,7 @@ export default function VampireTable() {
                         {!['health', 'rouse-check', 'remorse-check', 'humanity-event'].includes(roll.poolType) && !contestedRequest && chatCharacters.length ? (
                           <div className="roll-health-actions">
                             <button type="button" onClick={() => applyRollDamage(roll)}>
-                              Применить урон к цели
+                              {t('Применить урон к цели')}
                             </button>
                           </div>
                         ) : null}
@@ -6812,31 +6822,31 @@ export default function VampireTable() {
           />
 
           {isMaster ? (
-            <section className={`master-roll-sidebar table-right-panel ${rightRailTab === 'diary' ? '' : 'table-right-panel-hidden'}`} aria-label="Персонажи мастера">
+            <section className={`master-roll-sidebar table-right-panel ${rightRailTab === 'diary' ? '' : 'table-right-panel-hidden'}`} aria-label={t('Персонажи мастера')}>
               <header>
                 <div>
-                  <span>Персонажи</span>
+                  <span>{t('Персонажи')}</span>
                   <strong>{chatCharacters.length}</strong>
                 </div>
                 <div>
-                  <span>Бросок</span>
-                  <strong>{masterRollHidden ? 'скрытый' : 'открытый'}</strong>
+                  <span>{t('Бросок')}</span>
+                  <strong>{masterRollHidden ? t('скрытый') : t('открытый')}</strong>
                 </div>
               </header>
 
               {!chatUser ? (
                 <div className="master-roll-empty">
-                  <p>Войди в чат, чтобы увидеть своих персонажей.</p>
-                  <button type="button" onClick={() => setRightRailTab('chat')}>Открыть чат</button>
+                  <p>{t('Войди в чат, чтобы увидеть своих персонажей.')}</p>
+                  <button type="button" onClick={() => setRightRailTab('chat')}>{t('Открыть чат')}</button>
                 </div>
               ) : chatCharacters.length === 0 ? (
                 <div className="master-roll-empty">
-                  <p>Сохранённых персонажей пока нет.</p>
-                  <a href={getCharacterSheetHref()}>Создать лист</a>
+                  <p>{t('Сохранённых персонажей пока нет.')}</p>
+                  <a href={getCharacterSheetHref()}>{t('Создать лист')}</a>
                 </div>
               ) : (
                 <div className="master-roll-layout">
-                  <aside className="master-roll-character-list" aria-label="Персонажи для бросков">
+                  <aside className="master-roll-character-list" aria-label={t('Персонажи для бросков')}>
                     {chatCharacters.map(character => (
                       <button
                         type="button"
@@ -6848,14 +6858,14 @@ export default function VampireTable() {
                           {character.image ? <img src={character.image} alt="" /> : <i>{(character.name || '?').slice(0, 1).toUpperCase()}</i>}
                         </span>
                         <span>
-                          <strong>{character.name || 'Безымянный'}</strong>
-                          <small>{character.clan || 'без клана'}</small>
+                          <strong>{character.name || t('Безымянный')}</strong>
+                          <small>{character.clan || t('без клана')}</small>
                         </span>
                       </button>
                     ))}
                   </aside>
 
-                  <section className="master-roll-builder" aria-label="Бросок персонажа мастера">
+                  <section className="master-roll-builder" aria-label={t('Бросок персонажа мастера')}>
                     {selectedMasterRollCharacter ? (
                       <>
                         <div className="master-roll-current">
@@ -6867,9 +6877,15 @@ export default function VampireTable() {
                             )}
                           </div>
                           <div>
-                            <span>Выбран</span>
+                            <span>{t('Выбран')}</span>
                             <strong>{selectedMasterRollCharacter.name}</strong>
-                            <small>{selectedMasterRollCharacter.clan || 'без клана'} · Голод {getCharacterHunger(selectedMasterRollCharacter)}/5 · Воля {getCharacterWillpower(selectedMasterRollCharacter).current}/{getCharacterWillpower(selectedMasterRollCharacter).max} · Сила Крови {masterBloodPotency}</small>
+                            <small>{tf('{clan} · Голод {hunger}/5 · Воля {willpowerCurrent}/{willpowerMax} · Сила Крови {bloodPotency}', {
+                              clan: selectedMasterRollCharacter.clan || t('без клана'),
+                              hunger: getCharacterHunger(selectedMasterRollCharacter),
+                              willpowerCurrent: getCharacterWillpower(selectedMasterRollCharacter).current,
+                              willpowerMax: getCharacterWillpower(selectedMasterRollCharacter).max,
+                              bloodPotency: masterBloodPotency
+                            })}</small>
                           </div>
                           <button
                             type="button"
@@ -6878,88 +6894,88 @@ export default function VampireTable() {
                               setPreviewCharacterTab('mechanics')
                             }}
                           >
-                            Просмотр
+                            {t('Просмотр')}
                           </button>
-                          <a href={getCharacterSheetHref(selectedMasterRollCharacter.id)}>Лист</a>
+                          <a href={getCharacterSheetHref(selectedMasterRollCharacter.id)}>{t('Лист')}</a>
                         </div>
 
-                        <div className="master-roll-mode" aria-label="Видимость броска">
+                        <div className="master-roll-mode" aria-label={t('Видимость броска')}>
                           <button
                             type="button"
                             className={masterRollVisibility === 'public' ? 'active' : ''}
                             onClick={() => setMasterRollVisibility('public')}
                           >
-                            Открытый
+                            {t('Открытый')}
                           </button>
                           <button
                             type="button"
                             className={masterRollVisibility === 'hidden' ? 'active' : ''}
                             onClick={() => setMasterRollVisibility('hidden')}
                           >
-                            Скрытый
+                            {t('Скрытый')}
                           </button>
                         </div>
 
                         <div className="preview-roll-controls master-roll-controls">
                           <label>
-                            <span>Характеристика 1</span>
+                            <span>{t('Характеристика 1')}</span>
                             <select value={masterRollAttribute} onChange={event => setMasterRollAttribute(event.target.value)}>
-                              <option value="">Без характеристики</option>
+                              <option value="">{t('Без характеристики')}</option>
                               {ATTRIBUTE_GROUPS.map(group => (
                                 <optgroup key={group.name} label={group.name}>
                                   {group.traits.map(name => <option key={name} value={name} disabled={masterRollAttributeTwo === name}>{name} · {getAttributeDots(selectedMasterRollCharacter.attributes, name)}</option>)}
                                 </optgroup>
                               ))}
                               {masterRollExtraAttributes.length ? (
-                                <optgroup label="Другие">
+                                <optgroup label={t('Другие')}>
                                   {masterRollExtraAttributes.map(name => <option key={name} value={name} disabled={masterRollAttributeTwo === name}>{name} · {getAttributeDots(selectedMasterRollCharacter.attributes, name)}</option>)}
                                 </optgroup>
                               ) : null}
                             </select>
                           </label>
                           <label>
-                            <span>Характеристика 2</span>
+                            <span>{t('Характеристика 2')}</span>
                             <select value={masterRollAttributeTwo} onChange={event => setMasterRollAttributeTwo(event.target.value)}>
-                              <option value="">Без второй характеристики</option>
+                              <option value="">{t('Без второй характеристики')}</option>
                               {ATTRIBUTE_GROUPS.map(group => (
-                                <optgroup key={group.name} label={group.name}>
-                                  {group.traits.map(name => <option key={name} value={name} disabled={masterRollAttribute === name}>{name} · {getAttributeDots(selectedMasterRollCharacter.attributes, name)}</option>)}
+                                <optgroup key={group.name} label={t(group.name)}>
+                                  {group.traits.map(name => <option key={name} value={name} disabled={masterRollAttribute === name}>{t(name)} · {getAttributeDots(selectedMasterRollCharacter.attributes, name)}</option>)}
                                 </optgroup>
                               ))}
                               {masterRollExtraAttributes.length ? (
-                                <optgroup label="Другие">
+                                <optgroup label={t('Другие')}>
                                   {masterRollExtraAttributes.map(name => <option key={name} value={name} disabled={masterRollAttribute === name}>{name} · {getAttributeDots(selectedMasterRollCharacter.attributes, name)}</option>)}
                                 </optgroup>
                               ) : null}
                             </select>
                           </label>
                           <label>
-                            <span>Навык</span>
+                            <span>{t('Навык')}</span>
                             <select value={masterRollSkill} onChange={event => setMasterRollSkill(event.target.value)}>
-                              <option value="">Без навыка</option>
+                              <option value="">{t('Без навыка')}</option>
                               {SKILL_GROUPS.map(group => (
-                                <optgroup key={group.name} label={group.name}>
-                                  {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(selectedMasterRollCharacter.skills, name))}</option>)}
+                                <optgroup key={group.name} label={t(group.name)}>
+                                  {group.traits.map(name => <option key={name} value={name}>{t(name)} · {getSkillDots(resolveSkillValue(selectedMasterRollCharacter.skills, name))}</option>)}
                                 </optgroup>
                               ))}
                               {masterRollExtraSkills.length ? (
-                                <optgroup label="Другие">
+                                <optgroup label={t('Другие')}>
                                   {masterRollExtraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(selectedMasterRollCharacter.skills, name))}</option>)}
                                 </optgroup>
                               ) : null}
                             </select>
                           </label>
                           <label>
-                            <span>Дисциплина</span>
+                            <span>{t('Дисциплина')}</span>
                             <select value={masterRollDiscipline} onChange={event => setMasterRollDiscipline(event.target.value)}>
-                              <option value="">Без дисциплины</option>
+                              <option value="">{t('Без дисциплины')}</option>
                               {masterRollDisciplineNames.map(name => (
                                 <option key={name} value={name}>{name} · {getDisciplineDots(selectedMasterRollCharacter.disciplines[name] || {})}</option>
                               ))}
                             </select>
                           </label>
                           <label>
-                            <span>Модификатор</span>
+                            <span>{t('Модификатор')}</span>
                             <input
                               type="number"
                               min="-20"
@@ -6969,7 +6985,7 @@ export default function VampireTable() {
                             />
                           </label>
                           <label className="preview-blood-surge-toggle">
-                            <span>Прилив Крови +{masterBloodSurgeBonus}к10</span>
+                            <span>{tf('Прилив Крови +{bonus}к10', { bonus: masterBloodSurgeBonus })}</span>
                             <input
                               type="checkbox"
                               checked={masterUseBloodSurge}
@@ -6977,7 +6993,7 @@ export default function VampireTable() {
                             />
                           </label>
                           <label className="roll-mode-field">
-                            <span>Тип броска</span>
+                            <span>{t('Тип броска')}</span>
                             <select
                               value={masterRollMode}
                               onChange={event => {
@@ -6986,19 +7002,19 @@ export default function VampireTable() {
                                 if (nextMode === 'normal') setMasterContestedOpponentId('')
                               }}
                             >
-                              <option value="normal">Обычный бросок</option>
-                              <option value="contested">Встречный бросок</option>
+                              <option value="normal">{t('Обычный бросок')}</option>
+                              <option value="contested">{t('Встречный бросок')}</option>
                             </select>
                           </label>
                           {masterRollMode === 'contested' ? (
                             <label className="contested-opponent-field">
-                              <span>Оппонент</span>
+                              <span>{t('Оппонент')}</span>
                               <select
                                 value={masterContestedOpponentId}
                                 onChange={event => setMasterContestedOpponentId(event.target.value)}
                                 disabled={masterContestedOpponentOptions.length === 0}
                               >
-                                <option value="">{masterContestedOpponentOptions.length ? 'Выбрать оппонента' : 'Нет доступных оппонентов'}</option>
+                                <option value="">{masterContestedOpponentOptions.length ? t('Выбрать оппонента') : t('Нет доступных оппонентов')}</option>
                                 {masterContestedOpponentOptions.map(option => (
                                   <option key={option.id} value={option.id}>{option.label}</option>
                                 ))}
@@ -7011,11 +7027,11 @@ export default function VampireTable() {
                             onClick={rollMasterPool}
                             disabled={masterRollDiceCount < 1 || (masterRollMode === 'contested' && !selectedMasterContestedOpponent)}
                           >
-                            {masterRollMode === 'contested' ? 'Запросить встречный' : 'Бросить'} {Math.min(20, masterRollDiceCount + (masterUseBloodSurge ? masterBloodSurgeBonus : 0)) || 0}к10
+                            {masterRollMode === 'contested' ? t('Запросить встречный') : t('Бросить')} {Math.min(20, masterRollDiceCount + (masterUseBloodSurge ? masterBloodSurgeBonus : 0)) || 0}к10
                           </button>
                         </div>
 
-                        <div className="quick-roll-grid master-quick-rolls" aria-label="Быстрые броски мастера">
+                        <div className="quick-roll-grid master-quick-rolls" aria-label={t('Быстрые броски мастера')}>
                           {[1, 3, 5, 7, 10].map(count => (
                             <button type="button" key={count} onClick={() => rollMasterQuick(count)}>
                               {count}к10
@@ -7026,7 +7042,7 @@ export default function VampireTable() {
                         <div className="master-roll-traits">
                           {ATTRIBUTE_GROUPS.map(group => (
                             <section key={group.name}>
-                              <strong>{group.name}</strong>
+                              <strong>{t(group.name)}</strong>
                               {group.traits.map(name => {
                                 const dots = getAttributeDots(selectedMasterRollCharacter.attributes, name)
                                 return (
@@ -7036,7 +7052,7 @@ export default function VampireTable() {
                                     className={masterRollAttribute === name || masterRollAttributeTwo === name ? 'active' : ''}
                                     onClick={() => toggleMasterRollAttribute(name)}
                                   >
-                                    <span>{name}</span>
+                                    <span>{t(name)}</span>
                                     <i>{getDotDisplay(dots)}</i>
                                   </button>
                                 )
@@ -7045,12 +7061,12 @@ export default function VampireTable() {
                           ))}
                         </div>
 
-                        {masterRollPoolBeforeLimit > 20 ? <p className="preview-roll-notice">Пул ограничен двадцатью костями.</p> : null}
-                        {masterWillpowerImpairmentPenalty ? <p className="preview-roll-notice">Истощение Воли: -2к10 к этому пулу.</p> : null}
-                        {masterHealthImpairmentPenalty ? <p className="preview-roll-notice">Изнурение по здоровью: -2к10 к этому пулу.</p> : null}
+                        {masterRollPoolBeforeLimit > 20 ? <p className="preview-roll-notice">{t('Пул ограничен двадцатью костями.')}</p> : null}
+                        {masterWillpowerImpairmentPenalty ? <p className="preview-roll-notice">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
+                        {masterHealthImpairmentPenalty ? <p className="preview-roll-notice">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
                       </>
                     ) : (
-                      <p className="panel-empty">Выбери персонажа.</p>
+                      <p className="panel-empty">{t('Выбери персонажа.')}</p>
                     )}
                   </section>
                 </div>
@@ -7094,38 +7110,38 @@ export default function VampireTable() {
       </section>
 
       {incomingOpposedProposal ? (
-        <div className="opposed-proposal-backdrop" role="dialog" aria-modal="true" aria-label="Встречная проверка">
+        <div className="opposed-proposal-backdrop" role="dialog" aria-modal="true" aria-label={t('Встречная проверка')}>
           <section className="opposed-proposal-modal">
             <header>
               <div>
-                <span>Встречная проверка</span>
-                <strong>{incomingOpposedProposal.fromUsername || 'Игрок'}</strong>
+                <span>{t('Встречная проверка')}</span>
+                <strong>{incomingOpposedProposal.fromUsername || t('Игрок')}</strong>
               </div>
-              <button type="button" onClick={dismissOpposedProposal} aria-label="Закрыть предложение">×</button>
+              <button type="button" onClick={dismissOpposedProposal} aria-label={t('Закрыть предложение')}>×</button>
             </header>
 
             <div className="opposed-proposal-body">
               <section className="opposed-proposal-summary">
                 <div>
-                  <span>Заявленный бросок</span>
+                  <span>{t('Заявленный бросок')}</span>
                   <strong>{incomingOpposedProposal.initiator.actorName}</strong>
                 </div>
-                <p>{incomingOpposedProposal.initiator.poolName}</p>
+                <p>{t(incomingOpposedProposal.initiator.poolName)}</p>
                 <b>{incomingOpposedProposal.initiator.diceCount}к10</b>
               </section>
 
               <section className="opposed-proposal-active">
-                <span>Отвечает</span>
-                <strong>{selectedActiveCharacter?.name || 'Активный персонаж не выбран'}</strong>
+                <span>{t('Отвечает')}</span>
+                <strong>{selectedActiveCharacter?.name || t('Активный персонаж не выбран')}</strong>
               </section>
 
               {renderOpposedResponseControls()}
             </div>
 
             <footer className="opposed-proposal-actions">
-              <button type="button" onClick={dismissOpposedProposal}>Отклонить</button>
+              <button type="button" onClick={dismissOpposedProposal}>{t('Отклонить')}</button>
               <button type="button" className="primary" onClick={answerOpposedProposal} disabled={!canAnswerOpposedProposal}>
-                Бросить ответ {opposedResponsePool.diceCount || 0}к10
+                {tf('Бросить ответ {count}к10', { count: opposedResponsePool.diceCount || 0 })}
               </button>
             </footer>
           </section>
@@ -7133,7 +7149,7 @@ export default function VampireTable() {
       ) : null}
 
       {previewCharacter ? (
-        <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label="Быстрый просмотр персонажа" onMouseDown={() => setPreviewCharacter(null)}>
+        <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label={t('Быстрый просмотр персонажа')} onMouseDown={() => setPreviewCharacter(null)}>
           <section className="character-preview-modal" onMouseDown={event => event.stopPropagation()}>
             <header>
               <div className="character-preview-identity">
@@ -7141,41 +7157,41 @@ export default function VampireTable() {
                   {previewCharacter.image ? <img src={previewCharacter.image} alt="" /> : <span>{previewCharacter.name.slice(0, 1).toUpperCase()}</span>}
                 </div>
                 <div>
-                  <span>{previewCharacter.username || chatUser?.username || 'Игрок'}</span>
+                  <span>{previewCharacter.username || chatUser?.username || t('Игрок')}</span>
                   <strong>{previewCharacter.name}</strong>
-                  <small>{previewCharacter.clan || 'Клан не указан'}</small>
+                  <small>{previewCharacter.clan || t('Клан не указан')}</small>
                 </div>
               </div>
-              <button type="button" onClick={() => setPreviewCharacter(null)} aria-label="Закрыть предпросмотр">×</button>
+              <button type="button" onClick={() => setPreviewCharacter(null)} aria-label={t('Закрыть предпросмотр')}>×</button>
             </header>
-            <nav className="character-preview-tabs" aria-label="Разделы краткого листа">
+            <nav className="character-preview-tabs" aria-label={t('Разделы краткого листа')}>
               <button
                 type="button"
                 className={previewCharacterTab === 'mechanics' ? 'active' : ''}
                 onClick={() => setPreviewCharacterTab('mechanics')}
               >
-                Броски / механика
+                {t('Броски / механика')}
               </button>
               <button
                 type="button"
                 className={previewCharacterTab === 'inventory' ? 'active' : ''}
                 onClick={() => setPreviewCharacterTab('inventory')}
               >
-                Инвентарь <span>{previewCharacter.inventory.length}</span>
+                {t('Инвентарь')} <span>{previewCharacter.inventory.length}</span>
               </button>
             </nav>
             <div className="character-preview-body">
               <dl className="character-preview-summary">
-                <div><dt>Клан</dt><dd>{previewCharacter.clan || '—'}</dd></div>
-                <div><dt>Поколение</dt><dd>{previewCharacter.generation || '—'}</dd></div>
-                <div><dt>Тип</dt><dd>{previewCharacter.type || '—'}</dd></div>
-                <div><dt>Стиль охоты</dt><dd>{previewCharacter.predator || '—'}</dd></div>
-                {previewUsesVampireResources ? <div><dt>Голод</dt><dd>{previewHunger} / 5</dd></div> : null}
-                <div><dt>Здоровье</dt><dd>{previewHealth.current} / {previewHealth.max}</dd></div>
-                <div><dt>Воля</dt><dd>{previewWillpower.current} / {previewWillpower.max}</dd></div>
-                {previewUsesVampireResources ? <div><dt>Человечность</dt><dd>{previewHumanity.value} · Сомнения {previewHumanity.stains}</dd></div> : null}
-                {previewUsesVampireResources ? <div><dt>Сила Крови</dt><dd>{previewBloodPotency}</dd></div> : null}
-                <div><dt>Свободный опыт</dt><dd>{previewCharacter.freeExp ?? 0}</dd></div>
+                <div><dt>{t('Клан')}</dt><dd>{previewCharacter.clan || '—'}</dd></div>
+                <div><dt>{t('Поколение')}</dt><dd>{previewCharacter.generation || '—'}</dd></div>
+                <div><dt>{t('Тип')}</dt><dd>{previewCharacter.type || '—'}</dd></div>
+                <div><dt>{t('Стиль охоты')}</dt><dd>{previewCharacter.predator || '—'}</dd></div>
+                {previewUsesVampireResources ? <div><dt>{t('Голод')}</dt><dd>{previewHunger} / 5</dd></div> : null}
+                <div><dt>{t('Здоровье')}</dt><dd>{previewHealth.current} / {previewHealth.max}</dd></div>
+                <div><dt>{t('Воля')}</dt><dd>{previewWillpower.current} / {previewWillpower.max}</dd></div>
+                {previewUsesVampireResources ? <div><dt>{t('Человечность')}</dt><dd>{tf('{value} · Сомнения {stains}', { value: previewHumanity.value, stains: previewHumanity.stains })}</dd></div> : null}
+                {previewUsesVampireResources ? <div><dt>{t('Сила Крови')}</dt><dd>{previewBloodPotency}</dd></div> : null}
+                <div><dt>{t('Свободный опыт')}</dt><dd>{previewCharacter.freeExp ?? 0}</dd></div>
               </dl>
 
               {previewCharacterTab === 'mechanics' ? (
@@ -7185,23 +7201,23 @@ export default function VampireTable() {
                     {previewUsesVampireResources ? <section className="preview-blood-panel">
                     <div className="preview-section-heading">
                       <div>
-                        <span>Голод и кровь</span>
-                        <h3>Состояние</h3>
+                        <span>{t('Голод и кровь')}</span>
+                        <h3>{t('Состояние')}</h3>
                       </div>
                       <strong>{previewHunger} / 5</strong>
                     </div>
                     <div className="preview-blood-grid">
                       <div>
-                        <span>Голод</span>
+                        <span>{t('Голод')}</span>
                         <b>{'●'.repeat(previewHunger)}{'○'.repeat(5 - previewHunger)}</b>
                       </div>
                       <div>
-                        <span>Сила Крови</span>
+                        <span>{t('Сила Крови')}</span>
                         <b>{previewBloodPotency}</b>
                       </div>
                       {previewSheetFixed ? (
                         <button type="button" onClick={() => rollRouseCheck(previewCharacter)} disabled={!canRollPreview}>
-                          Проверить Голод
+                          {t('Проверить Голод')}
                         </button>
                       ) : null}
                     </div>
@@ -7210,12 +7226,12 @@ export default function VampireTable() {
                     <section className="preview-humanity-panel">
                       <div className="preview-section-heading">
                         <div>
-                          <span>Человечность</span>
-                          <h3>Сомнения и муки совести</h3>
+                          <span>{t('Человечность')}</span>
+                          <h3>{t('Сомнения и муки совести')}</h3>
                         </div>
                         <strong>{previewHumanity.value} / 10</strong>
                       </div>
-                      <div className="preview-humanity-track" aria-label={`Человечность ${previewHumanity.value}, Сомнения ${previewHumanity.stains}`}>
+                      <div className="preview-humanity-track" aria-label={tf('Человечность {value}, Сомнения {stains}', { value: previewHumanity.value, stains: previewHumanity.stains })}>
                         {Array.from({ length: 10 }, (_, index) => {
                           const cell = index + 1
                           const status = cell <= previewHumanity.value
@@ -7227,26 +7243,26 @@ export default function VampireTable() {
                         })}
                       </div>
                       <p className="preview-humanity-caption">
-                        Сомнения {previewHumanity.stains} / {10 - previewHumanity.value} · свободно {previewHumanity.freeBoxes}
+                        {tf('Сомнения {stains} / {remaining} · свободно {free}', { stains: previewHumanity.stains, remaining: 10 - previewHumanity.value, free: previewHumanity.freeBoxes })}
                       </p>
                       {previewHumanity.status === 'at_risk' ? (
-                        <p className="preview-roll-notice warning">Шкала Сомнений заполнена. Следующая проверка почти наверняка приведёт к потере Человечности.</p>
+                        <p className="preview-roll-notice warning">{t('Шкала Сомнений заполнена. Следующая проверка почти наверняка приведёт к потере Человечности.')}</p>
                       ) : null}
                       {previewHumanity.status === 'lost_to_beast' ? (
-                        <p className="preview-roll-notice danger">Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.</p>
+                        <p className="preview-roll-notice danger">{t('Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.')}</p>
                       ) : null}
                       {previewSheetFixed ? (
                         <div className="preview-humanity-actions">
                           <button type="button" onClick={() => addHumanityStains(previewCharacter, 1)} disabled={!canRollPreview}>
-                            + Сомнение
+                            + {t('Сомнение')}
                           </button>
                           <button
                             type="button"
                             onClick={() => performRemorseCheck(previewCharacter)}
                             disabled={!canRollPreview || previewHumanity.stains <= 0}
-                            title={previewHumanity.stains <= 0 ? 'Нет Сомнений для проверки.' : `Пул: ${getRemorseDice(previewHumanity)}к10`}
+                            title={previewHumanity.stains <= 0 ? t('Нет Сомнений для проверки.') : tf('Пул: {dice}к10', { dice: getRemorseDice(previewHumanity) })}
                           >
-                            Проверка мук совести
+                            {t('Проверка мук совести')}
                           </button>
                         </div>
                       ) : null}
@@ -7255,12 +7271,12 @@ export default function VampireTable() {
                   <section className="preview-willpower-panel">
                     <div className="preview-section-heading">
                       <div>
-                        <span>Здоровье</span>
-                        <h3>Повреждения</h3>
+                        <span>{t('Здоровье')}</span>
+                        <h3>{t('Повреждения')}</h3>
                       </div>
                       <strong>{previewHealth.current} / {previewHealth.max}</strong>
                     </div>
-                    <div className="preview-willpower-track" aria-label="Трек Здоровья">
+                    <div className="preview-willpower-track" aria-label={t('Трек Здоровья')}>
                       {Array.from({ length: previewHealth.max }, (_, index) => {
                         const cell = index + 1
                         const status = cell <= previewHealth.aggravated
@@ -7275,29 +7291,29 @@ export default function VampireTable() {
                         )
                       })}
                     </div>
-                    {previewHealth.impaired ? <p className="preview-roll-notice">{getHealthWarning(previewHealth, previewDamageProfile)}</p> : null}
+                    {previewHealth.impaired ? <p className="preview-roll-notice">{t(getHealthWarning(previewHealth, previewDamageProfile))}</p> : null}
                     {previewSheetFixed ? <div className="preview-willpower-actions preview-health-actions">
-                      <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'superficial', { source: 'manual', ignoreHalving: true })} disabled={!canRollPreview}>+ лёгкий</button>
-                      <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'aggravated', { source: 'manual' })} disabled={!canRollPreview}>+ тяжёлый</button>
-                      <button type="button" onClick={() => promptCharacterHealthDamage(previewCharacter)} disabled={!canRollPreview}>+N урона</button>
-                      <button type="button" onClick={() => recoverCharacterHealth(previewCharacter, 1, 'superficial', 'Ручное лечение', 'manual')} disabled={!canRollPreview || previewHealth.superficial < 1}>- лёгкий</button>
-                      <button type="button" onClick={() => recoverCharacterHealth(previewCharacter, 1, 'aggravated', 'Ручное лечение', 'manual')} disabled={!canRollPreview || previewHealth.aggravated < 1}>- тяжёлый</button>
+                      <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'superficial', { source: 'manual', ignoreHalving: true })} disabled={!canRollPreview}>+ {t('лёгкий')}</button>
+                      <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'aggravated', { source: 'manual' })} disabled={!canRollPreview}>+ {t('тяжёлый')}</button>
+                      <button type="button" onClick={() => promptCharacterHealthDamage(previewCharacter)} disabled={!canRollPreview}>{t('+N урона')}</button>
+                      <button type="button" onClick={() => recoverCharacterHealth(previewCharacter, 1, 'superficial', 'Ручное лечение', 'manual')} disabled={!canRollPreview || previewHealth.superficial < 1}>- {t('лёгкий')}</button>
+                      <button type="button" onClick={() => recoverCharacterHealth(previewCharacter, 1, 'aggravated', 'Ручное лечение', 'manual')} disabled={!canRollPreview || previewHealth.aggravated < 1}>- {t('тяжёлый')}</button>
                       <button type="button" onClick={() => mendVampireSuperficial(previewCharacter)} disabled={!canRollPreview || previewHealth.superficial < 1 || !['vampire', 'thinblood'].includes(previewDamageProfile)}>
-                        Заживить лёгкий
+                        {t('Заживить лёгкий')}
                       </button>
                       <button type="button" onClick={() => mendVampireAggravated(previewCharacter)} disabled={!canRollPreview || previewHealth.aggravated < 1 || !['vampire', 'thinblood'].includes(previewDamageProfile)}>
-                        Заживить тяжёлый
+                        {t('Заживить тяжёлый')}
                       </button>
                       <button type="button" onClick={() => recoverMortalHealth(previewCharacter)} disabled={!canRollPreview || previewHealth.superficial < 1 || !['mortal', 'ghoul', 'custom'].includes(previewDamageProfile)}>
-                        Восстановление смертного
+                        {t('Восстановление смертного')}
                       </button>
                       <button type="button" onClick={() => treatMortalHealth(previewCharacter)} disabled={!canRollPreview || previewHealth.aggravated < 1 || !['mortal', 'ghoul', 'custom'].includes(previewDamageProfile)}>
-                        Лечение смертного
+                        {t('Лечение смертного')}
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          if (window.confirm('Полностью очистить шкалу здоровья?')) {
+                          if (window.confirm(t('Полностью очистить шкалу здоровья?'))) {
                             void updateCharacterHealth(previewCharacter.id, normalizeHealthTracker({
                               ...toHealthTracker(previewHealth),
                               superficial: 0,
@@ -7307,13 +7323,13 @@ export default function VampireTable() {
                         }}
                         disabled={!canRollPreview || (!previewHealth.superficial && !previewHealth.aggravated)}
                       >
-                        Очистить
+                        {t('Очистить')}
                       </button>
                       <button
                         type="button"
                         onClick={() => {
                           const stateName = previewDamageProfile === 'vampire' ? 'торпор' : 'кому/смерть'
-                          if (window.confirm(`Отметить ${stateName} и заполнить шкалу тяжёлыми повреждениями?`)) {
+                          if (window.confirm(tf('Отметить {state} и заполнить шкалу тяжёлыми повреждениями?', { state: t(stateName) }))) {
                             void updateCharacterHealth(previewCharacter.id, normalizeHealthTracker({
                               ...toHealthTracker(previewHealth),
                               superficial: 0,
@@ -7323,21 +7339,21 @@ export default function VampireTable() {
                         }}
                         disabled={!canRollPreview}
                       >
-                        Торпор/кома
+                        {t('Торпор/кома')}
                       </button>
                     </div> : null}
-                    {previewDamageProfile === 'thinblood' ? <p className="preview-roll-notice">Слабокровные получают часть урона ближе к смертным.</p> : null}
-                    {previewUsesVampireResources ? <p className="preview-roll-notice">Сила Крови {previewBloodPotency}: за Испытание Крови лечит {getSuperficialMendAmount(previewBloodPotency)} лёгк.</p> : null}
+                    {previewDamageProfile === 'thinblood' ? <p className="preview-roll-notice">{t('Слабокровные получают часть урона ближе к смертным.')}</p> : null}
+                    {previewUsesVampireResources ? <p className="preview-roll-notice">{tf('Сила Крови {potency}: за Испытание Крови лечит {amount} лёгк.', { potency: previewBloodPotency, amount: getSuperficialMendAmount(previewBloodPotency) })}</p> : null}
                   </section>
                   <section className="preview-willpower-panel">
                     <div className="preview-section-heading">
                       <div>
-                        <span>Воля</span>
-                        <h3>Стресс</h3>
+                        <span>{t('Воля')}</span>
+                        <h3>{t('Стресс')}</h3>
                       </div>
                       <strong>{previewWillpower.current} / {previewWillpower.max}</strong>
                     </div>
-                    <div className="preview-willpower-track" aria-label="Трек Воли">
+                    <div className="preview-willpower-track" aria-label={t('Трек Воли')}>
                       {Array.from({ length: previewWillpower.max }, (_, index) => {
                         const cell = index + 1
                         const status = cell <= previewWillpower.aggravated
@@ -7352,28 +7368,28 @@ export default function VampireTable() {
                         )
                       })}
                     </div>
-                    {previewWillpower.impaired ? <p className="preview-roll-notice">Трек заполнен: ментальные и социальные проверки получают -2к10.</p> : null}
+                    {previewWillpower.impaired ? <p className="preview-roll-notice">{t('Трек заполнен: ментальные и социальные проверки получают -2к10.')}</p> : null}
                     {previewSheetFixed ? <div className="preview-willpower-actions">
                       <button type="button" onClick={() => spendWillpower(previewCharacter, 1, 'Воля: трата')} disabled={!canRollPreview || previewWillpower.aggravated >= previewWillpower.max}>
-                        Потратить
+                        {t('Потратить')}
                       </button>
                       <button type="button" onClick={() => rollWillpowerCheck(previewCharacter)} disabled={!canRollPreview || previewWillpower.current < 1}>
-                        Проверка Воли
+                        {t('Проверка Воли')}
                       </button>
                       <button type="button" onClick={() => recoverWillpower(previewCharacter, getWillpowerRecoveryPool(previewCharacter), 'superficial', 'Воля: начало встречи')} disabled={!canRollPreview || previewWillpower.superficial < 1}>
-                        Встреча
+                        {t('Встреча')}
                       </button>
                       <button type="button" onClick={() => recoverWillpower(previewCharacter, 1, 'superficial', 'Воля: Прихоть')} disabled={!canRollPreview || previewWillpower.superficial < 1}>
-                        Прихоть +1
+                        {t('Прихоть +1')}
                       </button>
                       <button
                         type="button"
                         onClick={() => {
-                          if (window.confirm('Снять один тяжёлый стресс Воли?')) void recoverWillpower(previewCharacter, 1, 'aggravated', 'Воля: восстановление тяжёлого стресса')
+                          if (window.confirm(t('Снять один тяжёлый стресс Воли?'))) void recoverWillpower(previewCharacter, 1, 'aggravated', 'Воля: восстановление тяжёлого стресса')
                         }}
                         disabled={!canRollPreview || previewWillpower.aggravated < 1}
                       >
-                        Снять X
+                        {t('Снять X')}
                       </button>
                       <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'superficial', 1)} disabled={!canRollPreview}>+ /</button>
                       <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'superficial', -1)} disabled={!canRollPreview}>- /</button>
@@ -7385,86 +7401,86 @@ export default function VampireTable() {
                   ) : (
                     <section className="preview-creation-vitals">
                       <div>
-                        <span>Лист ещё не зафиксирован</span>
-                        <strong>Стартовые значения</strong>
+                        <span>{t('Лист ещё не зафиксирован')}</span>
+                        <strong>{t('Стартовые значения')}</strong>
                       </div>
                       <dl>
-                        <div><dt>Здоровье</dt><dd>{previewHealth.max}</dd></div>
-                        <div><dt>Воля</dt><dd>{previewWillpower.max}</dd></div>
-                        {previewUsesVampireResources ? <div><dt>Человечность</dt><dd>{previewHumanity.value}</dd></div> : null}
-                        {previewUsesVampireResources ? <div><dt>Голод</dt><dd>{previewHunger}</dd></div> : null}
-                        {previewUsesVampireResources ? <div><dt>Сила Крови</dt><dd>{previewBloodPotency}</dd></div> : null}
+                        <div><dt>{t('Здоровье')}</dt><dd>{previewHealth.max}</dd></div>
+                        <div><dt>{t('Воля')}</dt><dd>{previewWillpower.max}</dd></div>
+                        {previewUsesVampireResources ? <div><dt>{t('Человечность')}</dt><dd>{previewHumanity.value}</dd></div> : null}
+                        {previewUsesVampireResources ? <div><dt>{t('Голод')}</dt><dd>{previewHunger}</dd></div> : null}
+                        {previewUsesVampireResources ? <div><dt>{t('Сила Крови')}</dt><dd>{previewBloodPotency}</dd></div> : null}
                       </dl>
                     </section>
                   )}
                   <section className="preview-roll-builder">
                     <div className="preview-section-heading">
                       <div>
-                        <span>Пул костей</span>
-                        <h3>Собрать бросок</h3>
+                        <span>{t('Пул костей')}</span>
+                        <h3>{t('Собрать бросок')}</h3>
                       </div>
                       <strong>{previewDiceCount}к10</strong>
                     </div>
                     <div className="preview-roll-controls">
                       <label>
-                        <span>Характеристика 1</span>
+                        <span>{t('Характеристика 1')}</span>
                         <select value={previewRollAttribute} onChange={event => setPreviewRollAttribute(event.target.value)}>
-                          <option value="">Без характеристики</option>
+                          <option value="">{t('Без характеристики')}</option>
                           {ATTRIBUTE_GROUPS.map(group => (
-                            <optgroup key={group.name} label={group.name}>
-                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
+                            <optgroup key={group.name} label={t(group.name)}>
+                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{t(name)} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
                             </optgroup>
                           ))}
                           {previewExtraAttributes.length ? (
-                            <optgroup label="Другие">
+                            <optgroup label={t('Другие')}>
                               {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
                             </optgroup>
                           ) : null}
                         </select>
                       </label>
                       <label>
-                        <span>Характеристика 2</span>
+                        <span>{t('Характеристика 2')}</span>
                         <select value={previewRollAttributeTwo} onChange={event => setPreviewRollAttributeTwo(event.target.value)}>
-                          <option value="">Без второй характеристики</option>
+                          <option value="">{t('Без второй характеристики')}</option>
                           {ATTRIBUTE_GROUPS.map(group => (
-                            <optgroup key={group.name} label={group.name}>
-                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
+                            <optgroup key={group.name} label={t(group.name)}>
+                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{t(name)} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
                             </optgroup>
                           ))}
                           {previewExtraAttributes.length ? (
-                            <optgroup label="Другие">
+                            <optgroup label={t('Другие')}>
                               {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
                             </optgroup>
                           ) : null}
                         </select>
                       </label>
                       <label>
-                        <span>Навык</span>
+                        <span>{t('Навык')}</span>
                         <select value={previewRollSkill} onChange={event => setPreviewRollSkill(event.target.value)}>
-                          <option value="">Без навыка</option>
+                          <option value="">{t('Без навыка')}</option>
                           {SKILL_GROUPS.map(group => (
-                            <optgroup key={group.name} label={group.name}>
-                              {group.traits.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(previewCharacter.skills, name))}</option>)}
+                            <optgroup key={group.name} label={t(group.name)}>
+                              {group.traits.map(name => <option key={name} value={name}>{t(name)} · {getSkillDots(resolveSkillValue(previewCharacter.skills, name))}</option>)}
                             </optgroup>
                           ))}
                           {previewExtraSkills.length ? (
-                            <optgroup label="Другие">
+                            <optgroup label={t('Другие')}>
                               {previewExtraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(previewCharacter.skills, name))}</option>)}
                             </optgroup>
                           ) : null}
                         </select>
                       </label>
                       <label>
-                        <span>Дисциплина</span>
+                        <span>{t('Дисциплина')}</span>
                         <select value={previewRollDiscipline} onChange={event => setPreviewRollDiscipline(event.target.value)}>
-                          <option value="">Без дисциплины</option>
+                          <option value="">{t('Без дисциплины')}</option>
                           {previewDisciplineNames.map(name => (
                             <option key={name} value={name}>{name} · {getDisciplineDots(previewCharacter.disciplines[name] || {})}</option>
                           ))}
                         </select>
                       </label>
                       <label className="preview-modifier-field">
-                        <span>Модификатор</span>
+                        <span>{t('Модификатор')}</span>
                         <input
                           type="number"
                           min="-20"
@@ -7474,7 +7490,7 @@ export default function VampireTable() {
                         />
                       </label>
                       {previewUsesVampireResources ? <label className="preview-blood-surge-toggle">
-                        <span>Прилив Крови +{previewBloodSurgeBonus}к10</span>
+                        <span>{tf('Прилив Крови +{bonus}к10', { bonus: previewBloodSurgeBonus })}</span>
                         <input
                           type="checkbox"
                           checked={previewBloodSurgeEnabled}
@@ -7482,7 +7498,7 @@ export default function VampireTable() {
                         />
                       </label> : null}
                       <label className="roll-mode-field">
-                        <span>Тип броска</span>
+                        <span>{t('Тип броска')}</span>
                         <select
                           value={previewRollMode}
                           onChange={event => {
@@ -7491,19 +7507,19 @@ export default function VampireTable() {
                             if (nextMode === 'normal') setPreviewContestedOpponentId('')
                           }}
                         >
-                          <option value="normal">Обычный бросок</option>
-                          <option value="contested">Встречный бросок</option>
+                          <option value="normal">{t('Обычный бросок')}</option>
+                          <option value="contested">{t('Встречный бросок')}</option>
                         </select>
                       </label>
                       {previewRollMode === 'contested' ? (
                         <label className="contested-opponent-field">
-                          <span>Оппонент</span>
+                          <span>{t('Оппонент')}</span>
                           <select
                             value={previewContestedOpponentId}
                             onChange={event => setPreviewContestedOpponentId(event.target.value)}
                             disabled={previewContestedOpponentOptions.length === 0}
                           >
-                            <option value="">{previewContestedOpponentOptions.length ? 'Выбрать оппонента' : 'Нет доступных оппонентов'}</option>
+                            <option value="">{previewContestedOpponentOptions.length ? t('Выбрать оппонента') : t('Нет доступных оппонентов')}</option>
                             {previewContestedOpponentOptions.map(option => (
                               <option key={option.id} value={option.id}>{option.label}</option>
                             ))}
@@ -7516,10 +7532,10 @@ export default function VampireTable() {
                         onClick={rollPreviewPool}
                         disabled={!canRollPreview || previewDiceCount < 1 || (previewRollMode === 'contested' && !selectedPreviewContestedOpponent)}
                       >
-                        {previewRollMode === 'contested' ? 'Запросить встречный' : 'Бросить'} {Math.min(20, previewDiceCount + (previewBloodSurgeEnabled ? previewBloodSurgeBonus : 0)) || 0}к10
+                        {previewRollMode === 'contested' ? t('Запросить встречный') : t('Бросить')} {Math.min(20, previewDiceCount + (previewBloodSurgeEnabled ? previewBloodSurgeBonus : 0)) || 0}к10
                       </button>
                     </div>
-                    <div className="quick-roll-grid" aria-label="Быстрые броски">
+                    <div className="quick-roll-grid" aria-label={t('Быстрые броски')}>
                       {[1, 3, 5, 7].map(count => (
                         <button
                           type="button"
@@ -7534,18 +7550,18 @@ export default function VampireTable() {
                         </button>
                       ))}
                     </div>
-                    {!canRollPreview ? <p className="preview-roll-notice">Бросать может мастер или владелец активного персонажа.</p> : null}
-                    {previewPoolBeforeLimit > 20 ? <p className="preview-roll-notice">Пул ограничен двадцатью костями.</p> : null}
-                    {previewWillpowerImpairmentPenalty ? <p className="preview-roll-notice">Истощение Воли: -2к10 к этому пулу.</p> : null}
-                    {previewHealthImpairmentPenalty ? <p className="preview-roll-notice">Изнурение по здоровью: -2к10 к этому пулу.</p> : null}
+                    {!canRollPreview ? <p className="preview-roll-notice">{t('Бросать может мастер или владелец активного персонажа.')}</p> : null}
+                    {previewPoolBeforeLimit > 20 ? <p className="preview-roll-notice">{t('Пул ограничен двадцатью костями.')}</p> : null}
+                    {previewWillpowerImpairmentPenalty ? <p className="preview-roll-notice">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
+                    {previewHealthImpairmentPenalty ? <p className="preview-roll-notice">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
                   </section>
 
                   <section className="preview-trait-section">
-                    <div className="preview-section-heading"><h3>Характеристики</h3><span>Можно выбрать две характеристики</span></div>
+                    <div className="preview-section-heading"><h3>{t('Характеристики')}</h3><span>{t('Можно выбрать две характеристики')}</span></div>
                     <div className="preview-trait-columns">
                       {ATTRIBUTE_GROUPS.map(group => (
                         <div className="preview-trait-group" key={group.name}>
-                          <h4>{group.name}</h4>
+                          <h4>{t(group.name)}</h4>
                           {group.traits.map(name => {
                             const dots = getAttributeDots(previewCharacter.attributes, name)
                             return (
@@ -7555,7 +7571,7 @@ export default function VampireTable() {
                                 className={previewRollAttribute === name || previewRollAttributeTwo === name ? 'active' : ''}
                                 onClick={() => togglePreviewAttribute(name)}
                               >
-                                <span>{name}</span><i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i>
+                                <span>{t(name)}</span><i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i>
                               </button>
                             )
                           })}
@@ -7563,12 +7579,12 @@ export default function VampireTable() {
                       ))}
                       {previewExtraAttributes.length ? (
                         <div className="preview-trait-group">
-                          <h4>Другие</h4>
+                          <h4>{t('Другие')}</h4>
                           {previewExtraAttributes.map(name => {
                             const dots = getAttributeDots(previewCharacter.attributes, name)
                             return (
                               <button type="button" key={name} className={previewRollAttribute === name || previewRollAttributeTwo === name ? 'active' : ''} onClick={() => togglePreviewAttribute(name)}>
-                                <span>{name}</span><i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i>
+                                <span>{name}</span><i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i>
                               </button>
                             )
                           })}
@@ -7578,11 +7594,11 @@ export default function VampireTable() {
                   </section>
 
                   <section className="preview-trait-section">
-                    <div className="preview-section-heading"><h3>Навыки</h3><span>Специализации указаны под навыком</span></div>
+                    <div className="preview-section-heading"><h3>{t('Навыки')}</h3><span>{t('Специализации указаны под навыком')}</span></div>
                     <div className="preview-trait-columns skills">
                       {SKILL_GROUPS.map(group => (
                         <div className="preview-trait-group" key={group.name}>
-                          <h4>{group.name}</h4>
+                          <h4>{t(group.name)}</h4>
                           {group.traits.map(name => {
                             const value = resolveSkillValue(previewCharacter.skills, name)
                             const dots = getSkillDots(value)
@@ -7594,8 +7610,8 @@ export default function VampireTable() {
                                 className={previewRollSkill === name ? 'active' : ''}
                                 onClick={() => setPreviewRollSkill(current => current === name ? '' : name)}
                               >
-                                <span>{name}{specs.length ? <small>{specs.join(', ')}</small> : null}</span>
-                                <i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i>
+                                <span>{t(name)}{specs.length ? <small>{specs.join(', ')}</small> : null}</span>
+                                <i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i>
                               </button>
                             )
                           })}
@@ -7603,7 +7619,7 @@ export default function VampireTable() {
                       ))}
                       {previewExtraSkills.length ? (
                         <div className="preview-trait-group">
-                          <h4>Другие</h4>
+                          <h4>{t('Другие')}</h4>
                           {previewExtraSkills.map(name => {
                             const value = resolveSkillValue(previewCharacter.skills, name)
                             const dots = getSkillDots(value)
@@ -7611,7 +7627,7 @@ export default function VampireTable() {
                             return (
                               <button type="button" key={name} className={previewRollSkill === name ? 'active' : ''} onClick={() => setPreviewRollSkill(current => current === name ? '' : name)}>
                                 <span>{name}{specs.length ? <small>{specs.join(', ')}</small> : null}</span>
-                                <i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i>
+                                <i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i>
                               </button>
                             )
                           })}
@@ -7621,9 +7637,9 @@ export default function VampireTable() {
                   </section>
 
                   <section className="preview-trait-section">
-                    <div className="preview-section-heading"><h3>Дисциплины и способности</h3><span>Нажми дисциплину, чтобы открыть силы</span></div>
+                    <div className="preview-section-heading"><h3>{t('Дисциплины и способности')}</h3><span>{t('Нажми дисциплину, чтобы открыть силы')}</span></div>
                     {previewDisciplineNames.length === 0 ? (
-                      <p className="character-preview-empty">Дисциплины не сохранены.</p>
+                      <p className="character-preview-empty">{t('Дисциплины не сохранены.')}</p>
                     ) : (
                       <div className="preview-discipline-list">
                         {previewDisciplineNames.map(name => {
@@ -7631,8 +7647,8 @@ export default function VampireTable() {
                           const powers = getSelectedPowerNames(previewCharacter.selectedPowers[name])
                           return (
                             <button type="button" className="preview-discipline-card" key={name} onClick={() => openPreviewDiscipline(name)}>
-                              <span><strong>{name}</strong><i aria-label={`${dots} из 5`}>{getDotDisplay(dots)}</i></span>
-                              {powers.length ? <p>{powers.join(' · ')}</p> : <p>Открыть описание и доступные силы</p>}
+                              <span><strong>{name}</strong><i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i></span>
+                              {powers.length ? <p>{powers.join(' · ')}</p> : <p>{t('Открыть описание и доступные силы')}</p>}
                             </button>
                           )
                         })}
@@ -7643,28 +7659,28 @@ export default function VampireTable() {
               ) : (
                 <div className="character-inventory-sheet">
                   <div className="preview-section-heading">
-                    <div><span>Снаряжение персонажа</span><h3>Инвентарь</h3></div>
+                    <div><span>{t('Снаряжение персонажа')}</span><h3>{t('Инвентарь')}</h3></div>
                     <strong>{previewCharacter.inventory.length}</strong>
                   </div>
                   {canEditPreviewInventory ? (
                     <form className="quick-inventory-form" onSubmit={addQuickInventoryItem}>
                       <label className="quick-inventory-name">
-                        <span>Новый предмет</span>
+                        <span>{t('Новый предмет')}</span>
                         <input
                           value={quickInventoryName}
                           onChange={event => setQuickInventoryName(event.target.value)}
-                          placeholder="Название"
+                          placeholder={t('Название')}
                           maxLength={120}
                         />
                       </label>
                       <label>
-                        <span>Категория</span>
+                        <span>{t('Категория')}</span>
                         <select value={quickInventoryCategory} onChange={event => setQuickInventoryCategory(event.target.value as (typeof INVENTORY_CATEGORIES)[number])}>
-                          {INVENTORY_CATEGORIES.map(category => <option value={category} key={category}>{category}</option>)}
+                          {INVENTORY_CATEGORIES.map(category => <option value={category} key={category}>{t(category)}</option>)}
                         </select>
                       </label>
                       <label className="quick-inventory-quantity">
-                        <span>Количество</span>
+                        <span>{t('Количество')}</span>
                         <input
                           type="number"
                           min="0"
@@ -7674,28 +7690,28 @@ export default function VampireTable() {
                         />
                       </label>
                       <button type="submit" disabled={!quickInventoryName.trim() || isQuickInventoryBusy}>
-                        {isQuickInventoryBusy ? 'Сохраняю...' : 'Добавить'}
+                        {isQuickInventoryBusy ? t('Сохраняю...') : t('Добавить')}
                       </button>
                     </form>
                   ) : (
-                    <p className="quick-inventory-readonly">Добавлять предметы может владелец активного персонажа.</p>
+                    <p className="quick-inventory-readonly">{t('Добавлять предметы может владелец активного персонажа.')}</p>
                   )}
-                  {quickInventoryStatus ? <p className="quick-inventory-status" role="status">{quickInventoryStatus}</p> : null}
+                  {quickInventoryStatus ? <p className="quick-inventory-status" role="status">{t(quickInventoryStatus)}</p> : null}
                   {previewCharacter.inventory.length === 0 ? (
-                    <p className="character-preview-empty">Инвентарь пуст.</p>
+                    <p className="character-preview-empty">{t('Инвентарь пуст.')}</p>
                   ) : (
                     <div className="preview-inventory-list">
                       {previewCharacter.inventory.map(item => (
                         <article key={item.id}>
                           <header>
-                            <div><strong>{item.name || 'Без названия'}</strong><span>{item.category || 'Без категории'}</span></div>
-                            <b aria-label={`Количество: ${item.quantity ?? 1}`}>×{item.quantity ?? 1}</b>
+                            <div><strong>{item.name || t('Без названия')}</strong><span>{t(item.category) || t('Без категории')}</span></div>
+                            <b aria-label={tf('Количество: {quantity}', { quantity: item.quantity ?? 1 })}>×{item.quantity ?? 1}</b>
                           </header>
                           {item.description ? <p>{item.description}</p> : null}
-                          {item.note ? <aside><span>Заметка</span>{item.note}</aside> : null}
+                          {item.note ? <aside><span>{t('Заметка')}</span>{item.note}</aside> : null}
                           {canEditPreviewInventory && !isMaster ? (
                             <footer>
-                              <button type="button" onClick={() => showInventoryItemToMaster(item)}>Показать мастеру</button>
+                              <button type="button" onClick={() => showInventoryItemToMaster(item)}>{t('Показать мастеру')}</button>
                             </footer>
                           ) : null}
                         </article>
@@ -7707,47 +7723,47 @@ export default function VampireTable() {
             </div>
             <footer className="character-preview-actions">
               {previewCharacter.id && previewCharacter.id === selectedActiveCharacter?.id ? (
-                <button type="button" onClick={addExperienceToActiveCharacter}>Добавить опыт</button>
+                <button type="button" onClick={addExperienceToActiveCharacter}>{t('Добавить опыт')}</button>
               ) : null}
-              <a href={getCharacterSheetHref(previewCharacter.id)}>Открыть полный лист</a>
-              <button type="button" onClick={() => setPreviewCharacter(null)}>Закрыть</button>
+              <a href={getCharacterSheetHref(previewCharacter.id)}>{t('Открыть полный лист')}</a>
+              <button type="button" onClick={() => setPreviewCharacter(null)}>{t('Закрыть')}</button>
             </footer>
           </section>
         </div>
       ) : null}
 
       {previewCharacter && previewDisciplineName ? (
-        <div className="discipline-detail-backdrop" role="dialog" aria-modal="true" aria-label={`Дисциплина ${previewDisciplineName}`} onMouseDown={() => setPreviewDisciplineName('')}>
+        <div className="discipline-detail-backdrop" role="dialog" aria-modal="true" aria-label={tf('Дисциплина {name}', { name: previewDisciplineName })} onMouseDown={() => setPreviewDisciplineName('')}>
           <section className="discipline-detail-modal" onMouseDown={event => event.stopPropagation()}>
             <header>
               <div>
-                <span>Дисциплина · {previewOpenedDisciplineDots} точек</span>
+                <span>{tf('Дисциплина · {dots} точек', { dots: previewOpenedDisciplineDots })}</span>
                 <strong>{previewDisciplineName}</strong>
               </div>
-              <button type="button" onClick={() => setPreviewDisciplineName('')} aria-label="Закрыть описание дисциплины">×</button>
+              <button type="button" onClick={() => setPreviewDisciplineName('')} aria-label={t('Закрыть описание дисциплины')}>×</button>
             </header>
 
             {disciplineRulesStatus ? (
-              <div className="discipline-detail-status">{disciplineRulesStatus}</div>
+              <div className="discipline-detail-status">{t(disciplineRulesStatus)}</div>
             ) : !previewDisciplineRule ? (
-              <div className="discipline-detail-status">Описание этой дисциплины не найдено в правилах.</div>
+              <div className="discipline-detail-status">{t('Описание этой дисциплины не найдено в правилах.')}</div>
             ) : (
               <div className="discipline-detail-layout">
                 <aside className="discipline-detail-sidebar">
                   <div className="discipline-description">
-                    <p>{previewDisciplineRule.description || 'Описание отсутствует.'}</p>
+                    <p>{previewDisciplineRule.description || t('Описание отсутствует.')}</p>
                     {previewDisciplineRule.system ? (
                       <dl>
                         {Object.entries(previewDisciplineRule.system).map(([key, value]) => (
                           <div key={key}>
-                            <dt>{key === 'type' ? 'Тип' : key === 'masquerade' ? 'Маскарад' : key === 'resonance' ? 'Резонанс' : key === 'limitations' ? 'Ограничения' : key}</dt>
+                            <dt>{key === 'type' ? t('Тип') : key === 'masquerade' ? t('Маскарад') : key === 'resonance' ? t('Резонанс') : key === 'limitations' ? t('Ограничения') : key}</dt>
                             <dd>{formatRuleValue(value)}</dd>
                           </div>
                         ))}
                       </dl>
                     ) : null}
                   </div>
-                  <nav className="discipline-power-list" aria-label="Силы дисциплины">
+                  <nav className="discipline-power-list" aria-label={t('Силы дисциплины')}>
                     {previewDisciplinePowers.length ? previewDisciplinePowers.map(power => (
                       <button
                         type="button"
@@ -7755,11 +7771,11 @@ export default function VampireTable() {
                         className={previewPowerName === power.name ? 'active' : ''}
                         onClick={() => setPreviewPowerName(power.name)}
                       >
-                        <span>Уровень {power.level}</span>
+                        <span>{tf('Уровень {level}', { level: power.level })}</span>
                         <strong>{power.name}</strong>
                       </button>
                     )) : (
-                      <p>Для текущего уровня нет выбранных сил.</p>
+                      <p>{t('Для текущего уровня нет выбранных сил.')}</p>
                     )}
                   </nav>
                 </aside>
@@ -7768,38 +7784,38 @@ export default function VampireTable() {
                   {selectedPreviewPower ? (
                     <>
                       <div className="discipline-power-title">
-                        <div><span>Уровень {selectedPreviewPower.level}</span><h3>{selectedPreviewPower.name}</h3></div>
+                        <div><span>{tf('Уровень {level}', { level: selectedPreviewPower.level })}</span><h3>{selectedPreviewPower.name}</h3></div>
                         <i>{getDotDisplay(selectedPreviewPower.level)}</i>
                       </div>
-                      <p className="discipline-power-description">{selectedPreviewPower.rule.description || 'Описание отсутствует.'}</p>
+                      <p className="discipline-power-description">{selectedPreviewPower.rule.description || t('Описание отсутствует.')}</p>
                       <dl className="discipline-power-facts">
-                        <div><dt>Бросок</dt><dd>{selectedPreviewPowerRollSummary || '—'}</dd></div>
-                        <div><dt>Сложность</dt><dd>{selectedPreviewPowerDifficultySummary || '—'}</dd></div>
-                        <div><dt>Стоимость</dt><dd>{selectedPreviewPower.rule.cost || '—'}</dd></div>
+                        <div><dt>{t('Бросок')}</dt><dd>{selectedPreviewPowerRollSummary || '—'}</dd></div>
+                        <div><dt>{t('Сложность')}</dt><dd>{selectedPreviewPowerDifficultySummary || '—'}</dd></div>
+                        <div><dt>{t('Стоимость')}</dt><dd>{selectedPreviewPower.rule.cost || '—'}</dd></div>
                         {selectedPreviewPowerWillpowerCost.spendWillpower || selectedPreviewPowerWillpowerCost.reduceWillpowerRating || selectedPreviewPowerWillpowerCost.manualChoice ? (
                           <div>
-                            <dt>Воля</dt>
+                            <dt>{t('Воля')}</dt>
                             <dd>
                               {selectedPreviewPowerWillpowerCost.reduceWillpowerRating
-                                ? `проверь снижение рейтинга: ${selectedPreviewPowerWillpowerCost.reduceWillpowerRating}`
+                                ? tf('проверь снижение рейтинга: {rating}', { rating: selectedPreviewPowerWillpowerCost.reduceWillpowerRating })
                                 : selectedPreviewPowerWillpowerCost.manualChoice
-                                  ? 'добровольная трата'
-                                  : `${selectedPreviewPowerWillpowerCost.spendWillpower} пункт`}
+                                  ? t('добровольная трата')
+                                  : tf('{n} пункт', { n: selectedPreviewPowerWillpowerCost.spendWillpower })}
                             </dd>
                           </div>
                         ) : null}
-                        <div><dt>Длительность</dt><dd>{selectedPreviewPower.rule.duration || '—'}</dd></div>
+                        <div><dt>{t('Длительность')}</dt><dd>{selectedPreviewPower.rule.duration || '—'}</dd></div>
                       </dl>
                       {selectedPreviewPower.rule.effect ? (
                         <section className="discipline-power-effect">
-                          <h4>Эффект</h4>
+                          <h4>{t('Эффект')}</h4>
                           <p>{selectedPreviewPower.rule.effect}</p>
                         </section>
                       ) : null}
 
                       <section className="discipline-power-roll">
                         <div className="preview-section-heading">
-                          <div><span>По формуле силы</span><h3>Бросок</h3></div>
+                          <div><span>{t('По формуле силы')}</span><h3>{t('Бросок')}</h3></div>
                           <strong>{previewPowerDiceCount}к10</strong>
                         </div>
                         {previewPowerPoolChoices.length ? (
@@ -7807,7 +7823,7 @@ export default function VampireTable() {
                             <div className="discipline-power-roll-controls">
                               {previewPowerPoolChoices.map((choice, index) => (
                                 <label key={`${choice.source}-${index}`}>
-                                  <span>Часть пула {index + 1}</span>
+                                  <span>{tf('Часть пула {n}', { n: index + 1 })}</span>
                                   <select
                                     value={previewPowerPoolSelections[index] || ''}
                                     onChange={event => setPreviewPowerPoolSelections(current => current.map((value, currentIndex) => currentIndex === index ? event.target.value : value))}
@@ -7819,7 +7835,7 @@ export default function VampireTable() {
                                 </label>
                               ))}
                               <label>
-                                <span>Модификатор</span>
+                                <span>{t('Модификатор')}</span>
                                 <input
                                   type="number"
                                   min="-20"
@@ -7829,32 +7845,32 @@ export default function VampireTable() {
                                 />
                               </label>
                               <button type="button" onClick={rollPreviewPower} disabled={!canRollPreview || previewPowerDiceCount < 1}>
-                                Бросить {previewPowerDiceCount}к10
+                                {tf('Бросить {count}к10', { count: previewPowerDiceCount })}
                               </button>
                             </div>
-                            {previewPowerOpposition ? <p className="discipline-roll-opposition">Сопротивление цели: {previewPowerOpposition}</p> : null}
-                            {selectedPreviewPowerRollFormula !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">Используется формула силы «{selectedPreviewPowerRollFormula.replace(/^как\s+/i, '')}».</p> : null}
-                            {previewPowerWillpowerImpairmentPenalty ? <p className="discipline-roll-opposition">Истощение Воли: -2к10 к этому пулу.</p> : null}
-                            {previewPowerHealthImpairmentPenalty ? <p className="discipline-roll-opposition">Изнурение по здоровью: -2к10 к этому пулу.</p> : null}
-                            {selectedPreviewPowerWillpowerCost.warnings.map((warning, index) => <p className="discipline-roll-opposition" key={`wp-cost-warning-${index}`}>{warning}</p>)}
+                            {previewPowerOpposition ? <p className="discipline-roll-opposition">{tf('Сопротивление цели: {value}', { value: previewPowerOpposition })}</p> : null}
+                            {selectedPreviewPowerRollFormula !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">{tf('Используется формула силы «{formula}».', { formula: selectedPreviewPowerRollFormula.replace(/^как\s+/i, '') })}</p> : null}
+                            {previewPowerWillpowerImpairmentPenalty ? <p className="discipline-roll-opposition">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
+                            {previewPowerHealthImpairmentPenalty ? <p className="discipline-roll-opposition">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
+                            {selectedPreviewPowerWillpowerCost.warnings.map((warning, index) => <p className="discipline-roll-opposition" key={`wp-cost-warning-${index}`}>{t(warning)}</p>)}
                           </>
                         ) : (
                           selectedPreviewPowerRouseCost.rouseChecks > 0 || (selectedPreviewPowerWillpowerCost.spendWillpower > 0 && !selectedPreviewPowerWillpowerCost.manualChoice) ? (
                             <div className="discipline-activation-only">
                               <button type="button" onClick={rollPreviewPower} disabled={!canRollPreview}>
-                                Активировать силу
+                                {t('Активировать силу')}
                               </button>
-                              <p className="discipline-no-roll">У силы нет автоматического пула, но есть цена: {selectedPreviewPower.rule.cost || 'Испытание Крови'}.</p>
+                              <p className="discipline-no-roll">{tf('У силы нет автоматического пула, но есть цена: {cost}.', { cost: selectedPreviewPower.rule.cost || t('Испытание Крови') })}</p>
                             </div>
                           ) : (
-                            <p className="discipline-no-roll">Для этой силы отдельный автоматический бросок не требуется или его пул зависит от ситуации. При необходимости используй конструктор броска в кратком листе.</p>
+                            <p className="discipline-no-roll">{t('Для этой силы отдельный автоматический бросок не требуется или его пул зависит от ситуации. При необходимости используй конструктор броска в кратком листе.')}</p>
                           )
                         )}
-                        {!canRollPreview ? <p className="discipline-roll-opposition">Бросать может мастер или владелец активного персонажа.</p> : null}
+                        {!canRollPreview ? <p className="discipline-roll-opposition">{t('Бросать может мастер или владелец активного персонажа.')}</p> : null}
                       </section>
                     </>
                   ) : (
-                    <div className="discipline-detail-status">Выбери силу слева.</div>
+                    <div className="discipline-detail-status">{t('Выбери силу слева.')}</div>
                   )}
                 </main>
               </div>
@@ -7864,14 +7880,14 @@ export default function VampireTable() {
       ) : null}
 
       {previewLayer ? (
-        <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label="Предпросмотр медиа" onMouseDown={() => setPreviewLayerId(null)}>
+        <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label={t('Предпросмотр медиа')} onMouseDown={() => setPreviewLayerId(null)}>
           <section className="media-preview-modal" onMouseDown={event => event.stopPropagation()}>
             <header>
               <div>
-                <span>{previewLayer.ownerRole === 'master' ? 'Мастер' : 'Игрок'}</span>
+                <span>{previewLayer.ownerRole === 'master' ? t('Мастер') : t('Игрок')}</span>
                 <strong>{previewLayer.name}</strong>
               </div>
-              <button type="button" onClick={() => setPreviewLayerId(null)} aria-label="Закрыть предпросмотр">×</button>
+              <button type="button" onClick={() => setPreviewLayerId(null)} aria-label={t('Закрыть предпросмотр')}>×</button>
             </header>
             <div className="media-preview-body">
               {previewLayer.layerType === 'image' ? (
@@ -7898,7 +7914,7 @@ export default function VampireTable() {
                   <article className="preview-file-card">
                     <strong>{previewLayer.name}</strong>
                     <span>{meta.type}</span>
-                    <a href={meta.url} target="_blank" rel="noreferrer">Открыть файл</a>
+                    <a href={meta.url} target="_blank" rel="noreferrer">{t('Открыть файл')}</a>
                   </article>
                 )
               })() : null}
@@ -7938,46 +7954,46 @@ export default function VampireTable() {
                     style={{ fontWeight: 600, color: '#ffd89a', borderColor: 'rgba(214,170,101,0.5)' }}
                     onClick={() => addLayerToJournal(singleLayer.imageData, singleLayer.name)}
                   >
-                    📖 Добавить в дневник
+                    📖 {t('Добавить в дневник')}
                   </button>
                 ) : null}
                 <div className="context-menu-group">
-                  <span>Копировать</span>
-                  <button type="button" onClick={() => copyLayerForDiary(singleLayer)}>Для дневника</button>
-                  <button type="button" onClick={() => copyLayerUrl(singleLayer)}>Ссылку</button>
-                  <button type="button" onClick={() => copyLayerToPersonalMedia(singleLayer)}>В мои медиа</button>
+                  <span>{t('Копировать')}</span>
+                  <button type="button" onClick={() => copyLayerForDiary(singleLayer)}>{t('Для дневника')}</button>
+                  <button type="button" onClick={() => copyLayerUrl(singleLayer)}>{t('Ссылку')}</button>
+                  <button type="button" onClick={() => copyLayerToPersonalMedia(singleLayer)}>{t('В мои медиа')}</button>
                 </div>
               </>
             ) : null}
             {canManageContext ? (
               <>
-                {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>Переименовать</button> : null}
+                {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>{t('Переименовать')}</button> : null}
                 {singleLayer && ['image', 'video'].includes(singleLayer.layerType) ? (
                   <div className="context-menu-group">
-                    <span>Изображение</span>
-                    <button type="button" onClick={() => openImageEditor(singleLayer)}>Обрезать</button>
-                    <button type="button" onClick={() => patchLayer(singleLayer.id, { rotation: (singleLayer.rotation + 90) % 360 })}>Повернуть</button>
-                    <button type="button" onClick={() => duplicateLayer(singleLayer)}>Дублировать</button>
+                    <span>{t('Изображение')}</span>
+                    <button type="button" onClick={() => openImageEditor(singleLayer)}>{t('Обрезать')}</button>
+                    <button type="button" onClick={() => patchLayer(singleLayer.id, { rotation: (singleLayer.rotation + 90) % 360 })}>{t('Повернуть')}</button>
+                    <button type="button" onClick={() => duplicateLayer(singleLayer)}>{t('Дублировать')}</button>
                   </div>
                 ) : null}
                 {singleLayer && getLayerCrop(singleLayer).cropped ? (
-                  <button type="button" onClick={() => resetLayerCrop(singleLayer)}>Восстановить обрезанное</button>
+                  <button type="button" onClick={() => resetLayerCrop(singleLayer)}>{t('Восстановить обрезанное')}</button>
                 ) : null}
                 <button type="button" onClick={() => {
                   patchSelectedLayers(ids, () => ({ visible: !allVisible }))
                   setLayerContextMenu(null)
                 }}>
-                  {allVisible ? 'Скрыть' : 'Показать'}
+                  {allVisible ? t('Скрыть') : t('Показать')}
                 </button>
                 <button type="button" onClick={() => {
                   patchSelectedLayers(ids, () => ({ locked: !allLocked }))
                   setLayerContextMenu(null)
                 }}>
-                  {allLocked ? 'Разблокировать' : 'Заблокировать'}
+                  {allLocked ? t('Разблокировать') : t('Заблокировать')}
                 </button>
                 {singleLayer && singleLayer.layerType !== 'folder' ? (
                   <div className="context-menu-group context-menu-controls">
-                    <span>Слой</span>
+                    <span>{t('Слой')}</span>
                     <label>
                       <small>Opacity</small>
                       <input
@@ -8009,51 +8025,51 @@ export default function VampireTable() {
                   </div>
                 ) : null}
                 <div className="context-menu-group">
-                  <span>Порядок слоя</span>
+                  <span>{t('Порядок слоя')}</span>
                   <button type="button" onClick={() => {
                     reorderLayers(ids, 'top')
                     setLayerContextMenu(null)
-                  }}>На самый верх</button>
+                  }}>{t('На самый верх')}</button>
                   <button type="button" onClick={() => {
                     reorderLayers(ids, 'up')
                     setLayerContextMenu(null)
-                  }}>Выше</button>
+                  }}>{t('Выше')}</button>
                   <button type="button" onClick={() => {
                     reorderLayers(ids, 'down')
                     setLayerContextMenu(null)
-                  }}>Ниже</button>
+                  }}>{t('Ниже')}</button>
                   <button type="button" onClick={() => {
                     reorderLayers(ids, 'bottom')
                     setLayerContextMenu(null)
-                  }}>На самый низ</button>
+                  }}>{t('На самый низ')}</button>
                 </div>
                 {singleLayer?.layerType === 'folder' ? (
                   <button type="button" onClick={() => {
                     createNamedFolder(singleLayer.id, singleLayer.onTable)
                     setLayerContextMenu(null)
-                  }}>Новая папка внутри</button>
+                  }}>{t('Новая папка внутри')}</button>
                 ) : null}
                 {contextLayers.some(item => item.parentId) ? (
                   <button type="button" onClick={() => {
                     patchSelectedLayers(ids, () => ({ parentId: null }))
                     setLayerContextMenu(null)
-                  }}>Вынести из папки</button>
+                  }}>{t('Вынести из папки')}</button>
                 ) : null}
                 {contextLayers.some(item => item.onTable) ? (
                   <button type="button" onClick={() => {
                     patchSelectedLayers(ids, () => ({ onTable: false, parentId: null }))
                     setLayerContextMenu(null)
-                  }}>Убрать в медиа сцены</button>
+                  }}>{t('Убрать в медиа сцены')}</button>
                 ) : null}
                 {contextLayers.some(item => !item.onTable) ? (
                   <button type="button" onClick={() => {
                     patchSelectedLayers(ids, () => ({ onTable: true, visible: true, parentId: null }))
                     setLayerContextMenu(null)
-                  }}>Вынести на стол</button>
+                  }}>{t('Вынести на стол')}</button>
                 ) : null}
                 {movableIds.length > 0 ? (
                   <div className="context-menu-group">
-                    <span>Поместить в папку</span>
+                    <span>{t('Поместить в папку')}</span>
                     {availableFolders.map(folder => (
                       <button type="button" key={folder.id} onClick={() => {
                         moveLayersToFolder(movableIds, folder.id)
@@ -8063,17 +8079,17 @@ export default function VampireTable() {
                     <button type="button" onClick={() => {
                       createFolderForSelection(movableIds)
                       setLayerContextMenu(null)
-                    }}>Создать новую папку</button>
+                    }}>{t('Создать новую папку')}</button>
                   </div>
                 ) : null}
                 <button type="button" onClick={() => {
                   focusLayersForEveryone(ids.length > 0 ? ids : [firstLayer.id])
                   setLayerContextMenu(null)
-                }}>Указать всем</button>
+                }}>{t('Указать всем')}</button>
                 <button type="button" className="danger" onClick={() => {
                   deleteSelectedLayers(ids)
                   setLayerContextMenu(null)
-                }}>Удалить</button>
+                }}>{t('Удалить')}</button>
               </>
             ) : null}
           </SmartContextMenu>
@@ -8081,22 +8097,22 @@ export default function VampireTable() {
       })() : null}
 
       {!tableRole ? (
-        <div className="role-gate" role="dialog" aria-modal="true" aria-label="Выбор роли">
+        <div className="role-gate" role="dialog" aria-modal="true" aria-label={t('Выбор роли')}>
           <section>
-            <span>Вход на стол</span>
-            <h2>Кто ты в этой сцене?</h2>
+            <span>{t('Вход на стол')}</span>
+            <h2>{t('Кто ты в этой сцене?')}</h2>
             <form className="master-login-form" onSubmit={enterAsMaster}>
               <input
                 value={masterPasswordDraft}
                 onChange={event => setMasterPasswordDraft(event.target.value)}
-                placeholder="Пароль мастера"
+                placeholder={t('Пароль мастера')}
                 type="password"
               />
-              <button type="submit">Мастер</button>
+              <button type="submit">{t('Мастер')}</button>
             </form>
             <div>
               <button type="button" onClick={() => chooseTableRole('player')}>
-                Игрок
+                {t('Игрок')}
               </button>
             </div>
           </section>

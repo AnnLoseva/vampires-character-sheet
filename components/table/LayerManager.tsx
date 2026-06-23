@@ -1,5 +1,6 @@
 import type { Dispatch, DragEvent, ReactNode, SetStateAction } from 'react'
 import type { LayerContextMenu, LayerDropTarget, LayerPatch, LayerTreeNode, TableLayer } from '@/lib/table/types'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type LayerManagerProps = {
   layers: LayerTreeNode[]
@@ -44,6 +45,7 @@ export default function LayerManager({
   setLayerContextMenu,
   toggleFolder,
 }: LayerManagerProps) {
+  const { t } = useLang()
   const renderLayerNode = (layer: LayerTreeNode, depth = 0): ReactNode => {
     const isFolder = layer.layerType === 'folder'
     const isExpanded = expandedFolders.has(layer.id)
@@ -80,8 +82,8 @@ export default function LayerManager({
               event.stopPropagation()
               void patchLayer(layer.id, { visible: !layer.visible })
             }}
-            title={layer.visible ? 'Скрыть' : 'Показать'}
-            aria-label={layer.visible ? 'Скрыть слой' : 'Показать слой'}
+            title={layer.visible ? t('Скрыть') : t('Показать')}
+            aria-label={layer.visible ? t('Скрыть слой') : t('Показать слой')}
           >
             <span aria-hidden="true" />
           </button>
@@ -96,8 +98,8 @@ export default function LayerManager({
                   event.stopPropagation()
                   toggleFolder(layer.id)
                 }}
-                title={isExpanded ? 'Свернуть' : 'Открыть'}
-                aria-label={isExpanded ? 'Свернуть папку' : 'Открыть папку'}
+                title={isExpanded ? t('Свернуть') : t('Открыть')}
+                aria-label={isExpanded ? t('Свернуть папку') : t('Открыть папку')}
               >
                 {isExpanded ? '▾' : '▸'}
               </button>
@@ -136,7 +138,7 @@ export default function LayerManager({
               {isMaster ? <small>{layer.ownerRole === 'master' ? 'master' : 'player'}</small> : null}
             </div>
             <div className="layer-quick-actions">
-              {layer.locked ? <span className="lock-indicator" title="Заблокирован">L</span> : null}
+              {layer.locked ? <span className="lock-indicator" title={t('Заблокирован')}>L</span> : null}
               {!layer.onTable && layer.layerType !== 'folder' ? (
                 <button
                   type="button"
@@ -146,8 +148,8 @@ export default function LayerManager({
                     event.stopPropagation()
                     void placeLayerOnTable(layer.id)
                   }}
-                  title="Вынести на стол"
-                  aria-label="Вынести на стол"
+                  title={t('Вынести на стол')}
+                  aria-label={t('Вынести на стол')}
                 >
                   ↗
                 </button>
@@ -162,8 +164,8 @@ export default function LayerManager({
                     event.stopPropagation()
                     void deleteLayer(layer.id)
                   }}
-                  title="Удалить из медиа"
-                  aria-label="Удалить из медиа"
+                  title={t('Удалить из медиа')}
+                  aria-label={t('Удалить из медиа')}
                 >
                   ×
                 </button>
@@ -176,8 +178,8 @@ export default function LayerManager({
                   event.stopPropagation()
                   void patchLayer(layer.id, { locked: !layer.locked })
                 }}
-                title={layer.locked ? 'Разблокировать' : 'Заблокировать'}
-                aria-label={layer.locked ? 'Разблокировать слой' : 'Заблокировать слой'}
+                title={layer.locked ? t('Разблокировать') : t('Заблокировать')}
+                aria-label={layer.locked ? t('Разблокировать слой') : t('Заблокировать слой')}
               >
                 {layer.locked ? 'L' : 'U'}
               </button>

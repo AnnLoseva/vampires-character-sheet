@@ -1,4 +1,5 @@
 import type { Dispatch, SetStateAction } from 'react'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type TableLeftPanelProps = {
   isMaster: boolean
@@ -13,6 +14,7 @@ export default function TableLeftPanel({
   setLeftPanelOpen,
   children,
 }: TableLeftPanelProps) {
+  const { t } = useLang()
   return (
     <>
       {isMaster ? (
@@ -20,8 +22,8 @@ export default function TableLeftPanel({
           type="button"
           className="column-edge-toggle master-toggle"
           onClick={() => setLeftPanelOpen(prev => !prev)}
-          aria-label={leftPanelOpen ? 'Скрыть сцены' : 'Показать сцены'}
-          title={leftPanelOpen ? 'Скрыть сцены' : 'Показать сцены'}
+          aria-label={leftPanelOpen ? t('Скрыть сцены') : t('Показать сцены')}
+          title={leftPanelOpen ? t('Скрыть сцены') : t('Показать сцены')}
         >
           <span />
           <span />

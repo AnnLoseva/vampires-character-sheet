@@ -1,5 +1,6 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
 import type { RightRailTab } from '@/lib/table/types'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type TableRightPanelProps = {
   isMaster: boolean
@@ -18,28 +19,29 @@ export default function TableRightPanel({
   setRightRailTab,
   children,
 }: TableRightPanelProps) {
+  const { t } = useLang()
   return (
     <>
       <button
         type="button"
         className="column-edge-toggle right-toggle"
         onClick={() => setRightPanelOpen(prev => !prev)}
-        aria-label={rightPanelOpen ? 'Скрыть правую панель' : 'Показать правую панель'}
-        title={rightPanelOpen ? 'Скрыть правую панель' : 'Показать правую панель'}
+        aria-label={rightPanelOpen ? t('Скрыть правую панель') : t('Показать правую панель')}
+        title={rightPanelOpen ? t('Скрыть правую панель') : t('Показать правую панель')}
       >
         <span />
         <span />
         <span />
       </button>
       {rightPanelOpen ? <aside className="right-rail">
-        <nav className="right-tabs" aria-label="Панели стола">
+        <nav className="right-tabs" aria-label={t('Панели стола')}>
           {!isMaster ? (
             <button
               type="button"
               className={rightRailTab === 'media' ? 'active' : ''}
               onClick={() => setRightRailTab('media')}
             >
-              Медиа
+              {t('Медиа')}
             </button>
           ) : null}
           <button
@@ -47,28 +49,28 @@ export default function TableRightPanel({
             className={rightRailTab === 'rolls' ? 'active' : ''}
             onClick={() => setRightRailTab('rolls')}
           >
-            Броски
+            {t('Броски')}
           </button>
           <button
             type="button"
             className={rightRailTab === 'chat' ? 'active' : ''}
             onClick={() => setRightRailTab('chat')}
           >
-            Чат
+            {t('Чат')}
           </button>
           <button
             type="button"
             className={rightRailTab === 'diary' ? 'active' : ''}
             onClick={() => setRightRailTab('diary')}
           >
-            {isMaster ? 'Персонажи' : 'Дневник'}
+            {isMaster ? t('Персонажи') : t('Дневник')}
           </button>
           <button
             type="button"
             className={rightRailTab === 'master' ? 'active' : ''}
             onClick={() => setRightRailTab('master')}
           >
-            Мастер
+            {t('Мастер')}
           </button>
         </nav>
         {children}

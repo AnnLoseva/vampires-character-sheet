@@ -1,8 +1,10 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 export default function CharacterSheetPage() {
+  const { t } = useLang()
   const [room, setRoom] = useState('campaign-666')
   const [role, setRole] = useState<'master' | 'player'>('player')
   const [characterId, setCharacterId] = useState('')
@@ -96,10 +98,10 @@ export default function CharacterSheetPage() {
         }
       `}</style>
 
-      <nav className="sheet-nav-links" aria-label="Навигация листа персонажа">
-        <a href="/" title="На главную">На главную</a>
+      <nav className="sheet-nav-links" aria-label={t('Навигация листа персонажа')}>
+        <a href="/" title={t('На главную')}>{t('На главную')}</a>
         <button type="button" onClick={startNewCharacter}>
-          Создать нового персонажа
+          {t('Создать нового персонажа')}
         </button>
         <a
           href={tableHref}
@@ -107,9 +109,9 @@ export default function CharacterSheetPage() {
             window.localStorage.setItem('vtm-table-room', room)
             window.localStorage.setItem('vtm-table-role', role)
           }}
-          title="В игровую комнату"
+          title={t('В игровую комнату')}
         >
-          В игровую комнату
+          {t('В игровую комнату')}
         </a>
       </nav>
 

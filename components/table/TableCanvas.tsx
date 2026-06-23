@@ -11,6 +11,7 @@ import {
   getFileLayerMeta,
 } from '@/lib/table/media-utils'
 import type { DragState, ImageEditorDraft, ImageEditorState, LayerContextMenu, SelectionRect, TableLayer, TableScene } from '@/lib/table/types'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type TableCanvasProps = {
   tableStatus: string
@@ -101,25 +102,26 @@ export default function TableCanvas({
   previewLayerOpacity,
   commitLayerOpacity,
 }: TableCanvasProps) {
+  const { t, tf } = useLang()
   return (
-    <section className="play-surface" aria-label="Игровой стол">
+    <section className="play-surface" aria-label={t('Игровой стол')}>
       <header className="surface-head">
         <div>
-          <span>{tableStatus}</span>
-          <strong>{activeScene?.name || (layersLength ? `${layersLength} слоёв` : 'Пустая сцена')}</strong>
+          <span>{t(tableStatus)}</span>
+          <strong>{activeScene?.name || (layersLength ? tf('{count} слоёв', { count: layersLength }) : t('Пустая сцена'))}</strong>
         </div>
         <div>
-          <span>Масштаб</span>
+          <span>{t('Масштаб')}</span>
           <strong>{Math.round(zoom * 100)}%</strong>
         </div>
         <div className="zoom-tools">
-          <button type="button" onClick={raiseHand} title="Поднять руку">!</button>
+          <button type="button" onClick={raiseHand} title={t('Поднять руку')}>!</button>
           <button type="button" onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}>−</button>
           <button type="button" onClick={() => setZoom(1)}>100</button>
           <button type="button" onClick={() => setZoom(prev => Math.min(5, prev + 0.1))}>+</button>
         </div>
       </header>
-      {handNotice ? <div className="hand-notice" role="status">{handNotice}</div> : null}
+      {handNotice ? <div className="hand-notice" role="status">{t(handNotice)}</div> : null}
 
       <div
         ref={sceneRef}
@@ -157,8 +159,8 @@ export default function TableCanvas({
         >
           {visibleLayers.length === 0 ? (
             <div className="scene-empty">
-              <h2>Добавь первый слой</h2>
-              <p>Перетащи картинки прямо на стол или нажми «Добавить слой».</p>
+              <h2>{t('Добавь первый слой')}</h2>
+              <p>{t('Перетащи картинки прямо на стол или нажми «Добавить слой».')}</p>
             </div>
           ) : null}
 
@@ -219,8 +221,8 @@ export default function TableCanvas({
                           event.stopPropagation()
                           startLayerDrag(event, layer, 'move')
                         }}
-                        title="Переместить видео"
-                        aria-label="Переместить видео"
+                        title={t('Переместить видео')}
+                        aria-label={t('Переместить видео')}
                       >
                         ⠿
                       </button>
@@ -257,7 +259,7 @@ export default function TableCanvas({
                     ) : (
                       <>
                         <span>{meta.type}</span>
-                        <a href={meta.url} target="_blank" rel="noreferrer">Открыть файл</a>
+                        <a href={meta.url} target="_blank" rel="noreferrer">{t('Открыть файл')}</a>
                       </>
                     )}
                   </article>
@@ -301,14 +303,14 @@ export default function TableCanvas({
                         key={handle}
                         className={`crop-handle ${handle}`}
                         onPointerDown={event => startEditorCropDrag(event, handle)}
-                        aria-label="Изменить обрезку"
+                        aria-label={t('Изменить обрезку')}
                       />
                     ))}
                   </div>
                   <div className="inline-crop-toolbar" onPointerDown={event => event.stopPropagation()}>
-                    <button type="button" onClick={() => void applyImageEditor(false)}>✓ Применить</button>
-                    <button type="button" onClick={() => updateImageEditor(() => createEditorState({ ...layer, cropX: null, cropY: null, cropWidth: null, cropHeight: null, rotation: layer.rotation, flipX: layer.flipX, flipY: layer.flipY, brightness: layer.brightness, contrast: layer.contrast, saturation: layer.saturation }))}>Сбросить обрезку</button>
-                    <button type="button" onClick={() => setImageEditor(null)}>Отмена</button>
+                    <button type="button" onClick={() => void applyImageEditor(false)}>✓ {t('Применить')}</button>
+                    <button type="button" onClick={() => updateImageEditor(() => createEditorState({ ...layer, cropX: null, cropY: null, cropWidth: null, cropHeight: null, rotation: layer.rotation, flipX: layer.flipX, flipY: layer.flipY, brightness: layer.brightness, contrast: layer.contrast, saturation: layer.saturation }))}>{t('Сбросить обрезку')}</button>
+                    <button type="button" onClick={() => setImageEditor(null)}>{t('Отмена')}</button>
                   </div>
                 </div>
               ) : null}
@@ -342,7 +344,7 @@ export default function TableCanvas({
                         event.stopPropagation()
                         startLayerDrag(event, layer, 'resize', corner)
                       }}
-                      title="Изменить размер"
+                      title={t('Изменить размер')}
                     />
                   ))}
                 </>

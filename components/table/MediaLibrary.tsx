@@ -2,6 +2,7 @@ import type { Dispatch, DragEvent, FormEvent, RefObject, SetStateAction } from '
 import { ROOT_LAYER_DROP_ID } from '@/lib/table/constants'
 import type { LayerContextMenu, LayerDropTarget, LayerPatch, LayerTreeNode, MediaTab, TableLayer } from '@/lib/table/types'
 import LayerManager from './LayerManager'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type MediaLibraryProps = {
   mediaTab: MediaTab
@@ -78,10 +79,11 @@ export default function MediaLibrary({
   setLayerContextMenu,
   toggleFolder,
 }: MediaLibraryProps) {
+  const { t } = useLang()
   return (
     <section
       className={`library-panel table-right-panel ${mediaTab === 'library' ? '' : 'table-right-panel-hidden'}`}
-      aria-label="Мои медиа"
+      aria-label={t('Мои медиа')}
       onDragOver={event => {
         if (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/uri-list') || event.dataTransfer.types.includes('text/plain')) event.preventDefault()
       }}
@@ -94,25 +96,25 @@ export default function MediaLibrary({
       }}
     >
       <header>
-        <strong>{isMaster ? 'Материалы мастера' : 'Мои медиа'}</strong>
-        <span>можно вытащить на стол</span>
+        <strong>{isMaster ? t('Материалы мастера') : t('Мои медиа')}</strong>
+        <span>{t('можно вытащить на стол')}</span>
       </header>
 
       <div className="media-manager-toolbar">
         <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-          {isUploading ? 'Загрузка...' : 'Загрузить'}
+          {isUploading ? t('Загрузка...') : t('Загрузить')}
         </button>
         <button type="button" onClick={() => folderInputRef.current?.click()} disabled={isUploading}>
-          Папка файлов
+          {t('Папка файлов')}
         </button>
-        <button type="button" onClick={() => void createNamedFolder(null, false)}>Папка</button>
+        <button type="button" onClick={() => void createNamedFolder(null, false)}>{t('Папка')}</button>
       </div>
       <input
         className="media-search-input"
         data-media-search
         value={mediaSearchDraft}
         onChange={event => setMediaSearchDraft(event.target.value)}
-        placeholder="Поиск медиа"
+        placeholder={t('Поиск медиа')}
       />
 
       {isMaster ? (
@@ -120,15 +122,15 @@ export default function MediaLibrary({
           <input
             value={textMaterialNameDraft}
             onChange={event => setTextMaterialNameDraft(event.target.value)}
-            placeholder="Название текста"
+            placeholder={t('Название текста')}
           />
           <textarea
             value={textMaterialDraft}
             onChange={event => setTextMaterialDraft(event.target.value)}
-            placeholder="Текст, дневник, заметка..."
+            placeholder={t('Текст, дневник, заметка...')}
             rows={4}
           />
-          <button type="submit" disabled={!textMaterialDraft.trim()}>Добавить текст</button>
+          <button type="submit" disabled={!textMaterialDraft.trim()}>{t('Добавить текст')}</button>
         </form>
       ) : null}
 
@@ -155,7 +157,7 @@ export default function MediaLibrary({
         }}
       >
         {libraryTree.length === 0 ? (
-          <p className="panel-empty">Здесь будут материалы, которые ещё не лежат на столе.</p>
+          <p className="panel-empty">{t('Здесь будут материалы, которые ещё не лежат на столе.')}</p>
         ) : (
           <LayerManager
             layers={libraryTree}
@@ -184,7 +186,7 @@ export default function MediaLibrary({
           onDragOver={handleLayerRootDragOver}
           onDrop={handleLayerRootDrop}
         >
-          Перетащи сюда, чтобы вынести из папки
+          {t('Перетащи сюда, чтобы вынести из папки')}
         </div>
       </div>
     </section>

@@ -6,6 +6,7 @@ import { Link } from '@tiptap/extension-link'
 import { Placeholder } from '@tiptap/extension-placeholder'
 import { forwardRef, useImperativeHandle, useEffect } from 'react'
 import { ResizableImage } from './ResizableImageExtension'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -94,12 +95,13 @@ interface JournalEditorProps {
 
 const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
   function JournalEditor({ value, onChange, placeholder = 'Текст записи…', compact = false }, ref) {
+    const { t } = useLang()
     const editor = useEditor({
       extensions: [
         StarterKit.configure({ link: false }),
         ResizableImage,
         Link.configure({ openOnClick: false, autolink: true }),
-        Placeholder.configure({ placeholder }),
+        Placeholder.configure({ placeholder: t(placeholder) }),
       ],
       content: value,
       onUpdate({ editor: ed }) {
@@ -157,7 +159,7 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
     }, [value])
 
     useImperativeHandle(ref, () => ({
-      insertImage(src: string, alt = 'Изображение') {
+      insertImage(src: string, alt = t('Изображение')) {
         if (!editor) return
         editor.chain().focus().insertContent({ type: 'image', attrs: { src, alt } }).run()
       },
@@ -183,19 +185,19 @@ const JournalEditor = forwardRef<JournalEditorHandle, JournalEditorProps>(
       <div className={`je-root${c ? ' je-compact' : ''}`}>
         {/* ── Toolbar ── */}
         <div className="je-toolbar">
-          <Btn compact={c} active={isBold}       title="Жирный (Ctrl+B)"        onClick={() => editor.chain().focus().toggleBold().run()}><b>B</b></Btn>
-          <Btn compact={c} active={isItalic}     title="Курсив (Ctrl+I)"         onClick={() => editor.chain().focus().toggleItalic().run()}><i>I</i></Btn>
-          <Btn compact={c} active={isStrike}     title="Зачёркнутый"             onClick={() => editor.chain().focus().toggleStrike().run()}><s>S</s></Btn>
+          <Btn compact={c} active={isBold}       title={t('Жирный (Ctrl+B)')}        onClick={() => editor.chain().focus().toggleBold().run()}><b>B</b></Btn>
+          <Btn compact={c} active={isItalic}     title={t('Курсив (Ctrl+I)')}         onClick={() => editor.chain().focus().toggleItalic().run()}><i>I</i></Btn>
+          <Btn compact={c} active={isStrike}     title={t('Зачёркнутый')}             onClick={() => editor.chain().focus().toggleStrike().run()}><s>S</s></Btn>
           <span className="je-sep" />
-          <Btn compact={c} active={isH1}         title="Заголовок 1"             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>H1</Btn>
-          <Btn compact={c} active={isH2}         title="Заголовок 2"             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>H2</Btn>
+          <Btn compact={c} active={isH1}         title={t('Заголовок 1')}             onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}>H1</Btn>
+          <Btn compact={c} active={isH2}         title={t('Заголовок 2')}             onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}>H2</Btn>
           <span className="je-sep" />
-          <Btn compact={c} active={isBullet}     title="Маркированный список"    onClick={() => editor.chain().focus().toggleBulletList().run()}>☰</Btn>
-          <Btn compact={c} active={isOrdered}    title="Нумерованный список"     onClick={() => editor.chain().focus().toggleOrderedList().run()}>№</Btn>
-          <Btn compact={c} active={isBlockquote} title="Цитата"                  onClick={() => editor.chain().focus().toggleBlockquote().run()}>"</Btn>
+          <Btn compact={c} active={isBullet}     title={t('Маркированный список')}    onClick={() => editor.chain().focus().toggleBulletList().run()}>☰</Btn>
+          <Btn compact={c} active={isOrdered}    title={t('Нумерованный список')}     onClick={() => editor.chain().focus().toggleOrderedList().run()}>№</Btn>
+          <Btn compact={c} active={isBlockquote} title={t('Цитата')}                  onClick={() => editor.chain().focus().toggleBlockquote().run()}>"</Btn>
           <span className="je-sep" />
-          <Btn compact={c}                       title="Горизонтальная линия"    onClick={() => editor.chain().focus().setHorizontalRule().run()}>─</Btn>
-          <Btn compact={c}                       title="Убрать форматирование"   onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>✕</Btn>
+          <Btn compact={c}                       title={t('Горизонтальная линия')}    onClick={() => editor.chain().focus().setHorizontalRule().run()}>─</Btn>
+          <Btn compact={c}                       title={t('Убрать форматирование')}   onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}>✕</Btn>
         </div>
 
         {/* ── Editor area ── */}

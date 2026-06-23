@@ -1,5 +1,6 @@
 import type { Dispatch, DragEvent, FormEvent, RefObject, SetStateAction } from 'react'
 import type { LeftToolbarTab, SceneMusicTrack, TableScene } from '@/lib/table/types'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type SceneManagerProps = {
   leftToolbarTab: LeftToolbarTab
@@ -54,22 +55,23 @@ export default function SceneManager({
   renameSceneMusic,
   deleteSceneMusic,
 }: SceneManagerProps) {
+  const { t, tf } = useLang()
   return (
     <section className={`scene-control-panel ${leftToolbarTab === 'scenes' ? '' : 'table-right-panel-hidden'}`}>
       <header>
         <div>
-          <span>Активная сцена</span>
-          <strong>{activeScene?.name || sceneStatus}</strong>
+          <span>{t('Активная сцена')}</span>
+          <strong>{activeScene?.name || t(sceneStatus)}</strong>
         </div>
       </header>
       <div className="scene-toolbar">
-        <button type="button" onClick={() => void createScene()}>Создать</button>
-        <button type="button" onClick={() => void renameScene()} disabled={!selectedScene}>Переименовать</button>
-        <button type="button" onClick={() => void deleteScene()} disabled={!selectedScene || scenes.length <= 1}>Удалить</button>
+        <button type="button" onClick={() => void createScene()}>{t('Создать')}</button>
+        <button type="button" onClick={() => void renameScene()} disabled={!selectedScene}>{t('Переименовать')}</button>
+        <button type="button" onClick={() => void deleteScene()} disabled={!selectedScene || scenes.length <= 1}>{t('Удалить')}</button>
       </div>
       <div className="scene-list">
         {scenes.length === 0 ? (
-          <p className="panel-empty">Сцены пока не загружены.</p>
+          <p className="panel-empty">{t('Сцены пока не загружены.')}</p>
         ) : scenes.map(scene => (
           <article
             className={`scene-list-row ${scene.id === selectedScene?.id ? 'selected' : ''} ${scene.isActive ? 'active' : ''}`}
@@ -84,21 +86,21 @@ export default function SceneManager({
             </div>
             <div>
               <strong>{scene.name}</strong>
-              <span>{scene.isActive ? 'сейчас на столе' : 'подготовлена'}</span>
+              <span>{scene.isActive ? t('сейчас на столе') : t('подготовлена')}</span>
             </div>
             <button type="button" disabled={scene.isActive} onClick={event => {
               event.stopPropagation()
               void activateScene(scene.id)
             }}>
-              {scene.isActive ? 'Активна' : 'Включить'}
+              {scene.isActive ? t('Активна') : t('Включить')}
             </button>
           </article>
         ))}
       </div>
       <div className="scene-music-box">
         <header>
-          <strong>Музыка сцены</strong>
-          <span>{selectedSceneMusic.length ? `${selectedSceneMusic.length} треков` : 'мини-плейлист пуст'}</span>
+          <strong>{t('Музыка сцены')}</strong>
+          <span>{selectedSceneMusic.length ? tf('{count} треков', { count: selectedSceneMusic.length }) : t('мини-плейлист пуст')}</span>
         </header>
         <div
           className="scene-music-actions"
@@ -108,24 +110,24 @@ export default function SceneManager({
           onDrop={handleSceneMusicDrop}
         >
           <button type="button" onClick={() => sceneMusicFileInputRef.current?.click()} disabled={!selectedScene || isUploading}>
-            Загрузить песню
+            {t('Загрузить песню')}
           </button>
-          <span>Можно перетащить аудио сюда</span>
+          <span>{t('Можно перетащить аудио сюда')}</span>
         </div>
         <form className="media-url-form" onSubmit={addSceneMusic}>
           <input
             value={sceneMusicDraft}
             onChange={event => setSceneMusicDraft(event.target.value)}
-            placeholder="YouTube-ссылки через пробел"
+            placeholder={t('YouTube-ссылки через пробел')}
           />
-          <button type="submit" disabled={!sceneMusicDraft.trim() || !selectedScene}>Добавить</button>
+          <button type="submit" disabled={!sceneMusicDraft.trim() || !selectedScene}>{t('Добавить')}</button>
         </form>
         <div className="scene-track-list">
           {selectedSceneMusic.map(track => (
             <article className="scene-track-row" key={track.id}>
               <div>
                 <strong>{track.title}</strong>
-                <span>{track.isDefault ? 'по умолчанию' : track.sourceType}{track.autoplay ? ' · автозапуск' : ''}</span>
+                <span>{track.isDefault ? t('по умолчанию') : track.sourceType}{track.autoplay ? t(' · автозапуск') : ''}</span>
               </div>
               <button type="button" onClick={() => void reorderSceneMusic(track, 'up')}>↑</button>
               <button type="button" onClick={() => void reorderSceneMusic(track, 'down')}>↓</button>

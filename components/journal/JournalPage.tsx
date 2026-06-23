@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { ChatUser, JournalEntry } from '@/lib/table/types'
 import { extractImageUrlsFromHtml } from '@/lib/table/media-utils'
 import JournalEditor, { type JournalEditorHandle } from './JournalEditor'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type JournalArchive = {
   key: string
@@ -119,19 +120,19 @@ function createJournalKey(userId: string, room: string) {
   return `vtm-journal:${userId}:${room.trim() || DEFAULT_ROOM}`
 }
 
-function formatDate(value: string) {
-  return new Date(value).toLocaleString('ru-RU')
+function formatDate(value: string, locale: string) {
+  return new Date(value).toLocaleString(locale)
 }
 
 function getEntryAttachments(entry: JournalEntry | null | undefined) {
   return Array.isArray(entry?.attachments) ? entry.attachments : []
 }
 
-function getLinkTitle(url: string) {
+function getLinkTitle(url: string, t: (ru: string) => string) {
   try {
-    return new URL(url).hostname.replace(/^www\./, '') || 'Ссылка'
+    return new URL(url).hostname.replace(/^www\./, '') || t('Ссылка')
   } catch {
-    return 'Ссылка'
+    return t('Ссылка')
   }
 }
 
@@ -173,6 +174,8 @@ function getDroppedTableLayer(dataTransfer: DataTransfer) {
 // ─── component ────────────────────────────────────────────────────────────────
 
 export default function JournalPage() {
+  const { t, tf, lang } = useLang()
+  const locale = lang === 'en' ? 'en-US' : 'ru-RU'
   const [chatUser, setChatUser] = useState<ChatUser | null>(null)
   const [archives, setArchives] = useState<JournalArchive[]>([])
   const [selectedKey, setSelectedKey] = useState('')
@@ -246,7 +249,7 @@ export default function JournalPage() {
     const now = new Date().toISOString()
     const entry: JournalEntry = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      title: 'Новая запись',
+      title: t('Новая запись'),
       text: '',
       createdAt: now,
       updatedAt: now,
@@ -266,7 +269,7 @@ export default function JournalPage() {
   }
 
   // Insert image directly into the editor via ref
-  const insertImageIntoEditor = async (src: string, alt = 'Изображение') => {
+  const insertImageIntoEditor = async (src: string, alt = t('Изображение')) => {
     editorRef.current?.insertImage(src, alt)
     setStatus('Изображение вставлено')
   }
@@ -288,7 +291,7 @@ export default function JournalPage() {
 
     const droppedLayer = getDroppedTableLayer(event.dataTransfer)
     if (droppedLayer?.url && (droppedLayer.layerType === 'image' || droppedLayer.url.match(/\.(jpg|jpeg|png|gif|webp|svg)/i))) {
-      await insertImageIntoEditor(droppedLayer.url, droppedLayer.title || 'Изображение')
+      await insertImageIntoEditor(droppedLayer.url, droppedLayer.title || t('Изображение'))
       items.push(droppedLayer.url)
     }
 
@@ -304,20 +307,20 @@ export default function JournalPage() {
     }
 
     getDroppedImageUrls(event.dataTransfer).forEach(async url => {
-      await insertImageIntoEditor(url, getLinkTitle(url))
+      await insertImageIntoEditor(url, getLinkTitle(url, t))
       items.push(url)
     })
 
     if (items.length === 0) {
       setStatus('Перетащите изображение, ссылку на изображение или медиа со стола')
     } else {
-      setStatus(`Вставлено изображений: ${items.length}`)
+      setStatus(tf('Вставлено изображений: {count}', { count: items.length }))
     }
   }
 
   const deleteEntry = () => {
     if (!selectedArchive || !selectedEntry) return
-    if (!window.confirm(`Удалить запись "${selectedEntry.title || 'Без названия'}"?`)) return
+    if (!window.confirm(tf('Удалить запись "{title}"?', { title: selectedEntry.title || t('Без названия') }))) return
     const next = selectedArchive.entries.filter(entry => entry.id !== selectedEntry.id)
     saveArchive(selectedArchive, next)
     setSelectedEntryId(next[0]?.id || '')
@@ -328,34 +331,34 @@ export default function JournalPage() {
       <section className="journal-topbar">
         <div>
           <p className="journal-kicker">VTM V5 Archive</p>
-          <h1>Дневник</h1>
+          <h1>{t('Дневник')}</h1>
         </div>
-        <nav aria-label="Навигация дневника">
-          <Link href="/">Главная</Link>
-          <Link href="/table">Игровой стол</Link>
-          <Link href="/character-sheet">Лист</Link>
-          <Link href="/reference">Справочник</Link>
+        <nav aria-label={t('Навигация дневника')}>
+          <Link href="/">{t('Главная')}</Link>
+          <Link href="/table">{t('Игровой стол')}</Link>
+          <Link href="/character-sheet">{t('Лист')}</Link>
+          <Link href="/reference">{t('Справочник')}</Link>
         </nav>
       </section>
 
       <section className="journal-toolbar">
         <div>
-          <span>{status}</span>
-          <strong>{chatUser ? `Сессия: ${chatUser.username}` : 'Локальные записи этого браузера'}</strong>
+          <span>{t(status)}</span>
+          <strong>{chatUser ? tf('Сессия: {username}', { username: chatUser.username }) : t('Локальные записи этого браузера')}</strong>
         </div>
         <label>
-          <span>Комната</span>
+          <span>{t('Комната')}</span>
           <input value={roomDraft} onChange={event => setRoomDraft(event.target.value)} />
         </label>
-        <button type="button" onClick={createEntry}>Новая запись</button>
+        <button type="button" onClick={createEntry}>{t('Новая запись')}</button>
       </section>
 
       <section className="journal-layout">
-        <aside className="journal-sidebar" aria-label="Список дневников">
-          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Поиск в дневнике" />
+        <aside className="journal-sidebar" aria-label={t('Список дневников')}>
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder={t('Поиск в дневнике')} />
           <div className="archive-list">
             {archives.length === 0 ? (
-              <p>Создайте дневник комнаты.</p>
+              <p>{t('Создайте дневник комнаты.')}</p>
             ) : archives.map(archive => (
               <button
                 type="button"
@@ -367,13 +370,13 @@ export default function JournalPage() {
                 }}
               >
                 <strong>{archive.room || DEFAULT_ROOM}</strong>
-                <span>{archive.entries.length} записей</span>
+                <span>{tf('{count} записей', { count: archive.entries.length })}</span>
               </button>
             ))}
           </div>
           <div className="entry-list">
             {filteredEntries.length === 0 ? (
-              <p>{entries.length ? 'Записей не найдено.' : 'В этом дневнике пока пусто.'}</p>
+              <p>{entries.length ? t('Записей не найдено.') : t('В этом дневнике пока пусто.')}</p>
             ) : filteredEntries.map(entry => (
               <button
                 type="button"
@@ -381,8 +384,8 @@ export default function JournalPage() {
                 key={entry.id}
                 onClick={() => setSelectedEntryId(entry.id)}
               >
-                <strong>{entry.title || 'Без названия'}</strong>
-                <span>{formatDate(entry.updatedAt)}</span>
+                <strong>{entry.title || t('Без названия')}</strong>
+                <span>{formatDate(entry.updatedAt, locale)}</span>
               </button>
             ))}
           </div>
@@ -390,7 +393,7 @@ export default function JournalPage() {
 
         <section
           className={`journal-editor ${dragOverJournal ? 'drag-over' : ''}`}
-          aria-label="Запись дневника"
+          aria-label={t('Запись дневника')}
           onDragEnter={event => { event.preventDefault(); setDragOverJournal(true) }}
           onDragOver={event => { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; setDragOverJournal(true) }}
           onDragLeave={event => {
@@ -404,7 +407,7 @@ export default function JournalPage() {
               <input
                 value={selectedEntry.title}
                 onChange={event => updateEntry({ title: event.target.value })}
-                placeholder="Заголовок"
+                placeholder={t('Заголовок')}
               />
 
               {/* Rich text editor */}
@@ -413,19 +416,19 @@ export default function JournalPage() {
                   ref={editorRef}
                   value={editorValue}
                   onChange={html => updateEntry({ text: html })}
-                  placeholder="Текст записи…"
+                  placeholder={t('Текст записи…')}
                 />
               </div>
 
               <footer>
-                <span>Обновлено: {formatDate(selectedEntry.updatedAt)}</span>
-                <button type="button" className="danger" onClick={deleteEntry}>Удалить</button>
+                <span>{tf('Обновлено: {date}', { date: formatDate(selectedEntry.updatedAt, locale) })}</span>
+                <button type="button" className="danger" onClick={deleteEntry}>{t('Удалить')}</button>
               </footer>
             </>
           ) : (
             <div className="journal-empty">
-              <h2>Дневник открыт отдельно</h2>
-              <p>Выберите существующий дневник комнаты или создайте новую запись. Записи сохраняются локально в этом браузере, как и раньше.</p>
+              <h2>{t('Дневник открыт отдельно')}</h2>
+              <p>{t('Выберите существующий дневник комнаты или создайте новую запись. Записи сохраняются локально в этом браузере, как и раньше.')}</p>
             </div>
           )}
         </section>
