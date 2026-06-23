@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "audit:disciplines": "tsx scripts/audit-discipline-rules.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
@@ -30,6 +31,7 @@
   "devDependencies": {
     "@types/node": "25.6.1",
     "@types/react": "^19.2.14",
+    "tsx": "^4.22.4",
     "typescript": "6.0.3"
   }
 }
