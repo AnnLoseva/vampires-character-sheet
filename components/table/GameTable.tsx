@@ -6005,9 +6005,12 @@ export default function VampireTable() {
     if (!meta) return null
     const rouseChecks = meta.rouseChecks || []
     const warnings = meta.warnings || []
-    const hasHungerChange = typeof meta.hungerBefore === 'number'
+    const hungerChange = typeof meta.hungerBefore === 'number'
       && typeof meta.hungerAfter === 'number'
       && meta.hungerBefore !== meta.hungerAfter
+      ? { before: meta.hungerBefore, after: meta.hungerAfter }
+      : null
+    const hasHungerChange = hungerChange !== null
     const hasWillpowerChange = Boolean(meta.willpowerBefore && meta.willpowerAfter && meta.willpowerBefore.current !== meta.willpowerAfter.current)
     const hasWillpowerMeta = hasWillpowerChange
       || Boolean(meta.spentWillpower)
@@ -6041,7 +6044,7 @@ export default function VampireTable() {
             {tf('{reason}: {value} · {outcome}', { reason: t(result.reason), value: result.value, outcome: result.success ? t('успех') : t('провал') })}
           </span>
         ))}
-        {hasHungerChange ? <span className="roll-note">{tf('Голод: {before} → {after}', { before: meta.hungerBefore, after: meta.hungerAfter })}</span> : null}
+        {hungerChange ? <span className="roll-note">{tf('Голод: {before} → {after}', hungerChange)}</span> : null}
         {meta.spentWillpower ? <span className="roll-note">{tf('Воля потрачена: {n}', { n: meta.spentWillpower })}</span> : null}
         {meta.recoveredWillpower ? <span className="roll-note">{tf('Воля восстановлена: {n}', { n: meta.recoveredWillpower })}</span> : null}
         {hasWillpowerChange && meta.willpowerBefore && meta.willpowerAfter ? (
