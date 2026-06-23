@@ -1,5 +1,6 @@
 import type { Conviction, HumanityStainEvent, HumanityState, HumanityStatus, MoralityState, Touchstone } from '@/lib/vtm/humanity'
 import type { NormalizedDisciplinePowers, NormalizedDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
+import type { CharacterDerivedStats } from '@/lib/vtm/derived-stats'
 
 export type Die = {
   id?: string
@@ -252,6 +253,7 @@ export type CharacterOption = {
   skills: Record<string, number | { dots?: number; specs?: string[] }>
   disciplines: NormalizedDisciplines
   selectedPowers: NormalizedDisciplinePowers
+  derivedStats: CharacterDerivedStats
 }
 
 export type CharacterRow = {

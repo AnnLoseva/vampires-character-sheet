@@ -5,6 +5,8 @@ import { getHumanityState, getHumanityStatus, normalizeMoralityState } from '@/l
 import type { HumanityStainEvent } from '@/lib/vtm/humanity'
 import { getAttributeDots } from '@/lib/i18n/ruleNames'
 import { normalizeCharacterDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
+import { getDerivedStats } from '@/lib/vtm/derived-stats'
+import defaultRules from '@/public/rules.json'
 
 const DIE_KINDS = new Set<Die['kind']>([
   'fail',
@@ -336,9 +338,13 @@ export function getDefaultDamageProfile(characterType: CharacterType): NonNullab
   return 'vampire'
 }
 
-export function mapCharacterRowToOption(row: CharacterRow): CharacterOption {
+export function mapCharacterRowToOption(
+  row: CharacterRow,
+  rules: unknown = defaultRules,
+): CharacterOption {
   const data = row.data || {}
   const normalizedDisciplines = normalizeCharacterDisciplines(data)
+  const derivedStats = getDerivedStats(data, rules)
   const characterType = getCharacterType(data)
   const bloodPotency = Number(data.bloodPotency ?? data.blood?.potency ?? 0) || 0
   const humanityState = getHumanityState(data)
@@ -351,12 +357,24 @@ export function mapCharacterRowToOption(row: CharacterRow): CharacterOption {
     })
   const morality = { ...moralitySource, touchstones: legacyTouchstones }
   const damageProfile = normalizeDamageProfile(data.damageProfile || getDefaultDamageProfile(characterType))
+  const rawHealthTracker = data.vitalTrackers?.health
+  const healthTracker = typeof rawHealthTracker === 'number'
+    ? rawHealthTracker + derivedStats.health.passiveBonus
+    : rawHealthTracker
   const health = normalizeHealthTracker(
-    data.vitalTrackers?.health,
-    getAttributeDots(data.attributes, 'Выносливость'),
+    healthTracker,
+    getAttributeDots(data.attributes, 'Выносливость')
+      + derivedStats.health.passiveBonus,
     damageProfile,
   )
-  const willpower = normalizeWillpowerTracker(data.vitalTrackers?.willpower, getWillpowerMaxFromAttributes(data.attributes || {}))
+  const rawWillpowerTracker = data.vitalTrackers?.willpower
+  const willpowerTracker = typeof rawWillpowerTracker === 'number'
+    ? rawWillpowerTracker + derivedStats.willpower.passiveBonus
+    : rawWillpowerTracker
+  const willpower = normalizeWillpowerTracker(
+    willpowerTracker,
+    derivedStats.willpower.totalMax,
+  )
   return {
     id: row.id,
     userId: row.user_id || undefined,
@@ -392,6 +410,7 @@ export function mapCharacterRowToOption(row: CharacterRow): CharacterOption {
     skills: data.skills || {},
     disciplines: normalizedDisciplines.disciplines,
     selectedPowers: normalizedDisciplines.powers,
+    derivedStats,
   }
 }
 

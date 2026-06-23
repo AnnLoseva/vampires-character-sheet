@@ -55,7 +55,7 @@ export type TrackerModifierEffect = BaseDisciplineEffect & {
   type: 'tracker_modifier'
   tracker: 'health' | 'willpower' | 'humanity' | 'hunger' | string
   field?: 'current' | 'max' | 'superficial' | 'aggravated' | string
-  operation: 'add' | 'subtract' | 'set' | 'min' | 'max'
+  operation: 'add' | 'add_max' | 'subtract' | 'set' | 'min' | 'max'
   value: FormulaValue
 }
 

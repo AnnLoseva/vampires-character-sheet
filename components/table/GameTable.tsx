@@ -48,7 +48,6 @@ import {
   getDefaultDamageProfile,
   normalizeWillpowerTracker,
   normalizeInventory,
-  getWillpowerMaxFromAttributes,
   toDbPatch,
 } from '@/lib/table/mappers'
 import {
@@ -92,6 +91,7 @@ import {
   recoverHealthDamage,
   toHealthTracker,
 } from '@/lib/vtm/health'
+import { getDerivedStats } from '@/lib/vtm/derived-stats'
 import type { DamageSeverity, HealthDamageOptions } from '@/lib/vtm/health'
 import {
   addHumanityStains as addHumanityStainsState,
@@ -420,7 +420,7 @@ function getCharacterWillpower(character?: CharacterOption | null): NormalizedWi
   if (!character) return { superficial: 0, aggravated: 0, max: 0, current: 0, impaired: false }
   return character.willpower || normalizeWillpowerTracker(
     character.vitalTrackers?.willpower,
-    getWillpowerMaxFromAttributes(character.attributes || {}),
+    character.derivedStats.willpower.totalMax,
   )
 }
 
@@ -444,9 +444,15 @@ function getCharacterHealth(character?: CharacterOption | null): NormalizedHealt
   }
   return character.health || normalizeHealthTracker(
     character.vitalTrackers?.health,
-    getAttributeDots(character.attributes, 'Выносливость'),
+    getAttributeDots(character.attributes, 'Выносливость')
+      + character.derivedStats.health.passiveBonus,
     getCharacterDamageProfile(character),
   )
+}
+
+function getCharacterHealthStamina(character: CharacterOption) {
+  return getAttributeDots(character.attributes, 'Выносливость')
+    + character.derivedStats.health.passiveBonus
 }
 
 function getWillpowerMetaState(willpower: NormalizedWillpower): NonNullable<RollMeta['willpowerBefore']> {
@@ -2271,6 +2277,7 @@ export default function VampireTable() {
         skills: {},
         disciplines: {},
         selectedPowers: {},
+        derivedStats: getDerivedStats({}, {}),
       })
       return
     }
@@ -2292,6 +2299,7 @@ export default function VampireTable() {
         skills: {},
         disciplines: {},
         selectedPowers: {},
+        derivedStats: getDerivedStats({}, {}),
       })
       return
     }
@@ -2617,7 +2625,8 @@ export default function VampireTable() {
     }
 
     const characterData = data.data as NonNullable<CharacterRow['data']>
-    const willpowerMax = getWillpowerMaxFromAttributes(characterData.attributes || {})
+    const willpowerMax = mapCharacterRow(data as CharacterRow)
+      .derivedStats.willpower.totalMax
     const normalized = normalizeWillpowerTracker(nextTracker, willpowerMax)
     const nextData = {
       ...characterData,
@@ -2685,6 +2694,8 @@ export default function VampireTable() {
       characterData.damageProfile || getDefaultDamageProfile(characterType),
     )
     const stamina = getAttributeDots(characterData.attributes, 'Выносливость')
+      + mapCharacterRow(data as CharacterRow)
+        .derivedStats.health.passiveBonus
     const normalized = normalizeHealthTracker(toHealthTracker(nextTracker), stamina, profile)
     const nextData = {
       ...characterData,
@@ -2877,7 +2888,7 @@ export default function VampireTable() {
       ...toHealthTracker(before),
       aggravated: before.aggravated - converted,
       superficial: before.superficial + converted,
-    }, getAttributeDots(character.attributes, 'Выносливость'), getCharacterDamageProfile(character))
+    }, getCharacterHealthStamina(character), getCharacterDamageProfile(character))
     const updatedCharacter = await updateCharacterHealth(character.id, next, 'Лечение смертного сохранено')
     if (!updatedCharacter) return
     await publishHealthEvent(updatedCharacter, 'Лечение смертного', before, getCharacterHealth(updatedCharacter), {
@@ -7321,7 +7332,7 @@ export default function VampireTable() {
                               ...toHealthTracker(previewHealth),
                               superficial: 0,
                               aggravated: 0,
-                            }, getAttributeDots(previewCharacter.attributes, 'Выносливость'), previewDamageProfile), 'Здоровье очищено')
+                            }, getCharacterHealthStamina(previewCharacter), previewDamageProfile), 'Здоровье очищено')
                           }
                         }}
                         disabled={!canRollPreview || (!previewHealth.superficial && !previewHealth.aggravated)}
@@ -7337,7 +7348,7 @@ export default function VampireTable() {
                               ...toHealthTracker(previewHealth),
                               superficial: 0,
                               aggravated: previewHealth.max,
-                            }, getAttributeDots(previewCharacter.attributes, 'Выносливость'), previewDamageProfile), stateName)
+                            }, getCharacterHealthStamina(previewCharacter), previewDamageProfile), stateName)
                           }
                         }}
                         disabled={!canRollPreview}
