@@ -4,6 +4,7 @@ import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from 
 import { getHumanityState, getHumanityStatus, normalizeMoralityState } from '@/lib/vtm/humanity'
 import type { HumanityStainEvent } from '@/lib/vtm/humanity'
 import { getAttributeDots } from '@/lib/i18n/ruleNames'
+import { normalizeCharacterDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
 
 const DIE_KINDS = new Set<Die['kind']>([
   'fail',
@@ -335,8 +336,9 @@ export function getDefaultDamageProfile(characterType: CharacterType): NonNullab
   return 'vampire'
 }
 
-export function mapCharacterRow(row: CharacterRow): CharacterOption {
+export function mapCharacterRowToOption(row: CharacterRow): CharacterOption {
   const data = row.data || {}
+  const normalizedDisciplines = normalizeCharacterDisciplines(data)
   const characterType = getCharacterType(data)
   const bloodPotency = Number(data.bloodPotency ?? data.blood?.potency ?? 0) || 0
   const humanityState = getHumanityState(data)
@@ -388,10 +390,12 @@ export function mapCharacterRow(row: CharacterRow): CharacterOption {
     inventory: normalizeInventory(data.inventory),
     attributes: data.attributes || {},
     skills: data.skills || {},
-    disciplines: data.disciplines || {},
-    selectedPowers: data.selectedPowers || {},
+    disciplines: normalizedDisciplines.disciplines,
+    selectedPowers: normalizedDisciplines.powers,
   }
 }
+
+export const mapCharacterRow = mapCharacterRowToOption
 
 export function mapLayerRow(row: TableLayerRow): TableLayer {
   return {

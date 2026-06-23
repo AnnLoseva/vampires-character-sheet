@@ -1,4 +1,5 @@
 import type { Conviction, HumanityStainEvent, HumanityState, HumanityStatus, MoralityState, Touchstone } from '@/lib/vtm/humanity'
+import type { NormalizedDisciplinePowers, NormalizedDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
 
 export type Die = {
   id?: string
@@ -249,8 +250,8 @@ export type CharacterOption = {
   inventory: InventoryItem[]
   attributes: Record<string, number>
   skills: Record<string, number | { dots?: number; specs?: string[] }>
-  disciplines: Record<string, Record<string, number>>
-  selectedPowers: Record<string, unknown>
+  disciplines: NormalizedDisciplines
+  selectedPowers: NormalizedDisciplinePowers
 }
 
 export type CharacterRow = {
@@ -306,8 +307,9 @@ export type CharacterRow = {
     touchstones?: Array<string | { text?: string; name?: string; image?: string }>
     attributes?: Record<string, number>
     skills?: Record<string, number | { dots?: number; specs?: string[] }>
-    disciplines?: Record<string, Record<string, number>>
-    selectedPowers?: Record<string, unknown>
+    disciplines?: unknown
+    selectedPowers?: unknown
+    powers?: unknown
   } | null
 }
 
