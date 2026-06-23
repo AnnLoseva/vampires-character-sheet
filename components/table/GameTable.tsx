@@ -2112,6 +2112,8 @@ export default function VampireTable() {
   const previewBloodSurgeBonus = getBloodSurgeBonus(previewBloodPotency)
   const previewHunger = getCharacterHunger(previewCharacter)
   const previewWillpower = getCharacterWillpower(previewCharacter)
+  const previewHealthDerived = previewCharacter?.derivedStats.health
+  const previewWillpowerDerived = previewCharacter?.derivedStats.willpower
   const previewDamageProfile = getCharacterDamageProfile(previewCharacter)
   const previewUsesVampireResources = Boolean(previewCharacter && ['vampire', 'thinblood'].includes(previewCharacter.characterType))
   const previewBloodSurgeEnabled = previewUsesVampireResources && previewUseBloodSurge
@@ -7290,6 +7292,16 @@ export default function VampireTable() {
                       </div>
                       <strong>{previewHealth.current} / {previewHealth.max}</strong>
                     </div>
+                    {previewHealthDerived ? (
+                      <p className="preview-humanity-caption">
+                        {t('Здоровье')}: {previewHealthDerived.baseMax}
+                        {previewHealthDerived.legacyBonus > 0 ? ` + ${previewHealthDerived.legacyBonus}` : ''}
+                        {previewHealthDerived.passiveBonus > 0
+                          ? ` + ${previewHealthDerived.passiveBonus} ${t('от Стойкости')}`
+                          : ''}
+                        {' = '}{previewHealthDerived.totalMax}
+                      </p>
+                    ) : null}
                     <div className="preview-willpower-track" aria-label={t('Трек Здоровья')}>
                       {Array.from({ length: previewHealth.max }, (_, index) => {
                         const cell = index + 1
@@ -7367,6 +7379,16 @@ export default function VampireTable() {
                       </div>
                       <strong>{previewWillpower.current} / {previewWillpower.max}</strong>
                     </div>
+                    {previewWillpowerDerived ? (
+                      <p className="preview-humanity-caption">
+                        {t('Воля')}: {previewWillpowerDerived.baseMax}
+                        {previewWillpowerDerived.legacyBonus > 0 ? ` + ${previewWillpowerDerived.legacyBonus}` : ''}
+                        {previewWillpowerDerived.passiveBonus > 0
+                          ? ` + ${previewWillpowerDerived.passiveBonus} ${t('от дисциплин')}`
+                          : ''}
+                        {' = '}{previewWillpowerDerived.totalMax}
+                      </p>
+                    ) : null}
                     <div className="preview-willpower-track" aria-label={t('Трек Воли')}>
                       {Array.from({ length: previewWillpower.max }, (_, index) => {
                         const cell = index + 1

@@ -112,6 +112,13 @@ function resolveFormulaValue(
 
   if (!isObject(value)) return 0
 
+  if (value.formula === 'discipline_rating') {
+    const formulaDiscipline = typeof value.discipline === 'string'
+      ? value.discipline
+      : disciplineName
+    return getDisciplineRating(normalized, formulaDiscipline)
+  }
+
   if (value.type === 'trait' && typeof value.trait === 'string') {
     return applyFormulaBounds(
       resolveTraitValue(

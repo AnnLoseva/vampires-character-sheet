@@ -2395,7 +2395,46 @@
       "pool": "—",
       "cost": "нет",
       "effect": "Каждый пункт Стойкости добавляет один уровень к шкале здоровья. Эффект постоянный.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Стойкость",
+        "power": "Сила жизни",
+        "level": 1,
+        "tags": [
+         "passive",
+         "health",
+         "tracker_modifier"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "type": "tracker_modifier",
+         "tracker": "health",
+         "operation": "add_max",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Стойкость"
+         }
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "+Стойкость к здоровью"
+       }
+      }
      },
      "Твёрдость духа": {
       "description": "Разум вампира становится упрямым, холодным или неподатливым к давлению.",
