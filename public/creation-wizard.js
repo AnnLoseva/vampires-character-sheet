@@ -897,33 +897,34 @@
     RENDERERS.summary = () => {
         const v = mandatoryValid();
         const row = (lbl, value, cls) =>
-            `<div class="cw-summary-row"><span class="lbl">${esc(lbl)}</span><span class="val ${cls || ''}">${esc(value)}</span></div>`;
-        const yn = b => b ? { t: 'заполнены', c: 'ok' } : { t: 'ошибки', c: 'bad' };
+            `<div class="cw-summary-row"><span class="lbl">${esc(t(lbl))}</span><span class="val ${cls || ''}">${esc(value)}</span></div>`;
+        const yn = b => b ? { t: t('заполнены'), c: 'ok' } : { t: t('ошибки'), c: 'bad' };
         const inv = (sheetData().inventory || []).length;
         const allOk = Object.values(v).every(Boolean);
-        return shell('summary', 'Персонаж почти готов', '',
+        const generation = val('generation-input');
+        return shell('summary', t('Персонаж почти готов'), '',
             `<div class="cw-summary">
                 ${row('Имя', val('char-name') || '—', v.name ? '' : 'bad')}
                 ${row('Клан', getCurrentClanValue() || '—', v.clan ? '' : 'bad')}
                 ${row('Тип охоты', val('predator-input') || '—', v.predator ? '' : 'bad')}
-                ${row('Поколение', val('generation-input') ? val('generation-input') + '-е' : '—', v.generation ? '' : 'bad')}
+                ${row('Поколение', generation ? generation + (window.VTM_LANG === 'en' ? 'th' : '-е') : '—', v.generation ? '' : 'bad')}
                 ${row('Человечность', val('base-humanity') || '7', '')}
                 ${row('Характеристики', yn(v.attributes).t, yn(v.attributes).c)}
                 ${row('Навыки', yn(v.skills).t, yn(v.skills).c)}
                 ${row('Дисциплины', yn(v.disciplines).t, yn(v.disciplines).c)}
                 ${row('Преимущества и недостатки', yn(v.meritsFlaws).t, yn(v.meritsFlaws).c)}
-                ${row('Инвентарь', inv ? 'заполнен' : 'пропущен', '')}
+                ${row('Инвентарь', inv ? t('заполнен') : t('пропущен'), '')}
              </div>
-             ${allOk ? '' : '<div class="cw-error">Не все обязательные шаги завершены. Чтобы зафиксировать лист, исправь отмеченные красным пункты.</div>'}`,
-            navBtn('Открыть полный лист', 'toSheet', 'to-sheet')
-            + navBtn('Вернуться и исправить', 'prev')
-            + `<button type="button" class="cw-btn primary" data-cw="finish" ${allOk ? '' : 'disabled'}>Зафиксировать лист</button>`);
+             ${allOk ? '' : `<div class="cw-error">${t('Не все обязательные шаги завершены. Чтобы зафиксировать лист, исправь отмеченные красным пункты.')}</div>`}`,
+            navBtn(t('Открыть полный лист'), 'toSheet', 'to-sheet')
+            + navBtn(t('Вернуться и исправить'), 'prev')
+            + `<button type="button" class="cw-btn primary" data-cw="finish" ${allOk ? '' : 'disabled'}>${t('Зафиксировать лист')}</button>`);
     };
 
     function finishSheet() {
         const v = mandatoryValid();
         if (!Object.values(v).every(Boolean)) {
-            showStepError('Сначала заверши все обязательные шаги.');
+            showStepError(t('Сначала заверши все обязательные шаги.'));
             return;
         }
         let fixed = false;
@@ -933,7 +934,7 @@
             } catch (e) { console.error(e); }
         }
         if (!fixed) {
-            showStepError('Лист пока не проходит финальную проверку. Вернись к отмеченным шагам и исправь значения.');
+            showStepError(t('Лист пока не проходит финальную проверку. Вернись к отмеченным шагам и исправь значения.'));
             return;
         }
         wizard.finishedAt = new Date().toISOString();
@@ -947,19 +948,19 @@
     /* ================= ВАЛИДАЦИЯ ПЕРЕХОДА «ДАЛЬШЕ» ================= */
     function validateAndAdvance() {
         const requiredChecks = {
-            identity: [() => !!val('char-name'), 'Имя обязательно для заполнения.'],
-            clan: [() => !!getCurrentClanValue(), 'Сначала выбери клан.'],
-            predator: [() => !!val('predator-input'), 'Сначала выбери тип охоты.'],
-            generation: [() => !!val('generation-input'), 'Сначала выбери поколение.'],
-            humanity: [() => ['7', '8'].includes(val('base-humanity')), 'Выбери начальную Человечность: 7 или 8.'],
+            identity: [() => !!val('char-name'), t('Имя обязательно для заполнения.')],
+            clan: [() => !!getCurrentClanValue(), t('Сначала выбери клан.')],
+            predator: [() => !!val('predator-input'), t('Сначала выбери тип охоты.')],
+            generation: [() => !!val('generation-input'), t('Сначала выбери поколение.')],
+            humanity: [() => ['7', '8'].includes(val('base-humanity')), t('Выбери начальную Человечность: 7 или 8.')],
             attributes: [() => {
                 const pkg = val('skill-package');
                 return schemeComplete(ATTR_SCHEME, counts('attr'))
                     && Boolean(pkg && SKILL_SCHEMES[pkg] && schemeComplete(SKILL_SCHEMES[pkg].limits, counts('skill')));
-            }, 'Заверши строгое распределение характеристик и навыков.'],
-            disciplines: [disciplineStepValid, 'Выбери стартовые клановые дисциплины по схеме 2 + 1.'],
+            }, t('Заверши строгое распределение характеристик и навыков.')],
+            disciplines: [disciplineStepValid, t('Выбери стартовые клановые дисциплины по схеме 2 + 1.')],
             meritsFlaws: [() => meritPoints() === meritsLimit() && flawPoints() === flawsLimit(),
-                'Распредели требуемые преимущества и недостатки.']
+                t('Распредели требуемые преимущества и недостатки.')]
         };
         const check = requiredChecks[activeStep];
         if (check && !check[0]()) {
@@ -994,21 +995,21 @@
     }
     function showTypeChoice() {
         openOverlay();
-        getOverlay().innerHTML = modalShell('Создать персонажа',
-            choiceBtn('Создать вампира', 'typeVampire') +
-            choiceBtn('Создать НПС', 'typeNpc'));
+        getOverlay().innerHTML = modalShell(t('Создать персонажа'),
+            choiceBtn(t('Создать вампира'), 'typeVampire') +
+            choiceBtn(t('Создать НПС'), 'typeNpc'));
         bindTypeNav();
     }
     function showNpcChoice() {
-        getOverlay().innerHTML = modalShell('Создать НПС',
-            choiceBtn('Вампир', 'npcVampire') +
-            choiceBtn('Человек', 'npcHuman'));
+        getOverlay().innerHTML = modalShell(t('Создать НПС'),
+            choiceBtn(t('Вампир'), 'npcVampire') +
+            choiceBtn(t('Человек'), 'npcHuman'));
         bindTypeNav();
     }
     function showModeChoice() {
-        getOverlay().innerHTML = modalShell('Как создать персонажа?',
-            choiceBtn('Лёгкое создание персонажа', 'modeGuided') +
-            choiceBtn('Чистый лист', 'modeBlank'));
+        getOverlay().innerHTML = modalShell(t('Как создать персонажа?'),
+            choiceBtn(t('Лёгкое создание персонажа'), 'modeGuided') +
+            choiceBtn(t('Чистый лист'), 'modeBlank'));
         bindTypeNav();
     }
     function bindTypeNav() {
@@ -1133,8 +1134,8 @@
     if (isNewMode()) {
         openOverlay();
         getOverlay().innerHTML = `<div class="cw-card" style="max-width:520px;margin-top:8vh">
-            <h1>Создание персонажа</h1>
-            <p style="color:#888;text-align:center">Подготавливаю правила и сохранённый прогресс…</p>
+            <h1>${t('Создание персонажа')}</h1>
+            <p style="color:#888;text-align:center">${t('Подготавливаю правила и сохранённый прогресс…')}</p>
         </div>`;
     }
 

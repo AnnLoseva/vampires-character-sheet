@@ -2164,7 +2164,7 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
     for (let i = 1; i <= 5; i++) {
         const filled = i <= dots ? 'filled' : '';
         const expClass = filled && i > shopStartDots ? 'exp-pending' : filled && i > baseDots ? 'exp-purchased' : '';
-        const priceTitle = expShopMode ? ` title="До ${i}: ${getDisciplinePreviewCost(name, i)} XP"` : '';
+        const priceTitle = expShopMode ? ` title="${tf('До {i}: {cost} XP', { i, cost: getDisciplinePreviewCost(name, i) })}"` : '';
         dotsHTML += `<div class="disc-dot ${filled} ${expClass}" data-level="${i}"${priceTitle}></div>`;
     }
 
@@ -2244,7 +2244,7 @@ function renderShopAvailableDisciplines() {
 
         let dotsHTML = '';
         for (let i = 1; i <= 5; i++) {
-            const priceTitle = expShopMode ? ` title="До ${i}: ${getDisciplinePreviewCost(name, i)} XP"` : '';
+            const priceTitle = expShopMode ? ` title="${tf('До {i}: {cost} XP', { i, cost: getDisciplinePreviewCost(name, i) })}"` : '';
             dotsHTML += `<div class="disc-dot" data-level="${i}"${priceTitle}></div>`;
         }
 
@@ -2512,30 +2512,30 @@ function showDisciplineHint(discName) {
     if (!panel) return;
 
     if (!discName) {
-        panel.innerHTML = `<p style="color:#666;text-align:center;font-style:italic;">Выберите дисциплину</p>`;
+        panel.innerHTML = `<p style="color:#666;text-align:center;font-style:italic;">${t('Выберите дисциплину')}</p>`;
         return;
     }
 
     const disc = RULES.disciplines?.[discName];
     if (!disc) {
-        panel.innerHTML = `<p style="color:#ffae00;">Дисциплина не найдена: <strong>${discName}</strong></p>`;
+        panel.innerHTML = `<p style="color:#ffae00;">${tf('Дисциплина не найдена: {name}', { name: `<strong>${discName}</strong>` })}</p>`;
         return;
     }
 
     let html = `
         <h3 style="color:#ff3131; margin:0 0 12px;">${discName}</h3>
         <div style="color:#ddd; line-height:1.65;">
-            ${disc.description || 'Описание отсутствует'}
+            ${disc.description || t('Описание отсутствует')}
         </div>
     `;
 
     if (disc.system) {
         html += `
             <div style="margin-top:15px; background:#1a1a1a; padding:10px; border-radius:6px; font-size:13.5px;">
-                <strong>Тип:</strong> ${disc.system.type || '—'}<br>
-                <strong>Маскарад:</strong> ${disc.system.masquerade || '—'}
-                ${disc.system.resonance ? `<br><strong>Резонанс:</strong> ${disc.system.resonance}` : ''}
-                ${disc.system.limitations ? `<br><strong>Ограничения:</strong> ${disc.system.limitations}` : ''}
+                <strong>${t('Тип')}:</strong> ${disc.system.type || '—'}<br>
+                <strong>${t('Маскарад')}:</strong> ${disc.system.masquerade || '—'}
+                ${disc.system.resonance ? `<br><strong>${t('Резонанс')}:</strong> ${disc.system.resonance}` : ''}
+                ${disc.system.limitations ? `<br><strong>${t('Ограничения')}:</strong> ${disc.system.limitations}` : ''}
             </div>
         `;
     }
@@ -2716,20 +2716,20 @@ function openPowerSelectionModal(discName, maxLevel) {
             
             <div style="flex:1;">
                 <h2 style="color:#ff3131;text-align:center;margin:0 0 20px;">
-                    ${discName} — Выбор способностей 
+                    ${discName} — ${t('Выбор способностей')}
                     <span id="power-count" style="color:#ffae00;">(${selected.length}/${maxLevel})</span>
                 </h2>
                 <div id="power-list" style="overflow-y:auto;padding:10px;height:65vh;display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:14px;"></div>
             </div>
 
             <div id="power-hint-panel" style="width:420px; background:#0a0a0a; border:1px solid #333; border-radius:8px; padding:25px; color:#ddd; font-size:14.8px; line-height:1.65; overflow-y:auto; max-height:75vh;">
-                <p style="color:#666; text-align:center; font-style:italic;">Выберите способность слева, чтобы увидеть описание</p>
+                <p style="color:#666; text-align:center; font-style:italic;">${t('Выберите способность слева, чтобы увидеть описание')}</p>
             </div>
         </div>
-        
+
         <div style="position:absolute; bottom:40px; left:50%; transform:translateX(-50%); display:flex; gap:15px;">
-            <button id="power-confirm-btn" style="background:#ff3131;color:black;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">Подтвердить</button>
-            <button id="power-cancel-btn" style="background:#333;color:white;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">Отмена</button>
+            <button id="power-confirm-btn" style="background:#ff3131;color:black;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">${t('Подтвердить')}</button>
+            <button id="power-cancel-btn" style="background:#333;color:white;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">${t('Отмена')}</button>
         </div>
     </div>`;
 
@@ -2762,8 +2762,8 @@ function openPowerSelectionModal(discName, maxLevel) {
 
                 card.innerHTML = `
                     <div style="color:#ffae00;font-weight:bold;">${powerName}</div>
-                    <div style="color:#666;font-size:13px;">Уровень ${lvl}</div>
-                    <div style="color:#ccc;margin-top:8px;line-height:1.5;">${power.description ? power.description.substring(0, 180) + (power.description.length > 180 ? '...' : '') : 'Нет описания'}</div>
+                    <div style="color:#666;font-size:13px;">${tf('Уровень {level}', { level: lvl })}</div>
+                    <div style="color:#ccc;margin-top:8px;line-height:1.5;">${power.description ? power.description.substring(0, 180) + (power.description.length > 180 ? '...' : '') : t('Нет описания')}</div>
                 `;
 
                 card.addEventListener('click', () => {
@@ -2778,16 +2778,16 @@ function openPowerSelectionModal(discName, maxLevel) {
 
                 card.addEventListener('mouseenter', () => {
                     let html = `
-                        <h3 style="color:#ff3131; margin:0 0 12px;">${powerName} <span style="color:#666;font-size:14px;">(Уровень ${lvl})</span></h3>
-                        <div style="line-height:1.65;">${power.description || 'Описание отсутствует'}</div>
+                        <h3 style="color:#ff3131; margin:0 0 12px;">${powerName} <span style="color:#666;font-size:14px;">(${tf('Уровень {level}', { level: lvl })})</span></h3>
+                        <div style="line-height:1.65;">${power.description || t('Описание отсутствует')}</div>
                     `;
-                    if (power.effect) html += `<p style="margin-top:12px;"><strong>Эффект:</strong> ${power.effect}</p>`;
+                    if (power.effect) html += `<p style="margin-top:12px;"><strong>${t('Эффект')}:</strong> ${power.effect}</p>`;
                     const rollSummary = getPowerRollSummary(power);
                     const difficultySummary = getPowerDifficultySummary(power);
-                    if (rollSummary) html += `<p style="margin-top:12px;"><strong>Бросок:</strong> ${rollSummary}</p>`;
-                    if (difficultySummary) html += `<p><strong>Сложность:</strong> ${difficultySummary}</p>`;
-                    if (power.cost) html += `<p><strong>Стоимость:</strong> ${power.cost}</p>`;
-                    if (power.duration) html += `<p><strong>Длительность:</strong> ${power.duration}</p>`;
+                    if (rollSummary) html += `<p style="margin-top:12px;"><strong>${t('Бросок')}:</strong> ${rollSummary}</p>`;
+                    if (difficultySummary) html += `<p><strong>${t('Сложность')}:</strong> ${difficultySummary}</p>`;
+                    if (power.cost) html += `<p><strong>${t('Стоимость')}:</strong> ${power.cost}</p>`;
+                    if (power.duration) html += `<p><strong>${t('Длительность')}:</strong> ${power.duration}</p>`;
 
                     hintPanel.innerHTML = html;
                 });
@@ -2827,7 +2827,7 @@ function showSpecialtyChoiceModal(predatorName, options, predData) {
     let html = `
     <div id="spec-choice-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.95);z-index:26000;display:flex;align-items:center;justify-content:center;">
         <div style="background:#111;border:3px solid #ff3131;padding:35px 40px;width:520px;border-radius:12px;">
-            <h3 style="color:#ff3131;text-align:center;margin:0 0 25px;">Выберите специализацию для «${predatorName}»</h3>
+            <h3 style="color:#ff3131;text-align:center;margin:0 0 25px;">${tf('Выберите специализацию для «{predatorName}»', { predatorName })}</h3>
             
             <div style="display:flex;flex-direction:column;gap:12px;">`;
 
@@ -2840,9 +2840,9 @@ function showSpecialtyChoiceModal(predatorName, options, predData) {
     });
 
     html += `</div>
-            <button onclick="closeSpecChoiceModal()" 
+            <button onclick="closeSpecChoiceModal()"
                     style="margin-top:25px;width:100%;padding:12px;background:#333;color:white;border:none;border-radius:6px;cursor:pointer;">
-                Отмена
+                ${t('Отмена')}
             </button>
         </div>
     </div>`;
@@ -4049,16 +4049,16 @@ function loadClanHint() {
 
     let html = `
         <div style="color:#ddd; line-height:1.65; font-size:14.8px;">
-            ${clan.description || 'Описание отсутствует'}
+            ${clan.description || t('Описание отсутствует')}
         </div>
     `;
 
-    if (clan.types) html += `<hr style="border-color:#333;margin:15px 0;"><strong style="color:#ffae00;">Типичные представители:</strong><br><span style="color:#ccc;">${clan.types}</span>`;
+    if (clan.types) html += `<hr style="border-color:#333;margin:15px 0;"><strong style="color:#ffae00;">${t('Типичные представители:')}</strong><br><span style="color:#ccc;">${clan.types}</span>`;
     if (clan.disciplines?.length) {
-        html += `<hr style="border-color:#333;margin:15px 0;"><strong style="color:#ffae00;">Дисциплины:</strong><br>`;
+        html += `<hr style="border-color:#333;margin:15px 0;"><strong style="color:#ffae00;">${t('Дисциплины:')}</strong><br>`;
         clan.disciplines.forEach(d => html += `• ${d}<br>`);
     }
-    if (clan.bane) html += `<hr style="border-color:#333;margin:15px 0;"><strong style="color:#ff6666;">Проклятие:</strong> ${clan.bane}`;
+    if (clan.bane) html += `<hr style="border-color:#333;margin:15px 0;"><strong style="color:#ff6666;">${t('Проклятие:')}</strong> ${clan.bane}`;
 
     content.innerHTML = html;
     box.style.display = 'block';
@@ -4084,12 +4084,12 @@ function loadPredatorHint() {
         return;
     }
 
-    let html = `<div style="color:#ddd; line-height:1.6;">${pred.description || 'Описание отсутствует'}</div>`;
+    let html = `<div style="color:#ddd; line-height:1.6;">${pred.description || t('Описание отсутствует')}</div>`;
 
     // Специализация
     if (pred.specialty?.options && pred.specialty.options.length) {
         html += `<hr style="border-color:#333;margin:15px 0;">
-                 <strong style="color:#ffae00;">Специализация:</strong><br>
+                 <strong style="color:#ffae00;">${t('Специализация:')}</strong><br>
                  ${pred.specialty.options.join(', ')}`;
     }
 
@@ -4097,14 +4097,14 @@ function loadPredatorHint() {
     if (pred.disciplines?.increase?.options && pred.disciplines.increase.options.length) {
         const value = pred.disciplines.increase.value || 1;
         html += `<hr style="border-color:#333;margin:15px 0;">
-                 <strong style="color:#ffae00;">Дисциплина (+${value}):</strong><br>
+                 <strong style="color:#ffae00;">${tf('Дисциплина (+{value}):', { value })}</strong><br>
                  ${pred.disciplines.increase.options.join(', ')}`;
     }
 
     // Преимущества
     if (pred.advantages && pred.advantages.length) {
         html += `<hr style="border-color:#333;margin:15px 0;">
-                 <strong style="color:#ffcc00;">Преимущества:</strong><br>`;
+                 <strong style="color:#ffcc00;">${t('Преимущества:')}</strong><br>`;
         pred.advantages.forEach(a => {
             html += `• ${formatPredatorTraitLine(a, true)}<br>`;
         });
@@ -4113,7 +4113,7 @@ function loadPredatorHint() {
     // Недостатки
     if (pred.disadvantages && pred.disadvantages.length) {
         html += `<hr style="border-color:#333;margin:15px 0;">
-                 <strong style="color:#ff6666;">Недостатки:</strong><br>`;
+                 <strong style="color:#ff6666;">${t('Недостатки:')}</strong><br>`;
         pred.disadvantages.forEach(d => {
             html += `• ${formatPredatorTraitLine(d, false)}<br>`;
         });
@@ -4122,26 +4122,26 @@ function loadPredatorHint() {
     // Человечность
     if (pred.humanity !== undefined) {
         html += `<hr style="border-color:#333;margin:15px 0;">
-                 <strong style="color:#ffae00;">Человечность:</strong> 
+                 <strong style="color:#ffae00;">${t('Человечность:')}</strong>
                  <span style="color:#ffd700;">${pred.humanity > 0 ? '+' : ''}${pred.humanity}</span>`;
     }
 
     if (pred.blood_potency) {
         html += `<hr style="border-color:#333;margin:15px 0;">
-                 <strong style="color:#ffae00;">Сила Крови:</strong> 
+                 <strong style="color:#ffae00;">${t('Сила Крови:')}</strong>
                  <span style="color:#ffd700;">+${pred.blood_potency}</span>`;
     }
 
     if (pred.restriction) {
         const restrictions = Array.isArray(pred.restriction) ? pred.restriction : [pred.restriction];
         html += `<hr style="border-color:#333;margin:15px 0;">
-                 <strong style="color:#ff6666;">Ограничения:</strong><br>
+                 <strong style="color:#ff6666;">${t('Ограничения:')}</strong><br>
                  ${restrictions.map(r => `• ${r}`).join('<br>')}`;
     }
 
     if (pred.notes?.length) {
         html += `<hr style="border-color:#333;margin:15px 0;">
-                 <strong style="color:#aaa;">Заметки:</strong><br>
+                 <strong style="color:#aaa;">${t('Заметки:')}</strong><br>
                  ${pred.notes.map(n => `• ${n}`).join('<br>')}`;
     }
 
@@ -4168,18 +4168,18 @@ function updateBloodPotencyAndBonuses() {
     let hintHTML = '';
 
     if (type === 'childe') {
-        hintHTML = `<strong>Птенец (Childe)</strong><br>• Становление ≤ 15 лет назад<br>• <strong>Сила Крови: 0</strong><br>• +0 опыта`;
+        hintHTML = t('<strong>Птенец (Childe)</strong><br>• Становление ≤ 15 лет назад<br>• <strong>Сила Крови: 0</strong><br>• +0 опыта');
     } else if (type === 'neonate') {
         const potency = (generation <= 13) ? 1 : 0;
-        hintHTML = `<strong>Неонат (Neonate)</strong><br>• Становление после 1940 г.<br>• <strong>Сила Крови: ${potency}</strong><br>• +15 опыта`;
+        hintHTML = tf('<strong>Неонат (Neonate)</strong><br>• Становление после 1940 г.<br>• <strong>Сила Крови: {potency}</strong><br>• +15 опыта', { potency });
     } else if (type === 'ancilla') {
         const potency = (generation <= 11) ? 2 : 1;
-        hintHTML = `<strong>Анцилла (Ancilla)</strong><br>• Становление 1780–1940 гг.<br>• <strong>Сила Крови: ${potency}</strong><br>• +2 Преимущества к лимиту • +2 Недостатка к лимиту<br>• −1 Человечность<br>• +35 опыта`;
+        hintHTML = tf('<strong>Анцилла (Ancilla)</strong><br>• Становление 1780–1940 гг.<br>• <strong>Сила Крови: {potency}</strong><br>• +2 Преимущества к лимиту • +2 Недостатка к лимиту<br>• −1 Человечность<br>• +35 опыта', { potency });
     } else if (type === 'elder' || type === 'methuselah' || type === 'antediluvian') {
-        hintHTML = `<strong>Старейшина / Матузалем</strong><br>• Очень старый вампир<br>• <strong>Сила Крови: 3+</strong>`;
+        hintHTML = t('<strong>Старейшина / Матузалем</strong><br>• Очень старый вампир<br>• <strong>Сила Крови: 3+</strong>');
     }
 
-    content.innerHTML = hintHTML || 'Выберите Поколение и Тип';
+    content.innerHTML = hintHTML || t('Выберите Поколение и Тип');
     box.style.display = 'block';
 
     // Обновить показатель Силы крови в виталах
@@ -4236,10 +4236,10 @@ function updateTrackers() {
             renderTracker('attr', tpl.attrLimits, 'attr-tracker');
             renderTracker('skill', tpl.skillLimits, 'skill-tracker');
             const specCount = getSpecialtyCount();
-            document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / ${tpl.specs}`;
+            document.getElementById('spec-tracker').textContent = tf('Специализации (S): {current} / {max}', { current: specCount, max: tpl.specs });
         } else {
             document.getElementById('attr-tracker').innerHTML =
-                '<span style="color:#888; font-style:italic;">Выберите шаблон смертного</span>';
+                `<span style="color:#888; font-style:italic;">${t('Выберите шаблон смертного')}</span>`;
             document.getElementById('skill-tracker').innerHTML = '';
             document.getElementById('spec-tracker').textContent = t('Специализации (S): 0 / 0');
         }
@@ -4248,13 +4248,13 @@ function updateTrackers() {
         // Режим вампира
         if (!packageSelect.value) {
             document.getElementById('skill-tracker').innerHTML =
-                '<span style="color:#888; font-style:italic;">Выберите способ развития выше</span>';
-            document.getElementById('spec-tracker').textContent = `Специализации (S): ${getSpecialtyCount()} / ${VAMPIRE_SPECIALTY_LIMIT}`;
+                `<span style="color:#888; font-style:italic;">${t('Выберите способ развития выше')}</span>`;
+            document.getElementById('spec-tracker').textContent = tf('Специализации (S): {current} / {max}', { current: getSpecialtyCount(), max: VAMPIRE_SPECIALTY_LIMIT });
         } else {
             renderTracker('attr', ATTR_LIMITS, 'attr-tracker');
             renderTracker('skill', SKILL_PACKAGES[packageSelect.value], 'skill-tracker');
             const specCount = getSpecialtyCount();
-            document.getElementById('spec-tracker').textContent = `Специализации (S): ${specCount} / ${VAMPIRE_SPECIALTY_LIMIT}`;
+            document.getElementById('spec-tracker').textContent = tf('Специализации (S): {current} / {max}', { current: specCount, max: VAMPIRE_SPECIALTY_LIMIT });
         }
     }
 
@@ -4263,18 +4263,18 @@ function updateTrackers() {
 }
 
 function renderTracker(type, limits, trackerId) {
-    let html = `<b>${type === 'attr' ? 'Атрибуты' : 'Навыки'}:</b><br>`;
-    
+    let html = `<b>${type === 'attr' ? t('Атрибуты') : t('Навыки')}:</b><br>`;
+
     for (let v of [1,2,3,4,5]) {   // ← Изменили порядок: от 1 до 5
         const limit = limits[v] !== undefined ? limits[v] : 0;
         const count = counts[type][v] || 0;
-        
+
         let color = '';
         if (count > limit) color = 'color:#ff3131;';      // превышение (в т.ч. 5-й при лимите 0)
         else if (count < limit) color = 'color:#ffae00;'; // недобор
         // иначе — белый (ровно в лимит)
 
-        html += `<span style="${color}">На ${v}: ${count} / ${limit}</span><br>`;
+        html += `<span style="${color}">${tf('На {v}: {count} / {limit}', { v, count, limit })}</span><br>`;
     }
     document.getElementById(trackerId).innerHTML = html;
 }
@@ -4376,10 +4376,10 @@ function addSpecLine(skillName, value = '') {
     const line = document.createElement('div');
     line.className = 'skill-spec-line';
     line.innerHTML = `
-        <input type="text" class="dice-roll-specialty-input" data-skill="${skillName}" placeholder="Название специальности" style="flex:1;">
+        <input type="text" class="dice-roll-specialty-input" data-skill="${skillName}" placeholder="${t('Название специальности')}" style="flex:1;">
         ${expShopMode ? '<span style="color:#ff9500;font-weight:bold;align-self:center;white-space:nowrap;">3 XP</span>' : ''}
-        <button title="Добавить ещё" style="background:#222;color:#ffae00;">+</button>
-        <button title="Удалить" style="background:#222;color:#ff6666;">×</button>
+        <button title="${t('Добавить ещё')}" style="background:#222;color:#ffae00;">+</button>
+        <button title="${t('Удалить')}" style="background:#222;color:#ff6666;">×</button>
     `;
 
     const input = line.querySelector('input[type="text"]');
@@ -4501,7 +4501,7 @@ function setupDiceRollsFromLockedSheet() {
             if (specLine) {
                 const input = specLine.querySelector('input[type="text"]');
                 const skillName = input?.dataset.skill || findSkillNameForSpecLine(specLine);
-                const specName = input?.value.trim() || 'Специальность';
+                const specName = input?.value.trim() || t('Специальность');
                 openDiceRollModal({
                     second: makeDicePart('skill', skillName),
                     modifier: 1,
@@ -4603,10 +4603,10 @@ function parseDicePart(value) {
 }
 
 function getDicePartLabel(type) {
-    if (type === 'attr') return 'Характеристика';
-    if (type === 'skill') return 'Навык';
-    if (type === 'discipline') return 'Дисциплина';
-    return 'Параметр';
+    if (type === 'attr') return t('Характеристика');
+    if (type === 'skill') return t('Навык');
+    if (type === 'discipline') return t('Дисциплина');
+    return t('Параметр');
 }
 
 function getDicePartDots(partValue) {
@@ -4633,7 +4633,7 @@ function getDicePoolOptions(selectedValue = '') {
             items: DICE_SKILLS.map(name => ({ value: makeDicePart('skill', name), label: `${t(name)} (${getSkillDots(name)})` }))
         },
         {
-            label: 'Дисциплины',
+            label: t('Дисциплины'),
             items: Object.keys(disciplineSources || {})
                 .sort()
                 .map(name => ({ value: makeDicePart('discipline', name), label: `${name} (${getDisciplineDots(name)})` }))
@@ -4641,7 +4641,7 @@ function getDicePoolOptions(selectedValue = '') {
     ];
 
     return `
-        <option value="">— не выбрано —</option>
+        <option value="">${t('— не выбрано —')}</option>
         ${sections
             .filter(section => section.items.length > 0)
             .map(section => `
@@ -4704,37 +4704,37 @@ function getDiceRollModal() {
     modal.id = 'dice-roll-modal';
     modal.innerHTML = `
         <div class="dice-roll-dialog">
-            <button type="button" class="dice-roll-close" onclick="closeDiceRollModal()" title="Закрыть">×</button>
-            <div class="dice-roll-label">Бросок кубиков</div>
-            <h2 id="dice-roll-title">Собрать пул</h2>
-            <p id="dice-roll-subtitle">Выбери два параметра и добавь модификатор, если он нужен.</p>
+            <button type="button" class="dice-roll-close" onclick="closeDiceRollModal()" title="${t('Закрыть')}">×</button>
+            <div class="dice-roll-label">${t('Бросок кубиков')}</div>
+            <h2 id="dice-roll-title">${t('Собрать пул')}</h2>
+            <p id="dice-roll-subtitle">${t('Выбери два параметра и добавь модификатор, если он нужен.')}</p>
             <div class="dice-roll-builder">
                 <label>
-                    <span>Первый параметр</span>
+                    <span>${t('Первый параметр')}</span>
                     <select id="dice-roll-part-1" onchange="updateDiceRollPoolPreview()"></select>
                 </label>
                 <label>
-                    <span>Второй параметр</span>
+                    <span>${t('Второй параметр')}</span>
                     <select id="dice-roll-part-2" onchange="updateDiceRollPoolPreview()"></select>
                 </label>
                 <label>
-                    <span>Доп. кубики</span>
+                    <span>${t('Доп. кубики')}</span>
                     <input id="dice-roll-modifier" type="number" min="-20" max="20" value="0" oninput="updateDiceRollPoolPreview()">
                 </label>
                 <label>
-                    <span>Источник модификатора</span>
-                    <input id="dice-roll-modifier-label" type="text" placeholder="специальность, кровь, сложность..." oninput="updateDiceRollPoolPreview()">
+                    <span>${t('Источник модификатора')}</span>
+                    <input id="dice-roll-modifier-label" type="text" placeholder="${t('специальность, кровь, сложность...')}" oninput="updateDiceRollPoolPreview()">
                 </label>
                 <label class="dice-roll-toggle">
-                    <span id="dice-roll-blood-surge-label">Прилив Крови</span>
+                    <span id="dice-roll-blood-surge-label">${t('Прилив Крови')}</span>
                     <input id="dice-roll-blood-surge" type="checkbox" onchange="updateDiceRollPoolPreview()">
                 </label>
             </div>
             <div id="dice-roll-pool-preview"></div>
             <div id="dice-roll-result"></div>
             <div class="dice-roll-actions">
-                <button type="button" onclick="closeDiceRollModal()">Отмена</button>
-                <button type="button" class="dice-roll-primary" onclick="confirmDiceRoll()">Бросить</button>
+                <button type="button" onclick="closeDiceRollModal()">${t('Отмена')}</button>
+                <button type="button" class="dice-roll-primary" onclick="confirmDiceRoll()">${t('Бросить')}</button>
             </div>
         </div>`;
     document.body.appendChild(modal);
@@ -4791,18 +4791,18 @@ function updateDiceRollPoolPreview() {
     const hungerDiceCount = getCurrentHungerDiceCount(pool.diceCount);
     const bloodSurgeLabel = document.getElementById('dice-roll-blood-surge-label');
     if (bloodSurgeLabel) {
-        bloodSurgeLabel.textContent = `Прилив Крови +${getBloodSurgeBonus()}к10`;
+        bloodSurgeLabel.textContent = tf('Прилив Крови +{bonus}к10', { bonus: getBloodSurgeBonus() });
     }
     const modifierText = pool.modifier
         ? ` ${pool.modifier > 0 ? '+' : '-'} ${Math.abs(pool.modifier)}${pool.modifierLabel ? ` (${pool.modifierLabel})` : ''}`
         : '';
-    const surgeText = pool.useBloodSurge ? ` + Прилив Крови ${pool.bloodSurgeBonus}` : '';
-    const willpowerText = pool.willpowerPenalty ? ` · Воля: ${pool.willpowerPenalty}к10` : '';
-    const healthText = pool.healthPenalty ? ` · Здоровье: ${pool.healthPenalty}к10` : '';
+    const surgeText = pool.useBloodSurge ? tf(' + Прилив Крови {bonus}', { bonus: pool.bloodSurgeBonus }) : '';
+    const willpowerText = pool.willpowerPenalty ? tf(' · Воля: {n}к10', { n: pool.willpowerPenalty }) : '';
+    const healthText = pool.healthPenalty ? tf(' · Здоровье: {n}к10', { n: pool.healthPenalty }) : '';
 
     preview.innerHTML = `
         <strong>${pool.diceCount}к10</strong>
-        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}${surgeText}`)}${willpowerText}${healthText}${hungerDiceCount ? ` · Голод: ${hungerDiceCount}` : ''}</span>
+        <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}${surgeText}`)}${willpowerText}${healthText}${hungerDiceCount ? tf(' · Голод: {n}', { n: hungerDiceCount }) : ''}</span>
     `;
 }
 
@@ -4912,90 +4912,100 @@ async function performRouseCheck(reason = 'Испытание Крови / Пр�
 function renderDicePreview(dice, successes, meta = {}) {
     const callouts = [];
     if (meta.bloodSurge?.enabled) {
+        const rouseSummary = (meta.rouseChecks || []).map(result => result.success ? t('успех') : t('провал')).join(', ') || t('проведено');
         callouts.push({
             kind: 'warning',
-            text: `Прилив Крови: +${meta.bloodSurge.bonusDice}к10. Испытание Крови: ${(meta.rouseChecks || []).map(result => result.success ? 'успех' : 'провал').join(', ') || 'проведено'}.`
+            text: tf('Прилив Крови: +{bonus}к10. Испытание Крови: {summary}.', { bonus: meta.bloodSurge.bonusDice, summary: rouseSummary })
         });
     }
     (meta.rouseChecks || []).forEach(result => {
         if (!meta.bloodSurge?.enabled) {
             callouts.push({
                 kind: result.success ? 'warning' : 'warning',
-                text: `${result.reason}: ${result.value} — ${result.success ? 'успех, Голод не меняется' : 'провал, Голод растёт'}`
+                text: tf('{reason}: {value} — {outcome}', {
+                    reason: t(result.reason),
+                    value: result.value,
+                    outcome: result.success ? t('успех, Голод не меняется') : t('провал, Голод растёт')
+                })
             });
         }
     });
     if (typeof meta.hungerBefore === 'number' && typeof meta.hungerAfter === 'number' && meta.hungerBefore !== meta.hungerAfter) {
-        callouts.push({ kind: 'warning', text: `Голод: ${meta.hungerBefore} → ${meta.hungerAfter}` });
+        callouts.push({ kind: 'warning', text: tf('Голод: {before} → {after}', { before: meta.hungerBefore, after: meta.hungerAfter }) });
     }
     if (typeof meta.spentWillpower === 'number' && meta.spentWillpower > 0) {
-        callouts.push({ kind: 'warning', text: `Воля потрачена: ${meta.spentWillpower}` });
+        callouts.push({ kind: 'warning', text: tf('Воля потрачена: {n}', { n: meta.spentWillpower }) });
     }
     if (typeof meta.recoveredWillpower === 'number' && meta.recoveredWillpower > 0) {
-        callouts.push({ kind: 'warning', text: `Воля восстановлена: ${meta.recoveredWillpower}` });
+        callouts.push({ kind: 'warning', text: tf('Воля восстановлена: {n}', { n: meta.recoveredWillpower }) });
     }
     if (meta.willpowerBefore && meta.willpowerAfter) {
         callouts.push({
             kind: meta.willpowerAfter.current <= 0 ? 'danger' : 'warning',
-            text: `Воля: ${meta.willpowerBefore.current} → ${meta.willpowerAfter.current} / ${meta.willpowerAfter.max}`
+            text: tf('Воля: {before} → {after} / {max}', { before: meta.willpowerBefore.current, after: meta.willpowerAfter.current, max: meta.willpowerAfter.max })
         });
     }
     if (meta.impairmentPenaltyApplied) {
-        callouts.push({ kind: 'warning', text: `Истощение Воли: ${meta.impairmentPenaltyApplied}к10 к ментальной/социальной проверке.` });
+        callouts.push({ kind: 'warning', text: tf('Истощение Воли: {n}к10 к ментальной/социальной проверке.', { n: meta.impairmentPenaltyApplied }) });
     }
     if (meta.healthImpairmentPenaltyApplied) {
-        callouts.push({ kind: 'warning', text: `Изнурение по здоровью: ${meta.healthImpairmentPenaltyApplied}к10 к физической проверке.` });
+        callouts.push({ kind: 'warning', text: tf('Изнурение по здоровью: {n}к10 к физической проверке.', { n: meta.healthImpairmentPenaltyApplied }) });
     }
     if (meta.damage) {
-        const severity = meta.damage.severity === 'aggravated' ? 'тяжёлых' : 'лёгких';
+        const severity = meta.damage.severity === 'aggravated' ? t('тяжёлых') : t('лёгких');
+        const halvedNote = meta.damage.halved ? tf(' → после деления {final}', { final: meta.damage.finalAmount }) : '';
         callouts.push({
             kind: 'warning',
-            text: `Урон: ${meta.damage.originalAmount} ${severity}${meta.damage.halved ? ` → после деления ${meta.damage.finalAmount}` : ''}.`
+            text: tf('Урон: {amount} {severity}{halvedNote}.', { amount: meta.damage.originalAmount, severity, halvedNote })
         });
     }
     if (meta.healthBefore && meta.healthAfter) {
         callouts.push({
             kind: meta.healthAfter.current <= 0 ? 'danger' : 'warning',
-            text: `Здоровье: ${meta.healthBefore.current} → ${meta.healthAfter.current} / ${meta.healthAfter.max} · / ${meta.healthAfter.superficial} · X ${meta.healthAfter.aggravated}`
+            text: tf('Здоровье: {before} → {after} / {max} · / {superficial} · X {aggravated}', {
+                before: meta.healthBefore.current, after: meta.healthAfter.current, max: meta.healthAfter.max,
+                superficial: meta.healthAfter.superficial, aggravated: meta.healthAfter.aggravated
+            })
         });
     }
     if (meta.healing) {
         const healed = (meta.healing.amountSuperficial || 0) + (meta.healing.amountAggravated || 0);
-        callouts.push({ kind: 'warning', text: `Лечение здоровья: снято ${healed} поврежд.` });
+        callouts.push({ kind: 'warning', text: tf('Лечение здоровья: снято {healed} поврежд.', { healed }) });
     }
     if (meta.rollKind === 'remorse_check') {
         callouts.push({
             kind: meta.humanityLost ? 'danger' : 'warning',
             text: meta.automaticFailure
-                ? 'Свободных ячеек нет: автоматический провал проверки мук совести.'
-                : `Проверка мук совести: ${meta.remorseDice || 0}к10, обычные кубики без Голода.`
+                ? t('Свободных ячеек нет: автоматический провал проверки мук совести.')
+                : tf('Проверка мук совести: {dice}к10, обычные кубики без Голода.', { dice: meta.remorseDice || 0 })
         });
     }
     if (typeof meta.humanityBefore === 'number' && typeof meta.humanityAfter === 'number') {
         callouts.push({
             kind: meta.humanityAfter < meta.humanityBefore ? 'danger' : 'warning',
-            text: `Человечность: ${meta.humanityBefore} → ${meta.humanityAfter}.`
+            text: tf('Человечность: {before} → {after}.', { before: meta.humanityBefore, after: meta.humanityAfter })
         });
     }
     if (typeof meta.stainsBefore === 'number' && typeof meta.stainsAfter === 'number' && meta.stainsBefore !== meta.stainsAfter) {
-        callouts.push({ kind: 'warning', text: `Сомнения: ${meta.stainsBefore} → ${meta.stainsAfter}.` });
+        callouts.push({ kind: 'warning', text: tf('Сомнения: {before} → {after}.', { before: meta.stainsBefore, after: meta.stainsAfter }) });
     }
     if (meta.messyCritical) {
-        callouts.push({ kind: 'danger', text: 'Кровавый триумф: успех достигнут через Зверя. Рассказчик должен добавить зверское/опасное осложнение.' });
+        callouts.push({ kind: 'danger', text: t('Кровавый триумф: успех достигнут через Зверя. Рассказчик должен добавить зверское/опасное осложнение.') });
     }
     if (meta.bestialFailure) {
-        callouts.push({ kind: 'danger', text: 'Кровавый провал: Зверь вмешивается. Рассказчик должен добавить осложнение.' });
+        callouts.push({ kind: 'danger', text: t('Кровавый провал: Зверь вмешивается. Рассказчик должен добавить осложнение.') });
     }
-    (meta.warnings || []).forEach(text => callouts.push({ kind: 'warning', text }));
+    (meta.warnings || []).forEach(text => callouts.push({ kind: 'warning', text: t(text) }));
 
     return `
         <div class="dice-roll-dice">
             ${dice.map(die => {
                 const image = DICE_ROLL_IMAGES[die.kind] || DICE_ROLL_IMAGES.fail;
-                return `<span class="dice-roll-die dice-roll-${die.kind}" aria-label="${escapeDiceHtml(`${image.label}: ${die.value}`)}" title="${escapeDiceHtml(`${die.value} - ${image.label}`)}"><img src="${image.src}" alt="" draggable="false"></span>`;
+                const label = t(image.label);
+                return `<span class="dice-roll-die dice-roll-${die.kind}" aria-label="${escapeDiceHtml(`${label}: ${die.value}`)}" title="${escapeDiceHtml(`${die.value} - ${label}`)}"><img src="${image.src}" alt="" draggable="false"></span>`;
             }).join('')}
         </div>
-        <div class="dice-roll-successes">Успехов: ${successes}</div>
+        <div class="dice-roll-successes">${tf('Успехов: {successes}', { successes })}</div>
         ${callouts.length ? `<div class="dice-roll-callouts">${callouts.map(callout => `<div class="dice-roll-callout ${callout.kind === 'danger' ? '' : 'warning'}">${escapeDiceHtml(callout.text)}</div>`).join('')}</div>` : ''}
     `;
 }
@@ -5257,7 +5267,7 @@ function updateSpecUI(skillName = null) {
         ? MORTAL_TEMPLATES.find(template => template.id === currentMortalTemplate)
         : null;
     const limit = mortalTemplate?.specs ?? (isMortal ? 0 : VAMPIRE_SPECIALTY_LIMIT);
-    document.getElementById('spec-tracker').textContent = `Специализации (S): ${total} / ${limit}`;
+    document.getElementById('spec-tracker').textContent = tf('Специализации (S): {current} / {max}', { current: total, max: limit });
     
     checkLimits();
 }
@@ -5917,7 +5927,7 @@ function renderInventory() {
                     <button type="button" class="inventory-drag-handle" data-inventory-drag-handle title="${t('Перетащить предмет')}">☰</button>
                     <div class="inventory-card-title">
                         <strong data-inventory-title>${escapeHTML(item.name || t('Без названия'))}</strong>
-                        <span data-inventory-summary>${escapeHTML(t(item.category))} · ${item.quantity} шт.</span>
+                        <span data-inventory-summary>${escapeHTML(t(item.category))} · ${item.quantity} ${t('шт.')}</span>
                     </div>
                 </div>
                 <div class="inventory-card-fields">
@@ -7454,7 +7464,7 @@ function createMeritItem(item, index, isMerit) {
     div.innerHTML = `
         <div style="flex:1">
             <strong>${item.category} — ${item.name}</strong>
-            <span style="color:#ffae00">(${item.points} т.)</span><br>
+            <span style="color:#ffae00">(${tf('{points} т.', { points: item.points })})</span><br>
             <small style="color:#ccc">${item.desc}</small>
         </div>
         <button onclick="${isMerit ? `removeMerit(${index})` : `removeFlaw(${index})`}"
@@ -8232,7 +8242,7 @@ function buildPDFHTML(d) {
         invHTML = d.inventory.map(item => `
             <div style="margin-bottom:10px;padding:8px 10px;border:1px solid #ddd;border-radius:4px;">
                 <div style="font-weight:bold;font-size:10pt;">${_pdfEsc(item.name || t('Без названия'))}
-                    <span style="font-weight:normal;color:#666;font-size:9pt;"> — ${_pdfEsc(item.category)} · ${item.quantity} шт.</span>
+                    <span style="font-weight:normal;color:#666;font-size:9pt;"> — ${_pdfEsc(item.category)} · ${item.quantity} ${t('шт.')}</span>
                 </div>
                 ${item.description ? `<div style="font-size:9pt;color:#444;margin-top:3px;white-space:pre-wrap;">${_pdfEsc(item.description)}</div>` : ''}
                 ${item.note ? `<div style="font-size:9pt;color:#888;margin-top:2px;font-style:italic;white-space:pre-wrap;">${_pdfEsc(item.note)}</div>` : ''}
@@ -8360,11 +8370,11 @@ async function addPdfFont(pdf) {
 
     const [regular, bold] = await Promise.all([
         fetch('/fonts/Arial.ttf').then(response => {
-            if (!response.ok) throw new Error('Не удалось загрузить шрифт PDF');
+            if (!response.ok) throw new Error(t('Не удалось загрузить шрифт PDF'));
             return response.arrayBuffer();
         }),
         fetch('/fonts/ArialBold.ttf').then(response => {
-            if (!response.ok) throw new Error('Не удалось загрузить жирный шрифт PDF');
+            if (!response.ok) throw new Error(t('Не удалось загрузить жирный шрифт PDF'));
             return response.arrayBuffer();
         })
     ]);
@@ -8493,7 +8503,7 @@ async function generateSheetPDF() {
     if (typeof window.jspdf === 'undefined') return alert(t('jsPDF не загружен'));
     const { jsPDF } = window.jspdf;
     const btn = document.getElementById('btn-pdf');
-    const originalText = btn?.textContent || 'Скачать PDF';
+    const originalText = btn?.textContent || t('Скачать PDF');
     if (btn) { btn.textContent = t('Скачиваем PDF…'); btn.disabled = true; }
 
     try {
@@ -8599,7 +8609,7 @@ function spendOnSpecialty() {
             container.appendChild(div);
             container.style.display = 'block';
         }
-        logExp(`Специализация "${spec}" (${skill})`, 3);
+        logExp(tf('Специализация "{spec}" ({skill})', { spec, skill }), 3);
     }
 }
 

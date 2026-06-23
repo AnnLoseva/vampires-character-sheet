@@ -52,6 +52,7 @@
     'data-i18n-aria-label': 'aria-label',
     'data-i18n-value': 'value',
     'data-i18n-tooltip': 'data-tooltip',
+    'data-i18n-alt': 'alt',
   };
 
   function applyDataI18n() {

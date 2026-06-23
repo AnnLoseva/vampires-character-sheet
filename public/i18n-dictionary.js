@@ -830,4 +830,138 @@ window.VTM_I18N = {
   "Что изучаем: ritual / alchemy": "What are we learning: ritual / alchemy",
   "отмены покупок": "undoing purchases",
   "✅ Персонаж «{name}» полностью загружен из JSON!": "✅ Character \"{name}\" fully loaded from JSON!",
+
+  // creation-wizard.js: summary screen (step 16), nav validation, start-mode modals, init loading
+  "Персонаж почти готов": "The character is almost ready",
+  "Тип охоты": "Predator Type",
+  "Преимущества и недостатки": "Merits and Flaws",
+  "заполнены": "Complete",
+  "ошибки": "Errors",
+  "заполнен": "Added",
+  "пропущен": "Skipped",
+  "Не все обязательные шаги завершены. Чтобы зафиксировать лист, исправь отмеченные красным пункты.":
+    "Not all required steps are complete. To lock the sheet, fix the items marked in red.",
+  "Открыть полный лист": "Open the full sheet",
+  "Вернуться и исправить": "Go back and fix",
+  "Зафиксировать лист": "Lock the sheet",
+  "Сначала заверши все обязательные шаги.": "First finish all the required steps.",
+  "Лист пока не проходит финальную проверку. Вернись к отмеченным шагам и исправь значения.":
+    "The sheet doesn't pass the final check yet. Go back to the marked steps and fix the values.",
+  "Имя обязательно для заполнения.": "Name is required.",
+  "Сначала выбери клан.": "First choose a clan.",
+  "Сначала выбери тип охоты.": "First choose a Predator Type.",
+  "Сначала выбери поколение.": "First choose a Generation.",
+  "Выбери начальную Человечность: 7 или 8.": "Choose starting Humanity: 7 or 8.",
+  "Заверши строгое распределение характеристик и навыков.": "Finish the strict distribution of Attributes and Skills.",
+  "Выбери стартовые клановые дисциплины по схеме 2 + 1.": "Choose the starting in-clan Disciplines using the 2 + 1 scheme.",
+  "Распредели требуемые преимущества и недостатки.": "Distribute the required Merits and Flaws.",
+  "Создать персонажа": "Create a character",
+  "Создать вампира": "Create a vampire",
+  "Создать НПС": "Create an NPC",
+  "Вампир": "Vampire",
+  "Человек": "Human",
+  "Как создать персонажа?": "How do you want to create the character?",
+  "Лёгкое создание персонажа": "Guided character creation",
+  "Чистый лист": "Blank sheet",
+  "Подготавливаю правила и сохранённый прогресс…": "Preparing the rules and your saved progress…",
+
+  // main.js: renderDicePreview (dice-roll modal callouts) and dice-face labels
+  "Прилив Крови: +{bonus}к10. Испытание Крови: {summary}.": "Blood Surge: +{bonus}d10. Rouse Check: {summary}.",
+  "успех": "success",
+  "провал": "failure",
+  "проведено": "performed",
+  "успех, Голод не меняется": "success, Hunger does not change",
+  "провал, Голод растёт": "failure, Hunger rises",
+  "Голод: {before} → {after}": "Hunger: {before} → {after}",
+  "Воля потрачена: {n}": "Willpower spent: {n}",
+  "Воля восстановлена: {n}": "Willpower recovered: {n}",
+  "Воля: {before} → {after} / {max}": "Willpower: {before} → {after} / {max}",
+  "Истощение Воли: {n}к10 к ментальной/социальной проверке.": "Willpower Impairment: {n}d10 to mental/social checks.",
+  "Изнурение по здоровью: {n}к10 к физической проверке.": "Health Impairment: {n}d10 to physical checks.",
+  "тяжёлых": "Aggravated",
+  "лёгких": "Superficial",
+  " → после деления {final}": " → after halving {final}",
+  "Урон: {amount} {severity}{halvedNote}.": "Damage: {amount} {severity}{halvedNote}.",
+  "Здоровье: {before} → {after} / {max} · / {superficial} · X {aggravated}": "Health: {before} → {after} / {max} · / {superficial} · X {aggravated}",
+  "Лечение здоровья: снято {healed} поврежд.": "Healing: {healed} damage removed.",
+  "Свободных ячеек нет: автоматический провал проверки мук совести.": "No free boxes remain: automatic failure of the Conscience check.",
+  "Проверка мук совести: {dice}к10, обычные кубики без Голода.": "Conscience check: {dice}d10, ordinary dice without Hunger.",
+  "Человечность: {before} → {after}.": "Humanity: {before} → {after}.",
+  "Сомнения: {before} → {after}.": "Stains: {before} → {after}.",
+  "Кровавый триумф: успех достигнут через Зверя. Рассказчик должен добавить зверское/опасное осложнение.":
+    "Messy Critical: the success came through the Beast. The Storyteller should add a bestial or dangerous complication.",
+  "Кровавый провал: Зверь вмешивается. Рассказчик должен добавить осложнение.":
+    "Bestial Failure: the Beast interferes. The Storyteller should add a complication.",
+  "Успехов: {successes}": "Successes: {successes}",
+  "критический успех": "critical success",
+  "провал Голода": "Hunger failure",
+  "успех Голода": "Hunger success",
+  "критический успех Голода": "critical Hunger success",
+  "критический провал Голода": "critical Hunger failure",
+
+  // main.js: skill-package/mortal-template tracker placeholders
+  "Специализации (S): {current} / {max}": "Specialties (S): {current} / {max}",
+  "Выберите шаблон смертного": "Choose a mortal template",
+  "Выберите способ развития выше": "Choose an advancement method above",
+
+  // main.js: inventory summary, PDF export font loading/button fallback
+  "шт.": "pcs",
+  "Не удалось загрузить шрифт PDF": "Failed to load the PDF font",
+  "Не удалось загрузить жирный шрифт PDF": "Failed to load the bold PDF font",
+  "Скачать PDF": "Download PDF",
+
+  // main.js: dice-roll modal chrome (getDiceRollModal) and live pool preview
+  "Бросок кубиков": "Dice Roll",
+  "Первый параметр": "First trait",
+  "Второй параметр": "Second trait",
+  "Доп. кубики": "Extra dice",
+  "Источник модификатора": "Modifier source",
+  "специальность, кровь, сложность...": "specialty, blood, difficulty...",
+  "Бросить": "Roll",
+  "— не выбрано —": "— none selected —",
+  "Прилив Крови": "Blood Surge",
+  "Прилив Крови +{bonus}к10": "Blood Surge +{bonus}d10",
+  " + Прилив Крови {bonus}": " + Blood Surge {bonus}",
+  " · Воля: {n}к10": " · Willpower: {n}d10",
+  " · Здоровье: {n}к10": " · Health: {n}d10",
+  " · Голод: {n}": " · Hunger: {n}",
+
+  // main.js: rouse-check reason keys and warnings consumed via meta.warnings/result.reason
+  "Испытание Крови / Проверка Голода": "Rouse Check / Hunger Check",
+  "Трек Воли заполнен: ментальная или социальная проверка получает -2к10.": "The Willpower track is full: mental or social checks take -2d10.",
+  "Шкала здоровья заполнена: физическая проверка получает -2к10.": "The Health track is full: physical checks take -2d10.",
+  "Проверка Воли бросает текущую доступную Волю и не использует кубики Голода.": "A Willpower check rolls your current available Willpower and does not use Hunger dice.",
+  "Голод уже 5. Неудачное Испытание Крови на максимальном Голоде: нужна реакция Рассказчика / риск голодной ярости.":
+    "Hunger is already 5. A failed Rouse Check at maximum Hunger: the Storyteller should respond, risking a frenzy.",
+
+  // main.js: discipline hint panel, power-selection modal, predator specialty modal
+  "Выберите дисциплину": "Choose a Discipline",
+  "Дисциплина не найдена: {name}": "Discipline not found: {name}",
+  "Выбор способностей": "Power Selection",
+  "Выберите способность слева, чтобы увидеть описание": "Choose a power on the left to see its description",
+  "Выберите специализацию для «{predatorName}»": "Choose a specialty for \"{predatorName}\"",
+
+  // main.js: clan/predator-type/generation hint panels (character creation)
+  "Человечность:": "Humanity:",
+  "Ограничения:": "Limitations:",
+  "Заметки:": "Notes:",
+  "Сила Крови:": "Blood Potency:",
+  "Дисциплина (+{value}):": "Discipline (+{value}):",
+  "Выберите Поколение и Тип": "Choose a Generation and a type",
+  "<strong>Птенец (Childe)</strong><br>• Становление ≤ 15 лет назад<br>• <strong>Сила Крови: 0</strong><br>• +0 опыта":
+    "<strong>Childer</strong><br>• Embraced ≤ 15 years ago<br>• <strong>Blood Potency: 0</strong><br>• +0 XP",
+  "<strong>Неонат (Neonate)</strong><br>• Становление после 1940 г.<br>• <strong>Сила Крови: {potency}</strong><br>• +15 опыта":
+    "<strong>Neonate</strong><br>• Embraced after 1940<br>• <strong>Blood Potency: {potency}</strong><br>• +15 XP",
+  "<strong>Анцилла (Ancilla)</strong><br>• Становление 1780–1940 гг.<br>• <strong>Сила Крови: {potency}</strong><br>• +2 Преимущества к лимиту • +2 Недостатка к лимиту<br>• −1 Человечность<br>• +35 опыта":
+    "<strong>Ancilla</strong><br>• Embraced 1780-1940<br>• <strong>Blood Potency: {potency}</strong><br>• +2 Merits to the limit • +2 Flaws to the limit<br>• −1 Humanity<br>• +35 XP",
+  "<strong>Старейшина / Матузалем</strong><br>• Очень старый вампир<br>• <strong>Сила Крови: 3+</strong>":
+    "<strong>Elder / Methuselah</strong><br>• A very old vampire<br>• <strong>Blood Potency: 3+</strong>",
+
+  // main.js: strict attribute/skill distribution tracker, specialty input field
+  "Атрибуты": "Attributes",
+  "На {v}: {count} / {limit}": "At {v}: {count} / {limit}",
+  "Название специальности": "Specialty name",
+  "Добавить ещё": "Add another",
+  "{points} т.": "{points} pt.",
+  "До {i}: {cost} XP": "Up to {i}: {cost} XP",
 };
