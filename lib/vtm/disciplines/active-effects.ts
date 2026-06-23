@@ -45,6 +45,25 @@ function normalizeActiveEffect(value: unknown): ActiveEffect | null {
       || value.remainingUses === null
       ? value.remainingUses
       : undefined,
+    duration: isObject(value.duration)
+      && (
+        value.duration.type === 'scene'
+        || value.duration.type === 'night'
+        || value.duration.type === 'turn'
+        || value.duration.type === 'permanent'
+      )
+      ? {
+          type: value.duration.type,
+          turns: typeof value.duration.turns === 'number'
+            ? value.duration.turns
+            : undefined,
+          startedAt: typeof value.duration.startedAt === 'string'
+            ? value.duration.startedAt
+            : typeof value.startedAt === 'string'
+              ? value.startedAt
+              : new Date(0).toISOString(),
+        }
+      : undefined,
     active: value.active !== false,
   }
 }

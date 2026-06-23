@@ -139,9 +139,38 @@ export type DisciplineEffect =
 
 export type DisciplinePowerMechanics = {
   version?: 1
+  automation?: {
+    status?: 'auto' | 'partial' | 'manual'
+  }
+  identity?: {
+    discipline?: string
+    power?: string
+    path?: string
+    level?: number
+    tags?: string[]
+  }
+  activation?: {
+    kind?: 'active' | 'passive' | 'reaction' | 'ritual' | string
+    action?: string
+  }
+  cost?: {
+    rouseChecks?: number
+    willpowerSpend?: number
+    variableRouseChecks?: boolean
+  }
+  duration?: {
+    type?: 'scene' | 'night' | 'turn' | 'permanent' | string
+    turns?: number
+  }
   effects?: DisciplineEffect[]
   deactivateEffects?: DisciplineEffect[]
+  ui?: {
+    showOnFullSheet?: boolean
+    showOnQuickSheet?: boolean
+    activeLabel?: string
+  }
   notes?: string[]
+  [key: string]: unknown
 }
 
 export type ActiveEffect = {
@@ -157,5 +186,10 @@ export type ActiveEffect = {
   startedAt: string
   expiresAt?: string | null
   remainingUses?: number | null
+  duration?: {
+    type: 'scene' | 'night' | 'turn' | 'permanent'
+    turns?: number
+    startedAt: string
+  }
   active: boolean
 }

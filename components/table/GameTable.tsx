@@ -93,6 +93,25 @@ import {
 } from '@/lib/vtm/health'
 import { getDerivedStats } from '@/lib/vtm/derived-stats'
 import { removeActiveEffect as removeActiveEffectFromData } from '@/lib/vtm/disciplines/active-effects'
+import {
+  payDisciplineCost,
+  resolveDisciplineCost,
+} from '@/lib/vtm/disciplines/costs'
+import type {
+  DisciplineCost,
+  DisciplineCostMechanics,
+  DisciplineCostPayment,
+} from '@/lib/vtm/disciplines/costs'
+import {
+  activateDisciplinePower,
+  deactivateDisciplinePower,
+  isDisciplinePowerActive,
+} from '@/lib/vtm/disciplines/engine'
+import { getDisciplineDurationLabel } from '@/lib/vtm/disciplines/durations'
+import type {
+  ActiveEffect,
+  DisciplinePowerMechanics,
+} from '@/lib/vtm/disciplines/schema'
 import type { DamageSeverity, HealthDamageOptions } from '@/lib/vtm/health'
 import {
   addHumanityStains as addHumanityStainsState,
@@ -176,14 +195,7 @@ type DisciplinePowerRule = {
   difficulty_for_victim?: string | number
   soak_difficulty?: string | number
   cost?: string
-  mechanics?: {
-    rouse_checks?: number
-    variable_rouse_checks?: boolean
-    willpower_cost?: number | {
-      spend?: number
-      reduce_rating?: number
-      manual_choice?: boolean
-    }
+  mechanics?: DisciplinePowerMechanics & DisciplineCostMechanics & {
     humanity?: {
       risk?: boolean
       suggestedStains?: number
@@ -207,23 +219,27 @@ type DisciplinePowerEntry = {
   rule: DisciplinePowerRule
 }
 
-type RouseCost = {
-  rouseChecks: number
-  variable: boolean
-}
-
-type WillpowerCost = {
-  spendWillpower: number
-  reduceWillpowerRating: number
-  manualChoice: boolean
-  warnings: string[]
-}
-
 type DisciplineRollContext = {
   name: string
   power: string
   level: number
   cost: string
+}
+
+function getDisciplineCostLabel(
+  cost: DisciplineCost,
+  legacyCost?: string,
+) {
+  if (legacyCost?.trim()) return legacyCost
+  const parts = [
+    cost.rouseChecks > 0
+      ? `${cost.rouseChecks} испытание Крови`
+      : '',
+    cost.willpowerSpend > 0
+      ? `${cost.willpowerSpend} пункт Воли`
+      : '',
+  ].filter(Boolean)
+  return parts.join(' + ') || 'нет'
 }
 
 type QuickRollOptions = {
@@ -555,77 +571,6 @@ function getBloodSurgeBonus(bloodPotency: number) {
   return 6
 }
 
-function parseRouseCost(cost?: string, mechanics?: DisciplinePowerRule['mechanics']): RouseCost {
-  const mechanicsChecks = Number(mechanics?.rouse_checks)
-  if (Number.isFinite(mechanicsChecks) && mechanicsChecks > 0) {
-    return {
-      rouseChecks: Math.max(0, Math.floor(mechanicsChecks)),
-      variable: Boolean(mechanics?.variable_rouse_checks),
-    }
-  }
-
-  // cost text comes from rules.json (Russian, e.g. "1 испытание Крови") or rules_eng.json
-  // (English, e.g. "1 Blood trial") depending on which is currently loaded; every check
-  // below matches both phrasings so this keeps working regardless of language.
-  const normalized = String(cost || '').trim().toLocaleLowerCase('ru')
-  if (!normalized || normalized === '—' || normalized === '-' || normalized === 'нет' || normalized === 'none') {
-    return { rouseChecks: 0, variable: false }
-  }
-  if (!(/испытан|trial/.test(normalized)) || !(/кров|blood/.test(normalized))) {
-    return { rouseChecks: 0, variable: false }
-  }
-
-  const amount = Number(normalized.match(/\d+/)?.[0] || 1)
-  return {
-    rouseChecks: Math.max(1, Math.floor(amount) || 1),
-    variable: /\+/.test(normalized),
-  }
-}
-
-function parseWillpowerCost(cost?: string, mechanics?: DisciplinePowerRule['mechanics']): WillpowerCost {
-  const result: WillpowerCost = {
-    spendWillpower: 0,
-    reduceWillpowerRating: 0,
-    manualChoice: false,
-    warnings: [],
-  }
-
-  const mechanicsCost = mechanics?.willpower_cost
-  if (typeof mechanicsCost === 'number' && Number.isFinite(mechanicsCost) && mechanicsCost > 0) {
-    result.spendWillpower = Math.max(0, Math.floor(mechanicsCost))
-  } else if (mechanicsCost && typeof mechanicsCost === 'object') {
-    result.spendWillpower = Math.max(0, Math.floor(Number(mechanicsCost.spend) || 0))
-    result.reduceWillpowerRating = Math.max(0, Math.floor(Number(mechanicsCost.reduce_rating) || 0))
-    result.manualChoice = Boolean(mechanicsCost.manual_choice)
-  }
-
-  // cost text comes from rules.json (Russian) or rules_eng.json (English) depending on
-  // which is currently loaded; every check below matches both phrasings (e.g. "1 пункт
-  // воли" / "1 Willpower point") so this keeps working regardless of language.
-  const normalized = String(cost || '').trim().toLocaleLowerCase('ru')
-  if (!normalized || normalized === '—' || normalized === '-' || normalized === 'нет' || normalized === 'none') return result
-  if (!(/вол|willpower/.test(normalized))) return result
-
-  const amount = Math.max(1, Math.floor(Number(normalized.match(/\d+/)?.[0]) || 1))
-  const mentionsPoint = /пункт|очк|point/.test(normalized)
-  const mentionsSpend = /потрат|стоим|расход|треб|spend|cost|requir/.test(normalized)
-  const mentionsReduction = /сниж|уменьш|теря|постоян|reduc|lower|permanent/.test(normalized) && /рейтинг|максим|значени|вол|rating|maximum|value|willpower/.test(normalized)
-
-  if (mentionsReduction) {
-    result.reduceWillpowerRating = Math.max(result.reduceWillpowerRating, amount)
-    result.warnings.push('Стоимость силы похожа на снижение рейтинга/максимума Воли. Автоматически снимается только стресс; проверь цену с Рассказчиком.')
-  } else if (mentionsPoint || mentionsSpend) {
-    result.spendWillpower = Math.max(result.spendWillpower, amount)
-  }
-
-  if (/может|добровольн|по желани|выбор|цель|\bmay\b|voluntar|at will|choice|choos|target/.test(normalized)) {
-    result.manualChoice = true
-    result.warnings.push('В тексте есть добровольная трата Воли. Автотрата применяется только если это указано как цена силы.')
-  }
-
-  return result
-}
-
 function getRouseWarning(result: RouseCheckResult) {
   if (!result.maxHungerWarning) return ''
   return 'Голод уже 5. Неудачное Испытание Крови на максимальном Голоде: нужна реакция Рассказчика / риск голодной ярости.'
@@ -676,13 +621,14 @@ function getActiveEffectTitle(
 function getActiveEffectDescription(
   activeEffect: CharacterOption['activeEffects'][number],
 ) {
-  return activeEffect.effect.description
-    || [
-      activeEffect.source.path,
-      activeEffect.source.level
-        ? `уровень ${activeEffect.source.level}`
-        : '',
-    ].filter(Boolean).join(' · ')
+  return [
+    activeEffect.effect.description,
+    activeEffect.source.path,
+    activeEffect.source.level
+      ? `уровень ${activeEffect.source.level}`
+      : '',
+    getDisciplineDurationLabel(activeEffect.duration),
+  ].filter(Boolean).join(' · ')
 }
 
 function getExtraTraitNames(values: Record<string, unknown>, groups: ReadonlyArray<{ traits: readonly string[] }>) {
@@ -2183,8 +2129,29 @@ export default function VampireTable() {
   const previewPowerWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty(previewPowerPoolSelections, previewCharacter)
   const previewPowerHealthImpairmentPenalty = getHealthImpairmentPenalty(previewPowerPoolSelections, previewHealth)
   const previewPowerDiceCount = Math.max(0, Math.min(20, previewPowerPoolBeforeLimit + previewPowerWillpowerImpairmentPenalty + previewPowerHealthImpairmentPenalty))
-  const selectedPreviewPowerRouseCost = parseRouseCost(selectedPreviewPower?.rule.cost, selectedPreviewPower?.rule.mechanics)
-  const selectedPreviewPowerWillpowerCost = parseWillpowerCost(selectedPreviewPower?.rule.cost, selectedPreviewPower?.rule.mechanics)
+  const selectedPreviewPowerCost = resolveDisciplineCost({
+    mechanics: selectedPreviewPower?.rule.mechanics,
+    legacyCost: selectedPreviewPower?.rule.cost,
+  })
+  const selectedPreviewPowerCostLabel = getDisciplineCostLabel(
+    selectedPreviewPowerCost,
+    selectedPreviewPower?.rule.cost,
+  )
+  const selectedPreviewPowerIsActiveKind = selectedPreviewPower?.rule.mechanics?.activation?.kind === 'active'
+  const selectedPreviewPowerIsActive = Boolean(
+    previewCharacter
+    && selectedPreviewPower
+    && selectedPreviewPowerIsActiveKind
+    && isDisciplinePowerActive(
+      previewCharacter,
+      selectedPreviewPower.rule.mechanics || {},
+      {
+        discipline: previewDisciplineName,
+        power: selectedPreviewPower.name,
+        level: selectedPreviewPower.level,
+      },
+    ),
+  )
 
   useEffect(() => {
     if (!previewDisciplineName || !disciplineRules) return
@@ -3177,7 +3144,8 @@ export default function VampireTable() {
   ): Promise<RollMessage> => {
     const usesVampireResources = ['vampire', 'thinblood'].includes(character.characterType)
     const useBloodSurge = usesVampireResources && Boolean(options.useBloodSurge)
-    const hungerBefore = getCharacterHunger(character)
+    const hungerBefore = options.rouseChecks?.[0]?.hungerBefore
+      ?? getCharacterHunger(character)
     const willpowerBefore = getCharacterWillpower(character)
     let currentHunger = hungerBefore
     const rouseChecks: RouseCheckResult[] = [...(options.rouseChecks || [])]
@@ -3651,39 +3619,158 @@ export default function VampireTable() {
     setPreviewPowerName('')
   }
 
-  const performDisciplineRouseChecks = async (
+  const payActivateAndSaveDisciplinePower = async (
     character: CharacterOption,
     power: DisciplinePowerEntry,
-    cost: RouseCost,
+    cost: DisciplineCost,
   ) => {
-    // TODO: add the one-time Blood Potency discipline rouse reroll action from rules.rolls.blood_potency.
-    let checksCount = cost.rouseChecks
-    if (cost.variable) {
-      const answer = window.prompt('Сколько Испытаний Крови сделать для этой силы?', String(Math.max(1, checksCount)))
+    let rouseChecksOverride: number | undefined
+    if (cost.variableRouseChecks) {
+      const answer = window.prompt(
+        'Сколько Испытаний Крови сделать для этой силы?',
+        String(Math.max(1, cost.rouseChecks)),
+      )
       if (answer === null) return null
-      checksCount = Math.max(1, Math.min(5, Math.floor(Number(answer) || checksCount || 1)))
+      rouseChecksOverride = Math.max(
+        1,
+        Math.min(5, Math.floor(Number(answer) || cost.rouseChecks || 1)),
+      )
     }
 
-    const rouseChecks: RouseCheckResult[] = []
-    let currentHunger = getCharacterHunger(character)
-    for (let index = 0; index < checksCount; index += 1) {
-      const result = await performRouseCheck(
-        character,
-        `${previewDisciplineName}: ${power.name} · Испытание Крови ${checksCount > 1 ? index + 1 : ''}`.trim(),
-        currentHunger,
-      )
-      rouseChecks.push(result)
-      currentHunger = result.hungerAfter
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id, user_id, name, clan, data')
+      .eq('id', character.id)
+      .single()
+
+    if (error || !data?.data) {
+      console.error('Не удалось прочитать персонажа для оплаты силы:', error)
+      setConnectionText('Цена силы не оплачена')
+      return null
     }
-    return rouseChecks
+
+    const storedCharacter = mapCharacterRow(data as CharacterRow)
+    const isActivePower = power.rule.mechanics?.activation?.kind === 'active'
+    let payment: DisciplineCostPayment<CharacterOption>
+    let nextActiveEffects: ActiveEffect[] | undefined
+    let activated = false
+
+    if (isActivePower) {
+      const activation = activateDisciplinePower(
+        storedCharacter,
+        power.rule.mechanics || {},
+        {
+          identity: {
+            discipline: previewDisciplineName,
+            power: power.name,
+            level: power.level,
+          },
+          legacyCost: power.rule.cost,
+          legacyDuration: power.rule.duration,
+          targetCharacterId: storedCharacter.id,
+          reason: `${previewDisciplineName}: ${power.name}`,
+          rouseChecksOverride,
+        },
+      )
+      if (!activation.success || !activation.payment) {
+        setConnectionText(activation.warnings[0] || 'Сила не активирована')
+        return null
+      }
+      payment = activation.payment
+      nextActiveEffects = activation.activeEffects
+      activated = activation.createdEffects.length > 0
+    } else {
+      payment = payDisciplineCost(
+        storedCharacter,
+        {
+          mechanics: power.rule.mechanics,
+          legacyCost: power.rule.cost,
+        },
+        {
+          reason: `${previewDisciplineName}: ${power.name}`,
+          rouseChecksOverride,
+        },
+      )
+      if (!payment.success) {
+        setConnectionText(payment.warnings[0] || 'Цена силы требует ручного решения')
+        return null
+      }
+    }
+
+    const hasAutomaticCost = payment.rouseChecks.length > 0
+      || payment.spentWillpower > 0
+    if (!hasAutomaticCost && !activated) {
+      return { character: storedCharacter, payment, activated }
+    }
+
+    const characterData = data.data as NonNullable<CharacterRow['data']>
+    const nextData = {
+      ...characterData,
+      vitalTrackers: {
+        ...(characterData.vitalTrackers || {}),
+        ...(payment.rouseChecks.length > 0
+          ? { hunger: payment.hungerAfter }
+          : {}),
+        ...(payment.spentWillpower > 0
+          ? {
+              willpower: {
+                superficial: payment.willpowerAfter.superficial,
+                aggravated: payment.willpowerAfter.aggravated,
+              },
+            }
+          : {}),
+      },
+      ...(nextActiveEffects ? { activeEffects: nextActiveEffects } : {}),
+      timestamp: new Date().toISOString(),
+    }
+    const { error: updateError } = await supabase
+      .from('characters')
+      .update({ data: nextData })
+      .eq('id', character.id)
+
+    if (updateError) {
+      console.error('Не удалось сохранить оплату силы:', updateError)
+      setConnectionText('Цена силы не сохранилась')
+      return null
+    }
+
+    const updatedCharacter = mapCharacterRow({
+      ...(data as CharacterRow),
+      data: nextData,
+    })
+    setChatCharacters(current => current.map(currentCharacter => (
+      currentCharacter.id === character.id
+        ? { ...updatedCharacter, username: currentCharacter.username }
+        : currentCharacter
+    )))
+    setPreviewCharacter(current => current?.id === character.id
+      ? { ...updatedCharacter, username: current.username }
+      : current)
+
+    if (chatUser && selectedActiveCharacter?.id === character.id) {
+      const participant: ActiveParticipant = {
+        userId: chatUser.id,
+        username: chatUser.username,
+        characterId: character.id,
+        characterName: updatedCharacter.name || 'без персонажа',
+        characterClan: updatedCharacter.clan || null,
+        characterImage: updatedCharacter.image || '',
+        updatedAt: new Date().toISOString(),
+      }
+      broadcast('active-character', { room, participant })
+    }
+
+    setConnectionText(activated ? 'Сила активирована' : 'Цена силы оплачена')
+    return { character: updatedCharacter, payment, activated }
   }
 
   const publishDisciplineActivation = async (
     character: CharacterOption,
-    power: DisciplinePowerEntry,
     context: DisciplineRollContext,
     rouseChecks: RouseCheckResult[],
     willpowerMeta: Partial<RollMeta> = {},
+    action: 'Активация' | 'Отключение' = 'Активация',
   ) => {
     const dice = rouseChecks.map(result => ({ value: result.value, kind: getDieKind(result.value, false) } as Die))
     const hungerBefore = rouseChecks[0]?.hungerBefore ?? getCharacterHunger(character)
@@ -3693,7 +3780,7 @@ export default function VampireTable() {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       room,
       characterName: character.name,
-      poolName: `${context.name}: ${context.power} · Активация`,
+      poolName: `${context.name}: ${context.power} · ${action}`,
       poolType: 'discipline-power',
       diceCount: dice.length,
       dice,
@@ -3719,6 +3806,87 @@ export default function VampireTable() {
     await publishRoll(roll)
   }
 
+  const deactivatePreviewDisciplinePower = async () => {
+    if (
+      !previewCharacter
+      || !selectedPreviewPower
+      || !selectedPreviewPowerIsActive
+      || !canRollPreview
+    ) return
+
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id, user_id, name, clan, data')
+      .eq('id', previewCharacter.id)
+      .single()
+
+    if (error || !data?.data) {
+      console.error('Не удалось прочитать персонажа для отключения силы:', error)
+      setConnectionText('Сила не отключена')
+      return
+    }
+
+    const storedCharacter = mapCharacterRow(data as CharacterRow)
+    const deactivation = deactivateDisciplinePower(
+      storedCharacter,
+      selectedPreviewPower.rule.mechanics || {},
+      {
+        discipline: previewDisciplineName,
+        power: selectedPreviewPower.name,
+        level: selectedPreviewPower.level,
+      },
+    )
+    if (!deactivation.success) {
+      setConnectionText('Активный эффект силы не найден')
+      return
+    }
+
+    const characterData = data.data as NonNullable<CharacterRow['data']>
+    const nextData = {
+      ...characterData,
+      activeEffects: deactivation.activeEffects,
+      timestamp: new Date().toISOString(),
+    }
+    const { error: updateError } = await supabase
+      .from('characters')
+      .update({ data: nextData })
+      .eq('id', previewCharacter.id)
+
+    if (updateError) {
+      console.error('Не удалось сохранить отключение силы:', updateError)
+      setConnectionText('Сила не отключена')
+      return
+    }
+
+    const updatedCharacter = mapCharacterRow({
+      ...(data as CharacterRow),
+      data: nextData,
+    })
+    setChatCharacters(current => current.map(character => (
+      character.id === updatedCharacter.id
+        ? { ...updatedCharacter, username: character.username }
+        : character
+    )))
+    setPreviewCharacter(current => current?.id === updatedCharacter.id
+      ? { ...updatedCharacter, username: current.username }
+      : current)
+    setConnectionText('Сила отключена')
+
+    await publishDisciplineActivation(
+      updatedCharacter,
+      {
+        name: previewDisciplineName,
+        power: selectedPreviewPower.name,
+        level: selectedPreviewPower.level,
+        cost: 'без оплаты',
+      },
+      [],
+      { warnings: ['Активный эффект силы отключён.'] },
+      'Отключение',
+    )
+  }
+
   const rollPreviewPower = async () => {
     if (!previewCharacter || !selectedPreviewPower || !canRollPreview) return
     let activeCharacter = previewCharacter
@@ -3727,7 +3895,7 @@ export default function VampireTable() {
       name: previewDisciplineName,
       power: selectedPreviewPower.name,
       level: selectedPreviewPower.level,
-      cost: selectedPreviewPower.rule.cost || '—',
+      cost: selectedPreviewPowerCostLabel,
     }
     const humanityRisk = selectedPreviewPower.rule.mechanics?.humanity
     if (humanityRisk?.risk) {
@@ -3748,40 +3916,28 @@ export default function VampireTable() {
       }
     }
 
-    if (selectedPreviewPowerWillpowerCost.reduceWillpowerRating > 0) {
-      window.alert('Эта цена похожа на снижение рейтинга/максимума Воли. Автоматически списывать её нельзя: проверь эффект с Рассказчиком.')
-      return
+    const costResult = await payActivateAndSaveDisciplinePower(
+      activeCharacter,
+      selectedPreviewPower,
+      selectedPreviewPowerCost,
+    )
+    if (!costResult) return
+    activeCharacter = costResult.character
+    const rouseChecks = costResult.payment.rouseChecks
+    willpowerMeta = {
+      willpowerBefore: getWillpowerMetaState(costResult.payment.willpowerBefore),
+      willpowerAfter: getWillpowerMetaState(costResult.payment.willpowerAfter),
+      spentWillpower: costResult.payment.spentWillpower || undefined,
+      warnings: costResult.payment.warnings,
     }
-
-    if (selectedPreviewPowerWillpowerCost.spendWillpower > 0 && !selectedPreviewPowerWillpowerCost.manualChoice) {
-      const willpowerResult = await spendWillpower(
-        activeCharacter,
-        selectedPreviewPowerWillpowerCost.spendWillpower,
-        `${previewDisciplineName}: ${selectedPreviewPower.name} · Воля`,
-      )
-      if (!willpowerResult) return
-      activeCharacter = willpowerResult.character
-      willpowerMeta = {
-        willpowerBefore: getWillpowerMetaState(willpowerResult.before),
-        willpowerAfter: getWillpowerMetaState(willpowerResult.after),
-        spentWillpower: willpowerResult.spent,
-        warnings: [
-          ...willpowerResult.warnings,
-          ...selectedPreviewPowerWillpowerCost.warnings,
-        ],
-      }
-    } else if (selectedPreviewPowerWillpowerCost.warnings.length) {
-      willpowerMeta = { warnings: selectedPreviewPowerWillpowerCost.warnings }
-    }
-
-    const rouseChecks = selectedPreviewPowerRouseCost.rouseChecks > 0
-      ? await performDisciplineRouseChecks(activeCharacter, selectedPreviewPower, selectedPreviewPowerRouseCost)
-      : []
-    if (rouseChecks === null) return
 
     if (previewPowerDiceCount < 1 || previewPowerPoolChoices.length === 0) {
-      if (rouseChecks.length > 0 || willpowerMeta.spentWillpower) {
-        await publishDisciplineActivation(activeCharacter, selectedPreviewPower, context, rouseChecks, willpowerMeta)
+      if (
+        costResult.activated
+        || rouseChecks.length > 0
+        || willpowerMeta.spentWillpower
+      ) {
+        await publishDisciplineActivation(activeCharacter, context, rouseChecks, willpowerMeta)
         return
       }
       window.alert('Для этой силы автоматический бросок не указан. Используй обычный конструктор пула.')
@@ -3886,10 +4042,29 @@ export default function VampireTable() {
       return
     }
 
-    const withoutEffect = removeActiveEffectFromData(
-      data.data,
-      effectId,
-    ) as NonNullable<CharacterRow['data']>
+    const storedCharacter = mapCharacterRow(data as CharacterRow)
+    const targetEffect = storedCharacter.activeEffects.find(
+      (activeEffect) => activeEffect.id === effectId,
+    )
+    const deactivation = targetEffect
+      ? deactivateDisciplinePower(
+          storedCharacter,
+          {
+            identity: targetEffect.source,
+            activation: { kind: 'active' },
+          },
+          targetEffect.source,
+        )
+      : null
+    const withoutEffect = deactivation?.success
+      ? {
+          ...(data.data as NonNullable<CharacterRow['data']>),
+          activeEffects: deactivation.activeEffects,
+        }
+      : removeActiveEffectFromData(
+          data.data,
+          effectId,
+        ) as NonNullable<CharacterRow['data']>
     const nextData = {
       ...withoutEffect,
       timestamp: new Date().toISOString(),
@@ -3918,7 +4093,22 @@ export default function VampireTable() {
         ? { ...updatedCharacter, username: character.username }
         : character
     )))
-    setConnectionText('Эффект удалён')
+    setConnectionText('Эффект отключён')
+
+    if (targetEffect) {
+      await publishDisciplineActivation(
+        updatedCharacter,
+        {
+          name: targetEffect.source.discipline,
+          power: targetEffect.source.power,
+          level: targetEffect.source.level || 0,
+          cost: 'без оплаты',
+        },
+        [],
+        { warnings: ['Активный эффект силы отключён.'] },
+        'Отключение',
+      )
+    }
   }
 
   const showInventoryItemToMaster = (item: InventoryItem) => {
@@ -7544,7 +7734,7 @@ export default function VampireTable() {
                                 onClick={() => removePreviewActiveEffect(activeEffect.id)}
                                 disabled={!canEditPreviewActiveEffects}
                               >
-                                {t('Удалить эффект')}
+                                {t('Отключить')}
                               </button>
                             </footer>
                           </article>
@@ -7947,16 +8137,16 @@ export default function VampireTable() {
                       <dl className="discipline-power-facts">
                         <div><dt>{t('Бросок')}</dt><dd>{selectedPreviewPowerRollSummary || '—'}</dd></div>
                         <div><dt>{t('Сложность')}</dt><dd>{selectedPreviewPowerDifficultySummary || '—'}</dd></div>
-                        <div><dt>{t('Стоимость')}</dt><dd>{selectedPreviewPower.rule.cost || '—'}</dd></div>
-                        {selectedPreviewPowerWillpowerCost.spendWillpower || selectedPreviewPowerWillpowerCost.reduceWillpowerRating || selectedPreviewPowerWillpowerCost.manualChoice ? (
+                        <div><dt>{t('Стоимость')}</dt><dd>{selectedPreviewPowerCostLabel}</dd></div>
+                        {selectedPreviewPowerCost.willpowerSpend || selectedPreviewPowerCost.willpowerRatingReduction || selectedPreviewPowerCost.manualWillpower ? (
                           <div>
                             <dt>{t('Воля')}</dt>
                             <dd>
-                              {selectedPreviewPowerWillpowerCost.reduceWillpowerRating
-                                ? tf('проверь снижение рейтинга: {rating}', { rating: selectedPreviewPowerWillpowerCost.reduceWillpowerRating })
-                                : selectedPreviewPowerWillpowerCost.manualChoice
+                              {selectedPreviewPowerCost.willpowerRatingReduction
+                                ? tf('проверь снижение рейтинга: {rating}', { rating: selectedPreviewPowerCost.willpowerRatingReduction })
+                                : selectedPreviewPowerCost.manualWillpower
                                   ? t('добровольная трата')
-                                  : tf('{n} пункт', { n: selectedPreviewPowerWillpowerCost.spendWillpower })}
+                                  : tf('{n} пункт', { n: selectedPreviewPowerCost.willpowerSpend })}
                             </dd>
                           </div>
                         ) : null}
@@ -8000,23 +8190,50 @@ export default function VampireTable() {
                                   onChange={event => setPreviewPowerModifier(Math.max(-20, Math.min(20, Number(event.target.value) || 0)))}
                                 />
                               </label>
-                              <button type="button" onClick={rollPreviewPower} disabled={!canRollPreview || previewPowerDiceCount < 1}>
-                                {tf('Бросить {count}к10', { count: previewPowerDiceCount })}
+                              <button
+                                type="button"
+                                onClick={selectedPreviewPowerIsActive
+                                  ? deactivatePreviewDisciplinePower
+                                  : rollPreviewPower}
+                                disabled={!canRollPreview || (
+                                  !selectedPreviewPowerIsActive
+                                  && previewPowerDiceCount < 1
+                                )}
+                              >
+                                {selectedPreviewPowerIsActive
+                                  ? t('Отключить')
+                                  : selectedPreviewPowerIsActiveKind
+                                    ? t('Активировать')
+                                    : tf('Бросить {count}к10', { count: previewPowerDiceCount })}
                               </button>
                             </div>
                             {previewPowerOpposition ? <p className="discipline-roll-opposition">{tf('Сопротивление цели: {value}', { value: previewPowerOpposition })}</p> : null}
                             {selectedPreviewPowerRollFormula !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">{tf('Используется формула силы «{formula}».', { formula: selectedPreviewPowerRollFormula.replace(/^как\s+/i, '') })}</p> : null}
                             {previewPowerWillpowerImpairmentPenalty ? <p className="discipline-roll-opposition">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
                             {previewPowerHealthImpairmentPenalty ? <p className="discipline-roll-opposition">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
-                            {selectedPreviewPowerWillpowerCost.warnings.map((warning, index) => <p className="discipline-roll-opposition" key={`wp-cost-warning-${index}`}>{t(warning)}</p>)}
+                            {selectedPreviewPowerCost.warnings.map((warning, index) => <p className="discipline-roll-opposition" key={`wp-cost-warning-${index}`}>{t(warning)}</p>)}
                           </>
                         ) : (
-                          selectedPreviewPowerRouseCost.rouseChecks > 0 || (selectedPreviewPowerWillpowerCost.spendWillpower > 0 && !selectedPreviewPowerWillpowerCost.manualChoice) ? (
+                          selectedPreviewPowerIsActiveKind
+                          || selectedPreviewPowerCost.rouseChecks > 0
+                          || (selectedPreviewPowerCost.willpowerSpend > 0 && !selectedPreviewPowerCost.manualWillpower) ? (
                             <div className="discipline-activation-only">
-                              <button type="button" onClick={rollPreviewPower} disabled={!canRollPreview}>
-                                {t('Активировать силу')}
+                              <button
+                                type="button"
+                                onClick={selectedPreviewPowerIsActive
+                                  ? deactivatePreviewDisciplinePower
+                                  : rollPreviewPower}
+                                disabled={!canRollPreview}
+                              >
+                                {selectedPreviewPowerIsActive
+                                  ? t('Отключить')
+                                  : t('Активировать')}
                               </button>
-                              <p className="discipline-no-roll">{tf('У силы нет автоматического пула, но есть цена: {cost}.', { cost: selectedPreviewPower.rule.cost || t('Испытание Крови') })}</p>
+                              <p className="discipline-no-roll">
+                                {selectedPreviewPowerIsActive
+                                  ? t('Сила активна и сохранена в эффектах персонажа.')
+                                  : tf('У силы нет автоматического пула, но есть цена: {cost}.', { cost: selectedPreviewPowerCostLabel })}
+                              </p>
                             </div>
                           ) : (
                             <p className="discipline-no-roll">{t('Для этой силы отдельный автоматический бросок не требуется или его пул зависит от ситуации. При необходимости используй конструктор броска в кратком листе.')}</p>
