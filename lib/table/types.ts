@@ -1,6 +1,7 @@
 import type { Conviction, HumanityStainEvent, HumanityState, HumanityStatus, MoralityState, Touchstone } from '@/lib/vtm/humanity'
 import type { NormalizedDisciplinePowers, NormalizedDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
 import type { CharacterDerivedStats } from '@/lib/vtm/derived-stats'
+import type { ActiveEffect } from '@/lib/vtm/disciplines/schema'
 
 export type Die = {
   id?: string
@@ -254,6 +255,7 @@ export type CharacterOption = {
   disciplines: NormalizedDisciplines
   selectedPowers: NormalizedDisciplinePowers
   derivedStats: CharacterDerivedStats
+  activeEffects: ActiveEffect[]
 }
 
 export type CharacterRow = {
@@ -312,6 +314,7 @@ export type CharacterRow = {
     disciplines?: unknown
     selectedPowers?: unknown
     powers?: unknown
+    activeEffects?: unknown
   } | null
 }
 

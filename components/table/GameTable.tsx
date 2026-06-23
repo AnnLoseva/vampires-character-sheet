@@ -92,6 +92,7 @@ import {
   toHealthTracker,
 } from '@/lib/vtm/health'
 import { getDerivedStats } from '@/lib/vtm/derived-stats'
+import { removeActiveEffect as removeActiveEffectFromData } from '@/lib/vtm/disciplines/active-effects'
 import type { DamageSeverity, HealthDamageOptions } from '@/lib/vtm/health'
 import {
   addHumanityStains as addHumanityStainsState,
@@ -662,6 +663,26 @@ function getSelectedPowerNames(value: unknown) {
       return String(record.name || record['название'] || '')
     })
     .filter(Boolean)
+}
+
+function getActiveEffectTitle(
+  activeEffect: CharacterOption['activeEffects'][number],
+) {
+  return activeEffect.effect.label
+    || activeEffect.source.power
+    || activeEffect.effect.type
+}
+
+function getActiveEffectDescription(
+  activeEffect: CharacterOption['activeEffects'][number],
+) {
+  return activeEffect.effect.description
+    || [
+      activeEffect.source.path,
+      activeEffect.source.level
+        ? `уровень ${activeEffect.source.level}`
+        : '',
+    ].filter(Boolean).join(' · ')
 }
 
 function getExtraTraitNames(values: Record<string, unknown>, groups: ReadonlyArray<{ traits: readonly string[] }>) {
@@ -2130,6 +2151,7 @@ export default function VampireTable() {
   const previewContestedOpponentOptions = getContestedOpponentOptions(previewCharacter)
   const selectedPreviewContestedOpponent = previewContestedOpponentOptions.find(option => option.id === previewContestedOpponentId) || null
   const canEditPreviewInventory = Boolean(chatUser && previewCharacter?.id && previewCharacter.id === selectedActiveCharacter?.id)
+  const canEditPreviewActiveEffects = canEditPreviewInventory
   const previewExtraAttributes = previewCharacter ? getExtraTraitNames(previewCharacter.attributes, ATTRIBUTE_GROUPS) : []
   const previewExtraSkills = previewCharacter ? getExtraTraitNames(previewCharacter.skills, SKILL_GROUPS) : []
   const previewDisciplineNames = previewCharacter
@@ -2280,6 +2302,7 @@ export default function VampireTable() {
         disciplines: {},
         selectedPowers: {},
         derivedStats: getDerivedStats({}, {}),
+        activeEffects: [],
       })
       return
     }
@@ -2302,6 +2325,7 @@ export default function VampireTable() {
         disciplines: {},
         selectedPowers: {},
         derivedStats: getDerivedStats({}, {}),
+        activeEffects: [],
       })
       return
     }
@@ -3838,6 +3862,63 @@ export default function VampireTable() {
     } finally {
       setIsQuickInventoryBusy(false)
     }
+  }
+
+  const removePreviewActiveEffect = async (effectId: string) => {
+    if (
+      !previewCharacter?.id
+      || !chatUser
+      || !canEditPreviewActiveEffects
+    ) return
+
+    setConnectionText('Удаляю эффект...')
+    const supabase = createClient()
+    const { data, error } = await supabase
+      .from('characters')
+      .select('id, user_id, name, clan, data')
+      .eq('id', previewCharacter.id)
+      .eq('user_id', chatUser.id)
+      .single()
+
+    if (error || !data?.data) {
+      console.error('Не удалось прочитать активные эффекты персонажа:', error)
+      setConnectionText('Эффект не удалён')
+      return
+    }
+
+    const withoutEffect = removeActiveEffectFromData(
+      data.data,
+      effectId,
+    ) as NonNullable<CharacterRow['data']>
+    const nextData = {
+      ...withoutEffect,
+      timestamp: new Date().toISOString(),
+    }
+    const { error: updateError } = await supabase
+      .from('characters')
+      .update({ data: nextData })
+      .eq('id', previewCharacter.id)
+      .eq('user_id', chatUser.id)
+
+    if (updateError) {
+      console.error('Не удалось удалить активный эффект:', updateError)
+      setConnectionText('Эффект не удалён')
+      return
+    }
+
+    const updatedCharacter = mapCharacterRow({
+      ...(data as CharacterRow),
+      data: nextData,
+    })
+    setPreviewCharacter(current => current?.id === updatedCharacter.id
+      ? { ...updatedCharacter, username: current.username }
+      : current)
+    setChatCharacters(current => current.map(character => (
+      character.id === updatedCharacter.id
+        ? { ...updatedCharacter, username: character.username }
+        : character
+    )))
+    setConnectionText('Эффект удалён')
   }
 
   const showInventoryItemToMaster = (item: InventoryItem) => {
@@ -7432,6 +7513,45 @@ export default function VampireTable() {
                       <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'aggravated', 1)} disabled={!canRollPreview}>+ X</button>
                       <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'aggravated', -1)} disabled={!canRollPreview}>- X</button>
                     </div> : null}
+                  </section>
+                  <section className="preview-willpower-panel">
+                    <div className="preview-section-heading">
+                      <div>
+                        <span>{t('Состояние персонажа')}</span>
+                        <h3>{t('Активные эффекты')}</h3>
+                      </div>
+                      <strong>{previewCharacter.activeEffects.length}</strong>
+                    </div>
+                    {previewCharacter.activeEffects.length === 0 ? (
+                      <p className="character-preview-empty">{t('Активных эффектов нет.')}</p>
+                    ) : (
+                      <div className="preview-inventory-list">
+                        {previewCharacter.activeEffects.map(activeEffect => (
+                          <article key={activeEffect.id}>
+                            <header>
+                              <div>
+                                <strong>{getActiveEffectTitle(activeEffect)}</strong>
+                                <span>{activeEffect.source.discipline || t('Ручной эффект')}</span>
+                              </div>
+                              <b>{activeEffect.active ? t('активен') : t('выкл.')}</b>
+                            </header>
+                            {getActiveEffectDescription(activeEffect) ? (
+                              <p>{getActiveEffectDescription(activeEffect)}</p>
+                            ) : null}
+                            <footer>
+                              <button
+                                type="button"
+                                onClick={() => removePreviewActiveEffect(activeEffect.id)}
+                                disabled={!canEditPreviewActiveEffects}
+                              >
+                                {t('Удалить эффект')}
+                              </button>
+                            </footer>
+                          </article>
+                        ))}
+                      </div>
+                    )}
+                    <p className="preview-roll-notice">{t('Активные эффекты пока не изменяют броски и урон.')}</p>
                   </section>
                     </>
                   ) : (

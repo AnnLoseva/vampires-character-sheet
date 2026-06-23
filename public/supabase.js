@@ -273,6 +273,31 @@ async function saveCharacter() {
         existingId = existing?.id || null;
     }
 
+    let existingCharacterData = null;
+    if (existingId) {
+        const { data: existingRecord, error: existingRecordError } = await client
+            .from('characters')
+            .select('data')
+            .eq('id', existingId)
+            .eq('user_id', currentUser.id)
+            .single();
+        if (existingRecordError) {
+            console.error('Не удалось загрузить активные эффекты перед сохранением:', existingRecordError);
+            setButtonBusy('[onclick="saveCharacter()"]', false);
+            setAutoSaveStatus('Не удалось сохранить активные эффекты', 'error');
+            return;
+        }
+        if (isPlainObject(existingRecord?.data)) {
+            existingCharacterData = existingRecord.data;
+        }
+    }
+    const storedActiveEffects = Array.isArray(existingCharacterData?.activeEffects)
+        ? existingCharacterData.activeEffects
+        : Array.isArray(window.__loadedCharacterData?.activeEffects)
+            ? window.__loadedCharacterData.activeEffects
+            : [];
+    characterData.activeEffects = JSON.parse(JSON.stringify(storedActiveEffects));
+
     const payload = {
         user_id: currentUser.id,
         name: characterData.name,
@@ -294,6 +319,10 @@ async function saveCharacter() {
     } else {
         currentCharacterRecordId = data?.id || existingId;
         charactersListCache = null;
+        window.__loadedCharacterData = {
+            ...(isPlainObject(window.__loadedCharacterData) ? window.__loadedCharacterData : {}),
+            ...characterData
+        };
         window.setCharacterSavedState?.(true);
         if (currentCharacterRecordId) {
             const params = new URLSearchParams(window.location.search);
@@ -495,6 +524,7 @@ async function loadCharacter(id, button = null) {
     }
 
     currentCharacterRecordId = data.id;
+    window.__loadedCharacterData = data.data;
     window.applyCharacterData(data.data, 'личного кабинета');
     closeModal();
     setButtonBusy(button, false);
@@ -537,6 +567,7 @@ async function loadRequestedCharacter() {
 
     const ownsCharacter = Boolean(currentUser && data.user_id === currentUser.id);
     currentCharacterRecordId = ownsCharacter ? data.id : null;
+    window.__loadedCharacterData = data.data;
     window.applyCharacterData(data.data, isMasterView && !ownsCharacter ? 'игрового стола (просмотр мастера)' : 'игрового стола');
 
     if (ownsCharacter) {

@@ -6,6 +6,7 @@ import type { HumanityStainEvent } from '@/lib/vtm/humanity'
 import { getAttributeDots } from '@/lib/i18n/ruleNames'
 import { normalizeCharacterDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
 import { getDerivedStats } from '@/lib/vtm/derived-stats'
+import { getActiveEffects } from '@/lib/vtm/disciplines/active-effects'
 import defaultRules from '@/public/rules.json'
 
 const DIE_KINDS = new Set<Die['kind']>([
@@ -411,6 +412,7 @@ export function mapCharacterRowToOption(
     disciplines: normalizedDisciplines.disciplines,
     selectedPowers: normalizedDisciplines.powers,
     derivedStats,
+    activeEffects: getActiveEffects(data),
   }
 }
 
