@@ -364,9 +364,11 @@ function createRollModifierApplication(
 function matchesDamageMatcher(
   matcher: DamageMatcher | undefined,
   context: DisciplineDamageContext,
+  owner?: DisciplineDamageOwner,
 ) {
   if (!matcher) return true
-  return hasMatcherValues(matcher.targets, [context.target || 'health'])
+  return hasMatcherValues(matcher.owners, [owner])
+    && hasMatcherValues(matcher.targets, [context.target || 'health'])
     && hasMatcherValues(matcher.severities, [context.severity])
     && hasMatcherValues(matcher.sources, [context.source])
     && hasMatcherValues(matcher.attackTypes, [
@@ -472,6 +474,9 @@ function getDamageModifierChainLine(
     return `${modifier.sourceLabel}: атака предотвращена`
   }
   if (modifier.operation === 'ignore_armor') {
+    if (modifier.amountDelta < 0) {
+      return `${modifier.sourceLabel}: броня ${modifier.amountDelta}`
+    }
     return `${modifier.sourceLabel}: броня игнорируется`
   }
   if (modifier.operation === 'convert_damage_type') {
@@ -864,6 +869,7 @@ export function applyDisciplineEffectsToDamage(
     .filter((candidate) => matchesDamageMatcher(
       candidate.effect.matcher,
       damageContext,
+      candidate.owner,
     ))
 
   const pushModifier = (
@@ -921,13 +927,35 @@ export function applyDisciplineEffectsToDamage(
   }
 
   let armorIgnored = false
+  let ignoredArmorAmount = 0
   for (const candidate of candidates) {
     const operation = normalizeDamageOperation(candidate.effect)
     if (operation !== 'ignore_armor') continue
     const active = !disabled.has(candidate.id)
-    pushModifier(candidate, operation, active)
-    if (active) armorIgnored = true
+    const beforeArmor = Math.max(0, armorValue - ignoredArmorAmount)
+    const hasLimitedArmorIgnore = candidate.effect.value !== undefined
+      || candidate.effect.amount !== undefined
+    const rawAmount = hasLimitedArmorIgnore
+      ? getDamageEffectAmount(candidate)
+      : armorValue
+    const ignoredByEffect = Number.isFinite(rawAmount)
+      ? Math.min(beforeArmor, Math.floor(Math.abs(rawAmount)))
+      : 0
+    const afterArmor = active ? Math.max(0, beforeArmor - ignoredByEffect) : beforeArmor
+    pushModifier(
+      candidate,
+      operation,
+      active,
+      -ignoredByEffect,
+      beforeArmor,
+      afterArmor,
+    )
+    if (active) {
+      ignoredArmorAmount += ignoredByEffect
+    }
   }
+  const effectiveArmorValue = Math.max(0, armorValue - ignoredArmorAmount)
+  armorIgnored = armorValue > 0 && effectiveArmorValue === 0
 
   const applyAmountModifier = (
     candidate: DamageModifierCandidate,
@@ -965,16 +993,16 @@ export function applyDisciplineEffectsToDamage(
     }
   }
 
-  if (armorValue > 0 && !armorIgnored) {
+  if (effectiveArmorValue > 0) {
     const beforeAmount = currentAmount
-    currentAmount = Math.max(0, currentAmount - armorValue)
+    currentAmount = Math.max(0, currentAmount - effectiveArmorValue)
     const modifier: AppliedDisciplineDamageModifier = {
       id: 'armor',
       sourceKind: 'armor',
       operation: 'subtract_before_halving',
       label: 'Броня',
       sourceLabel: 'Броня',
-      amountDelta: -armorValue,
+      amountDelta: -effectiveArmorValue,
       beforeAmount,
       afterAmount: currentAmount,
       beforeSeverity: currentSeverity,

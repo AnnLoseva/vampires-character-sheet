@@ -2227,14 +2227,139 @@
       "pool": "—",
       "cost": "нет",
       "effect": "Дальность прыжка равна Мощь x 5 метров, высота — Мощь x 3 метра. Сила постоянна и не требует броска в обычных условиях.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Мощь",
+        "power": "Мощный прыжок",
+        "level": 1,
+        "tags": [
+         "passive",
+         "movement",
+         "jump"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "potence-soaring-leap-horizontal",
+         "type": "movement",
+         "label": "Мощный прыжок: дальность",
+         "mode": "jump",
+         "speed": {
+          "formula": "discipline_rating",
+          "discipline": "Мощь",
+          "multiplier": 5
+         }
+        },
+        {
+         "id": "potence-soaring-leap-prompt",
+         "type": "manual_prompt",
+         "message": "Дальность прыжка без разбега: Мощь × 5 метров. Высота прыжка: Мощь × 3 метра. В нестандартных условиях рассказчик может попросить бросок."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Прыжок Мощь × 5 м / × 3 м"
+       }
+      }
      },
      "Смертоносность": {
       "description": "Голые руки вампира становятся оружием против смертных.",
       "pool": "—",
       "cost": "нет",
       "effect": "По желанию персонаж наносит смертным тяжёлые повреждения безоружными атаками и игнорирует по одному уровню брони за каждый пункт Мощи.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Мощь",
+        "power": "Смертоносность",
+        "level": 1,
+        "tags": [
+         "passive",
+         "damage_modifier",
+         "unarmed",
+         "armor"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "potence-lethal-body-ignore-armor",
+         "type": "damage_modifier",
+         "label": "Смертоносность: броня",
+         "matcher": {
+          "owners": [
+           "source"
+          ],
+          "targets": [
+           "health"
+          ],
+          "attackTypes": [
+           "unarmed",
+           "brawl"
+          ]
+         },
+         "operation": "ignore_armor",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Мощь"
+         }
+        },
+        {
+         "id": "potence-lethal-body-mortals",
+         "type": "damage_modifier",
+         "label": "Смертоносность: тяжёлый урон смертным",
+         "matcher": {
+          "owners": [
+           "source"
+          ],
+          "targets": [
+           "health"
+          ],
+          "severities": [
+           "superficial"
+          ],
+          "attackTypes": [
+           "unarmed",
+           "brawl"
+          ],
+          "creatureTypes": [
+           "mortal",
+           "human"
+          ]
+         },
+         "operation": "convert_damage_type",
+         "severity": "aggravated"
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Безоружно: броня -Мощь; смертным тяжёлый"
+       }
+      }
      }
     },
     "2": {
@@ -2243,7 +2368,108 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Добавляет показатель Мощи к урону безоружных атак и к силовым задачам. При использовании оружия ближнего боя урон увеличивается на половину Мощи с округлением вверх.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Мощь",
+        "power": "Сокрушение",
+        "level": 2,
+        "tags": [
+         "active",
+         "damage_modifier",
+         "roll_modifier",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "potence-prowess-unarmed-damage",
+         "type": "damage_modifier",
+         "label": "Сокрушение: безоружный урон",
+         "matcher": {
+          "owners": [
+           "source"
+          ],
+          "targets": [
+           "health"
+          ],
+          "attackTypes": [
+           "unarmed",
+           "brawl"
+          ]
+         },
+         "operation": "add_damage",
+         "stage": "before_halving",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Мощь"
+         }
+        },
+        {
+         "id": "potence-prowess-melee-damage",
+         "type": "damage_modifier",
+         "label": "Сокрушение: оружие ближнего боя",
+         "matcher": {
+          "owners": [
+           "source"
+          ],
+          "targets": [
+           "health"
+          ],
+          "attackTypes": [
+           "melee",
+           "melee_weapon",
+           "weapon"
+          ]
+         },
+         "operation": "add_damage",
+         "stage": "before_halving",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Мощь",
+          "multiplier": 0.5,
+          "offset": 0.5
+         }
+        },
+        {
+         "id": "potence-prowess-strength-tasks",
+         "type": "roll_modifier",
+         "label": "Сокрушение: силовая задача",
+         "matcher": {
+          "conditions": [
+           "raw_strength_task",
+           "strength_task",
+           "feat_of_strength",
+           "breaking",
+           "lifting"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Мощь"
+         }
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "+Мощь к силе и безоружному урону"
+       }
+      }
      }
     },
     "3": {
@@ -2252,21 +2478,170 @@
       "pool": "—",
       "cost": "нет",
       "effect": "Смертного можно осушить за ход, но тот получает тяжёлые повреждения за каждый снятый пункт Голода. В бою нужна успешная атака укусом; после этого вампир гарантированно пьёт кровь, но сцена выглядит зверски и может вызвать сомнения.",
-      "duration": "одно действие"
+      "duration": "одно действие",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Мощь",
+        "power": "Грубое насыщение",
+        "level": 3,
+        "tags": [
+         "active",
+         "feeding",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {},
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "effects": [
+        {
+         "id": "potence-brutal-feed-prompt",
+         "type": "manual_prompt",
+         "message": "После успешного укуса вампир может снять Голод с чудовищной скоростью. За каждый снятый пункт Голода смертная жертва получает тяжёлое повреждение; при полном осушении сцена требует ручного решения рассказчика."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Грубое насыщение"
+       }
+      }
      },
      "Искра ярости": {
       "description": "Амальгама с Величием 3: вампир разжигает в толпе или цели желание насилия.",
       "pool": "манипуляция + Мощь",
       "cost": "1 испытание Крови",
       "effect": "Добавляет Мощь к проверкам подстрекательства к насилию. Против вампира можно вызвать проверку бешеной ярости: Манипуляция + Мощь против Самообладание + Интеллект цели, затем цель сопротивляется ярости со сложностью 3.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Мощь",
+        "power": "Искра ярости",
+        "level": 3,
+        "tags": [
+         "active",
+         "presence_amalgam",
+         "frenzy",
+         "condition",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "potence-spark-of-rage-incitement",
+         "type": "roll_modifier",
+         "label": "Искра ярости: подстрекательство",
+         "matcher": {
+          "conditions": [
+           "incite_violence",
+           "spark_of_rage",
+           "frenzy_provocation"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Мощь"
+         }
+        },
+        {
+         "id": "potence-spark-of-rage-condition",
+         "type": "condition",
+         "condition": "spark_of_rage",
+         "action": "apply"
+        },
+        {
+         "id": "potence-spark-of-rage-prompt",
+         "type": "manual_prompt",
+         "message": "Разреши Манипуляция + Мощь против Самообладание + Интеллект цели. При успехе цель проходит проверку бешеной ярости со сложностью 3; толпу и последствия насилия веди вручную."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Искра ярости"
+       }
+      }
      },
      "Мёртвая хватка": {
       "description": "Пальцы рук и ног впиваются в поверхность, позволяя карабкаться по стенам и висеть на потолке.",
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Вампир без проверки лазает по большинству неметаллических поверхностей и может висеть неподвижно сцену. Остаются следы ногтей и продавленные углубления; стекло и мягкие металлы зависят от решения рассказчика.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Мощь",
+        "power": "Мёртвая хватка",
+        "level": 3,
+        "tags": [
+         "active",
+         "movement",
+         "climb",
+         "condition"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "potence-uncanny-grip-climb",
+         "type": "movement",
+         "label": "Мёртвая хватка: лазание",
+         "mode": "climb",
+         "ignoreTerrain": true
+        },
+        {
+         "id": "potence-uncanny-grip-condition",
+         "type": "condition",
+         "condition": "uncanny_grip",
+         "action": "apply"
+        },
+        {
+         "id": "potence-uncanny-grip-prompt",
+         "type": "manual_prompt",
+         "message": "Персонаж лазает без проверки по большинству неметаллических поверхностей и может висеть неподвижно сцену. Стекло, мягкие металлы и заметные следы решаются рассказчиком."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Мёртвая хватка"
+       }
+      }
      }
     },
     "4": {
@@ -2275,7 +2650,45 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Цель получает Мощь, равную половине показателя вампира с округлением вниз, и известные ему несмешанные силы доступного уровня. Для вампиров эффект держится до следующего насыщения или Голода 5.",
-      "duration": "1 ночь / до насыщения"
+      "duration": "1 ночь / до насыщения",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Мощь",
+        "power": "Глоток могущества",
+        "level": 4,
+        "tags": [
+         "active",
+         "ally_buff",
+         "ghoul",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "night"
+       },
+       "effects": [
+        {
+         "id": "potence-draught-prompt",
+         "type": "manual_prompt",
+         "message": "Выбери союзника или гуля, который пьёт кровь прямо из жил. До конца действия он получает Мощь, равную половине Мощи владельца с округлением вниз, и доступные несмешанные силы этого уровня. Для вампира эффект заканчивается при следующем насыщении или на Голоде 5."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Передать половину Мощи"
+       }
+      }
      }
     },
     "5": {
@@ -2284,14 +2697,116 @@
       "pool": "—",
       "cost": "2 испытания Крови",
       "effect": "Все в радиусе 5 метров проходят Ловкость + Атлетика со сложностью 3. Успехи определяют, устояла цель, потеряла действие или упала. Предупреждённые союзники получают результат на ступень лучше. Один раз за сцену.",
-      "duration": "одно использование"
+      "duration": "одно использование",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Мощь",
+        "power": "Землетрясение",
+        "level": 5,
+        "tags": [
+         "active",
+         "area",
+         "damage",
+         "prone",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 2
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "effects": [
+        {
+         "id": "potence-earthshock-prone",
+         "type": "condition",
+         "condition": "prone",
+         "action": "apply"
+        },
+        {
+         "id": "potence-earthshock-prompt",
+         "type": "manual_prompt",
+         "message": "Все цели в радиусе 5 метров проходят Ловкость + Атлетика со сложностью 3. По результату цель может устоять, потерять действие или упасть; предупреждённые союзники получают результат на ступень лучше. Урон окружению и массовые последствия решает рассказчик."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Землетрясение: область 5 м"
+       }
+      }
      },
      "Кулак Каина": {
       "description": "Безоружные удары вампира становятся смертельными даже для сверхъестественных существ.",
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "На сцену атаки дракой голыми руками наносят тяжёлые повреждения смертным, Сородичам и другим сверхъестественным целям.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Мощь",
+        "power": "Кулак Каина",
+        "level": 5,
+        "tags": [
+         "active",
+         "damage_modifier",
+         "unarmed",
+         "aggravated",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "potence-fist-of-caine-aggravated",
+         "type": "damage_modifier",
+         "label": "Кулак Каина",
+         "matcher": {
+          "owners": [
+           "source"
+          ],
+          "targets": [
+           "health"
+          ],
+          "severities": [
+           "superficial"
+          ],
+          "attackTypes": [
+           "unarmed",
+           "brawl"
+          ]
+         },
+         "operation": "convert_damage_type",
+         "severity": "aggravated"
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Безоружный урон становится тяжёлым"
+       }
+      }
      }
     }
    }

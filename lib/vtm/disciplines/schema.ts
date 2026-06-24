@@ -44,6 +44,7 @@ export type RollMatcher = {
 }
 
 export type DamageMatcher = {
+  owners?: Array<'source' | 'target'>
   targets?: Array<'health' | 'willpower'>
   severities?: Array<'superficial' | 'aggravated'>
   sources?: string[]
