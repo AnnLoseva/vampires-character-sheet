@@ -2,6 +2,7 @@ import type { Conviction, HumanityStainEvent, HumanityState, HumanityStatus, Mor
 import type { NormalizedDisciplinePowers, NormalizedDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
 import type { CharacterDerivedStats } from '@/lib/vtm/derived-stats'
 import type { ActiveEffect } from '@/lib/vtm/disciplines/schema'
+import type { AppliedDisciplineRollModifier } from '@/lib/vtm/disciplines/effects'
 
 export type Die = {
   id?: string
@@ -146,6 +147,8 @@ export type RollMeta = {
   healthImpaired?: boolean
   healthImpairmentPenaltyApplied?: number
   physicalState?: NormalizedHealth['physicalState']
+  rollModifiers?: AppliedDisciplineRollModifier[]
+  rollDifficultyModifier?: number
   humanityBefore?: number
   humanityAfter?: number
   stainsBefore?: number

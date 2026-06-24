@@ -778,4 +778,14 @@ export const dictionary: Record<string, string> = {
   'YouTube ссылка или аудиофайл': 'YouTube link or audio file',
   'Играть': 'Play',
   'Стоп': 'Stop',
+
+  // lib/vtm/disciplines/costs.ts, legacy-cost-parser.ts: discipline cost warnings/reasons
+  'Стоимость похожа на снижение рейтинга или максимума Воли и требует ручного решения Рассказчика.':
+    "The cost looks like a reduction of a rating or Willpower maximum and requires the Storyteller's manual ruling.",
+  'Воля полностью заполнена тяжёлым стрессом: оплатить силу нельзя.': 'Willpower is completely full of Aggravated stress: the power cannot be paid for.',
+  'Активация силы': 'Power activation',
+  '{reason} · Испытание Крови {index}/{total}': '{reason} · Rouse Check {index}/{total}',
+  '{reason} · Испытание Крови': '{reason} · Rouse Check',
+  'В тексте указана добровольная или зависящая от цели трата Воли; автоматически она не списывается.':
+    "The text specifies a voluntary or target-dependent Willpower spend; it is not deducted automatically.",
 }

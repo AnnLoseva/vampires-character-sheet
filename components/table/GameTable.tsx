@@ -1,6 +1,7 @@
 'use client'
 
 import { ChangeEvent, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import type { Dispatch, SetStateAction } from 'react'
 import { createClient } from '@/lib/supabase'
 import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkillValue, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
 import { useLang } from '@/lib/i18n/LanguageProvider'
@@ -93,6 +94,12 @@ import {
 } from '@/lib/vtm/health'
 import { getDerivedStats } from '@/lib/vtm/derived-stats'
 import { removeActiveEffect as removeActiveEffectFromData } from '@/lib/vtm/disciplines/active-effects'
+import {
+  applyDisciplineEffectsToRoll,
+  type AppliedDisciplineRollModifier,
+  type DisciplineRollEffectResult,
+  type DisciplineRollPenalty,
+} from '@/lib/vtm/disciplines/effects'
 import {
   payDisciplineCost,
   resolveDisciplineCost,
@@ -259,6 +266,11 @@ type QuickRollOptions = {
   recoveredWillpower?: number
   impairmentPenaltyApplied?: number
   healthImpairmentPenaltyApplied?: number
+  rollTraits?: string[]
+  rollAction?: string
+  rollKind?: string
+  rollPenalties?: DisciplineRollPenalty[]
+  disabledRollModifierIds?: string[]
 }
 
 type WillpowerRerollDraft = {
@@ -778,6 +790,7 @@ export default function VampireTable() {
   const [previewRollSkill, setPreviewRollSkill] = useState('')
   const [previewRollDiscipline, setPreviewRollDiscipline] = useState('')
   const [previewRollModifier, setPreviewRollModifier] = useState(0)
+  const [disabledPreviewRollModifierIds, setDisabledPreviewRollModifierIds] = useState<string[]>([])
   const [previewRollMode, setPreviewRollMode] = useState<RollMode>('normal')
   const [previewContestedOpponentId, setPreviewContestedOpponentId] = useState('')
   const [selectedMasterRollCharacterId, setSelectedMasterRollCharacterId] = useState('')
@@ -787,6 +800,7 @@ export default function VampireTable() {
   const [masterRollSkill, setMasterRollSkill] = useState('')
   const [masterRollDiscipline, setMasterRollDiscipline] = useState('')
   const [masterRollModifier, setMasterRollModifier] = useState(0)
+  const [disabledMasterRollModifierIds, setDisabledMasterRollModifierIds] = useState<string[]>([])
   const [masterRollMode, setMasterRollMode] = useState<RollMode>('normal')
   const [masterContestedOpponentId, setMasterContestedOpponentId] = useState('')
   const [incomingOpposedProposal, setIncomingOpposedProposal] = useState<OpposedRollProposal | null>(null)
@@ -797,6 +811,7 @@ export default function VampireTable() {
   const [previewPowerName, setPreviewPowerName] = useState('')
   const [previewPowerPoolSelections, setPreviewPowerPoolSelections] = useState<string[]>([])
   const [previewPowerModifier, setPreviewPowerModifier] = useState(0)
+  const [disabledPreviewPowerModifierIds, setDisabledPreviewPowerModifierIds] = useState<string[]>([])
   const [previewUseBloodSurge, setPreviewUseBloodSurge] = useState(false)
   const [masterUseBloodSurge, setMasterUseBloodSurge] = useState(false)
   const [willpowerRerollDraft, setWillpowerRerollDraft] = useState<WillpowerRerollDraft | null>(null)
@@ -902,10 +917,12 @@ export default function VampireTable() {
     setPreviewRollSkill('')
     setPreviewRollDiscipline('')
     setPreviewRollModifier(0)
+    setDisabledPreviewRollModifierIds([])
     setPreviewRollMode('normal')
     setPreviewContestedOpponentId('')
     setPreviewDisciplineName('')
     setPreviewPowerName('')
+    setDisabledPreviewPowerModifierIds([])
     setPreviewUseBloodSurge(false)
     setQuickInventoryName('')
     setQuickInventoryCategory('Другое')
@@ -914,7 +931,12 @@ export default function VampireTable() {
   }, [previewCharacter?.id])
 
   useEffect(() => {
-    if (!previewDisciplineName || disciplineRules) return
+    const shouldLoadDisciplineRules = Boolean(
+      previewDisciplineName
+      || previewCharacter?.id
+      || selectedMasterRollCharacterId,
+    )
+    if (!shouldLoadDisciplineRules || disciplineRules) return
     const controller = new AbortController()
     setDisciplineRulesStatus('Загружаю описание дисциплины...')
     Promise.all([
@@ -942,7 +964,7 @@ export default function VampireTable() {
         setDisciplineRulesStatus('Не удалось загрузить описание дисциплины.')
       })
     return () => controller.abort()
-  }, [previewDisciplineName, disciplineRules])
+  }, [previewDisciplineName, previewCharacter?.id, selectedMasterRollCharacterId, disciplineRules])
   const voiceQualityRef = useRef<VoiceQuality>('clear')
   const voiceParticipantsRef = useRef<VoiceParticipant[]>([])
   const localVoiceStreamRef = useRef<MediaStream | null>(null)
@@ -2039,6 +2061,48 @@ export default function VampireTable() {
     return Array.isArray(specs) ? specs.filter((spec): spec is string => typeof spec === 'string') : []
   }
   const getDisciplineDots = (sources: Record<string, number>) => Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
+  const getRollTraits = (...parts: string[]) => parts.map(part => part.trim()).filter(Boolean)
+  const getRollPenalties = (
+    willpowerPenalty: number,
+    healthPenalty: number,
+  ): DisciplineRollPenalty[] => {
+    const penalties: DisciplineRollPenalty[] = []
+    if (willpowerPenalty) {
+      penalties.push({
+        id: 'willpower_impairment',
+        kind: 'willpower_impairment',
+        label: t('истощения Воли'),
+        diceDelta: willpowerPenalty,
+      })
+    }
+    if (healthPenalty) {
+      penalties.push({
+        id: 'health_impairment',
+        kind: 'health_impairment',
+        label: t('изнурения'),
+        diceDelta: healthPenalty,
+      })
+    }
+    return penalties
+  }
+  const getActivePenaltyDelta = (
+    result: DisciplineRollEffectResult | null | undefined,
+    penaltyId: string,
+  ) => result?.modifiers.find(
+    modifier => modifier.sourceKind === 'penalty'
+      && modifier.id === `penalty:${penaltyId}`
+      && modifier.active,
+  )?.diceDelta || 0
+  const getActiveRollModifierWarnings = (
+    result: DisciplineRollEffectResult | null | undefined,
+  ) => [
+    ...(getActivePenaltyDelta(result, 'willpower_impairment')
+      ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.']
+      : []),
+    ...(getActivePenaltyDelta(result, 'health_impairment')
+      ? ['Шкала здоровья заполнена: физическая проверка получает -2к10.']
+      : []),
+  ]
   const masterRollAttributeDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttribute) : 0
   const masterRollAttributeTwoDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttributeTwo) : 0
   const masterRollSkillDots = selectedMasterRollCharacter ? getSkillDots(resolveSkillValue(selectedMasterRollCharacter.skills, masterRollSkill)) : 0
@@ -2046,7 +2110,21 @@ export default function VampireTable() {
   const masterRollPoolBeforeLimit = masterRollAttributeDots + masterRollAttributeTwoDots + masterRollSkillDots + masterRollDisciplineDots + masterRollModifier
   const masterWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([masterRollAttribute, masterRollAttributeTwo], selectedMasterRollCharacter)
   const masterHealthImpairmentPenalty = getHealthImpairmentPenalty([masterRollAttribute, masterRollAttributeTwo], getCharacterHealth(selectedMasterRollCharacter))
-  const masterRollDiceCount = Math.max(0, Math.min(20, masterRollPoolBeforeLimit + masterWillpowerImpairmentPenalty + masterHealthImpairmentPenalty))
+  const masterRollEffectResult = selectedMasterRollCharacter
+    ? applyDisciplineEffectsToRoll({
+        characterData: selectedMasterRollCharacter,
+        rulesJson: disciplineRules,
+        baseDiceCount: masterRollPoolBeforeLimit,
+        poolType: 'master-character',
+        kind: 'roll',
+        action: masterRollMode,
+        source: masterUseBloodSurge ? 'blood_surge' : 'manual',
+        traits: getRollTraits(masterRollAttribute, masterRollAttributeTwo, masterRollSkill, masterRollDiscipline),
+        penalties: getRollPenalties(masterWillpowerImpairmentPenalty, masterHealthImpairmentPenalty),
+        disabledModifierIds: disabledMasterRollModifierIds,
+      }, selectedMasterRollCharacter.derivedStats)
+    : null
+  const masterRollDiceCount = masterRollEffectResult?.finalDiceCount || 0
   const masterBloodPotency = getCharacterBloodPotency(selectedMasterRollCharacter)
   const masterBloodSurgeBonus = getBloodSurgeBonus(masterBloodPotency)
   const masterRollExtraAttributes = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.attributes, ATTRIBUTE_GROUPS) : []
@@ -2080,7 +2158,21 @@ export default function VampireTable() {
   const previewHealth = getCharacterHealth(previewCharacter)
   const previewSheetFixed = previewCharacter?.sheetFixed ?? true
   const previewHealthImpairmentPenalty = getHealthImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewHealth)
-  const previewDiceCount = Math.max(0, Math.min(20, previewPoolBeforeLimit + previewWillpowerImpairmentPenalty + previewHealthImpairmentPenalty))
+  const previewRollEffectResult = previewCharacter
+    ? applyDisciplineEffectsToRoll({
+        characterData: previewCharacter,
+        rulesJson: disciplineRules,
+        baseDiceCount: previewPoolBeforeLimit,
+        poolType: 'character-sheet',
+        kind: 'roll',
+        action: previewRollMode,
+        source: previewUseBloodSurge ? 'blood_surge' : 'manual',
+        traits: getRollTraits(previewRollAttribute, previewRollAttributeTwo, previewRollSkill, previewRollDiscipline),
+        penalties: getRollPenalties(previewWillpowerImpairmentPenalty, previewHealthImpairmentPenalty),
+        disabledModifierIds: disabledPreviewRollModifierIds,
+      }, previewCharacter.derivedStats)
+    : null
+  const previewDiceCount = previewRollEffectResult?.finalDiceCount || 0
   const previewBloodPotency = getCharacterBloodPotency(previewCharacter)
   const previewBloodSurgeBonus = getBloodSurgeBonus(previewBloodPotency)
   const previewHunger = getCharacterHunger(previewCharacter)
@@ -2134,7 +2226,21 @@ export default function VampireTable() {
     : 0
   const previewPowerWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty(previewPowerPoolSelections, previewCharacter)
   const previewPowerHealthImpairmentPenalty = getHealthImpairmentPenalty(previewPowerPoolSelections, previewHealth)
-  const previewPowerDiceCount = Math.max(0, Math.min(20, previewPowerPoolBeforeLimit + previewPowerWillpowerImpairmentPenalty + previewPowerHealthImpairmentPenalty))
+  const previewPowerRollEffectResult = previewCharacter
+    ? applyDisciplineEffectsToRoll({
+        characterData: previewCharacter,
+        rulesJson: disciplineRules,
+        baseDiceCount: previewPowerPoolBeforeLimit,
+        poolType: 'discipline-power',
+        kind: 'roll',
+        action: selectedPreviewPower?.name || 'discipline-power',
+        source: 'discipline',
+        traits: getRollTraits(...previewPowerPoolSelections, previewDisciplineName),
+        penalties: getRollPenalties(previewPowerWillpowerImpairmentPenalty, previewPowerHealthImpairmentPenalty),
+        disabledModifierIds: disabledPreviewPowerModifierIds,
+      }, previewCharacter.derivedStats)
+    : null
+  const previewPowerDiceCount = previewPowerRollEffectResult?.finalDiceCount || 0
   const selectedPreviewPowerCost = resolveDisciplineCost({
     mechanics: selectedPreviewPower?.rule.mechanics,
     legacyCost: selectedPreviewPower?.rule.cost,
@@ -2175,6 +2281,7 @@ export default function VampireTable() {
   useEffect(() => {
     setPreviewPowerPoolSelections(previewPowerPoolChoices.map(choice => choice.options[0] || ''))
     setPreviewPowerModifier(0)
+    setDisabledPreviewPowerModifierIds([])
   }, [previewPowerName, resolvedPreviewPowerPool])
 
   useEffect(() => {
@@ -2183,6 +2290,7 @@ export default function VampireTable() {
     setMasterRollSkill('')
     setMasterRollDiscipline('')
     setMasterRollModifier(0)
+    setDisabledMasterRollModifierIds([])
     setMasterRollMode('normal')
     setMasterContestedOpponentId('')
   }, [selectedMasterRollCharacterId])
@@ -2318,7 +2426,21 @@ export default function VampireTable() {
     const disciplineDots = character ? getDisciplineDots(character.disciplines[sideState.discipline] || {}) : 0
     const willpowerPenalty = getWillpowerImpairmentPenalty([sideState.attribute, sideState.attributeTwo], character)
     const healthPenalty = getHealthImpairmentPenalty([sideState.attribute, sideState.attributeTwo], getCharacterHealth(character))
-    const diceCount = Math.max(0, Math.min(20, attributeDots + attributeTwoDots + skillDots + disciplineDots + sideState.modifier + willpowerPenalty + healthPenalty))
+    const baseDiceCount = attributeDots + attributeTwoDots + skillDots + disciplineDots + sideState.modifier
+    const rollEffectResult = character
+      ? applyDisciplineEffectsToRoll({
+          characterData: character,
+          rulesJson: disciplineRules,
+          baseDiceCount,
+          poolType: 'opposed-response',
+          kind: 'roll',
+          action: 'contested',
+          source: 'manual',
+          traits: getRollTraits(sideState.attribute, sideState.attributeTwo, sideState.skill, sideState.discipline),
+          penalties: getRollPenalties(willpowerPenalty, healthPenalty),
+        }, character.derivedStats)
+      : null
+    const diceCount = rollEffectResult?.finalDiceCount || 0
     const poolParts = [
       sideState.attribute ? `${t(sideState.attribute)} ${attributeDots}` : '',
       sideState.attributeTwo ? `${t(sideState.attributeTwo)} ${attributeTwoDots}` : '',
@@ -2333,6 +2455,7 @@ export default function VampireTable() {
       diceCount,
       poolName: poolParts.join(' + ') || d10(diceCount || 0),
       poolParts,
+      rollEffectResult,
       extraAttributes: character ? getExtraTraitNames(character.attributes, ATTRIBUTE_GROUPS) : [],
       extraSkills: character ? getExtraTraitNames(character.skills, SKILL_GROUPS) : [],
       disciplineNames: character
@@ -3103,6 +3226,14 @@ export default function VampireTable() {
         ? tf('Победа: {name}', { name: rightSide.actorName })
         : t('Ничья')
     const opposed: OpposedRollResult = { sides: [leftSide, rightSide], winnerSideId, outcome, summary }
+    const responseRollModifiers = responsePool.rollEffectResult?.modifiers.filter(modifier => (
+      modifier.active
+      && (
+        modifier.diceDelta !== 0
+        || modifier.difficultyDelta !== 0
+        || modifier.operation === 'ignore_penalty'
+      )
+    ))
     const roll: RollMessage = {
       id: proposal.id,
       room,
@@ -3130,6 +3261,9 @@ export default function VampireTable() {
           margin: Math.abs(leftSide.successes - rightSide.successes),
           winner: winnerSideId === 'left' ? 'initiator' : winnerSideId === 'right' ? 'opponent' : 'tie',
         },
+        rollModifiers: responseRollModifiers?.length ? responseRollModifiers : undefined,
+        rollDifficultyModifier: responsePool.rollEffectResult?.difficultyDelta || undefined,
+        warnings: getActiveRollModifierWarnings(responsePool.rollEffectResult),
       },
     }
 
@@ -3169,7 +3303,34 @@ export default function VampireTable() {
       currentHunger = result.hungerAfter
     }
 
-    const finalDiceCount = Math.max(1, Math.min(20, Math.floor(Number(diceCount) || 0) + bloodSurgeBonus))
+    const rollSource = useBloodSurge
+      ? 'blood_surge'
+      : options.source === 'blood_surge'
+        ? 'manual'
+        : options.source || 'manual'
+    const rollEffectResult = applyDisciplineEffectsToRoll({
+      characterData: character,
+      rulesJson: disciplineRules,
+      baseDiceCount: Math.floor(Number(diceCount) || 0),
+      poolType,
+      kind: options.rollKind || 'roll',
+      action: options.rollAction || poolType,
+      source: rollSource,
+      traits: options.rollTraits || [],
+      penalties: options.rollPenalties || [],
+      disabledModifierIds: options.disabledRollModifierIds,
+    }, character.derivedStats)
+    const activeRollModifiers = rollEffectResult.modifiers.filter(modifier => (
+      modifier.active
+      && (
+        modifier.diceDelta !== 0
+        || modifier.difficultyDelta !== 0
+        || modifier.operation === 'ignore_penalty'
+      )
+    ))
+    const willpowerPenaltyApplied = getActivePenaltyDelta(rollEffectResult, 'willpower_impairment')
+    const healthPenaltyApplied = getActivePenaltyDelta(rollEffectResult, 'health_impairment')
+    const finalDiceCount = Math.max(1, Math.min(20, rollEffectResult.finalDiceCount + bloodSurgeBonus))
     const hungerDice = options.skipHungerDice ? 0 : Math.min(currentHunger, finalDiceCount)
     const dice = rollD10Pool(finalDiceCount, hungerDice)
     const successes = countD10Successes(dice)
@@ -3177,12 +3338,13 @@ export default function VampireTable() {
     const willpowerAfter = getCharacterWillpower(character)
     const warnings = [
       ...(options.warnings || []),
+      ...getActiveRollModifierWarnings(rollEffectResult),
       ...rouseChecks.map(getRouseWarning).filter(Boolean),
     ]
     const meta: RollMeta = {
       characterId: character.id,
       rollMode: 'normal',
-      source: useBloodSurge ? 'blood_surge' : options.source === 'blood_surge' ? 'manual' : options.source || 'manual',
+      source: rollSource,
       hungerBefore,
       hungerAfter: currentHunger,
       hungerDice,
@@ -3192,10 +3354,12 @@ export default function VampireTable() {
       spentWillpower: options.spentWillpower,
       recoveredWillpower: options.recoveredWillpower,
       willpowerImpaired: willpowerAfter.impaired,
-      impairmentPenaltyApplied: options.impairmentPenaltyApplied,
+      impairmentPenaltyApplied: (options.impairmentPenaltyApplied ?? willpowerPenaltyApplied) || undefined,
       healthImpaired: getCharacterHealth(character).impaired,
-      healthImpairmentPenaltyApplied: options.healthImpairmentPenaltyApplied,
+      healthImpairmentPenaltyApplied: (options.healthImpairmentPenaltyApplied ?? healthPenaltyApplied) || undefined,
       physicalState: getCharacterHealth(character).physicalState,
+      rollModifiers: activeRollModifiers.length ? activeRollModifiers : undefined,
+      rollDifficultyModifier: rollEffectResult.difficultyDelta || undefined,
       rouseChecks,
       bloodSurge: useBloodSurge ? {
         enabled: true,
@@ -3506,16 +3670,14 @@ export default function VampireTable() {
       hidden: masterRollHidden,
       useBloodSurge: masterUseBloodSurge,
       source: masterUseBloodSurge ? 'blood_surge' : 'manual',
-      impairmentPenaltyApplied: masterWillpowerImpairmentPenalty || undefined,
-      healthImpairmentPenaltyApplied: masterHealthImpairmentPenalty || undefined,
-      warnings: [
-        ...(masterWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : []),
-        ...(masterHealthImpairmentPenalty ? ['Шкала здоровья заполнена: физическая проверка получает -2к10.'] : []),
-      ],
+      rollTraits: getRollTraits(masterRollAttribute, masterRollAttributeTwo, masterRollSkill, masterRollDiscipline),
+      rollAction: masterRollMode,
+      rollPenalties: getRollPenalties(masterWillpowerImpairmentPenalty, masterHealthImpairmentPenalty),
+      disabledRollModifierIds: disabledMasterRollModifierIds,
     }
     if (masterRollMode === 'contested') {
       await sendContestedRollRequest(
-        masterRollDiceCount,
+        masterRollPoolBeforeLimit,
         masterRollPoolName,
         selectedMasterRollCharacter,
         selectedMasterContestedOpponent,
@@ -3525,7 +3687,7 @@ export default function VampireTable() {
       return
     }
     await rollQuickDice(
-      masterRollDiceCount,
+      masterRollPoolBeforeLimit,
       masterRollPoolName,
       selectedMasterRollCharacter,
       'master-character',
@@ -3588,16 +3750,14 @@ export default function VampireTable() {
     const options: QuickRollOptions = {
       useBloodSurge: previewBloodSurgeEnabled,
       source: previewBloodSurgeEnabled ? 'blood_surge' : 'manual',
-      impairmentPenaltyApplied: previewWillpowerImpairmentPenalty || undefined,
-      healthImpairmentPenaltyApplied: previewHealthImpairmentPenalty || undefined,
-      warnings: [
-        ...(previewWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : []),
-        ...(previewHealthImpairmentPenalty ? ['Шкала здоровья заполнена: физическая проверка получает -2к10.'] : []),
-      ],
+      rollTraits: getRollTraits(previewRollAttribute, previewRollAttributeTwo, previewRollSkill, previewRollDiscipline),
+      rollAction: previewRollMode,
+      rollPenalties: getRollPenalties(previewWillpowerImpairmentPenalty, previewHealthImpairmentPenalty),
+      disabledRollModifierIds: disabledPreviewRollModifierIds,
     }
     if (previewRollMode === 'contested') {
       await sendContestedRollRequest(
-        previewDiceCount,
+        previewPoolBeforeLimit,
         poolName,
         previewCharacter,
         selectedPreviewContestedOpponent,
@@ -3606,7 +3766,7 @@ export default function VampireTable() {
       )
       return
     }
-    await rollQuickDice(previewDiceCount, poolName, previewCharacter, 'character-sheet', options)
+    await rollQuickDice(previewPoolBeforeLimit, poolName, previewCharacter, 'character-sheet', options)
   }
 
   const togglePreviewAttribute = (name: string) => {
@@ -3679,6 +3839,8 @@ export default function VampireTable() {
           targetCharacterId: storedCharacter.id,
           reason: `${previewDisciplineName}: ${power.name}`,
           rouseChecksOverride,
+          t,
+          tf,
         },
       )
       if (!activation.success || !activation.payment) {
@@ -3698,6 +3860,8 @@ export default function VampireTable() {
         {
           reason: `${previewDisciplineName}: ${power.name}`,
           rouseChecksOverride,
+          t,
+          tf,
         },
       )
       if (!payment.success) {
@@ -3954,7 +4118,7 @@ export default function VampireTable() {
     const selectedParts = previewPowerPoolSelections.map(name => `${t(name)} ${getCharacterPoolPartDots(activeCharacter, name)}`)
     if (previewPowerModifier) selectedParts.push(`${t('модификатор')} ${previewPowerModifier > 0 ? '+' : ''}${previewPowerModifier}`)
     await rollQuickDice(
-      previewPowerDiceCount,
+      previewPowerPoolBeforeLimit,
       `${previewDisciplineName}: ${selectedPreviewPower.name} · ${selectedParts.join(' + ')}`,
       activeCharacter,
       'discipline-power',
@@ -3965,13 +4129,13 @@ export default function VampireTable() {
         willpowerBefore: willpowerMeta.willpowerBefore,
         willpowerAfter: willpowerMeta.willpowerAfter,
         spentWillpower: willpowerMeta.spentWillpower,
+        rollTraits: getRollTraits(...previewPowerPoolSelections, previewDisciplineName),
+        rollAction: selectedPreviewPower.name,
+        rollPenalties: getRollPenalties(previewPowerWillpowerImpairmentPenalty, previewPowerHealthImpairmentPenalty),
+        disabledRollModifierIds: disabledPreviewPowerModifierIds,
         warnings: [
           ...(willpowerMeta.warnings || []),
-          ...(previewPowerWillpowerImpairmentPenalty ? ['Трек Воли заполнен: ментальная или социальная проверка получает -2к10.'] : []),
-          ...(previewPowerHealthImpairmentPenalty ? ['Шкала здоровья заполнена: физическая проверка получает -2к10.'] : []),
         ],
-        impairmentPenaltyApplied: previewPowerWillpowerImpairmentPenalty || undefined,
-        healthImpairmentPenaltyApplied: previewPowerHealthImpairmentPenalty || undefined,
       },
     )
   }
@@ -6292,11 +6456,79 @@ export default function VampireTable() {
     return `/character-sheet?${params.toString()}`
   }
 
+  const getRollModifierSummary = (modifier: AppliedDisciplineRollModifier) => {
+    if (modifier.operation === 'ignore_penalty') {
+      return tf('игнорирует штраф · от {source}', { source: modifier.sourceLabel })
+    }
+    if (modifier.difficultyDelta) {
+      return tf('Сложность {delta} · от {source}', {
+        delta: `${modifier.difficultyDelta > 0 ? '+' : ''}${modifier.difficultyDelta}`,
+        source: modifier.sourceLabel,
+      })
+    }
+    if (modifier.diceDelta) {
+      return tf('{delta} от {source}', {
+        delta: `${modifier.diceDelta > 0 ? '+' : ''}${d10(Math.abs(modifier.diceDelta))}`,
+        source: modifier.sourceLabel,
+      })
+    }
+    return modifier.sourceLabel
+  }
+
+  const toggleDisabledRollModifier = (
+    modifierId: string,
+    setDisabledIds: Dispatch<SetStateAction<string[]>>,
+  ) => {
+    setDisabledIds(current => current.includes(modifierId)
+      ? current.filter(id => id !== modifierId)
+      : [...current, modifierId])
+  }
+
+  const renderRollModifierControls = (
+    result: DisciplineRollEffectResult | null | undefined,
+    setDisabledIds?: Dispatch<SetStateAction<string[]>>,
+  ) => {
+    const visibleModifiers = (result?.modifiers || []).filter(modifier => (
+      (modifier.sourceKind !== 'penalty' || modifier.active)
+      && (
+        modifier.diceDelta !== 0
+        || modifier.difficultyDelta !== 0
+        || modifier.operation === 'ignore_penalty'
+      )
+    ))
+    if (!visibleModifiers.length) return null
+
+    return (
+      <div className="preview-roll-modifier-list">
+        <strong>{t('Модификаторы')}:</strong>
+        {visibleModifiers.map(modifier => {
+          const summary = getRollModifierSummary(modifier)
+          const canToggle = isMaster && modifier.canDisable && setDisabledIds
+          return canToggle ? (
+            <label key={modifier.id} className="preview-blood-surge-toggle">
+              <span>{modifier.active ? summary : `${t('отключено')}: ${summary}`}</span>
+              <input
+                type="checkbox"
+                checked={modifier.active}
+                onChange={() => toggleDisabledRollModifier(modifier.id, setDisabledIds)}
+              />
+            </label>
+          ) : (
+            <span className="preview-roll-notice" key={modifier.id}>
+              {modifier.active ? summary : `${t('отключено')}: ${summary}`}
+            </span>
+          )
+        })}
+      </div>
+    )
+  }
+
   const renderRollMeta = (roll: RollMessage) => {
     const meta = roll.meta
     if (!meta) return null
     const rouseChecks = meta.rouseChecks || []
     const warnings = meta.warnings || []
+    const rollModifiers = meta.rollModifiers || []
     const hungerChange = typeof meta.hungerBefore === 'number'
       && typeof meta.hungerAfter === 'number'
       && meta.hungerBefore !== meta.hungerAfter
@@ -6319,7 +6551,7 @@ export default function VampireTable() {
       || typeof meta.humanityBefore === 'number'
       || typeof meta.stainsBefore === 'number'
 
-    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !hasWillpowerMeta && !hasHealthMeta && !hasHumanityMeta && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline) {
+    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !hasWillpowerMeta && !hasHealthMeta && !hasHumanityMeta && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline && !rollModifiers.length && !meta.rollDifficultyModifier) {
       return null
     }
 
@@ -6347,6 +6579,11 @@ export default function VampireTable() {
         ) : null}
         {meta.impairmentPenaltyApplied ? <span className="roll-note">{tf('Истощение Воли: {n}к10', { n: meta.impairmentPenaltyApplied })}</span> : null}
         {meta.healthImpairmentPenaltyApplied ? <span className="roll-note">{tf('Изнурение по здоровью: {n}к10', { n: meta.healthImpairmentPenaltyApplied })}</span> : null}
+        {rollModifiers.length ? (
+          <span className="roll-note">
+            {t('Модификаторы')}: {rollModifiers.map(getRollModifierSummary).join(' · ')}
+          </span>
+        ) : null}
         {meta.damage ? (
           <span className="roll-note">
             {tf('Урон: {amount} {severity}', { amount: meta.damage.originalAmount, severity: meta.damage.severity === 'aggravated' ? t('тяжёлых') : t('лёгких') })}
@@ -7326,6 +7563,8 @@ export default function VampireTable() {
                           </button>
                         </div>
 
+                        {renderRollModifierControls(masterRollEffectResult, setDisabledMasterRollModifierIds)}
+
                         <div className="quick-roll-grid master-quick-rolls" aria-label={t('Быстрые броски мастера')}>
                           {[1, 3, 5, 7, 10].map(count => (
                             <button type="button" key={count} onClick={() => rollMasterQuick(count)}>
@@ -7357,8 +7596,8 @@ export default function VampireTable() {
                         </div>
 
                         {masterRollPoolBeforeLimit > 20 ? <p className="preview-roll-notice">{t('Пул ограничен двадцатью костями.')}</p> : null}
-                        {masterWillpowerImpairmentPenalty ? <p className="preview-roll-notice">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
-                        {masterHealthImpairmentPenalty ? <p className="preview-roll-notice">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
+                        {getActivePenaltyDelta(masterRollEffectResult, 'willpower_impairment') ? <p className="preview-roll-notice">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
+                        {getActivePenaltyDelta(masterRollEffectResult, 'health_impairment') ? <p className="preview-roll-notice">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
                       </>
                     ) : (
                       <p className="panel-empty">{t('Выбери персонажа.')}</p>
@@ -7749,7 +7988,7 @@ export default function VampireTable() {
                         ))}
                       </div>
                     )}
-                    <p className="preview-roll-notice">{t('Активные эффекты пока не изменяют броски и урон.')}</p>
+                    <p className="preview-roll-notice">{t('Активные roll modifiers применяются к броскам; урон пока не автоматизируется.')}</p>
                   </section>
                     </>
                   ) : (
@@ -7889,6 +8128,7 @@ export default function VampireTable() {
                         {previewRollMode === 'contested' ? t('Запросить встречный') : t('Бросить')} {Math.min(20, previewDiceCount + (previewBloodSurgeEnabled ? previewBloodSurgeBonus : 0)) || 0}к10
                       </button>
                     </div>
+                    {renderRollModifierControls(previewRollEffectResult, setDisabledPreviewRollModifierIds)}
                     <div className="quick-roll-grid" aria-label={t('Быстрые броски')}>
                       {[1, 3, 5, 7].map(count => (
                         <button
@@ -7906,8 +8146,8 @@ export default function VampireTable() {
                     </div>
                     {!canRollPreview ? <p className="preview-roll-notice">{t('Бросать может мастер или владелец активного персонажа.')}</p> : null}
                     {previewPoolBeforeLimit > 20 ? <p className="preview-roll-notice">{t('Пул ограничен двадцатью костями.')}</p> : null}
-                    {previewWillpowerImpairmentPenalty ? <p className="preview-roll-notice">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
-                    {previewHealthImpairmentPenalty ? <p className="preview-roll-notice">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
+                    {getActivePenaltyDelta(previewRollEffectResult, 'willpower_impairment') ? <p className="preview-roll-notice">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
+                    {getActivePenaltyDelta(previewRollEffectResult, 'health_impairment') ? <p className="preview-roll-notice">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
                   </section>
 
                   <section className="preview-trait-section">
@@ -8215,10 +8455,11 @@ export default function VampireTable() {
                                     : tf('Бросить {count}к10', { count: previewPowerDiceCount })}
                               </button>
                             </div>
+                            {renderRollModifierControls(previewPowerRollEffectResult, setDisabledPreviewPowerModifierIds)}
                             {previewPowerOpposition ? <p className="discipline-roll-opposition">{tf('Сопротивление цели: {value}', { value: previewPowerOpposition })}</p> : null}
                             {selectedPreviewPowerRollFormula !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">{tf('Используется формула силы «{formula}».', { formula: selectedPreviewPowerRollFormula.replace(/^как\s+/i, '') })}</p> : null}
-                            {previewPowerWillpowerImpairmentPenalty ? <p className="discipline-roll-opposition">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
-                            {previewPowerHealthImpairmentPenalty ? <p className="discipline-roll-opposition">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
+                            {getActivePenaltyDelta(previewPowerRollEffectResult, 'willpower_impairment') ? <p className="discipline-roll-opposition">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
+                            {getActivePenaltyDelta(previewPowerRollEffectResult, 'health_impairment') ? <p className="discipline-roll-opposition">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
                             {selectedPreviewPowerCost.warnings.map((warning, index) => <p className="discipline-roll-opposition" key={`wp-cost-warning-${index}`}>{t(warning)}</p>)}
                           </>
                         ) : (

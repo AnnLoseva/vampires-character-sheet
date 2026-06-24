@@ -140,6 +140,43 @@ function isRouseCheckResult(value: unknown): value is RouseCheckResult {
     && typeof value.hungerAfter === 'number'
 }
 
+function normalizeRollModifier(
+  value: unknown,
+): NonNullable<RollMeta['rollModifiers']>[number] | null {
+  if (!isRecord(value) || typeof value.id !== 'string') return null
+  const sourceKind = value.sourceKind === 'active'
+    || value.sourceKind === 'passive'
+    || value.sourceKind === 'penalty'
+    ? value.sourceKind
+    : null
+  const operation = value.operation === 'add_dice'
+    || value.operation === 'remove_dice'
+    || value.operation === 'difficulty_modifier'
+    || value.operation === 'ignore_penalty'
+    ? value.operation
+    : null
+  if (!sourceKind || !operation) return null
+
+  return {
+    id: value.id,
+    sourceKind,
+    operation,
+    label: typeof value.label === 'string' ? value.label : '',
+    sourceLabel: typeof value.sourceLabel === 'string' ? value.sourceLabel : '',
+    discipline: typeof value.discipline === 'string' ? value.discipline : undefined,
+    power: typeof value.power === 'string' ? value.power : undefined,
+    path: typeof value.path === 'string' ? value.path : undefined,
+    level: typeof value.level === 'number' ? value.level : undefined,
+    diceDelta: typeof value.diceDelta === 'number' ? value.diceDelta : 0,
+    difficultyDelta: typeof value.difficultyDelta === 'number' ? value.difficultyDelta : 0,
+    ignoredPenaltyIds: Array.isArray(value.ignoredPenaltyIds)
+      ? value.ignoredPenaltyIds.filter((id): id is string => typeof id === 'string')
+      : undefined,
+    active: value.active !== false,
+    canDisable: Boolean(value.canDisable),
+  }
+}
+
 function normalizeRollMeta(value: unknown): RollMeta | undefined {
   if (!isRecord(value)) return undefined
   const meta: RollMeta = {}
@@ -158,6 +195,13 @@ function normalizeRollMeta(value: unknown): RollMeta | undefined {
   if (typeof value.healthImpaired === 'boolean') meta.healthImpaired = value.healthImpaired
   if (typeof value.healthImpairmentPenaltyApplied === 'number') meta.healthImpairmentPenaltyApplied = value.healthImpairmentPenaltyApplied
   if (typeof value.physicalState === 'string') meta.physicalState = value.physicalState as RollMeta['physicalState']
+  if (typeof value.rollDifficultyModifier === 'number') meta.rollDifficultyModifier = value.rollDifficultyModifier
+  if (Array.isArray(value.rollModifiers)) {
+    const rollModifiers = value.rollModifiers
+      .map(normalizeRollModifier)
+      .filter((modifier): modifier is NonNullable<RollMeta['rollModifiers']>[number] => Boolean(modifier))
+    if (rollModifiers.length) meta.rollModifiers = rollModifiers
+  }
   if (typeof value.humanityBefore === 'number') meta.humanityBefore = value.humanityBefore
   if (typeof value.humanityAfter === 'number') meta.humanityAfter = value.humanityAfter
   if (typeof value.stainsBefore === 'number') meta.stainsBefore = value.stainsBefore

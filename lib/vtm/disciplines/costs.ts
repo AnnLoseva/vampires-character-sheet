@@ -313,7 +313,10 @@ export function payDisciplineCost<TCharacter extends DisciplineCostCharacter>(
   const random = options.random || Math.random
   const makeId = options.makeId
     || (() => `${Date.now()}-${Math.random().toString(16).slice(2)}`)
-  const reason = options.reason || 'Активация силы'
+  const t = options.t || ((ru: string) => ru)
+  const tf = options.tf || ((ru: string, vars: Record<string, string | number>) =>
+    Object.entries(vars).reduce((acc, [key, value]) => acc.replace(`{${key}}`, String(value)), ru))
+  const reason = options.reason || t('Активация силы')
   const rouseChecks: DisciplineCostRouseCheck[] = []
   let hungerAfter = hungerBefore
 
@@ -326,7 +329,9 @@ export function payDisciplineCost<TCharacter extends DisciplineCostCharacter>(
       : Math.min(5, hungerAtRoll + 1)
     rouseChecks.push({
       id: makeId(),
-      reason: `${reason} · Испытание Крови${checksCount > 1 ? ` ${index + 1}/${checksCount}` : ''}`,
+      reason: checksCount > 1
+        ? tf('{reason} · Испытание Крови {index}/{total}', { reason, index: index + 1, total: checksCount })
+        : tf('{reason} · Испытание Крови', { reason }),
       value,
       success,
       hungerBefore: hungerAtRoll,

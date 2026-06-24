@@ -12,6 +12,14 @@ export type FormulaValue =
       type: 'formula'
       expression: string
     }
+  | {
+      formula: 'discipline_rating' | string
+      discipline?: string
+      multiplier?: number
+      offset?: number
+      min?: number
+      max?: number
+    }
 
 export type DerivedStats = {
   healthMax?: number
@@ -62,8 +70,19 @@ export type TrackerModifierEffect = BaseDisciplineEffect & {
 export type RollModifierEffect = BaseDisciplineEffect & {
   type: 'roll_modifier'
   matcher?: RollMatcher
-  operation?: 'add' | 'subtract' | 'set' | 'multiply'
-  value: FormulaValue
+  operation?:
+    | 'add'
+    | 'subtract'
+    | 'set'
+    | 'multiply'
+    | 'add_dice'
+    | 'remove_dice'
+    | 'difficulty_modifier'
+    | 'ignore_penalty'
+  value?: FormulaValue
+  amount?: FormulaValue
+  penalty?: string
+  penalties?: string[]
 }
 
 export type DamageModifierEffect = BaseDisciplineEffect & {
