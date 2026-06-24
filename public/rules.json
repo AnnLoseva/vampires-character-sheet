@@ -2441,7 +2441,62 @@
       "pool": "—",
       "cost": "нет",
       "effect": "Добавляет Стойкость к пулам сопротивления запугиванию, соблазнению, принуждению и сверхъестественным попыткам поколебать волю, включая Доминирование и Величие.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стойкость",
+        "power": "Твёрдость духа",
+        "level": 1,
+        "tags": [
+         "passive",
+         "social_resistance",
+         "mental_resistance",
+         "roll_modifier"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "fortitude-social-resistance",
+         "type": "roll_modifier",
+         "label": "+Стойкость к сопротивлению давлению",
+         "matcher": {
+          "conditions": [
+           "intimidation_resistance",
+           "seduction_resistance",
+           "coercion_resistance",
+           "dominate_resistance",
+           "presence_resistance"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Стойкость"
+         }
+        },
+        {
+         "id": "fortitude-social-resistance-prompt",
+         "type": "manual_prompt",
+         "message": "Если бросок сопротивления запугиванию, соблазнению, принуждению, Доминированию или Величию ещё не размечен автоматикой, добавь к защитному пулу значение Стойкости персонажа."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "+Стойкость к сопротивлению давлению"
+       }
+      }
      }
     },
     "2": {
@@ -2450,14 +2505,122 @@
       "pool": "выносливость + Анимализм",
       "cost": "1 испытание Крови",
       "effect": "Фамулус получает бонус автоматически. Другие животные требуют испытания Крови и проверки; каждое укреплённое животное получает дополнительные уровни здоровья, равные Стойкости вампира. Когда эффект заканчивается, лишние пустые клетки исчезают первыми.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стойкость",
+        "power": "Живучие звери",
+        "level": 2,
+        "tags": [
+         "active",
+         "animalism_amalgam",
+         "familiar",
+         "tracker_modifier",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "fortitude-familiar-health-prompt",
+         "type": "manual_prompt",
+         "message": "Выбери фамулуса или животное под влиянием персонажа. Цель получает дополнительные уровни здоровья, равные Стойкости вампира; при окончании эффекта сначала убирай лишние пустые клетки. Для не-фамулусов проверь требуемый бросок вручную."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Живучесть зверю"
+       }
+      }
      },
      "Непрошибаемость": {
       "description": "Тело вампира гасит обычные ранения до того, как они станут опасными.",
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "При получении лёгких повреждений сначала уменьшает их на показатель Стойкости, затем остаток делится пополам. Успешная атака всё равно наносит минимум 1 повреждение.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Стойкость",
+        "power": "Непрошибаемость",
+        "level": 2,
+        "tags": [
+         "active",
+         "damage_modifier",
+         "physical",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "fortitude-toughness-superficial",
+         "type": "damage_modifier",
+         "label": "Непрошибаемость",
+         "matcher": {
+          "targets": [
+           "health"
+          ],
+          "severities": [
+           "superficial"
+          ],
+          "sources": [
+           "manual",
+           "physical_conflict",
+           "weapon",
+           "fall",
+           "other"
+          ],
+          "attackTypes": [
+           "manual",
+           "physical_conflict",
+           "weapon",
+           "fall",
+           "other",
+           "melee",
+           "ranged",
+           "brawl",
+           "physical"
+          ]
+         },
+         "operation": "subtract_before_halving",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Стойкость"
+         }
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "-Стойкость к лёгкому физическому урону"
+       }
+      }
      }
     },
     "3": {
@@ -2466,14 +2629,122 @@
       "pool": "смекалка + выживание (реакция)",
       "cost": "1 испытание Крови",
       "effect": "До конца сцены можно превратить число тяжёлых повреждений или стресса, равное Стойкости, в лёгкие. Этот запас общий на сцену. Если опасность застала врасплох, нужна рефлекторная проверка Смекалка + Выживание со сложностью 3.",
-      "duration": "1 сцена или до исчерпания"
+      "duration": "1 сцена или до исчерпания",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стойкость",
+        "power": "Превозмогание проклятия",
+        "level": 3,
+        "tags": [
+         "active",
+         "reaction",
+         "damage_modifier",
+         "aggravated_to_superficial",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "reaction"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "fortitude-defy-bane-prompt",
+         "type": "manual_prompt",
+         "message": "До конца сцены веди общий запас, равный Стойкости персонажа. Когда персонаж получает тяжёлый урон или стресс от огня, солнца или подобной угрозы, можно потратить запас 1-к-1 и превратить эти отметки в лёгкие. Если угроза внезапная, сначала проверь Смекалка + Выживание со сложностью 3."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Запас Стойкости: тяжёлый → лёгкий"
+       }
+      }
      },
      "Укрепление сознания": {
       "description": "Мысли, эмоции и аура вампира становятся тусклыми и закрытыми для сверхъестественного чтения.",
       "pool": "—",
       "cost": "нет",
       "effect": "Сложность сил вроде Познания души и Телепатии повышается на половину Стойкости с округлением вверх; если есть состязание, вампир добавляет Стойкость к защитному пулу.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Стойкость",
+        "power": "Укрепление сознания",
+        "level": 3,
+        "tags": [
+         "passive",
+         "mental_resistance",
+         "roll_modifier"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "fortitude-mental-contest",
+         "type": "roll_modifier",
+         "label": "+Стойкость к ментальному сопротивлению",
+         "matcher": {
+          "conditions": [
+           "mental_resistance",
+           "auspex_resistance",
+           "telepathy_resistance",
+           "scrying_resistance",
+           "dominate_resistance",
+           "presence_resistance"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Стойкость"
+         }
+        },
+        {
+         "id": "fortitude-mental-difficulty",
+         "type": "roll_modifier",
+         "label": "+половина Стойкости к сложности чтения разума",
+         "matcher": {
+          "conditions": [
+           "mental_static_resistance",
+           "aura_reading_resistance",
+           "telepathy_difficulty"
+          ]
+         },
+         "operation": "difficulty_modifier",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Стойкость",
+          "multiplier": 0.5,
+          "offset": 0.5
+         }
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "+Стойкость к ментальному сопротивлению"
+       }
+      }
      }
     },
     "4": {
@@ -2482,7 +2753,45 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Цель получает Стойкость, равную половине показателя вампира с округлением вниз, и известные ему несмешанные силы доступного уровня. Для вампиров эффект держится до следующего насыщения или Голода 5.",
-      "duration": "1 ночь / до насыщения"
+      "duration": "1 ночь / до насыщения",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стойкость",
+        "power": "Глоток упорства",
+        "level": 4,
+        "tags": [
+         "active",
+         "ally_buff",
+         "ghoul",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "night"
+       },
+       "effects": [
+        {
+         "id": "fortitude-draught-prompt",
+         "type": "manual_prompt",
+         "message": "Выбери союзника или гуля, который пьёт кровь прямо из жил. До конца действия он получает Стойкость, равную половине Стойкости владельца с округлением вниз, и доступные несмешанные силы этого уровня. Для вампира эффект заканчивается при следующем насыщении или на Голоде 5."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Передать половину Стойкости"
+       }
+      }
      }
     },
     "5": {
@@ -2491,14 +2800,99 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Вампир игнорирует штрафы от физических повреждений. За каждое отмеченное повреждение он повышает одну физическую характеристику на 1, но производные параметры вроде здоровья не пересчитываются; максимум ограничен силой Крови.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Стойкость",
+        "power": "Горнило боли",
+        "level": 5,
+        "tags": [
+         "active",
+         "roll_modifier",
+         "ignore_penalty",
+         "health_impairment",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "fortitude-crucible-ignore-health-impairment",
+         "type": "roll_modifier",
+         "label": "Горнило боли: игнор штрафа здоровья",
+         "operation": "ignore_penalty",
+         "penalty": "health_impairment"
+        },
+        {
+         "id": "fortitude-prowess-from-pain-prompt",
+         "type": "manual_prompt",
+         "message": "Штраф изнурения здоровья игнорируется автоматически. Если используешь вторую часть силы, вручную добавь бонусы к физическим характеристикам за отмеченные повреждения; производные параметры, включая здоровье, не пересчитываются."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Игнор штрафа здоровья"
+       }
+      }
      },
      "Мраморная плоть": {
       "description": "Кожа и плоть мгновенно восстанавливают первый серьёзный удар каждого хода.",
       "pool": "—",
       "cost": "2 испытания Крови",
       "effect": "Каждый ход первая успешная физическая атака по вампиру не наносит урон, включая огонь, но не солнечный свет. Триумф атакующего пробивает защиту.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стойкость",
+        "power": "Мраморная плоть",
+        "level": 5,
+        "tags": [
+         "active",
+         "damage_modifier",
+         "prevent_first_attack",
+         "manual_prompt",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 2
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "fortitude-marble-flesh-prompt",
+         "type": "manual_prompt",
+         "message": "Пока сила активна, каждый ход первая успешная физическая атака по персонажу наносит 0 урона. Не применяй к солнечному свету, триумфу атакующего и другим исключениям по правилам. Отмечай использованный первый удар хода вручную."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Первый физический урон за ход = 0"
+       }
+      }
      }
     }
    }
