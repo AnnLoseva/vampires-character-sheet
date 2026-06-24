@@ -88,10 +88,26 @@ export type RollModifierEffect = BaseDisciplineEffect & {
 export type DamageModifierEffect = BaseDisciplineEffect & {
   type: 'damage_modifier'
   matcher?: DamageMatcher
-  operation?: 'add' | 'subtract' | 'set' | 'multiply'
+  operation?:
+    | 'add'
+    | 'subtract'
+    | 'set'
+    | 'multiply'
+    | 'add_damage'
+    | 'subtract_before_halving'
+    | 'subtract_after_halving'
+    | 'convert_damage_type'
+    | 'ignore_armor'
+    | 'prevent_first_attack'
   value?: FormulaValue
+  amount?: FormulaValue
+  timing?: 'before_halving' | 'after_halving' | string
+  stage?: 'before_halving' | 'after_halving' | string
   setSeverity?: 'superficial' | 'aggravated'
+  severity?: 'superficial' | 'aggravated'
   ignoreHalving?: boolean
+  ignoreArmor?: boolean
+  preventFirstAttack?: boolean
 }
 
 export type WeaponEffect = BaseDisciplineEffect & {

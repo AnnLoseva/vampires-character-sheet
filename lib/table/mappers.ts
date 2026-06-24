@@ -177,6 +177,54 @@ function normalizeRollModifier(
   }
 }
 
+function normalizeDamageModifier(
+  value: unknown,
+): NonNullable<NonNullable<RollMeta['damage']>['modifiers']>[number] | null {
+  if (!isRecord(value) || typeof value.id !== 'string') return null
+  const sourceKind = value.sourceKind === 'active'
+    || value.sourceKind === 'passive'
+    || value.sourceKind === 'armor'
+    ? value.sourceKind
+    : null
+  const owner = value.owner === 'source' || value.owner === 'target'
+    ? value.owner
+    : undefined
+  const operations = [
+    'add_damage',
+    'subtract_before_halving',
+    'subtract_after_halving',
+    'convert_damage_type',
+    'ignore_armor',
+    'prevent_first_attack',
+  ]
+  const operation = operations.includes(String(value.operation))
+    ? value.operation as NonNullable<NonNullable<RollMeta['damage']>['modifiers']>[number]['operation']
+    : null
+  const beforeSeverity = value.beforeSeverity === 'aggravated' ? 'aggravated' : 'superficial'
+  const afterSeverity = value.afterSeverity === 'aggravated' ? 'aggravated' : 'superficial'
+  if (!sourceKind || !operation) return null
+
+  return {
+    id: value.id,
+    sourceKind,
+    owner,
+    operation,
+    label: typeof value.label === 'string' ? value.label : '',
+    sourceLabel: typeof value.sourceLabel === 'string' ? value.sourceLabel : '',
+    discipline: typeof value.discipline === 'string' ? value.discipline : undefined,
+    power: typeof value.power === 'string' ? value.power : undefined,
+    path: typeof value.path === 'string' ? value.path : undefined,
+    level: typeof value.level === 'number' ? value.level : undefined,
+    amountDelta: typeof value.amountDelta === 'number' ? value.amountDelta : 0,
+    beforeAmount: typeof value.beforeAmount === 'number' ? value.beforeAmount : 0,
+    afterAmount: typeof value.afterAmount === 'number' ? value.afterAmount : 0,
+    beforeSeverity,
+    afterSeverity,
+    active: value.active !== false,
+    canDisable: Boolean(value.canDisable),
+  }
+}
+
 function normalizeRollMeta(value: unknown): RollMeta | undefined {
   if (!isRecord(value)) return undefined
   const meta: RollMeta = {}
@@ -266,12 +314,26 @@ function normalizeRollMeta(value: unknown): RollMeta | undefined {
   if (healthAfter) meta.healthAfter = healthAfter
 
   if (isRecord(value.damage)) {
+    const damageModifiers = Array.isArray(value.damage.modifiers)
+      ? value.damage.modifiers
+        .map(normalizeDamageModifier)
+        .filter((modifier): modifier is NonNullable<NonNullable<RollMeta['damage']>['modifiers']>[number] => Boolean(modifier))
+      : []
     meta.damage = {
       source: String(value.damage.source || 'manual'),
       originalAmount: Math.max(0, Number(value.damage.originalAmount) || 0),
       finalAmount: Math.max(0, Number(value.damage.finalAmount) || 0),
       severity: value.damage.severity === 'aggravated' ? 'aggravated' : 'superficial',
       halved: Boolean(value.damage.halved),
+      amountBeforeHalving: typeof value.damage.amountBeforeHalving === 'number' ? value.damage.amountBeforeHalving : undefined,
+      originalSeverity: value.damage.originalSeverity === 'aggravated' ? 'aggravated' : value.damage.originalSeverity === 'superficial' ? 'superficial' : undefined,
+      prevented: typeof value.damage.prevented === 'boolean' ? value.damage.prevented : undefined,
+      armorIgnored: typeof value.damage.armorIgnored === 'boolean' ? value.damage.armorIgnored : undefined,
+      armorValue: typeof value.damage.armorValue === 'number' ? value.damage.armorValue : undefined,
+      modifiers: damageModifiers.length ? damageModifiers : undefined,
+      chain: Array.isArray(value.damage.chain)
+        ? value.damage.chain.filter((line): line is string => typeof line === 'string')
+        : undefined,
       weaponModifier: typeof value.damage.weaponModifier === 'number' ? value.damage.weaponModifier : undefined,
       margin: typeof value.damage.margin === 'number' ? value.damage.margin : undefined,
       targetCharacterId: typeof value.damage.targetCharacterId === 'string' ? value.damage.targetCharacterId : undefined,

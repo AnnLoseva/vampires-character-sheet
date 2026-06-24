@@ -16,6 +16,7 @@ import MediaLibrary from './MediaLibrary'
 import ChatPanel from './ChatPanel'
 import JournalPanel from './JournalPanel'
 import MasterPanel from './MasterPanel'
+import defaultRules from '@/public/rules.json'
 import {
   broadcastMusicChannel,
   getMusicProvider,
@@ -95,6 +96,7 @@ import {
 import { getDerivedStats } from '@/lib/vtm/derived-stats'
 import { removeActiveEffect as removeActiveEffectFromData } from '@/lib/vtm/disciplines/active-effects'
 import {
+  applyDisciplineEffectsToDamage,
   applyDisciplineEffectsToRoll,
   type AppliedDisciplineRollModifier,
   type DisciplineRollEffectResult,
@@ -219,6 +221,10 @@ type DisciplineRule = {
   system?: Record<string, unknown>
   powers?: Record<string, Record<string, DisciplinePowerRule>>
 }
+
+const defaultDisciplineRules = (
+  defaultRules as unknown as { disciplines?: Record<string, DisciplineRule> }
+).disciplines || {}
 
 type DisciplinePowerEntry = {
   level: number
@@ -2894,17 +2900,53 @@ export default function VampireTable() {
   ) => {
     const before = getCharacterHealth(character)
     const profile = getCharacterDamageProfile(character)
-    const result = applyHealthDamage(before, amount, severity, options, profile, t, tf)
+    const damageEffectResult = applyDisciplineEffectsToDamage({
+      targetCharacterData: character,
+      sourceCharacterData: options.sourceCharacterData,
+      rulesJson: disciplineRules || defaultDisciplineRules,
+      baseAmount: amount,
+      severity,
+      target: 'health',
+      source: options.source,
+      attackType: options.attackType || options.source,
+      attackTypes: [options.attackType, options.source].filter((value): value is string => typeof value === 'string'),
+      weaponTags: options.weaponTags,
+      creatureType: character.characterType,
+      armor: options.armor,
+      halveSuperficial: severity === 'superficial'
+        && options.halveSuperficial !== false
+        && !options.ignoreHalving,
+    }, character.derivedStats)
+    const result = applyHealthDamage(
+      before,
+      damageEffectResult.finalAmount,
+      damageEffectResult.severity,
+      {
+        ...options,
+        halveSuperficial: false,
+        ignoreHalving: true,
+      },
+      profile,
+      t,
+      tf,
+    )
     const updatedCharacter = await updateCharacterHealth(character.id, result.tracker, 'Здоровье сохранено')
     if (!updatedCharacter) return null
     const after = getCharacterHealth(updatedCharacter)
     await publishHealthEvent(updatedCharacter, 'Урон здоровью', before, after, {
       damage: {
         source: options.source || 'manual',
-        originalAmount: result.originalAmount,
-        finalAmount: result.finalAmount,
-        severity,
-        halved: result.halved,
+        originalAmount: damageEffectResult.originalAmount,
+        finalAmount: damageEffectResult.finalAmount,
+        severity: damageEffectResult.severity,
+        halved: damageEffectResult.halved,
+        amountBeforeHalving: damageEffectResult.amountBeforeHalving,
+        originalSeverity: damageEffectResult.originalSeverity,
+        prevented: damageEffectResult.prevented,
+        armorIgnored: damageEffectResult.armorIgnored,
+        armorValue: damageEffectResult.armorValue,
+        modifiers: damageEffectResult.modifiers.filter(modifier => modifier.active),
+        chain: damageEffectResult.chain,
         weaponModifier: options.weaponModifier,
         margin: options.margin,
         targetCharacterId: updatedCharacter.id,
@@ -3498,6 +3540,7 @@ export default function VampireTable() {
     const targetIndex = Number(window.prompt(tf('Выбери цель:\n{list}', { list: targetList }), '1') || 0) - 1
     const target = chatCharacters[targetIndex]
     if (!target) return
+    const sourceCharacter = getRollCharacter(roll)
     const opposedMargin = roll.opposed
       ? Math.abs((roll.opposed.sides[0]?.successes || 0) - (roll.opposed.sides[1]?.successes || 0))
       : roll.successes
@@ -3516,6 +3559,8 @@ export default function VampireTable() {
     }
     await applyCharacterHealthDamage(target, amount, severity, {
       source: 'physical_conflict',
+      sourceCharacterData: sourceCharacter || undefined,
+      attackType: 'physical_conflict',
       margin,
       weaponModifier,
       halveSuperficial,
@@ -6591,6 +6636,11 @@ export default function VampireTable() {
             {meta.damage.targetCharacterName ? tf(' · цель: {name}', { name: meta.damage.targetCharacterName }) : ''}
           </span>
         ) : null}
+        {meta.damage?.chain?.map((line, index) => (
+          <span className="roll-note" key={`${roll.id}-damage-chain-${index}`}>
+            {line}
+          </span>
+        ))}
         {meta.healthBefore && meta.healthAfter ? (
           <span className="roll-note">
             {tf('Здоровье: {before} → {after} / {max} · / {superficial} · X {aggravated}', {

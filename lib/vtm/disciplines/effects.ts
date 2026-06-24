@@ -9,8 +9,20 @@ import {
   type LoadedDisciplinePower,
   type LoadedDisciplineRules,
 } from './rules-loader'
+import {
+  getDamageSeverityLabel,
+  normalizeDamageAmount,
+  type AppliedDisciplineDamageModifier,
+  type DisciplineDamageContext,
+  type DisciplineDamageModifierOperation,
+  type DisciplineDamageOwner,
+  type DisciplineDamageResult,
+  type DisciplineDamageStage,
+} from '../damage'
 import type {
   ActiveEffect,
+  DamageMatcher,
+  DamageModifierEffect,
   DisciplineEffect,
   RollMatcher,
   RollModifierEffect,
@@ -88,6 +100,21 @@ type RollModifierCandidate = {
     level?: number
   }
   effect: RollModifierEffect
+}
+
+type DamageModifierCandidate = {
+  id: string
+  sourceKind: 'active' | 'passive'
+  owner: DisciplineDamageOwner
+  data: JsonObject
+  normalized: NormalizedCharacterDisciplines
+  source: {
+    discipline: string
+    power: string
+    path?: string
+    level?: number
+  }
+  effect: DamageModifierEffect
 }
 
 function isObject(value: unknown): value is JsonObject {
@@ -334,6 +361,148 @@ function createRollModifierApplication(
   }
 }
 
+function matchesDamageMatcher(
+  matcher: DamageMatcher | undefined,
+  context: DisciplineDamageContext,
+) {
+  if (!matcher) return true
+  return hasMatcherValues(matcher.targets, [context.target || 'health'])
+    && hasMatcherValues(matcher.severities, [context.severity])
+    && hasMatcherValues(matcher.sources, [context.source])
+    && hasMatcherValues(matcher.attackTypes, [
+      context.attackType,
+      ...(context.attackTypes || []),
+    ])
+    && hasMatcherValues(matcher.weaponTags, context.weaponTags || [])
+    && hasMatcherValues(matcher.creatureTypes, [context.creatureType])
+    && hasMatcherValues(matcher.conditions, context.conditions || [])
+}
+
+function isDamageModifierEffect(effect: DisciplineEffect | unknown): effect is DamageModifierEffect {
+  return isObject(effect) && effect.type === 'damage_modifier'
+}
+
+function getDamageStage(effect: DamageModifierEffect): DisciplineDamageStage {
+  return effect.timing === 'after_halving' || effect.stage === 'after_halving'
+    ? 'after_halving'
+    : 'before_halving'
+}
+
+function normalizeDamageOperation(
+  effect: DamageModifierEffect,
+): DisciplineDamageModifierOperation {
+  if (effect.operation === 'prevent_first_attack' || effect.preventFirstAttack) {
+    return 'prevent_first_attack'
+  }
+  if (effect.operation === 'ignore_armor' || effect.ignoreArmor) {
+    return 'ignore_armor'
+  }
+  if (effect.operation === 'convert_damage_type' || effect.setSeverity || effect.severity) {
+    return 'convert_damage_type'
+  }
+  if (effect.operation === 'subtract_before_halving') return 'subtract_before_halving'
+  if (effect.operation === 'subtract_after_halving') return 'subtract_after_halving'
+  if (effect.operation === 'subtract') {
+    return getDamageStage(effect) === 'after_halving'
+      ? 'subtract_after_halving'
+      : 'subtract_before_halving'
+  }
+  return 'add_damage'
+}
+
+function getDamageEffectAmount(candidate: DamageModifierCandidate) {
+  return resolveFormulaValue(
+    candidate.effect.value ?? candidate.effect.amount,
+    candidate.data,
+    candidate.normalized,
+    candidate.source.discipline,
+  )
+}
+
+function getDamageEffectSourceLabel(candidate: DamageModifierCandidate) {
+  return candidate.effect.label
+    || candidate.source.power
+    || candidate.source.discipline
+}
+
+function createDamageModifierApplication({
+  candidate,
+  operation,
+  active,
+  amountDelta = 0,
+  beforeAmount,
+  afterAmount,
+  beforeSeverity,
+  afterSeverity,
+}: {
+  candidate: DamageModifierCandidate
+  operation: DisciplineDamageModifierOperation
+  active: boolean
+  amountDelta?: number
+  beforeAmount: number
+  afterAmount: number
+  beforeSeverity: DisciplineDamageResult['severity']
+  afterSeverity: DisciplineDamageResult['severity']
+}): AppliedDisciplineDamageModifier {
+  return {
+    id: candidate.id,
+    sourceKind: candidate.sourceKind,
+    owner: candidate.owner,
+    operation,
+    label: candidate.effect.label || candidate.source.power,
+    sourceLabel: getDamageEffectSourceLabel(candidate),
+    discipline: candidate.source.discipline,
+    power: candidate.source.power,
+    path: candidate.source.path,
+    level: candidate.source.level,
+    amountDelta,
+    beforeAmount,
+    afterAmount,
+    beforeSeverity,
+    afterSeverity,
+    active,
+    canDisable: true,
+  }
+}
+
+function getDamageModifierChainLine(
+  modifier: AppliedDisciplineDamageModifier,
+) {
+  if (modifier.operation === 'prevent_first_attack') {
+    return `${modifier.sourceLabel}: атака предотвращена`
+  }
+  if (modifier.operation === 'ignore_armor') {
+    return `${modifier.sourceLabel}: броня игнорируется`
+  }
+  if (modifier.operation === 'convert_damage_type') {
+    return `${modifier.sourceLabel}: ${getDamageSeverityLabel(modifier.beforeSeverity)} урон → ${getDamageSeverityLabel(modifier.afterSeverity)}`
+  }
+  const prefix = modifier.amountDelta > 0 ? '+' : ''
+  const timing = modifier.operation === 'subtract_before_halving'
+    ? ' до деления'
+    : modifier.operation === 'subtract_after_halving'
+      ? ' после деления'
+      : ''
+  return `${modifier.sourceLabel}: ${prefix}${modifier.amountDelta}${timing}`
+}
+
+function getSeverityFromDamageEffect(
+  effect: DamageModifierEffect,
+  fallback: DisciplineDamageResult['severity'],
+) {
+  if (effect.setSeverity === 'superficial' || effect.setSeverity === 'aggravated') {
+    return effect.setSeverity
+  }
+  if (effect.severity === 'superficial' || effect.severity === 'aggravated') {
+    return effect.severity
+  }
+  const rawValue = effect.value as unknown
+  if (rawValue === 'superficial' || rawValue === 'aggravated') {
+    return rawValue
+  }
+  return fallback
+}
+
 function getLearnedPowers(
   disciplineName: string,
   rules: LoadedDisciplineRules,
@@ -410,6 +579,106 @@ function getActiveRollModifierCandidates(
       source: activeEffect.source,
       effect: activeEffect.effect as RollModifierEffect,
     }))
+}
+
+function getPassiveDamageModifierCandidates(
+  data: JsonObject,
+  rulesJson: unknown,
+  normalized: NormalizedCharacterDisciplines,
+  owner: DisciplineDamageOwner,
+): DamageModifierCandidate[] {
+  const rules = loadDisciplineRules(rulesJson)
+  const candidates: DamageModifierCandidate[] = []
+
+  for (const disciplineName of Object.keys(normalized.disciplines)) {
+    const learnedPowers = getLearnedPowers(
+      disciplineName,
+      rules,
+      normalized,
+    )
+
+    for (const power of learnedPowers) {
+      getPassivePowerEffects(power).forEach((effect, index) => {
+        if (!isDamageModifierEffect(effect)) return
+        candidates.push({
+          id: `${owner}:passive:${disciplineName}:${power.path || ''}:${power.name}:${effect.id || index}`,
+          sourceKind: 'passive',
+          owner,
+          data,
+          normalized,
+          source: {
+            discipline: disciplineName,
+            power: power.name,
+            path: power.path,
+            level: power.level,
+          },
+          effect,
+        })
+      })
+    }
+  }
+
+  return candidates
+}
+
+function getActiveDamageModifierCandidates(
+  characterData: unknown,
+  owner: DisciplineDamageOwner,
+): DamageModifierCandidate[] {
+  const data = getCharacterData(characterData)
+  const normalized = normalizeCharacterDisciplines(data)
+  return getActiveEffects(characterData)
+    .filter((activeEffect: ActiveEffect) => activeEffect.active)
+    .filter((activeEffect) => isDamageModifierEffect(activeEffect.effect))
+    .map((activeEffect) => ({
+      id: `${owner}:active:${activeEffect.id}`,
+      sourceKind: 'active',
+      owner,
+      data,
+      normalized,
+      source: activeEffect.source,
+      effect: activeEffect.effect as DamageModifierEffect,
+    }))
+}
+
+function getDamageModifierCandidates(
+  damageContext: DisciplineDamageContext,
+) {
+  const targetData = getCharacterData(
+    damageContext.targetCharacterData ?? damageContext.characterData,
+  )
+  const sourceData = getCharacterData(damageContext.sourceCharacterData)
+  const targetNormalized = normalizeCharacterDisciplines(targetData)
+  const sourceNormalized = normalizeCharacterDisciplines(sourceData)
+  const candidates = [
+    ...getPassiveDamageModifierCandidates(
+      targetData,
+      damageContext.rulesJson,
+      targetNormalized,
+      'target',
+    ),
+    ...getActiveDamageModifierCandidates(
+      damageContext.targetCharacterData ?? damageContext.characterData,
+      'target',
+    ),
+  ]
+
+  if (Object.keys(sourceData).length > 0) {
+    candidates.push(
+      ...getPassiveDamageModifierCandidates(
+        sourceData,
+        damageContext.rulesJson,
+        sourceNormalized,
+        'source',
+      ),
+      ...getActiveDamageModifierCandidates(
+        damageContext.sourceCharacterData,
+        'source',
+      ),
+    )
+  }
+
+  return candidates
 }
 
 export function getPassiveTrackerModifiers(
@@ -574,5 +843,204 @@ export function applyDisciplineEffectsToRoll(
     difficultyDelta,
     modifiers,
     ignoredPenaltyIds: [...ignoredPenaltyIds],
+  }
+}
+
+export function applyDisciplineEffectsToDamage(
+  damageContext: DisciplineDamageContext,
+  _derivedStats?: unknown,
+): DisciplineDamageResult {
+  const disabled = new Set(damageContext.disabledModifierIds || [])
+  const originalAmount = normalizeDamageAmount(damageContext.baseAmount)
+  const originalSeverity = damageContext.severity
+  let currentAmount = originalAmount
+  let currentSeverity = originalSeverity
+  const armorValue = normalizeDamageAmount(damageContext.armor)
+  const chain = [
+    `Урон ${originalAmount} ${getDamageSeverityLabel(originalSeverity)}`,
+  ]
+  const modifiers: AppliedDisciplineDamageModifier[] = []
+  const candidates = getDamageModifierCandidates(damageContext)
+    .filter((candidate) => matchesDamageMatcher(
+      candidate.effect.matcher,
+      damageContext,
+    ))
+
+  const pushModifier = (
+    candidate: DamageModifierCandidate,
+    operation: DisciplineDamageModifierOperation,
+    active: boolean,
+    amountDelta = 0,
+    beforeAmount = currentAmount,
+    afterAmount = currentAmount,
+    beforeSeverity = currentSeverity,
+    afterSeverity = currentSeverity,
+  ) => {
+    const modifier = createDamageModifierApplication({
+      candidate,
+      operation,
+      active,
+      amountDelta,
+      beforeAmount,
+      afterAmount,
+      beforeSeverity,
+      afterSeverity,
+    })
+    modifiers.push(modifier)
+    if (active) chain.push(getDamageModifierChainLine(modifier))
+    return modifier
+  }
+
+  for (const candidate of candidates) {
+    const operation = normalizeDamageOperation(candidate.effect)
+    if (operation !== 'prevent_first_attack') continue
+    const active = !disabled.has(candidate.id)
+    pushModifier(
+      candidate,
+      operation,
+      active,
+      -currentAmount,
+      currentAmount,
+      active ? 0 : currentAmount,
+    )
+    if (active) {
+      return {
+        originalAmount,
+        originalSeverity,
+        amountBeforeHalving: 0,
+        finalAmount: 0,
+        severity: currentSeverity,
+        halved: false,
+        prevented: true,
+        armorIgnored: false,
+        armorValue,
+        modifiers,
+        chain: [...chain, 'Осталось 0'],
+      }
+    }
+  }
+
+  let armorIgnored = false
+  for (const candidate of candidates) {
+    const operation = normalizeDamageOperation(candidate.effect)
+    if (operation !== 'ignore_armor') continue
+    const active = !disabled.has(candidate.id)
+    pushModifier(candidate, operation, active)
+    if (active) armorIgnored = true
+  }
+
+  const applyAmountModifier = (
+    candidate: DamageModifierCandidate,
+    operation: DisciplineDamageModifierOperation,
+  ) => {
+    const rawAmount = getDamageEffectAmount(candidate)
+    if (!Number.isFinite(rawAmount) || rawAmount === 0) return
+
+    const active = !disabled.has(candidate.id)
+    const beforeAmount = currentAmount
+    const amount = Math.floor(Math.abs(rawAmount))
+    const amountDelta = operation === 'add_damage' ? amount : -amount
+    const afterAmount = active
+      ? Math.max(0, beforeAmount + amountDelta)
+      : beforeAmount
+    pushModifier(
+      candidate,
+      operation,
+      active,
+      amountDelta,
+      beforeAmount,
+      afterAmount,
+    )
+    if (active) currentAmount = afterAmount
+  }
+
+  for (const candidate of candidates) {
+    const operation = normalizeDamageOperation(candidate.effect)
+    const stage = getDamageStage(candidate.effect)
+    if (operation === 'subtract_before_halving') {
+      applyAmountModifier(candidate, operation)
+    }
+    if (operation === 'add_damage' && stage === 'before_halving') {
+      applyAmountModifier(candidate, operation)
+    }
+  }
+
+  if (armorValue > 0 && !armorIgnored) {
+    const beforeAmount = currentAmount
+    currentAmount = Math.max(0, currentAmount - armorValue)
+    const modifier: AppliedDisciplineDamageModifier = {
+      id: 'armor',
+      sourceKind: 'armor',
+      operation: 'subtract_before_halving',
+      label: 'Броня',
+      sourceLabel: 'Броня',
+      amountDelta: -armorValue,
+      beforeAmount,
+      afterAmount: currentAmount,
+      beforeSeverity: currentSeverity,
+      afterSeverity: currentSeverity,
+      active: true,
+      canDisable: false,
+    }
+    modifiers.push(modifier)
+    chain.push(getDamageModifierChainLine(modifier))
+  }
+
+  for (const candidate of candidates) {
+    const operation = normalizeDamageOperation(candidate.effect)
+    if (operation !== 'convert_damage_type') continue
+    const active = !disabled.has(candidate.id)
+    const beforeSeverity = currentSeverity
+    const afterSeverity = active
+      ? getSeverityFromDamageEffect(candidate.effect, currentSeverity)
+      : currentSeverity
+    pushModifier(
+      candidate,
+      operation,
+      active,
+      0,
+      currentAmount,
+      currentAmount,
+      beforeSeverity,
+      afterSeverity,
+    )
+    if (active) currentSeverity = afterSeverity
+  }
+
+  const amountBeforeHalving = currentAmount
+  if (currentAmount !== originalAmount) {
+    chain.push(`Осталось ${currentAmount}`)
+  }
+
+  const halved = currentSeverity === 'superficial'
+    && damageContext.halveSuperficial !== false
+  if (halved) {
+    currentAmount = Math.ceil(currentAmount / 2)
+    chain.push(`Деление лёгкого урона: ${currentAmount}`)
+  }
+
+  for (const candidate of candidates) {
+    const operation = normalizeDamageOperation(candidate.effect)
+    const stage = getDamageStage(candidate.effect)
+    if (operation === 'subtract_after_halving') {
+      applyAmountModifier(candidate, operation)
+    }
+    if (operation === 'add_damage' && stage === 'after_halving') {
+      applyAmountModifier(candidate, operation)
+    }
+  }
+
+  return {
+    originalAmount,
+    originalSeverity,
+    amountBeforeHalving,
+    finalAmount: currentAmount,
+    severity: currentSeverity,
+    halved,
+    prevented: false,
+    armorIgnored,
+    armorValue,
+    modifiers,
+    chain,
   }
 }

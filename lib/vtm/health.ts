@@ -25,6 +25,10 @@ export type NormalizedHealth = {
 
 export type HealthDamageOptions = {
   source?: 'manual' | 'physical_conflict' | 'discipline' | 'fire' | 'sunlight' | 'weapon' | 'fall' | 'other'
+  sourceCharacterData?: unknown
+  attackType?: string
+  weaponTags?: string[]
+  armor?: number
   halveSuperficial?: boolean
   ignoreHalving?: boolean
   weaponModifier?: number

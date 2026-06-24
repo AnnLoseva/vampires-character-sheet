@@ -3,6 +3,7 @@ import type { NormalizedDisciplinePowers, NormalizedDisciplines } from '@/lib/vt
 import type { CharacterDerivedStats } from '@/lib/vtm/derived-stats'
 import type { ActiveEffect } from '@/lib/vtm/disciplines/schema'
 import type { AppliedDisciplineRollModifier } from '@/lib/vtm/disciplines/effects'
+import type { AppliedDisciplineDamageModifier } from '@/lib/vtm/damage'
 
 export type Die = {
   id?: string
@@ -163,6 +164,13 @@ export type RollMeta = {
     finalAmount: number
     severity: 'superficial' | 'aggravated'
     halved: boolean
+    amountBeforeHalving?: number
+    originalSeverity?: 'superficial' | 'aggravated'
+    prevented?: boolean
+    armorIgnored?: boolean
+    armorValue?: number
+    modifiers?: AppliedDisciplineDamageModifier[]
+    chain?: string[]
     weaponModifier?: number
     margin?: number
     targetCharacterId?: string
