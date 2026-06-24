@@ -2,6 +2,7 @@
 
 import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { useLang } from '@/lib/i18n/LanguageProvider'
 import { LocalAudioAdapter } from './adapters/localAudioAdapter'
 import { YouTubeAdapter } from './adapters/youtubeAdapter'
 import { MusicSyncEngine } from './MusicSyncEngine'
@@ -64,6 +65,7 @@ const emptyMusicState = (room: string): MusicState => ({
 })
 
 export default function MusicPanel({ room, tableRole, channelRef, hidden = false, playbackEnabled = true }: MusicPanelProps) {
+  const { t, tf } = useLang()
   const isMaster = tableRole === 'master'
   const [musicLibrary, setMusicLibrary] = useState<MusicLibraryItem[]>([])
   const [selectedMusicFolderId, setSelectedMusicFolderId] = useState<string | null>(null)
@@ -673,7 +675,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
   const createMusicFolder = async () => {
     if (!isMaster) return
-    const name = window.prompt('Название папки музыки', 'Новая папка')?.trim()
+    const name = window.prompt(t('Название папки музыки'), t('Новая папка'))?.trim()
     if (!name) return
 
     const folder: MusicLibraryItem = {
@@ -733,7 +735,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     if (!isMaster) return
     const audioFiles = Array.from(files).filter(file => file.type.startsWith('audio/'))
     if (audioFiles.length === 0) {
-      window.alert('Можно загрузить только аудиофайлы.')
+      window.alert(t('Можно загрузить только аудиофайлы.'))
       return
     }
 
@@ -751,7 +753,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
 
         if (uploadError) {
           console.error('Не удалось загрузить музыку в Storage:', uploadError)
-          window.alert('Музыка не загрузилась в Supabase Storage. Проверь bucket table-music и policies из SQL.')
+          window.alert(t('Музыка не загрузилась в Supabase Storage. Проверь bucket table-music и policies из SQL.'))
           continue
         }
 
@@ -990,7 +992,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
                 event.stopPropagation()
                 deleteMusicItem(item.id)
               }}
-              title="Удалить"
+              title={t('Удалить')}
             >
               x
             </span>
@@ -1011,10 +1013,10 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   const youtubeLabel = musicState.playlistId ? `YouTube playlist ${musicState.playlistIndex ?? 0}` : 'YouTube'
 
   return (
-    <section className={`music-panel table-right-panel ${hidden ? 'music-panel-hidden' : ''}`} aria-label="Музыка комнаты" aria-hidden={hidden || undefined}>
+    <section className={`music-panel table-right-panel ${hidden ? 'music-panel-hidden' : ''}`} aria-label={t('Музыка комнаты')} aria-hidden={hidden || undefined}>
       <header>
-        <strong>Музыка</strong>
-        <span>{isMaster ? musicStatus : 'Музыкой управляет мастер'}</span>
+        <strong>{t('Музыка')}</strong>
+        <span>{isMaster ? t(musicStatus) : t('Музыкой управляет мастер')}</span>
       </header>
       {isMaster ? (
         <form
@@ -1036,28 +1038,28 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             onBlur={() => {
               musicDraftEditingRef.current = false
             }}
-            placeholder="YouTube ссылка или аудиофайл"
+            placeholder={t('YouTube ссылка или аудиофайл')}
           />
-          <div className="music-link-actions" aria-label="Управление музыкой комнаты">
+          <div className="music-link-actions" aria-label={t('Управление музыкой комнаты')}>
             <button type="button" onClick={playCurrentMusic} disabled={!musicDraft.trim() && !musicState.url}>
-              Играть
+              {t('Играть')}
             </button>
             <button type="button" onClick={pauseCurrentMusic} disabled={!musicState.url || !musicState.isPlaying}>
-              Пауза
+              {t('Пауза')}
             </button>
             <button type="button" onClick={stopCurrentMusic} disabled={!musicState.url}>
-              Стоп
+              {t('Стоп')}
             </button>
           </div>
           <div className="music-meta">
-            <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider === 'youtube' ? youtubeLabel : musicProvider}</span>
-            <span>{Math.floor(getEffectiveMusicPosition(musicState))} сек.</span>
+            <span>{tf('Источник: {provider}', { provider: musicProvider === 'none' ? t('не выбран') : musicProvider === 'youtube' ? youtubeLabel : musicProvider })}</span>
+            <span>{tf('{seconds} сек.', { seconds: Math.floor(getEffectiveMusicPosition(musicState)) })}</span>
           </div>
         </form>
       ) : (
         <div className="music-readonly">
-          <p>Музыкой управляет мастер</p>
-          <span>Источник: {musicProvider === 'none' ? 'не выбран' : musicProvider}</span>
+          <p>{t('Музыкой управляет мастер')}</p>
+          <span>{tf('Источник: {provider}', { provider: musicProvider === 'none' ? t('не выбран') : musicProvider })}</span>
         </div>
       )}
 
@@ -1065,19 +1067,19 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
         <>
           {musicProvider === 'file' ? (
             !hidden ? (
-              <div className="file-embed" aria-label="Аудиоплеер">
+              <div className="file-embed" aria-label={t('Аудиоплеер')}>
                 <div id={VISIBLE_MUSIC_ENGINE_ID} />
                 <div ref={playerMountRef} style={{ display: 'none' }} />
               </div>
             ) : (
               <div className="music-engine-mount web-engine" aria-hidden="true">
-                <div ref={playerMountRef} aria-label="Музыка комнаты" />
+                <div ref={playerMountRef} aria-label={t('Музыка комнаты')} />
               </div>
             )
           ) : !hidden ? (
             // visible web embeds when the Music panel is open
             musicProvider === 'youtube' ? (
-              <div className={`youtube-embed ${!isMaster ? 'readonly' : ''}`} aria-label="YouTube плеер" ref={youtubeShellRef}>
+              <div className={`youtube-embed ${!isMaster ? 'readonly' : ''}`} aria-label={t('YouTube плеер')} ref={youtubeShellRef}>
                 <div id={VISIBLE_MUSIC_ENGINE_ID} style={{ width: '100%', height: '100%' }} />
                 <div ref={playerMountRef} style={{ display: 'none' }} />
               </div>
@@ -1085,24 +1087,24 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
           ) : (
             // hidden global mount when panel is closed
             <div className="music-engine-mount web-engine" aria-hidden="true">
-              <div ref={playerMountRef} aria-label="Музыка комнаты" />
+              <div ref={playerMountRef} aria-label={t('Музыка комнаты')} />
             </div>
           )}
 
           {/* show simple placeholder when embed is hidden */}
           {(hidden && musicProvider === 'youtube') ? (
-            <div className="music-web-placeholder" aria-label="Музыкальный плеер">
+            <div className="music-web-placeholder" aria-label={t('Музыкальный плеер')}>
               <strong>{youtubeLabel}</strong>
-              <span>{musicState.isPlaying ? 'Играет' : 'Пауза'} · {Math.floor(getEffectiveMusicPosition(musicState))} сек.</span>
+              <span>{tf('{state} · {seconds} сек.', { state: musicState.isPlaying ? t('Играет') : t('Пауза'), seconds: Math.floor(getEffectiveMusicPosition(musicState)) })}</span>
             </div>
           ) : null}
         </>
       ) : null}
 
       {!isMaster && (musicProvider === 'youtube' || musicProvider === 'file') && musicState.url ? (
-        <div className="player-local-controls" aria-label="Локальные настройки плеера">
+        <div className="player-local-controls" aria-label={t('Локальные настройки плеера')}>
           <label>
-            <span>Громкость</span>
+            <span>{t('Громкость')}</span>
             <input
               type="range"
               min="0"
@@ -1115,7 +1117,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
             <strong>{localVolume}%</strong>
           </label>
           {musicProvider === 'youtube' ? (
-            <button type="button" onClick={openYouTubeFullscreen}>⛶ Полный экран</button>
+            <button type="button" onClick={openYouTubeFullscreen}>⛶ {t('Полный экран')}</button>
           ) : null}
           {unlockVisible ? (
             <button
@@ -1126,31 +1128,31 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
                 window.dispatchEvent(new CustomEvent(MUSIC_UNLOCK_REQUEST_EVENT))
               }}
             >
-              Включить музыку
+              {t('Включить музыку')}
             </button>
           ) : null}
         </div>
       ) : null}
 
-      <section className="music-library" aria-label="Музыкальная библиотека">
+      <section className="music-library" aria-label={t('Музыкальная библиотека')}>
         <header>
-          <strong>Библиотека</strong>
-          <span>{selectedMusicFolderId ? musicLibrary.find(item => item.id === selectedMusicFolderId)?.name || 'папка' : 'корень'}</span>
+          <strong>{t('Библиотека')}</strong>
+          <span>{selectedMusicFolderId ? musicLibrary.find(item => item.id === selectedMusicFolderId)?.name || t('папка') : t('корень')}</span>
         </header>
         {isMaster ? (
           <div className="music-library-actions">
             <button type="button" onClick={() => musicFileInputRef.current?.click()} disabled={isMusicUploading}>
-              {isMusicUploading ? 'Загрузка...' : 'Загрузить'}
+              {isMusicUploading ? t('Загрузка...') : t('Загрузить')}
             </button>
-            <button type="button" onClick={createMusicFolder}>Папка</button>
-            <button type="button" onClick={() => setSelectedMusicFolderId(null)}>Корень</button>
+            <button type="button" onClick={createMusicFolder}>{t('Папка')}</button>
+            <button type="button" onClick={() => setSelectedMusicFolderId(null)}>{t('Корень')}</button>
             <input ref={musicFileInputRef} type="file" accept="audio/*" multiple onChange={handleMusicUpload} />
           </div>
         ) : (
-          <p className="music-readonly">Треки запускает мастер.</p>
+          <p className="music-readonly">{t('Треки запускает мастер.')}</p>
         )}
         <div className={`music-library-list ${musicDropTarget?.id === null ? 'drop-root' : ''}`} onDragOver={event => handleMusicDragOver(event, null)} onDrop={event => handleMusicDrop(event, null)}>
-          {musicTree.length === 0 ? <p className="panel-empty">Музыка ещё не загружена.</p> : musicTree.map(item => renderMusicNode(item))}
+          {musicTree.length === 0 ? <p className="panel-empty">{t('Музыка ещё не загружена.')}</p> : musicTree.map(item => renderMusicNode(item))}
         </div>
       </section>
       <style jsx>{`

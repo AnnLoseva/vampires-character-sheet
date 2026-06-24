@@ -229,17 +229,20 @@ type DisciplineRollContext = {
 function getDisciplineCostLabel(
   cost: DisciplineCost,
   legacyCost?: string,
+  t: (ru: string) => string = ru => ru,
+  tf: (ru: string, vars: Record<string, string | number>) => string = (ru, vars) =>
+    Object.entries(vars).reduce((acc, [key, value]) => acc.replace(`{${key}}`, String(value)), ru),
 ) {
   if (legacyCost?.trim()) return legacyCost
   const parts = [
     cost.rouseChecks > 0
-      ? `${cost.rouseChecks} испытание Крови`
+      ? tf('{n} испытание Крови', { n: cost.rouseChecks })
       : '',
     cost.willpowerSpend > 0
-      ? `${cost.willpowerSpend} пункт Воли`
+      ? tf('{n} пункт Воли', { n: cost.willpowerSpend })
       : '',
   ].filter(Boolean)
-  return parts.join(' + ') || 'нет'
+  return parts.join(' + ') || t('нет')
 }
 
 type QuickRollOptions = {
@@ -362,21 +365,21 @@ function getPowerRollFormula(rule?: DisciplinePowerRule | null) {
   return rule?.pool || rule?.roll || ''
 }
 
-function getPowerRollSummary(rule?: DisciplinePowerRule | null) {
+function getPowerRollSummary(rule: DisciplinePowerRule | null | undefined, tf: (ru: string, vars: Record<string, string | number>) => string) {
   const rows = [
     getPowerRollFormula(rule),
-    rule?.extra_roll ? `Дополнительно: ${rule.extra_roll}` : '',
-    rule?.control_roll ? `Контроль: ${rule.control_roll}` : '',
-    rule?.resistance ? `Сопротивление: ${rule.resistance}` : '',
+    rule?.extra_roll ? tf('Дополнительно: {value}', { value: rule.extra_roll }) : '',
+    rule?.control_roll ? tf('Контроль: {value}', { value: rule.control_roll }) : '',
+    rule?.resistance ? tf('Сопротивление: {value}', { value: rule.resistance }) : '',
   ].filter(Boolean)
   return rows.join(' · ')
 }
 
-function getPowerDifficultySummary(rule?: DisciplinePowerRule | null) {
+function getPowerDifficultySummary(rule: DisciplinePowerRule | null | undefined, tf: (ru: string, vars: Record<string, string | number>) => string) {
   const rows = [
     rule?.difficulty ? formatRuleValue(rule.difficulty) : '',
-    rule?.difficulty_for_victim ? `для цели: ${formatRuleValue(rule.difficulty_for_victim)}` : '',
-    rule?.soak_difficulty ? `прочность: ${formatRuleValue(rule.soak_difficulty)}` : '',
+    rule?.difficulty_for_victim ? tf('для цели: {value}', { value: formatRuleValue(rule.difficulty_for_victim) }) : '',
+    rule?.soak_difficulty ? tf('прочность: {value}', { value: formatRuleValue(rule.soak_difficulty) }) : '',
   ].filter(Boolean)
   return rows.join(' · ')
 }
@@ -620,14 +623,16 @@ function getActiveEffectTitle(
 
 function getActiveEffectDescription(
   activeEffect: CharacterOption['activeEffects'][number],
+  t: (ru: string) => string,
+  tf: (ru: string, vars: Record<string, string | number>) => string,
 ) {
   return [
     activeEffect.effect.description,
     activeEffect.source.path,
     activeEffect.source.level
-      ? `уровень ${activeEffect.source.level}`
+      ? tf('уровень {level}', { level: activeEffect.source.level })
       : '',
-    getDisciplineDurationLabel(activeEffect.duration),
+    getDisciplineDurationLabel(activeEffect.duration, t, tf),
   ].filter(Boolean).join(' · ')
 }
 
@@ -756,7 +761,8 @@ function SmartContextMenu({
 }
 
 export default function VampireTable() {
-  const { t, tf } = useLang()
+  const { t, tf, lang } = useLang()
+  const d10 = (n: number) => lang === 'en' ? `${n}d10` : `${n}к10`
   const [room, setRoom] = useState('campaign-666')
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
   const [rolls, setRolls] = useState<RollMessage[]>([])
@@ -1211,7 +1217,7 @@ export default function VampireTable() {
       const scene: TableScene = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
         room: targetRoom,
-        name: DEFAULT_SCENE_NAME,
+        name: t(DEFAULT_SCENE_NAME),
         thumbnailUrl: '',
         isActive: true,
         createdBy: 'master',
@@ -2055,7 +2061,7 @@ export default function VampireTable() {
     masterRollDiscipline ? `${masterRollDiscipline} ${masterRollDisciplineDots}` : '',
     masterRollModifier ? `${t('модификатор')} ${masterRollModifier > 0 ? '+' : ''}${masterRollModifier}` : '',
   ].filter(Boolean)
-  const masterRollPoolName = masterRollPoolParts.join(' + ') || `${masterRollDiceCount || 1}к10`
+  const masterRollPoolName = masterRollPoolParts.join(' + ') || d10(masterRollDiceCount || 1)
   const masterRollHidden = masterRollVisibility === 'hidden'
   const masterContestedOpponentOptions = getContestedOpponentOptions(selectedMasterRollCharacter)
   const selectedMasterContestedOpponent = masterContestedOpponentOptions.find(option => option.id === masterContestedOpponentId) || null
@@ -2116,8 +2122,8 @@ export default function VampireTable() {
     : allPreviewDisciplinePowers.filter(power => power.level <= previewOpenedDisciplineDots)
   const selectedPreviewPower = previewDisciplinePowers.find(power => power.name === previewPowerName) || null
   const selectedPreviewPowerRollFormula = getPowerRollFormula(selectedPreviewPower?.rule)
-  const selectedPreviewPowerRollSummary = getPowerRollSummary(selectedPreviewPower?.rule)
-  const selectedPreviewPowerDifficultySummary = getPowerDifficultySummary(selectedPreviewPower?.rule)
+  const selectedPreviewPowerRollSummary = getPowerRollSummary(selectedPreviewPower?.rule, tf)
+  const selectedPreviewPowerDifficultySummary = getPowerDifficultySummary(selectedPreviewPower?.rule, tf)
   const resolvedPreviewPowerPool = selectedPreviewPowerRollFormula && disciplineRules
     ? resolvePowerPool(selectedPreviewPowerRollFormula, disciplineRules)
     : selectedPreviewPowerRollFormula
@@ -2136,6 +2142,8 @@ export default function VampireTable() {
   const selectedPreviewPowerCostLabel = getDisciplineCostLabel(
     selectedPreviewPowerCost,
     selectedPreviewPower?.rule.cost,
+    t,
+    tf,
   )
   const selectedPreviewPowerIsActiveKind = selectedPreviewPower?.rule.mechanics?.activation?.kind === 'active'
   const selectedPreviewPowerIsActive = Boolean(
@@ -2281,7 +2289,7 @@ export default function VampireTable() {
     if (error || !data) {
       setPreviewCharacter({
         id: participant.characterId,
-        name: participant.characterName,
+        name: participant.characterName === 'без персонажа' ? t('без персонажа') : participant.characterName,
         clan: participant.characterClan,
         image: participant.characterImage,
         username: participant.username,
@@ -2323,7 +2331,7 @@ export default function VampireTable() {
 
     return {
       diceCount,
-      poolName: poolParts.join(' + ') || `${diceCount || 0}к10`,
+      poolName: poolParts.join(' + ') || d10(diceCount || 0),
       poolParts,
       extraAttributes: character ? getExtraTraitNames(character.attributes, ATTRIBUTE_GROUPS) : [],
       extraSkills: character ? getExtraTraitNames(character.skills, SKILL_GROUPS) : [],
@@ -2563,10 +2571,10 @@ export default function VampireTable() {
     if (!updated) return null
 
     const poolName = automaticFailure
-      ? `Проверка мук совести: свободных ячеек нет. Результат: автоматический провал. Человечность: ${before.value} → ${humanityAfter}. Сомнения очищены.`
+      ? tf('Проверка мук совести: свободных ячеек нет. Результат: автоматический провал. Человечность: {before} → {after}. Сомнения очищены.', { before: before.value, after: humanityAfter })
       : success
-        ? `Проверка мук совести: ${remorseDice}d10. Результат: успех. Человечность остаётся ${humanityAfter}. Сомнения очищены: ${before.stains} → 0.`
-        : `Проверка мук совести: ${remorseDice}d10. Результат: провал. Человечность: ${before.value} → ${humanityAfter}. Сомнения очищены: ${before.stains} → 0.`
+        ? tf('Проверка мук совести: {dice}d10. Результат: успех. Человечность остаётся {after}. Сомнения очищены: {stains} → 0.', { dice: remorseDice, after: humanityAfter, stains: before.stains })
+        : tf('Проверка мук совести: {dice}d10. Результат: провал. Человечность: {before} → {after}. Сомнения очищены: {stains} → 0.', { dice: remorseDice, before: before.value, after: humanityAfter, stains: before.stains })
     const warnings = [
       'Проверка мук совести не использует кубики Голода, Прилив Крови и переброс Воли.',
       ...(humanityAfter <= 0 ? ['Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.'] : []),
@@ -2763,7 +2771,7 @@ export default function VampireTable() {
   ) => {
     const before = getCharacterHealth(character)
     const profile = getCharacterDamageProfile(character)
-    const result = applyHealthDamage(before, amount, severity, options, profile)
+    const result = applyHealthDamage(before, amount, severity, options, profile, t, tf)
     const updatedCharacter = await updateCharacterHealth(character.id, result.tracker, 'Здоровье сохранено')
     if (!updatedCharacter) return null
     const after = getCharacterHealth(updatedCharacter)
@@ -2832,18 +2840,18 @@ export default function VampireTable() {
   const mendVampireAggravated = async (character: CharacterOption) => {
     const before = getCharacterHealth(character)
     if (before.aggravated < 1) return
-    if (!window.confirm('По правилам это можно делать не чаще одного раза за ночь и требует 3 Испытания Крови. Продолжить?')) return
+    if (!window.confirm(t('По правилам это можно делать не чаще одного раза за ночь и требует 3 Испытания Крови. Продолжить?'))) return
     const lastMendDate = character.lastAggravatedMendAt ? new Date(character.lastAggravatedMendAt) : null
     const mendedTonight = Boolean(
       lastMendDate
       && !Number.isNaN(lastMendDate.getTime())
       && lastMendDate.toDateString() === new Date().toDateString(),
     )
-    if (mendedTonight && !window.confirm('Тяжёлый урон уже лечили этой ночью. Применить мастерский override?')) return
+    if (mendedTonight && !window.confirm(t('Тяжёлый урон уже лечили этой ночью. Применить мастерский override?'))) return
     const checks: RouseCheckResult[] = []
     let hunger = getCharacterHunger(character)
     for (let index = 0; index < 3; index += 1) {
-      const result = await performRouseCheck(character, `Заживление тяжёлого повреждения ${index + 1}/3`, hunger)
+      const result = await performRouseCheck(character, tf('Заживление тяжёлого повреждения {n}/3', { n: index + 1 }), hunger)
       checks.push(result)
       hunger = result.hungerAfter
     }
@@ -2872,9 +2880,9 @@ export default function VampireTable() {
   }
 
   const treatMortalHealth = async (character: CharacterOption) => {
-    const medicine = Number(window.prompt('Медицина лекаря:', '1') || 0)
+    const medicine = Number(window.prompt(t('Медицина лекаря:'), '1') || 0)
     if (medicine < 1) return
-    const success = window.confirm(`Проверка Интеллект + Медицина успешна? Сложность: ${getCharacterHealth(character).aggravated}.`)
+    const success = window.confirm(tf('Проверка Интеллект + Медицина успешна? Сложность: {difficulty}.', { difficulty: getCharacterHealth(character).aggravated }))
     const before = getCharacterHealth(character)
     const converted = success ? Math.min(before.aggravated, Math.ceil(medicine / 2)) : 0
     const next = normalizeHealthTracker({
@@ -2925,7 +2933,7 @@ export default function VampireTable() {
     const before = getCharacterWillpower(character)
     const result = applyWillpowerStressValue(before, amount)
     if (result.applied < amount) {
-      window.alert(result.warnings[0] || 'Волю сейчас потратить нельзя.')
+      window.alert(result.warnings[0] ? t(result.warnings[0]) : t('Волю сейчас потратить нельзя.'))
       return null
     }
     const updatedCharacter = await updateCharacterWillpower(character.id, result.tracker, 'Воля сохранена')
@@ -2971,7 +2979,7 @@ export default function VampireTable() {
   const rollWillpowerCheck = async (character: CharacterOption) => {
     const willpower = getCharacterWillpower(character)
     if (willpower.current < 1) {
-      window.alert('Доступной Воли нет: проверку Воли бросить нельзя.')
+      window.alert(t('Доступной Воли нет: проверку Воли бросить нельзя.'))
       return
     }
     await rollQuickDice(willpower.current, 'Проверка Воли', character, 'willpower-check', {
@@ -3062,20 +3070,20 @@ export default function VampireTable() {
     const proposal = incomingOpposedProposal
     if (!proposal || !chatUser || proposal.toUserId !== chatUser.id) return
     if (!selectedActiveCharacter) {
-      window.alert('Сначала выбери активного персонажа.')
+      window.alert(t('Сначала выбери активного персонажа.'))
       return
     }
 
     const responsePool = getOpposedCharacterPool(selectedActiveCharacter, opposedResponseSide)
     if (responsePool.diceCount < 1) {
-      window.alert('Твой ответный пул должен быть хотя бы 1к10.')
+      window.alert(t('Твой ответный пул должен быть хотя бы 1к10.'))
       return
     }
 
     const rightDice = rollD10Pool(responsePool.diceCount, getCharacterHunger(selectedActiveCharacter))
     const rightSide: OpposedRollSide = {
       id: 'right',
-      actorName: selectedActiveCharacter.name || 'Ответчик',
+      actorName: selectedActiveCharacter.name || t('Ответчик'),
       actorKind: 'player',
       poolName: responsePool.poolName,
       diceCount: rightDice.length,
@@ -3090,16 +3098,16 @@ export default function VampireTable() {
         : 'right'
     const outcome: OpposedRollResult['outcome'] = winnerSideId ?? 'tie'
     const summary = winnerSideId === 'left'
-      ? `Победа: ${leftSide.actorName}`
+      ? tf('Победа: {name}', { name: leftSide.actorName })
       : winnerSideId === 'right'
-        ? `Победа: ${rightSide.actorName}`
-        : 'Ничья'
+        ? tf('Победа: {name}', { name: rightSide.actorName })
+        : t('Ничья')
     const opposed: OpposedRollResult = { sides: [leftSide, rightSide], winnerSideId, outcome, summary }
     const roll: RollMessage = {
       id: proposal.id,
       room,
-      characterName: 'Встречная проверка',
-      poolName: `${leftSide.actorName} против ${rightSide.actorName}`,
+      characterName: t('Встречная проверка'),
+      poolName: tf('{left} против {right}', { left: leftSide.actorName, right: rightSide.actorName }),
       poolType: 'opposed',
       diceCount: leftSide.diceCount + rightSide.diceCount,
       dice: [],
@@ -3214,14 +3222,14 @@ export default function VampireTable() {
 
   const rollQuickDice = async (
     diceCount = 1,
-    poolName = 'Быстрый бросок',
+    poolName = t('Быстрый бросок'),
     characterOverride?: CharacterOption,
     poolType = 'quick',
     options: QuickRollOptions = {},
   ) => {
     const character = characterOverride || selectedActiveCharacter
     if (!character) {
-      window.alert('Сначала выбери активного персонажа.')
+      window.alert(t('Сначала выбери активного персонажа.'))
       return
     }
     const roll = await buildQuickRoll(diceCount, poolName, character, poolType, options)
@@ -3237,15 +3245,15 @@ export default function VampireTable() {
     options: QuickRollOptions = {},
   ) => {
     if (!chatUser) {
-      window.alert('Сначала войди в чат стола.')
+      window.alert(t('Сначала войди в чат стола.'))
       return
     }
     if (!opponent) {
-      window.alert('Выбери оппонента для встречного броска.')
+      window.alert(t('Выбери оппонента для встречного броска.'))
       return
     }
     if (opponent.actorKind === 'player' && (!opponent.userId || opponent.userId === chatUser.id)) {
-      window.alert('Выбери другого игрока для встречного броска.')
+      window.alert(t('Выбери другого игрока для встречного броска.'))
       return
     }
 
@@ -3270,7 +3278,7 @@ export default function VampireTable() {
       id: `${requestId}-request`,
       room,
       characterName: character.name,
-      poolName: `${character.name} против ${opponent.label}`,
+      poolName: tf('{left} против {right}', { left: character.name, right: opponent.label }),
       poolType: 'contested-request',
       diceCount: initiatorRoll.diceCount,
       dice: [],
@@ -3319,27 +3327,27 @@ export default function VampireTable() {
 
   const applyRollDamage = async (roll: RollMessage) => {
     if (!chatCharacters.length) {
-      window.alert('На столе нет доступных целей.')
+      window.alert(t('На столе нет доступных целей.'))
       return
     }
     const targetList = chatCharacters.map((character, index) => `${index + 1}. ${character.name}`).join('\n')
-    const targetIndex = Number(window.prompt(`Выбери цель:\n${targetList}`, '1') || 0) - 1
+    const targetIndex = Number(window.prompt(tf('Выбери цель:\n{list}', { list: targetList }), '1') || 0) - 1
     const target = chatCharacters[targetIndex]
     if (!target) return
     const opposedMargin = roll.opposed
       ? Math.abs((roll.opposed.sides[0]?.successes || 0) - (roll.opposed.sides[1]?.successes || 0))
       : roll.successes
-    const margin = Math.max(0, Number(window.prompt('Разница успехов:', String(opposedMargin)) || 0))
-    const weaponModifier = Number(window.prompt('Модификатор оружия:', '0') || 0)
-    const severity: DamageSeverity = window.confirm('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.')
+    const margin = Math.max(0, Number(window.prompt(t('Разница успехов:'), String(opposedMargin)) || 0))
+    const weaponModifier = Number(window.prompt(t('Модификатор оружия:'), '0') || 0)
+    const severity: DamageSeverity = window.confirm(t('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.'))
       ? 'aggravated'
       : 'superficial'
     const halveSuperficial = severity === 'superficial'
-      ? window.confirm('Делить лёгкий урон пополам с округлением вверх?')
+      ? window.confirm(t('Делить лёгкий урон пополам с округлением вверх?'))
       : false
     const amount = calculateConflictDamage({ margin, weaponModifier })
     if (amount < 1) {
-      window.alert('Итоговый урон равен нулю.')
+      window.alert(t('Итоговый урон равен нулю.'))
       return
     }
     await applyCharacterHealthDamage(target, amount, severity, {
@@ -3348,20 +3356,20 @@ export default function VampireTable() {
       weaponModifier,
       halveSuperficial,
       ignoreHalving: severity === 'superficial' && !halveSuperficial,
-      notes: [`Урон применён из броска «${roll.poolName}».`],
+      notes: [tf('Урон применён из броска «{poolName}».', { poolName: t(roll.poolName) })],
     })
   }
 
   const promptCharacterHealthDamage = async (character: CharacterOption) => {
-    const amount = Math.max(0, Number(window.prompt('Сколько урона нанести?', '1') || 0))
+    const amount = Math.max(0, Number(window.prompt(t('Сколько урона нанести?'), '1') || 0))
     if (amount < 1) return
-    const severity: DamageSeverity = window.confirm('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.')
+    const severity: DamageSeverity = window.confirm(t('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.'))
       ? 'aggravated'
       : 'superficial'
     const halveSuperficial = severity === 'superficial'
-      ? window.confirm('Делить лёгкий урон пополам с округлением вверх?')
+      ? window.confirm(t('Делить лёгкий урон пополам с округлением вверх?'))
       : false
-    const note = window.prompt('Комментарий к урону (необязательно):', '') || ''
+    const note = window.prompt(t('Комментарий к урону (необязательно):'), '') || ''
     await applyCharacterHealthDamage(character, amount, severity, {
       source: 'manual',
       halveSuperficial,
@@ -3428,15 +3436,15 @@ export default function VampireTable() {
   const confirmWillpowerReroll = async (roll: RollMessage) => {
     const draft = willpowerRerollDraft?.rollId === roll.id ? willpowerRerollDraft : null
     if (!draft || draft.selectedDieIds.length < 1) {
-      window.alert('Выбери от одного до трёх обычных кубиков.')
+      window.alert(t('Выбери от одного до трёх обычных кубиков.'))
       return
     }
     const character = getRollCharacter(roll)
     if (!character) {
-      window.alert('Не удалось найти персонажа для траты Воли.')
+      window.alert(t('Не удалось найти персонажа для траты Воли.'))
       return
     }
-    const spendResult = await spendWillpower(character, 1, `Воля: переброс · ${roll.poolName}`)
+    const spendResult = await spendWillpower(character, 1, tf('Воля: переброс · {poolName}', { poolName: t(roll.poolName) }))
     if (!spendResult) return
 
     const selected = new Set(draft.selectedDieIds)
@@ -3483,15 +3491,15 @@ export default function VampireTable() {
 
   const rollMasterPool = async () => {
     if (!selectedMasterRollCharacter) {
-      window.alert('Выбери персонажа мастера.')
+      window.alert(t('Выбери персонажа мастера.'))
       return
     }
     if (masterRollDiceCount < 1) {
-      window.alert('Выбери характеристику, навык, дисциплину или положительный модификатор.')
+      window.alert(t('Выбери характеристику, навык, дисциплину или положительный модификатор.'))
       return
     }
     if (masterRollMode === 'contested' && !selectedMasterContestedOpponent) {
-      window.alert('Выбери оппонента для встречного броска.')
+      window.alert(t('Выбери оппонента для встречного броска.'))
       return
     }
     const options: QuickRollOptions = {
@@ -3527,12 +3535,12 @@ export default function VampireTable() {
 
   const rollMasterQuick = async (diceCount: number) => {
     if (!selectedMasterRollCharacter) {
-      window.alert('Выбери персонажа мастера.')
+      window.alert(t('Выбери персонажа мастера.'))
       return
     }
     await rollQuickDice(
       diceCount,
-      `${diceCount}к10`,
+      d10(diceCount),
       selectedMasterRollCharacter,
       'master-quick',
       {
@@ -3576,7 +3584,7 @@ export default function VampireTable() {
     if (previewRollSkill) poolParts.push(`${t(previewRollSkill)} ${previewSkillDots}`)
     if (previewRollDiscipline) poolParts.push(`${previewRollDiscipline} ${previewDisciplineDots}`)
     if (previewRollModifier) poolParts.push(`${t('модификатор')} ${previewRollModifier > 0 ? '+' : ''}${previewRollModifier}`)
-    const poolName = poolParts.join(' + ') || `${previewDiceCount}к10`
+    const poolName = poolParts.join(' + ') || d10(previewDiceCount)
     const options: QuickRollOptions = {
       useBloodSurge: previewBloodSurgeEnabled,
       source: previewBloodSurgeEnabled ? 'blood_surge' : 'manual',
@@ -3627,7 +3635,7 @@ export default function VampireTable() {
     let rouseChecksOverride: number | undefined
     if (cost.variableRouseChecks) {
       const answer = window.prompt(
-        'Сколько Испытаний Крови сделать для этой силы?',
+        t('Сколько Испытаний Крови сделать для этой силы?'),
         String(Math.max(1, cost.rouseChecks)),
       )
       if (answer === null) return null
@@ -3780,7 +3788,7 @@ export default function VampireTable() {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       room,
       characterName: character.name,
-      poolName: `${context.name}: ${context.power} · ${action}`,
+      poolName: `${context.name}: ${context.power} · ${t(action)}`,
       poolType: 'discipline-power',
       diceCount: dice.length,
       dice,
@@ -3879,7 +3887,7 @@ export default function VampireTable() {
         name: previewDisciplineName,
         power: selectedPreviewPower.name,
         level: selectedPreviewPower.level,
-        cost: 'без оплаты',
+        cost: t('без оплаты'),
       },
       [],
       { warnings: ['Активный эффект силы отключён.'] },
@@ -3901,7 +3909,7 @@ export default function VampireTable() {
     if (humanityRisk?.risk) {
       const suggested = Math.max(1, Math.floor(Number(humanityRisk.suggestedStains) || 1))
       const answer = window.prompt(
-        `Эта сила может угрожать Человечности. Добавить Сомнения?\n\n1 — +1\n2 — +2\n0 — не добавлять\nДругое число — ручное значение`,
+        t('Эта сила может угрожать Человечности. Добавить Сомнения?\n\n1 — +1\n2 — +2\n0 — не добавлять\nДругое число — ручное значение'),
         String(suggested),
       )
       if (answer !== null) {
@@ -3940,11 +3948,11 @@ export default function VampireTable() {
         await publishDisciplineActivation(activeCharacter, context, rouseChecks, willpowerMeta)
         return
       }
-      window.alert('Для этой силы автоматический бросок не указан. Используй обычный конструктор пула.')
+      window.alert(t('Для этой силы автоматический бросок не указан. Используй обычный конструктор пула.'))
       return
     }
-    const selectedParts = previewPowerPoolSelections.map(name => `${name} ${getCharacterPoolPartDots(activeCharacter, name)}`)
-    if (previewPowerModifier) selectedParts.push(`модификатор ${previewPowerModifier > 0 ? '+' : ''}${previewPowerModifier}`)
+    const selectedParts = previewPowerPoolSelections.map(name => `${t(name)} ${getCharacterPoolPartDots(activeCharacter, name)}`)
+    if (previewPowerModifier) selectedParts.push(`${t('модификатор')} ${previewPowerModifier > 0 ? '+' : ''}${previewPowerModifier}`)
     await rollQuickDice(
       previewPowerDiceCount,
       `${previewDisciplineName}: ${selectedPreviewPower.name} · ${selectedParts.join(' + ')}`,
@@ -4102,7 +4110,7 @@ export default function VampireTable() {
           name: targetEffect.source.discipline,
           power: targetEffect.source.power,
           level: targetEffect.source.level || 0,
-          cost: 'без оплаты',
+          cost: t('без оплаты'),
         },
         [],
         { warnings: ['Активный эффект силы отключён.'] },
@@ -4116,22 +4124,22 @@ export default function VampireTable() {
     const reveal: MasterReveal = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
       room,
-      kind: 'Инвентарь',
-      title: item.name || 'Без названия',
-      body: item.description || item.note || 'Описание не указано',
-      meta: `${item.category || 'Другое'} · ${item.quantity ?? 1} шт.`,
-      characterName: previewCharacter.name || 'Безымянный',
+      kind: t('Инвентарь'),
+      title: item.name || t('Без названия'),
+      body: item.description || item.note || t('Описание не указано'),
+      meta: tf('{category} · {quantity} шт.', { category: t(item.category) || t('Другое'), quantity: item.quantity ?? 1 }),
+      characterName: previewCharacter.name || t('Безымянный'),
       userId: chatUser.id,
       username: chatUser.username,
       createdAt: new Date().toISOString(),
     }
     broadcast('master-reveal', reveal)
-    setQuickInventoryStatus(`«${reveal.title}» показано мастеру`)
+    setQuickInventoryStatus(tf('«{title}» показано мастеру', { title: reveal.title }))
   }
 
   const addExperienceToActiveCharacter = async () => {
     if (!chatUser || !previewCharacter?.id || previewCharacter.id !== selectedActiveCharacter?.id) return
-    const amount = Number(window.prompt('Сколько опыта добавить?', '1'))
+    const amount = Number(window.prompt(t('Сколько опыта добавить?'), '1'))
     if (!Number.isFinite(amount) || amount <= 0) return
     const { data, error } = await createClient()
       .from('characters')
@@ -4140,7 +4148,7 @@ export default function VampireTable() {
       .eq('user_id', chatUser.id)
       .single()
     if (error || !data?.data) {
-      window.alert('Не удалось загрузить персонажа для добавления опыта.')
+      window.alert(t('Не удалось загрузить персонажа для добавления опыта.'))
       return
     }
     const characterData = data.data as Record<string, unknown>
@@ -4156,7 +4164,7 @@ export default function VampireTable() {
       .eq('id', previewCharacter.id)
       .eq('user_id', chatUser.id)
     if (updateError) {
-      window.alert('Опыт не сохранился.')
+      window.alert(t('Опыт не сохранился.'))
       return
     }
     const nextFreeExp = current + amount
@@ -4325,11 +4333,11 @@ export default function VampireTable() {
     const password = chatPasswordDraft.trim()
 
     if (username.length < 3) {
-      window.alert('Имя пользователя минимум 3 символа.')
+      window.alert(t('Имя пользователя минимум 3 символа.'))
       return
     }
     if (password.length < 6) {
-      window.alert('Пароль минимум 6 символов.')
+      window.alert(t('Пароль минимум 6 символов.'))
       return
     }
 
@@ -4347,7 +4355,7 @@ export default function VampireTable() {
 
         if (error || !data) {
           console.error('Не удалось зарегистрировать пользователя:', error)
-          window.alert(error?.code === '23505' ? 'Пользователь с таким именем уже существует.' : 'Не удалось создать аккаунт.')
+          window.alert(error?.code === '23505' ? t('Пользователь с таким именем уже существует.') : t('Не удалось создать аккаунт.'))
           return
         }
 
@@ -4365,7 +4373,7 @@ export default function VampireTable() {
 
       if (error || !data) {
         console.error('Не удалось войти в чат:', error)
-        window.alert('Неверный логин или пароль.')
+        window.alert(t('Неверный логин или пароль.'))
         return
       }
 
@@ -4389,11 +4397,11 @@ export default function VampireTable() {
     const text = chatDraft.trim()
     const character = chatCharacters.find(item => item.id === selectedChatCharacterId)
     if (!chatUser) {
-      window.alert('Сначала войди в аккаунт.')
+      window.alert(t('Сначала войди в аккаунт.'))
       return
     }
     if (!character) {
-      window.alert('Выбери персонажа. Сохранённые персонажи берутся из личного кабинета листа.')
+      window.alert(t('Выбери персонажа. Сохранённые персонажи берутся из личного кабинета листа.'))
       return
     }
     if (!text) return
@@ -4429,7 +4437,7 @@ export default function VampireTable() {
     if (error) {
       console.error('Не удалось сохранить сообщение чата:', error)
       setChatStatus('Сообщение показано онлайн, но не сохранилось')
-      window.alert('Сообщение отправлено в realtime, но не сохранилось. Нужно применить SQL для table_chat_messages.')
+      window.alert(t('Сообщение отправлено в realtime, но не сохранилось. Нужно применить SQL для table_chat_messages.'))
     } else {
       setChatStatus('Чат онлайн')
     }
@@ -4441,7 +4449,7 @@ export default function VampireTable() {
     if (!chatUser || !text) return
     const targetId = isMaster ? selectedMasterChatUserId : null
     if (isMaster && !targetId) {
-      window.alert('Выбери игрока для ответа.')
+      window.alert(t('Выбери игрока для ответа.'))
       return
     }
     const message: MasterWhisper = {
@@ -4482,8 +4490,8 @@ export default function VampireTable() {
       const existing = prev.find(item => item.id === signal.from)
       const base: VoiceParticipant = {
         id: signal.from,
-        username: signal.username || existing?.username || 'Участник',
-        characterName: signal.characterName || existing?.characterName || 'Безымянный',
+        username: signal.username || existing?.username || t('Участник'),
+        characterName: signal.characterName || existing?.characterName || t('Безымянный'),
         characterImage: signal.characterImage ?? existing?.characterImage ?? '',
         volume: existing?.volume ?? getSavedVoiceVolume(signal.from),
         muted: signal.muted ?? existing?.muted ?? false,
@@ -4712,11 +4720,11 @@ export default function VampireTable() {
   const startVoice = async () => {
     const identity = getVoiceIdentity()
     if (!chatUserRef.current) {
-      window.alert('Сначала войди в аккаунт.')
+      window.alert(t('Сначала войди в аккаунт.'))
       return
     }
     if (!identity) {
-      window.alert('Выбери персонажа для голоса.')
+      window.alert(t('Выбери персонажа для голоса.'))
       return
     }
 
@@ -4735,7 +4743,7 @@ export default function VampireTable() {
     } catch (error) {
       console.error('Микрофон недоступен:', error)
       setVoiceStatus('Микрофон недоступен')
-      window.alert('Не получилось включить микрофон. Проверь разрешение браузера.')
+      window.alert(t('Не получилось включить микрофон. Проверь разрешение браузера.'))
     }
   }
 
@@ -4793,12 +4801,12 @@ export default function VampireTable() {
     overrides: LayerPatch = {}
   ) => {
     if (!isMaster && !chatUser) {
-      window.alert('Сначала войди в аккаунт игрока в чате, чтобы материалы получили владельца.')
+      window.alert(t('Сначала войди в аккаунт игрока в чате, чтобы материалы получили владельца.'))
       setRightRailTab('chat')
       return
     }
     if (!currentSceneId) {
-      window.alert('Сначала нужна активная сцена.')
+      window.alert(t('Сначала нужна активная сцена.'))
       return
     }
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
@@ -4882,7 +4890,7 @@ export default function VampireTable() {
     if (error) {
       console.error('Не удалось сохранить слой стола:', error)
       setTableStatus('Слой показан онлайн, но не сохранён')
-      window.alert('Слой показан онлайн, но не сохранился. Нужно обновить table_images в Supabase.')
+      window.alert(t('Слой показан онлайн, но не сохранился. Нужно обновить table_images в Supabase.'))
     }
     return layer.id
   }
@@ -4898,7 +4906,7 @@ export default function VampireTable() {
     }))
     if (uploadItems.length === 0) return
     if (!isMaster && !chatUser) {
-      window.alert('Сначала войди в аккаунт игрока, чтобы добавлять медиа в комнату.')
+      window.alert(t('Сначала войди в аккаунт игрока, чтобы добавлять медиа в комнату.'))
       setRightRailTab('chat')
       return
     }
@@ -4976,7 +4984,7 @@ export default function VampireTable() {
 
         if (uploadError) {
           console.error('Не удалось загрузить файл в Storage:', uploadError)
-          window.alert('Файл не загрузился в Supabase Storage. Примени обновлённый SQL для bucket table-images.')
+          window.alert(t('Файл не загрузился в Supabase Storage. Примени обновлённый SQL для bucket table-images.'))
           continue
         }
 
@@ -5062,7 +5070,7 @@ export default function VampireTable() {
   const handleBackgroundUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
       const imageFiles = Array.from(event.target.files).filter(file => file.type.startsWith('image/'))
-      if (imageFiles.length === 0) window.alert('Для фона выбери картинку.')
+      if (imageFiles.length === 0) window.alert(t('Для фона выбери картинку.'))
       else await uploadFiles(imageFiles, true, { asBackground: true })
       event.target.value = ''
     }
@@ -5072,7 +5080,7 @@ export default function VampireTable() {
     event.preventDefault()
     const items = getMediaUrlsFromText(mediaUrlDraft)
     if (items.length === 0) {
-      window.alert('Вставь ссылку на YouTube или прямую ссылку на файл: jpg, png, webp, gif, svg, mp4, webm, mov, m4v, ogg.')
+      window.alert(t('Вставь ссылку на YouTube или прямую ссылку на файл: jpg, png, webp, gif, svg, mp4, webm, mov, m4v, ogg.'))
       return
     }
 
@@ -5086,7 +5094,7 @@ export default function VampireTable() {
     if (!text) return
     await addMediaLayer(
       text,
-      textMaterialNameDraft.trim() || 'Текст мастера',
+      textMaterialNameDraft.trim() || t('Текст мастера'),
       { width: 420, height: 260 },
       'text',
       0,
@@ -5143,7 +5151,7 @@ export default function VampireTable() {
   }
 
   const createFolderForSelection = async (ids: string[]) => {
-    const folderName = window.prompt('Название новой папки', 'Новая папка')?.trim()
+    const folderName = window.prompt(t('Название новой папки'), t('Новая папка'))?.trim()
     if (!folderName) return
     const folderId = await createFolder(null, folderName, false, true)
     if (!folderId) return
@@ -5152,7 +5160,7 @@ export default function VampireTable() {
 
   const deleteLayer = async (layerId: string) => {
     const layer = layersRef.current.find(item => item.id === layerId) || layers.find(item => item.id === layerId)
-    if (layer && !window.confirm(`Удалить "${layer.name}"?`)) return
+    if (layer && !window.confirm(tf('Удалить "{name}"?', { name: layer.name }))) return
     const childIds = getDescendantIds(layerId)
     const requestedDeleteIds = new Set([layerId, ...childIds])
     const deleteIds = isMaster
@@ -5192,12 +5200,12 @@ export default function VampireTable() {
 
   const createFolder = async (parentId: string | null = null, name?: string, selectAfterCreate = true, onTable = true) => {
     if (!isMaster && !chatUser) {
-      window.alert('Сначала войди в аккаунт игрока в чате, чтобы папка получила владельца.')
+      window.alert(t('Сначала войди в аккаунт игрока в чате, чтобы папка получила владельца.'))
       setRightRailTab('chat')
       return null
     }
     if (!currentSceneId) {
-      window.alert('Сначала нужна активная сцена.')
+      window.alert(t('Сначала нужна активная сцена.'))
       return null
     }
     const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
@@ -5211,7 +5219,7 @@ export default function VampireTable() {
       ownerRole: tableRole ?? 'player',
       ownerId: currentOwnerId,
       parentId,
-      name: name?.trim() || `Папка ${siblingCount + 1}`,
+      name: name?.trim() || tf('Папка {n}', { n: siblingCount + 1 }),
       imageData: '',
       x: (parentFolder?.x ?? 120) + (siblingCount % 5) * 36,
       y: (parentFolder?.y ?? 120) + (siblingCount % 5) * 28,
@@ -5305,7 +5313,7 @@ export default function VampireTable() {
   }
 
   const renameLayer = async (layer: TableLayer) => {
-    const nextName = window.prompt('Новое имя слоя', layer.name)?.trim()
+    const nextName = window.prompt(t('Новое имя слоя'), layer.name)?.trim()
     if (!nextName || nextName === layer.name) return
     await patchLayer(layer.id, { name: nextName })
     setLayerContextMenu(null)
@@ -5393,7 +5401,7 @@ export default function VampireTable() {
   }
 
   const createNamedFolder = async (parentId: string | null = null, onTable = true) => {
-    const nextName = window.prompt('Название папки', 'Новая папка')?.trim()
+    const nextName = window.prompt(t('Название папки'), t('Новая папка'))?.trim()
     if (!nextName) return null
     return createFolder(parentId, nextName, true, onTable)
   }
@@ -5539,7 +5547,7 @@ export default function VampireTable() {
       const now = new Date().toISOString()
       const entry: JournalEntry = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        title: name || 'Изображение со стола',
+        title: name || t('Изображение со стола'),
         text: imgHtml,
         createdAt: now,
         updatedAt: now,
@@ -6318,7 +6326,7 @@ export default function VampireTable() {
     return (
       <div className="roll-v5-meta">
         {meta.discipline ? (
-          <span className="roll-note">{tf('Дисциплина: {name} · {power}', { name: meta.discipline.name, power: meta.discipline.power })}{meta.discipline.cost && meta.discipline.cost !== '—' ? ` · ${meta.discipline.cost}` : ''}</span>
+          <span className="roll-note">{tf('Дисциплина: {name} · {power}', { name: meta.discipline.name, power: meta.discipline.power })}{meta.discipline.cost && meta.discipline.cost !== '—' ? ` · ${t(meta.discipline.cost)}` : ''}</span>
         ) : null}
         {meta.bloodSurge?.enabled ? (
           <span className="roll-note">{tf('Прилив Крови: +{bonus}к10', { bonus: meta.bloodSurge.bonusDice })}</span>
@@ -6385,7 +6393,7 @@ export default function VampireTable() {
       <section className="opposed-side-builder opposed-response-builder">
         <div className="opposed-side-heading">
           <span>{t('Твой ответ')}</span>
-          <strong>{pool.diceCount || 0}к10</strong>
+          <strong>{d10(pool.diceCount || 0)}</strong>
         </div>
 
         {!character ? (
@@ -6955,7 +6963,7 @@ export default function VampireTable() {
                     {contestedRequest ? (
                       <div className="contested-request-result">
                         <strong>{t('Запрошен встречный бросок')}</strong>
-                        <span>{tf('Пул инициатора: {pool}, {count}к10.', { pool: roll.meta?.contested?.initiatorPoolName || `${roll.diceCount}к10`, count: roll.meta?.contested?.initiatorDiceCount || roll.diceCount })}</span>
+                        <span>{tf('Пул инициатора: {pool}, {count}.', { pool: roll.meta?.contested?.initiatorPoolName || d10(roll.diceCount), count: d10(roll.meta?.contested?.initiatorDiceCount || roll.diceCount) })}</span>
                         <span>{tf('Оппонент: {name}.', { name: roll.meta?.contested?.opponentName || t('не выбран') })}</span>
                         <small>{t('Ожидается ответный бросок.')}</small>
                       </div>
@@ -6989,7 +6997,7 @@ export default function VampireTable() {
                                 })}
                               </div>
                               <footer>
-                                <span>{side.diceCount}к10</span>
+                                <span>{d10(side.diceCount)}</span>
                                 <strong>{side.successes}</strong>
                               </footer>
                             </section>
@@ -7020,7 +7028,7 @@ export default function VampireTable() {
                         </div>
 
                         <footer>
-                          <span>{roll.diceCount}к10</span>
+                          <span>{d10(roll.diceCount)}</span>
                           <strong>{roll.successes}</strong>
                         </footer>
                         {canRerollWithWillpower ? (
@@ -7054,7 +7062,7 @@ export default function VampireTable() {
                     {roll.opposed && chatCharacters.length ? (
                       <div className="roll-health-actions">
                         <button type="button" onClick={() => applyRollDamage(roll)}>
-                          Применить урон к цели
+                          {t('Применить урон к цели')}
                         </button>
                       </div>
                     ) : null}
@@ -7314,14 +7322,14 @@ export default function VampireTable() {
                             onClick={rollMasterPool}
                             disabled={masterRollDiceCount < 1 || (masterRollMode === 'contested' && !selectedMasterContestedOpponent)}
                           >
-                            {masterRollMode === 'contested' ? t('Запросить встречный') : t('Бросить')} {Math.min(20, masterRollDiceCount + (masterUseBloodSurge ? masterBloodSurgeBonus : 0)) || 0}к10
+                            {masterRollMode === 'contested' ? t('Запросить встречный') : t('Бросить')} {d10(Math.min(20, masterRollDiceCount + (masterUseBloodSurge ? masterBloodSurgeBonus : 0)) || 0)}
                           </button>
                         </div>
 
                         <div className="quick-roll-grid master-quick-rolls" aria-label={t('Быстрые броски мастера')}>
                           {[1, 3, 5, 7, 10].map(count => (
                             <button type="button" key={count} onClick={() => rollMasterQuick(count)}>
-                              {count}к10
+                              {d10(count)}
                             </button>
                           ))}
                         </div>
@@ -7414,7 +7422,7 @@ export default function VampireTable() {
                   <strong>{incomingOpposedProposal.initiator.actorName}</strong>
                 </div>
                 <p>{t(incomingOpposedProposal.initiator.poolName)}</p>
-                <b>{incomingOpposedProposal.initiator.diceCount}к10</b>
+                <b>{d10(incomingOpposedProposal.initiator.diceCount)}</b>
               </section>
 
               <section className="opposed-proposal-active">
@@ -7588,7 +7596,7 @@ export default function VampireTable() {
                         )
                       })}
                     </div>
-                    {previewHealth.impaired ? <p className="preview-roll-notice">{t(getHealthWarning(previewHealth, previewDamageProfile))}</p> : null}
+                    {previewHealth.impaired ? <p className="preview-roll-notice">{getHealthWarning(previewHealth, previewDamageProfile, t)}</p> : null}
                     {previewSheetFixed ? <div className="preview-willpower-actions preview-health-actions">
                       <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'superficial', { source: 'manual', ignoreHalving: true })} disabled={!canRollPreview}>+ {t('лёгкий')}</button>
                       <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'aggravated', { source: 'manual' })} disabled={!canRollPreview}>+ {t('тяжёлый')}</button>
@@ -7725,8 +7733,8 @@ export default function VampireTable() {
                               </div>
                               <b>{activeEffect.active ? t('активен') : t('выкл.')}</b>
                             </header>
-                            {getActiveEffectDescription(activeEffect) ? (
-                              <p>{getActiveEffectDescription(activeEffect)}</p>
+                            {getActiveEffectDescription(activeEffect, t, tf) ? (
+                              <p>{getActiveEffectDescription(activeEffect, t, tf)}</p>
                             ) : null}
                             <footer>
                               <button
@@ -7765,7 +7773,7 @@ export default function VampireTable() {
                         <span>{t('Пул костей')}</span>
                         <h3>{t('Собрать бросок')}</h3>
                       </div>
-                      <strong>{previewDiceCount}к10</strong>
+                      <strong>{d10(previewDiceCount)}</strong>
                     </div>
                     <div className="preview-roll-controls">
                       <label>
@@ -7887,12 +7895,12 @@ export default function VampireTable() {
                           type="button"
                           key={count}
                           disabled={!canRollPreview}
-                          onClick={() => rollQuickDice(count, `${count}к10`, previewCharacter, 'quick', {
+                          onClick={() => rollQuickDice(count, d10(count), previewCharacter, 'quick', {
                             useBloodSurge: previewBloodSurgeEnabled,
                             source: previewBloodSurgeEnabled ? 'blood_surge' : 'manual',
                           })}
                         >
-                          {count}к10
+                          {d10(count)}
                         </button>
                       ))}
                     </div>
@@ -8162,7 +8170,7 @@ export default function VampireTable() {
                       <section className="discipline-power-roll">
                         <div className="preview-section-heading">
                           <div><span>{t('По формуле силы')}</span><h3>{t('Бросок')}</h3></div>
-                          <strong>{previewPowerDiceCount}к10</strong>
+                          <strong>{d10(previewPowerDiceCount)}</strong>
                         </div>
                         {previewPowerPoolChoices.length ? (
                           <>

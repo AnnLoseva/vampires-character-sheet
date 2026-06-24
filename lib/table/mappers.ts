@@ -315,7 +315,7 @@ export function normalizeInventory(items: unknown): InventoryItem[] {
     const now = new Date().toISOString()
     return {
       id: source.id || `inventory-${index}`,
-      name: source.name || 'Без названия',
+      name: source.name || '',
       description: source.description || '',
       quantity: Math.max(0, Number(source.quantity ?? 1) || 0),
       category: source.category || 'Другое',

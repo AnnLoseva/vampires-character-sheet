@@ -58,7 +58,7 @@ export default function MasterPanel({
                 <p className="panel-empty">{t('Игроки пока ничего не показывали.')}</p>
               ) : masterReveals.map(item => (
                 <article key={item.id}>
-                  <span>{item.kind} · {item.characterName} · {item.username}</span>
+                  <span>{t(item.kind)} · {item.characterName} · {item.username}</span>
                   <strong>{item.title}</strong>
                   {item.meta ? <small>{item.meta}</small> : null}
                   <p>{item.body}</p>

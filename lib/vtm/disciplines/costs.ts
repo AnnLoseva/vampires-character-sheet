@@ -71,6 +71,8 @@ export type PayDisciplineCostOptions = {
   makeId?: () => string
   reason?: string
   rouseChecksOverride?: number
+  t?: (ru: string) => string
+  tf?: (ru: string, vars: Record<string, string | number>) => string
 }
 
 export type DisciplineCostPayment<TCharacter> = {

@@ -356,7 +356,7 @@ export const dictionary: Record<string, string> = {
   'Бросков пока нет.': 'No rolls yet.',
   'скрытый': 'hidden',
   'Запрошен встречный бросок': 'An opposed roll has been requested',
-  'Пул инициатора: {pool}, {count}к10.': "Initiator's pool: {pool}, {count}d10.",
+  'Пул инициатора: {pool}, {count}.': "Initiator's pool: {pool}, {count}.",
   'не выбран': 'not chosen',
   'Оппонент: {name}.': 'Opponent: {name}.',
   'Ожидается ответный бросок.': 'Waiting for the response roll.',
@@ -587,4 +587,195 @@ export const dictionary: Record<string, string> = {
   '{name} получает {applied} Сомнение: {sourceText}. Человечность: {value}, Сомнения: {stains}/{remaining}.':
     '{name} gains {applied} Stain: {sourceText}. Humanity: {value}, Stains: {stains}/{remaining}.',
   'ручное решение': 'manual override',
+
+  // GameTable.tsx: health/willpower event reasons (poolName: reason pattern)
+  'Урон здоровью': 'Damage to Health',
+  'Заживление лёгких повреждений': 'Healing Superficial damage',
+  'Заживление тяжёлого повреждения': 'Healing Aggravated damage',
+  'Ручное лечение': 'Manual healing',
+  'Воля: трата': 'Willpower: spend',
+  'Воля: начало встречи': 'Willpower: start of session',
+  'Воля: Прихоть': 'Willpower: Desire',
+  'Воля: восстановление тяжёлого стресса': 'Willpower: recovering Aggravated stress',
+
+  // GameTable.tsx: opposed-roll summary, contested-request poolName, discipline-activation poolName
+  'Победа: {name}': 'Victory: {name}',
+  'Ничья': 'Tie',
+  '{left} против {right}': '{left} vs {right}',
+  'Активация': 'Activation',
+  'Отключение': 'Deactivation',
+  'без оплаты': 'free',
+  'Эта сила может угрожать Человечности. Добавить Сомнения?\n\n1 — +1\n2 — +2\n0 — не добавлять\nДругое число — ручное значение':
+    'This power may threaten Humanity. Add Stains?\n\n1 — +1\n2 — +2\n0 — do not add\nAny other number — manual value',
+  'использование силы с риском Человечности': 'using a power that risks Humanity',
+  'Для этой силы автоматический бросок не указан. Используй обычный конструктор пула.': 'This power has no automatic roll. Use the regular pool builder.',
+  'Сколько опыта добавить?': 'How much experience to add?',
+  'Не удалось загрузить персонажа для добавления опыта.': 'Failed to load the character to add experience.',
+  'Опыт не сохранился.': 'The experience was not saved.',
+  '{category} · {quantity} шт.': '{category} · {quantity} pcs.',
+  '«{title}» показано мастеру': '"{title}" shown to the Storyteller',
+  'без персонажа': 'no character',
+
+  // GameTable.tsx: chat auth, message sending, master whisper, voice signaling
+  'Имя пользователя минимум 3 символа.': 'Username must be at least 3 characters.',
+  'Пароль минимум 6 символов.': 'Password must be at least 6 characters.',
+  'Пользователь с таким именем уже существует.': 'This username is already taken.',
+  'Не удалось создать аккаунт.': 'Failed to create the account.',
+  'Неверный логин или пароль.': 'Incorrect username or password.',
+  'Сначала войди в аккаунт.': 'First log into your account.',
+  'Выбери персонажа. Сохранённые персонажи берутся из личного кабинета листа.': "Choose a character. Saved characters come from the sheet's Personal Archive.",
+  'Сообщение отправлено в realtime, но не сохранилось. Нужно применить SQL для table_chat_messages.': 'The message was sent in realtime but was not saved. The table_chat_messages SQL needs to be applied.',
+  'Выбери игрока для ответа.': 'Choose a player to reply to.',
+  'Участник': 'Participant',
+
+  // GameTable.tsx: voice/layer/media/folder alerts and prompts
+  'Выбери персонажа для голоса.': 'Choose a character for voice.',
+  'Не получилось включить микрофон. Проверь разрешение браузера.': "Couldn't enable the microphone. Check the browser permission.",
+  'Сначала нужна активная сцена.': 'An active scene is needed first.',
+  'Сначала войди в аккаунт игрока в чате, чтобы материалы получили владельца.': 'First log into a player account in chat so the materials have an owner.',
+  'Слой показан онлайн, но не сохранился. Нужно обновить table_images в Supabase.': 'The layer was shown online but was not saved. The table_images table in Supabase needs to be updated.',
+  'Сначала войди в аккаунт игрока, чтобы добавлять медиа в комнату.': "First log into a player's account to add media to the room.",
+  'Для фона выбери картинку.': 'Choose an image for the background.',
+  'Вставь ссылку на YouTube или прямую ссылку на файл: jpg, png, webp, gif, svg, mp4, webm, mov, m4v, ogg.':
+    'Paste a YouTube link or a direct file link: jpg, png, webp, gif, svg, mp4, webm, mov, m4v, ogg.',
+  'Текст мастера': "Storyteller's text",
+  'Название новой папки': 'New folder name',
+  'Новая папка': 'New folder',
+  'Удалить "{name}"?': 'Delete "{name}"?',
+  'Сначала войди в аккаунт игрока в чате, чтобы папка получила владельца.': 'First log into a player account in chat so the folder has an owner.',
+  'Папка {n}': 'Folder {n}',
+  'Новое имя слоя': 'New layer name',
+  'Название папки': 'Folder name',
+  'Изображение со стола': 'Image from the table',
+
+  // GameTable.tsx / durations.ts: discipline cost/roll/difficulty/duration formatters
+  '{n} испытание Крови': '{n} Rouse Check',
+  '{n} пункт Воли': '{n} point of Willpower',
+  'нет': 'none',
+  'Дополнительно: {value}': 'Additionally: {value}',
+  'Контроль: {value}': 'Control: {value}',
+  'Сопротивление: {value}': 'Resistance: {value}',
+  'для цели: {value}': 'for the target: {value}',
+  'прочность: {value}': 'soak: {value}',
+  'уровень {level}': 'level {level}',
+  'до конца сцены': 'until the end of the scene',
+  'до конца ночи': 'until the end of the night',
+  'постоянно': 'permanently',
+  '{turns} ход': '{turns} turn(s)',
+
+  // GameTable.tsx: remorse-check poolName/warnings
+  'Проверка мук совести: свободных ячеек нет. Результат: автоматический провал. Человечность: {before} → {after}. Сомнения очищены.':
+    'Conscience check: no free boxes remain. Result: automatic failure. Humanity: {before} → {after}. Stains cleared.',
+  'Проверка мук совести: {dice}d10. Результат: успех. Человечность остаётся {after}. Сомнения очищены: {stains} → 0.':
+    'Conscience check: {dice}d10. Result: success. Humanity remains {after}. Stains cleared: {stains} → 0.',
+  'Проверка мук совести: {dice}d10. Результат: провал. Человечность: {before} → {after}. Сомнения очищены: {stains} → 0.':
+    'Conscience check: {dice}d10. Result: failure. Humanity: {before} → {after}. Stains cleared: {stains} → 0.',
+  'Проверка мук совести не использует кубики Голода, Прилив Крови и переброс Воли.': 'A Conscience check does not use Hunger dice, a Blood Surge, or a Willpower reroll.',
+
+  // GameTable.tsx: health mending/treatment dialogs
+  'Заживление тяжёлого повреждения {n}/3': 'Healing Aggravated damage {n}/3',
+  'По правилам это можно делать не чаще одного раза за ночь и требует 3 Испытания Крови. Продолжить?':
+    'By the rules, this can be done no more than once per night and requires 3 Rouse Checks. Continue?',
+  'Тяжёлый урон уже лечили этой ночью. Применить мастерский override?': 'Aggravated damage has already been healed tonight. Apply a Storyteller override?',
+  'Медицина лекаря:': "Healer's Medicine:",
+  'Проверка Интеллект + Медицина успешна? Сложность: {difficulty}.': 'Is the Intelligence + Medicine check successful? Difficulty {difficulty}.',
+  'Тяжёлые повреждения превращены в лёгкие. Восстановление занимает ночь.': 'Aggravated damage is converted to Superficial. Recovery takes a night.',
+  'Проверка лечения провалена: здоровье не изменилось.': 'The treatment check failed: Health did not change.',
+
+  // GameTable.tsx: willpower spend/check warnings
+  'Волю сейчас потратить нельзя.': 'Willpower cannot be spent right now.',
+  'Доступной Воли нет: проверку Воли бросить нельзя.': 'No Willpower available: a Willpower roll cannot be made.',
+  'Воля полностью заполнена тяжёлым стрессом: потратить Волю нельзя.': 'Willpower is completely full of Aggravated stress: Willpower cannot be spent.',
+  'Трек Воли был заполнен: один поверхностный стресс превращён в тяжёлый.': 'The Willpower track was full: one point of Superficial stress was converted to Aggravated.',
+  'Воля полностью заполнена: потратить Волю нельзя.': 'Willpower is completely full: Willpower cannot be spent.',
+  'Трек Воли заполнен: ментальные и социальные проверки получают -2к10.': 'The Willpower track is full: mental and social checks take -2d10.',
+
+  // GameTable.tsx: opposed/contested roll requests, damage application dialogs
+  'Сначала выбери активного персонажа.': 'First choose an active character.',
+  'Твой ответный пул должен быть хотя бы 1к10.': 'Your response pool must be at least 1d10.',
+  'Ответчик': 'Responder',
+  'Сначала войди в чат стола.': "First log into the table's chat.",
+  'Выбери другого игрока для встречного броска.': 'Choose a different player for the opposed roll.',
+  'На столе нет доступных целей.': 'There are no available targets on the table.',
+  'Выбери цель:\n{list}': 'Choose a target:\n{list}',
+  'Разница успехов:': 'Margin of successes:',
+  'Модификатор оружия:': 'Weapon modifier:',
+  'Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.': 'Deal Aggravated damage? Click "Cancel" for Superficial.',
+  'Делить лёгкий урон пополам с округлением вверх?': 'Halve Superficial damage, rounding up?',
+  'Итоговый урон равен нулю.': 'The final damage is zero.',
+  'Урон применён из броска «{poolName}».': 'Damage applied from the roll "{poolName}".',
+  'Сколько урона нанести?': 'How much damage to deal?',
+  'Комментарий к урону (необязательно):': 'Comment on the damage (optional):',
+
+  // GameTable.tsx: master-roll/preview-roll alerts and impairment warnings
+  'Выбери персонажа мастера.': "Choose the Storyteller's character.",
+  'Выбери характеристику, навык, дисциплину или положительный модификатор.': 'Choose an Attribute, a Skill, a Discipline, or a positive modifier.',
+  'Трек Воли заполнен: ментальная или социальная проверка получает -2к10.': 'The Willpower track is full: a mental or social check takes -2d10.',
+  'Шкала здоровья заполнена: физическая проверка получает -2к10.': 'The Health track is full: a physical check takes -2d10.',
+  'Сколько Испытаний Крови сделать для этой силы?': 'How many Rouse Checks should this power make?',
+  'Файл не загрузился в Supabase Storage. Примени обновлённый SQL для bucket table-images.': 'The file failed to upload to Supabase Storage. Apply the updated SQL for the table-images bucket.',
+
+  // lib/vtm/health.ts: getHealthWarning / applyHealthDamage
+  'Шкала здоровья полностью заполнена тяжёлыми повреждениями: вампир впадает в торпор.': 'The Health track is completely full of Aggravated damage: the vampire falls into torpor.',
+  'Шкала здоровья полностью заполнена тяжёлыми повреждениями: смертный в коме или мёртв, решение Рассказчика.': "The Health track is completely full of Aggravated damage: the mortal is comatose or dead, Storyteller's call.",
+  'Слабокровный: проверь профиль урона и решение Рассказчика.': "Thin-blood: check the damage profile and the Storyteller's call.",
+  'Шкала здоровья полностью заполнена тяжёлыми повреждениями: решение Рассказчика.': "The Health track is completely full of Aggravated damage: Storyteller's call.",
+  'Шкала здоровья заполнена: физические проверки получают -2к10.': 'The Health track is full: physical checks take -2d10.',
+  'Переполнение шкалы: {converted} лёгк. поврежд. превращено в тяжёлые.': 'Track overflow: {converted} Superficial damage converted to Aggravated.',
+
+  // lib/vtm/humanity.ts: addHumanityStains warning
+  'Шкала Сомнений заполнена. Следующая проверка мук совести почти наверняка приведёт к потере Человечности.':
+    'The Stains track is full. The next Conscience check will almost certainly cause a loss of Humanity.',
+
+  // lib/table/constants.ts: DEFAULT_SCENE_NAME
+  'Основная сцена': 'Main scene',
+
+  // GameTable.tsx: quick-roll default poolName, willpower reroll
+  'Быстрый бросок': 'Quick roll',
+  'Выбери от одного до трёх обычных кубиков.': 'Choose one to three ordinary dice.',
+  'Не удалось найти персонажа для траты Воли.': 'Could not find the character to spend Willpower.',
+  'Воля: переброс · {poolName}': 'Willpower: reroll · {poolName}',
+
+  // MusicPanel.tsx / music adapters / MusicSyncEngine.ts
+  'Музыка не выбрана': 'No music selected',
+  'Играет синхронно': 'Playing in sync',
+  'Пауза': 'Paused',
+  'Музыка выключена': 'Music is off',
+  'Нет общей музыки': 'No shared music',
+  'Ошибка при загрузке музыки': 'Error loading the music',
+  'YouTube ссылка не распознана': 'The YouTube link was not recognized',
+  'Поддерживаются YouTube и аудиофайлы': 'YouTube links and audio files are supported',
+  'Папка музыки не сохранилась': 'The music folder was not saved',
+  'Трек загружен, но не сохранён в библиотеке': 'The track was uploaded but not saved to the library',
+  'Музыка не переместилась': 'The music was not moved',
+  'Этот трек не похож на аудиофайл': "This track doesn't look like an audio file",
+  'Музыкой управляет мастер': 'The Storyteller controls the music',
+  'Этот аудиофайл не поддерживается браузером': 'This audio file is not supported by the browser',
+  'Нажми «Включить музыку», чтобы запустить звук': 'Click "Enable music" to start the sound',
+  'Аудиофайл не запустился': 'The audio file failed to start',
+  'Музыка отправлена онлайн, но не сохранена': 'The music was sent online but was not saved',
+  'Музыка комнаты': "Room's music",
+  'Аудиоплеер': 'Audio player',
+  'YouTube плеер': 'YouTube player',
+  'Музыкальный плеер': 'Music player',
+  'Играет': 'Playing',
+  'Локальные настройки плеера': "Player's local settings",
+  'Полный экран': 'Full screen',
+  'Включить музыку': 'Enable music',
+  'Музыкальная библиотека': 'Music library',
+  'папка': 'folder',
+  'корень': 'root',
+  'Корень': 'Root',
+  'Треки запускает мастер.': 'The Storyteller plays the tracks.',
+  'Музыка ещё не загружена.': 'No music uploaded yet.',
+  'Название папки музыки': 'Music folder name',
+  'Можно загрузить только аудиофайлы.': 'Only audio files can be uploaded.',
+  'Музыка не загрузилась в Supabase Storage. Проверь bucket table-music и policies из SQL.': 'The music failed to upload to Supabase Storage. Check the table-music bucket and SQL policies.',
+  'Источник: {provider}': 'Source: {provider}',
+  '{seconds} сек.': '{seconds} sec.',
+  '{state} · {seconds} сек.': '{state} · {seconds} sec.',
+  'Управление музыкой комнаты': "Control the room's music",
+  'YouTube ссылка или аудиофайл': 'YouTube link or audio file',
+  'Играть': 'Play',
+  'Стоп': 'Stop',
 }

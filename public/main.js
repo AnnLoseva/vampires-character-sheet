@@ -4801,7 +4801,7 @@ function updateDiceRollPoolPreview() {
     const healthText = pool.healthPenalty ? tf(' · Здоровье: {n}к10', { n: pool.healthPenalty }) : '';
 
     preview.innerHTML = `
-        <strong>${pool.diceCount}к10</strong>
+        <strong>${pool.diceCount}${window.VTM_LANG === 'en' ? 'd10' : 'к10'}</strong>
         <span>${escapeDiceHtml(`${pool.firstDots} + ${pool.secondDots}${modifierText}${surgeText}`)}${willpowerText}${healthText}${hungerDiceCount ? tf(' · Голод: {n}', { n: hungerDiceCount }) : ''}</span>
     `;
 }

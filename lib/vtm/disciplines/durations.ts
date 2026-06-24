@@ -99,11 +99,14 @@ export function getDurationRemainingUses(
 
 export function getDisciplineDurationLabel(
   duration?: DisciplineDuration | null,
+  t: (ru: string) => string = ru => ru,
+  tf: (ru: string, vars: Record<string, string | number>) => string = (ru, vars) =>
+    Object.entries(vars).reduce((acc, [key, value]) => acc.replace(`{${key}}`, String(value)), ru),
 ) {
   if (!duration) return ''
-  if (duration.type === 'scene') return 'до конца сцены'
-  if (duration.type === 'night') return 'до конца ночи'
-  if (duration.type === 'permanent') return 'постоянно'
+  if (duration.type === 'scene') return t('до конца сцены')
+  if (duration.type === 'night') return t('до конца ночи')
+  if (duration.type === 'permanent') return t('постоянно')
   const turns = Math.max(1, Math.floor(Number(duration.turns) || 1))
-  return `${turns} ход`
+  return tf('{turns} ход', { turns })
 }

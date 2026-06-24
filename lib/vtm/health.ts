@@ -161,14 +161,22 @@ export function getHealthMetaState(health: NormalizedHealth) {
   }
 }
 
-export function getHealthWarning(health: NormalizedHealth, profile: DamageProfile) {
+const identityT = (ru: string) => ru
+const basicTf = (ru: string, vars: Record<string, string | number>) =>
+  Object.entries(vars).reduce((acc, [key, value]) => acc.replace(`{${key}}`, String(value)), ru)
+
+export function getHealthWarning(
+  health: NormalizedHealth,
+  profile: DamageProfile,
+  t: (ru: string) => string = identityT,
+) {
   if (health.aggravated >= health.max && health.max > 0) {
-    if (profile === 'vampire') return 'Шкала здоровья полностью заполнена тяжёлыми повреждениями: вампир впадает в торпор.'
-    if (profile === 'mortal' || profile === 'ghoul') return 'Шкала здоровья полностью заполнена тяжёлыми повреждениями: смертный в коме или мёртв, решение Рассказчика.'
-    if (profile === 'thinblood') return 'Слабокровный: проверь профиль урона и решение Рассказчика.'
-    return 'Шкала здоровья полностью заполнена тяжёлыми повреждениями: решение Рассказчика.'
+    if (profile === 'vampire') return t('Шкала здоровья полностью заполнена тяжёлыми повреждениями: вампир впадает в торпор.')
+    if (profile === 'mortal' || profile === 'ghoul') return t('Шкала здоровья полностью заполнена тяжёлыми повреждениями: смертный в коме или мёртв, решение Рассказчика.')
+    if (profile === 'thinblood') return t('Слабокровный: проверь профиль урона и решение Рассказчика.')
+    return t('Шкала здоровья полностью заполнена тяжёлыми повреждениями: решение Рассказчика.')
   }
-  if (health.impaired) return 'Шкала здоровья заполнена: физические проверки получают -2к10.'
+  if (health.impaired) return t('Шкала здоровья заполнена: физические проверки получают -2к10.')
   return ''
 }
 
@@ -178,6 +186,8 @@ export function applyHealthDamage(
   severity: DamageSeverity,
   options: HealthDamageOptions = {},
   profile: DamageProfile = 'vampire',
+  t: (ru: string) => string = identityT,
+  tf: (ru: string, vars: Record<string, string | number>) => string = basicTf,
 ): HealthDamageResult {
   const originalAmount = Math.max(0, Math.floor(Number(amount) || 0))
   const halved = severity === 'superficial'
@@ -214,8 +224,8 @@ export function applyHealthDamage(
     bonusMax: health.bonusMax,
     maxOverride: health.maxOverride,
   }, health.max - 3 - health.bonusMax, profile)
-  if (converted > 0) warnings.push(`Переполнение шкалы: ${converted} лёгк. поврежд. превращено в тяжёлые.`)
-  const warning = getHealthWarning(tracker, profile)
+  if (converted > 0) warnings.push(tf('Переполнение шкалы: {converted} лёгк. поврежд. превращено в тяжёлые.', { converted }))
+  const warning = getHealthWarning(tracker, profile, t)
   if (warning) warnings.push(warning)
 
   return { tracker, originalAmount, finalAmount, applied, converted, halved, warnings }
