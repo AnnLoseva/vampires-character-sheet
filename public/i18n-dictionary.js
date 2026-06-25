@@ -964,4 +964,6 @@ window.VTM_I18N = {
   "Добавить ещё": "Add another",
   "{points} т.": "{points} pt.",
   "До {i}: {cost} XP": "Up to {i}: {cost} XP",
+  "Утолить голод": "Quench hunger",
+  "Насытиться": "Fully sate",
 };

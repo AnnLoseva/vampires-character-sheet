@@ -434,6 +434,8 @@ export const dictionary: Record<string, string> = {
   'Состояние': 'Status',
   'Голод': 'Hunger',
   'Проверить Голод': 'Check Hunger',
+  'Утолить голод': 'Quench hunger',
+  'Насытиться': 'Fully sate',
   'Сомнения и муки совести': 'Stains and Conscience',
   'Человечность {value}, Сомнения {stains}': 'Humanity {value}, Stains {stains}',
   'Сомнения {stains} / {remaining} · свободно {free}': 'Stains {stains} / {remaining} · free {free}',

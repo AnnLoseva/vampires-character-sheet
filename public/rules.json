@@ -1890,14 +1890,180 @@
       "pool": "упорство + Анимализм vs самообладание + хитрость",
       "cost": "нет",
       "effect": "При победе в состязании персонаж понимает, враждебна ли цель и является ли она смертным, вампиром или иным сверхъестественным существом. Триумф раскрывает точный тип существа, Голод или аналогичный параметр и резонанс. Сила также может пассивно предупреждать об опасности поблизости.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Анимализм",
+        "power": "Чутьё на зверя",
+        "level": 1,
+        "tags": [
+         "passive",
+         "sense",
+         "beast_sense",
+         "threat_detection",
+         "resistance"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Упорство",
+         "Анимализм"
+        ],
+        "resistancePool": [
+         "Самообладание",
+         "Хитрость"
+        ],
+        "success": "цель скрывает природу, Голод или намерения"
+       },
+       "effects": [
+        {
+         "id": "animalism-sense-beast",
+         "type": "sense",
+         "label": "Чутьё на зверя",
+         "description": "Персонаж чувствует чужого Зверя, агрессию, голод и непосредственную угрозу.",
+         "sense": "beast_sense",
+         "tags": [
+          "threat",
+          "hunger",
+          "creature_type",
+          "resonance"
+         ]
+        },
+        {
+         "id": "animalism-sense-beast-roll",
+         "type": "roll_modifier",
+         "label": "Чутьё на зверя",
+         "description": "+Анимализм к проверкам распознавания Зверя, угрозы или сверхъестественной природы.",
+         "matcher": {
+          "conditions": [
+           "beast_sense",
+           "threat_detection",
+           "creature_type_detection",
+           "hunger_sense"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Анимализм"
+         }
+        },
+        {
+         "id": "animalism-sense-beast-prompt",
+         "type": "manual_prompt",
+         "label": "Чутьё на зверя: ответы",
+         "description": "При победе скажи, враждебна ли цель и кто она: смертный, вампир или иное сверхъестественное существо. Триумф раскрывает точный тип, Голод или аналог и резонанс.",
+         "message": "При победе скажи, враждебна ли цель и кто она: смертный, вампир или иное сверхъестественное существо. Триумф раскрывает точный тип, Голод или аналог и резонанс.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Чует Зверя"
+       }
+      }
      },
      "Фамулус": {
       "description": "Вампир поит животное своей витэ три ночи и делает его постоянным спутником, связанным с ним Кровью.",
       "pool": "обаяние + обращение с животными",
       "cost": "кормление витэ 3 ночи (с испытаниями Крови)",
       "effect": "Фамулус понимает простые команды, защищает себя и хозяина, лучше поддаётся другим силам Анимализма и не стареет при регулярном кормлении. Одновременно можно иметь только одного фамулуса; связь обычно разрывает только смерть.",
-      "duration": "постоянная (пока жив)"
+      "duration": "постоянная (пока жив)",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Анимализм",
+        "power": "Фамулус",
+        "level": 1,
+        "tags": [
+         "active",
+         "entity",
+         "famulus",
+         "animal_companion",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "downtime"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "famulusName",
+          "label": "Имя фамулуса",
+          "type": "text",
+          "required": true,
+          "placeholder": "Например: Корвус"
+         },
+         {
+          "id": "animalSpecies",
+          "label": "Вид животного",
+          "type": "text",
+          "required": true,
+          "placeholder": "Например: ворон, пёс, крыса"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "animalism-famulus-entity",
+         "type": "entity",
+         "label": "Фамулус",
+         "description": "Постоянный животный спутник, связанный Кровью. Одновременно обычно можно иметь только одного фамулуса.",
+         "entityType": "famulus",
+         "status": "bonded",
+         "payload": {
+          "famulusName": "",
+          "animalSpecies": ""
+         }
+        },
+        {
+         "id": "animalism-famulus-condition",
+         "type": "condition",
+         "label": "Фамулус",
+         "description": "Фамулус понимает простые команды, защищает себя и хозяина и лучше поддаётся Анимализму.",
+         "condition": "has_famulus",
+         "action": "apply",
+         "payload": {
+          "famulusName": "",
+          "animalSpecies": ""
+         }
+        },
+        {
+         "id": "animalism-famulus-prompt",
+         "type": "manual_prompt",
+         "label": "Фамулус: создание связи",
+         "description": "Создание требует кормления витэ три ночи с испытаниями Крови. Эта запись добавляет фамулуса к персонажу; завершение ритуала и разрыв связи ведёт рассказчик.",
+         "message": "Создание требует кормления витэ три ночи с испытаниями Крови. Эта запись добавляет фамулуса к персонажу; завершение ритуала и разрыв связи ведёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Фамулус"
+       }
+      }
      }
     },
     "2": {
@@ -1906,7 +2072,95 @@
       "pool": "манипуляция или обаяние + Анимализм",
       "cost": "1 испытание Крови (для призыва)",
       "effect": "Обычная беседа не требует проверки. Чтобы убедить животное сделать что-то рискованное или сложное, используется Манипуляция + Анимализм; чтобы призвать зверей — Обаяние + Анимализм, сложность зависит от редкости вида. Животные остаются животными: они не понимают абстракций и не любят самоубийственные задачи.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Анимализм",
+        "power": "Язык животных",
+        "level": 2,
+        "tags": [
+         "active",
+         "animal_communication",
+         "condition",
+         "command_input",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "animalSpecies",
+          "label": "Вид животного",
+          "type": "text",
+          "required": false,
+          "placeholder": "С кем говорим или кого зовём"
+         },
+         {
+          "id": "animalCommand",
+          "label": "Просьба или приказ",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Что животное должно понять или сделать"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "animalism-feral-whispers-communication",
+         "type": "condition",
+         "label": "Язык животных",
+         "description": "Персонаж может говорить с животными выбранного вида и отдавать простые команды.",
+         "condition": "animal_communication",
+         "action": "apply",
+         "payload": {
+          "animalSpecies": "",
+          "animalCommand": ""
+         }
+        },
+        {
+         "id": "animalism-feral-whispers-roll",
+         "type": "roll_modifier",
+         "label": "Язык животных",
+         "description": "+Анимализм к переговорам, призыву и приказам животным в рамках этой силы.",
+         "matcher": {
+          "conditions": [
+           "animal_communication",
+           "animal_command",
+           "animal_summon"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Анимализм"
+         }
+        },
+        {
+         "id": "animalism-feral-whispers-prompt",
+         "type": "manual_prompt",
+         "label": "Язык животных: рамки понимания",
+         "description": "Обычная беседа обычно без броска. Рискованные или сложные просьбы требуют Манипуляция + Анимализм; призыв зверей — Обаяние + Анимализм и 1 испытание Крови. Животные не понимают абстракций.",
+         "message": "Обычная беседа обычно без броска. Рискованные или сложные просьбы требуют Манипуляция + Анимализм; призыв зверей — Обаяние + Анимализм и 1 испытание Крови. Животные не понимают абстракций.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Разговор с животными"
+       }
+      }
      }
     },
     "3": {
@@ -1915,21 +2169,262 @@
       "pool": "—",
       "cost": "нет",
       "effect": "Животная кровь снимает на 1 Голод больше обычного и считается пригодной даже для более сильной Крови. Поглощение фамулуса снимает 4 Голода, но минимум 1 Голод остаётся, и временно повышает подходящую характеристику на 2 до следующего насыщения или Голода 5.",
-      "duration": "до следующего насыщения"
+      "duration": "до следующего насыщения",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Анимализм",
+        "power": "Зверский аппетит",
+        "level": 3,
+        "tags": [
+         "passive",
+         "feeding",
+         "animal_blood",
+         "famulus",
+         "hunger"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "animalism-animal-succulence-bonus",
+         "type": "feeding_modifier",
+         "label": "Зверский аппетит: животная кровь",
+         "description": "Животная кровь снимает на 1 Голод больше обычного.",
+         "matcher": {
+          "sources": [
+           "animal",
+           "animal_blood"
+          ]
+         },
+         "operation": "add_satiation",
+         "amount": 1
+        },
+        {
+         "id": "animalism-animal-succulence-famulus",
+         "type": "feeding_modifier",
+         "label": "Зверский аппетит: фамулус",
+         "description": "Поглощение фамулуса снимает 4 Голода, но минимум 1 Голод остаётся.",
+         "matcher": {
+          "sources": [
+           "famulus"
+          ]
+         },
+         "operation": "set_satiation",
+         "amount": 4,
+         "minimumHunger": 1
+        },
+        {
+         "id": "animalism-animal-succulence-prompt",
+         "type": "manual_prompt",
+         "label": "Зверский аппетит: фамулус",
+         "description": "При поглощении фамулуса временно повысь подходящую характеристику на 2 до следующего насыщения или Голода 5. Потерю фамулуса и последствия связи ведёт рассказчик.",
+         "message": "При поглощении фамулуса временно повысь подходящую характеристику на 2 до следующего насыщения или Голода 5. Потерю фамулуса и последствия связи ведёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Животная кровь насыщает лучше"
+       }
+      }
      },
      "Усмирение зверя": {
       "description": "Вампир встречается с целью взглядом и усыпляет её Зверя.",
       "pool": "обаяние + Анимализм vs выносливость + упорство",
       "cost": "1 испытание Крови",
       "effect": "Смертный становится почти безучастным и действует только для самозащиты. Вампир под эффектом не получает кровавых триумфов и не может использовать прилив Крови; триумф применения может остановить приступ ярости.",
-      "duration": "1 сцена или (выигрыш + 1) ходов"
+      "duration": "1 сцена или (выигрыш + 1) ходов",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Анимализм",
+        "power": "Усмирение зверя",
+        "level": 3,
+        "tags": [
+         "active",
+         "condition",
+         "beast_subdued",
+         "no_messy_critical",
+         "no_blood_surge",
+         "resistance"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Обаяние",
+         "Анимализм"
+        ],
+        "resistancePool": [
+         "Выносливость",
+         "Упорство"
+        ],
+        "success": "цель сохраняет активного Зверя",
+        "criticalActorSuccess": "может остановить приступ ярости"
+       },
+       "effects": [
+        {
+         "id": "animalism-quell-beast-subdued",
+         "type": "condition",
+         "label": "Усмирение зверя",
+         "description": "Зверь цели усыплён; смертный почти безучастен, вампир ограничен в проявлениях Крови.",
+         "condition": "beast_subdued",
+         "action": "apply"
+        },
+        {
+         "id": "animalism-quell-no-messy-critical",
+         "type": "condition",
+         "label": "Усмирение зверя: нет кровавых триумфов",
+         "description": "Пока эффект действует, цель-вампир не получает кровавых триумфов.",
+         "condition": "no_messy_critical",
+         "action": "apply"
+        },
+        {
+         "id": "animalism-quell-no-blood-surge",
+         "type": "condition",
+         "label": "Усмирение зверя: нет Прилива Крови",
+         "description": "Пока эффект действует, цель-вампир не может использовать Прилив Крови.",
+         "condition": "no_blood_surge",
+         "action": "apply"
+        },
+        {
+         "id": "animalism-quell-prompt",
+         "type": "manual_prompt",
+         "label": "Усмирение зверя: длительность",
+         "description": "Для смертных обычно сцена; для вампиров можно вести как выигрыш + 1 ход. Триумф применения может остановить приступ ярости.",
+         "message": "Для смертных обычно сцена; для вампиров можно вести как выигрыш + 1 ход. Триумф применения может остановить приступ ярости.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Зверь усмирён"
+       }
+      }
      },
      "Трупный улей": {
       "description": "Амальгама с Сокрытием 2: вампир контролирует рой насекомых как одно существо, иногда пряча его в собственном теле.",
       "pool": "—",
       "cost": "нет",
       "effect": "Рой можно сделать фамулусом, использовать для слежки, отвлечения и запугивания. В бою он слаб, но мешает цели: окружённая роем цель получает штраф 2d10 к действиям; для запугивания смертных рой может добавить 1-3d10.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Анимализм",
+        "power": "Трупный улей",
+        "level": 3,
+        "tags": [
+         "active",
+         "swarm",
+         "condition",
+         "roll_modifier",
+         "famulus"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "swarmTarget",
+          "label": "Цель роя",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого окружил или отвлекает рой"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "animalism-undead-hive-swarm",
+         "type": "condition",
+         "label": "Трупный улей",
+         "description": "Рой действует как одно существо; может следить, отвлекать, запугивать или быть фамулусом.",
+         "condition": "swarm",
+         "action": "apply",
+         "payload": {
+          "swarmTarget": ""
+         }
+        },
+        {
+         "id": "animalism-undead-hive-swarm-penalty",
+         "type": "roll_modifier",
+         "label": "Трупный улей: рой мешает",
+         "description": "Окружённая роем цель получает -2d10 к действиям.",
+         "matcher": {
+          "conditions": [
+           "swarmed",
+           "swarm_penalty",
+           "swarm"
+          ]
+         },
+         "operation": "remove_dice",
+         "amount": 2
+        },
+        {
+         "id": "animalism-undead-hive-intimidation",
+         "type": "roll_modifier",
+         "label": "Трупный улей: запугивание",
+         "description": "Рой может добавить +1–3d10 к запугиванию смертных; по умолчанию добавляется +1d10.",
+         "matcher": {
+          "traits": [
+           "Запугивание",
+           "Intimidation"
+          ],
+          "conditions": [
+           "swarm_intimidation",
+           "mortal_intimidation"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": 1
+        },
+        {
+         "id": "animalism-undead-hive-prompt",
+         "type": "manual_prompt",
+         "label": "Трупный улей: рой",
+         "description": "Рой можно сделать фамулусом или прятать в теле. Для запугивания смертных рассказчик может поднять бонус до +3d10.",
+         "message": "Рой можно сделать фамулусом или прятать в теле. Для запугивания смертных рассказчик может поднять бонус до +3d10.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Контролируемый рой"
+       }
+      }
      }
     },
     "4": {
@@ -1938,7 +2433,82 @@
       "pool": "манипуляция + Анимализм (сложность 4)",
       "cost": "1 испытание Крови (бесплатно для фамулуса)",
       "effect": "Тело вампира остаётся неподвижным и беззащитным. В теле животного можно двигаться и воспринимать мир, при попытке действовать днём нужно сопротивляться сну. Ранение тела вампира, смерть животного или солнечный ужас могут прервать эффект.",
-      "duration": "1 сцена или дольше при триумфе"
+      "duration": "1 сцена или дольше при триумфе",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Анимализм",
+        "power": "Поглощение духа",
+        "level": 4,
+        "tags": [
+         "active",
+         "animal_possession",
+         "condition",
+         "sense",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "animalSpecies",
+          "label": "Животное-носитель",
+          "type": "text",
+          "required": true,
+          "placeholder": "Например: ворон-фамулус, уличная кошка"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "animalism-subsume-spirit-sense",
+         "type": "sense",
+         "label": "Поглощение духа",
+         "description": "Персонаж воспринимает мир через тело животного.",
+         "sense": "animal_possession",
+         "tags": [
+          "remote_senses",
+          "animal_body"
+         ]
+        },
+        {
+         "id": "animalism-subsume-spirit-condition",
+         "type": "condition",
+         "label": "Поглощение духа",
+         "description": "Сознание вампира в теле животного; собственное тело неподвижно и беззащитно.",
+         "condition": "animal_possession",
+         "action": "apply",
+         "payload": {
+          "animalSpecies": ""
+         }
+        },
+        {
+         "id": "animalism-subsume-spirit-prompt",
+         "type": "manual_prompt",
+         "label": "Поглощение духа: риски",
+         "description": "Бесплатно для фамулуса; иначе 1 испытание Крови. Днём нужно сопротивляться сну. Ранение тела вампира, смерть животного или солнечный ужас могут прервать эффект.",
+         "message": "Бесплатно для фамулуса; иначе 1 испытание Крови. Днём нужно сопротивляться сну. Ранение тела вампира, смерть животного или солнечный ужас могут прервать эффект.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Сознание в животном"
+       }
+      }
      }
     },
     "5": {
@@ -1947,14 +2517,181 @@
       "pool": "смекалка + Анимализм vs самообладание + упорство",
       "cost": "1 испытание Крови",
       "effect": "При победе в состязании цель впадает в соответствующую ярость вместо вампира. Это не защищает от будущих приступов в той же сцене и не работает против голодной ярости.",
-      "duration": "как у ярости"
+      "duration": "как у ярости",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Анимализм",
+        "power": "Отчуждение зверя",
+        "level": 5,
+        "tags": [
+         "active",
+         "frenzy_transfer",
+         "condition",
+         "resistance",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "reaction"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "frenzyTarget",
+          "label": "Кому передана ярость",
+          "type": "text",
+          "required": true,
+          "placeholder": "Существо рядом"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Смекалка",
+         "Анимализм"
+        ],
+        "resistancePool": [
+         "Самообладание",
+         "Упорство"
+        ],
+        "success": "ярость не переносится",
+        "failure": "цель впадает в соответствующую ярость вместо вампира"
+       },
+       "effects": [
+        {
+         "id": "animalism-drawing-out-beast-transfer",
+         "type": "condition",
+         "label": "Отчуждение зверя",
+         "description": "Приступ ярости перенесён на другое существо рядом.",
+         "condition": "frenzy_transfer",
+         "action": "apply",
+         "payload": {
+          "frenzyTarget": ""
+         }
+        },
+        {
+         "id": "animalism-drawing-out-beast-prompt",
+         "type": "manual_prompt",
+         "label": "Отчуждение зверя: ограничения",
+         "description": "Не защищает от будущих приступов в той же сцене и не работает против голодной ярости. Тип ярости сохраняется.",
+         "message": "Не защищает от будущих приступов в той же сцене и не работает против голодной ярости. Тип ярости сохраняется.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Ярость перенесена"
+       }
+      }
      },
      "Царь зверей": {
       "description": "Вампир командует уже присутствующими животными как стаей, заставляя их действовать согласованно.",
       "pool": "обаяние + Анимализм",
       "cost": "2 испытания Крови",
       "effect": "Выбери вид животных рядом и отдай приказ. Сложность зависит от природы зверей и опасности задачи: разведка проще, атака на вампира труднее. Сила не призывает новых животных, а управляет теми, кто уже поблизости.",
-      "duration": "до выполнения приказа (макс. 1 сцена)"
+      "duration": "до выполнения приказа (макс. 1 сцена)",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Анимализм",
+        "power": "Царь зверей",
+        "level": 5,
+        "tags": [
+         "active",
+         "animal_group_command",
+         "condition",
+         "command_input",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 2
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "animalSpecies",
+          "label": "Вид животных",
+          "type": "text",
+          "required": true,
+          "placeholder": "Например: крысы, вороны, собаки"
+         },
+         {
+          "id": "animalCommand",
+          "label": "Приказ стае",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Что должна сделать группа животных"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "animalism-animal-dominion-command",
+         "type": "condition",
+         "label": "Царь зверей",
+         "description": "Группа уже присутствующих животных действует согласованно по приказу.",
+         "condition": "animal_group_command",
+         "action": "apply",
+         "payload": {
+          "animalSpecies": "",
+          "animalCommand": ""
+         }
+        },
+        {
+         "id": "animalism-animal-dominion-roll",
+         "type": "roll_modifier",
+         "label": "Царь зверей",
+         "description": "+Анимализм к командованию присутствующей группой животных.",
+         "matcher": {
+          "conditions": [
+           "animal_group_command",
+           "animal_pack",
+           "animal_command"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Анимализм"
+         }
+        },
+        {
+         "id": "animalism-animal-dominion-prompt",
+         "type": "manual_prompt",
+         "label": "Царь зверей: не призыв",
+         "description": "Сила управляет уже присутствующими животными, но не призывает новых. Сложность зависит от природы зверей и опасности задачи.",
+         "message": "Сила управляет уже присутствующими животными, но не призывает новых. Сложность зависит от природы зверей и опасности задачи.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Приказ стае"
+       }
+      }
      }
     }
    }
@@ -1974,14 +2711,161 @@
       "pool": "манипуляция + Величие vs самообладание + интеллект",
       "cost": "нет",
       "effect": "Добавляет Величие к проверкам убеждения, исполнения и иногда обаяния. Тот, кто понимает, что на него воздействуют, может сопротивляться; при успехе он игнорирует Благоговение на сцену, при триумфе — до конца ночи.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Величие",
+        "power": "Благоговение",
+        "level": 1,
+        "tags": [
+         "active",
+         "social",
+         "roll_modifier",
+         "resistance",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "minor"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Манипуляция",
+         "Величие"
+        ],
+        "resistancePool": [
+         "Самообладание",
+         "Интеллект"
+        ],
+        "trigger": "цель понимает, что на неё воздействуют",
+        "success": "цель игнорирует Благоговение до конца сцены",
+        "criticalSuccess": "цель игнорирует Благоговение до конца ночи"
+       },
+       "effects": [
+        {
+         "id": "presence-awe-social-bonus",
+         "type": "roll_modifier",
+         "label": "Благоговение",
+         "description": "+Величие к убеждению, исполнению и подходящим социальным проверкам, пока сила активна.",
+         "matcher": {
+          "traits": [
+           "Убеждение",
+           "Исполнение",
+           "Обаяние",
+           "Хитрость",
+           "Этикет",
+           "Лидерство",
+           "Persuasion",
+           "Performance",
+           "Charisma",
+           "Subterfuge",
+           "Etiquette",
+           "Leadership"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Величие"
+         }
+        },
+        {
+         "id": "presence-awe-resistance-prompt",
+         "type": "manual_prompt",
+         "label": "Благоговение: сопротивление",
+         "description": "Если цель понимает воздействие, проведи состязание Манипуляция + Величие против Самообладание + Интеллект. Успех цели отключает Благоговение для неё на сцену, триумф — на ночь.",
+         "message": "Если цель понимает воздействие, проведи состязание Манипуляция + Величие против Самообладание + Интеллект. Успех цели отключает Благоговение для неё на сцену, триумф — на ночь."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "+Величие к обаянию и убеждению"
+       }
+      }
      },
      "Угроза": {
       "description": "Вместо привлекательности вампир испускает ауру опасности, из-за которой к нему страшно приближаться.",
       "pool": "—",
       "cost": "нет",
       "effect": "Добавляет Величие к запугиванию. Любой, кто хочет атаковать вампира, сначала проходит Упорство + Самообладание со сложностью 2. Нельзя одновременно держать активными Угрозу и Благоговение.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Величие",
+        "power": "Угроза",
+        "level": 1,
+        "tags": [
+         "active",
+         "social",
+         "fear",
+         "roll_modifier",
+         "resistance",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "minor"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "resistance": {
+        "type": "difficulty",
+        "resistancePool": [
+         "Упорство",
+         "Самообладание"
+        ],
+        "difficulty": 2,
+        "trigger": "цель хочет атаковать вампира",
+        "success": "цель может атаковать в этом ходу"
+       },
+       "effects": [
+        {
+         "id": "presence-daunt-intimidation-bonus",
+         "type": "roll_modifier",
+         "label": "Угроза",
+         "description": "+Величие к Запугиванию, пока аура опасности активна.",
+         "matcher": {
+          "traits": [
+           "Запугивание",
+           "Intimidation"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Величие"
+         }
+        },
+        {
+         "id": "presence-daunt-attack-prompt",
+         "type": "manual_prompt",
+         "label": "Угроза: приблизиться страшно",
+         "description": "Перед атакой по вампиру цель проверяет Упорство + Самообладание со сложностью 2. Угроза и Благоговение не должны быть активны одновременно.",
+         "message": "Перед атакой по вампиру цель проверяет Упорство + Самообладание со сложностью 2. Угроза и Благоговение не должны быть активны одновременно."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "+Величие к Запугиванию"
+       }
+      }
      }
     },
     "2": {
@@ -1990,7 +2874,53 @@
       "pool": "—",
       "cost": "нет",
       "effect": "После успешного насыщения жертва получает временный бонус к одной социальной характеристике, но затем страдает от похмелья и штрафов ко всем действиям, не ведущим к новому Поцелую. Силу нельзя использовать тем, кто связан узами Крови как вассал, и тем, кто невосприимчив к узам.",
-      "duration": "эффект и штраф: 1 ночь × уровень Величия"
+      "duration": "эффект и штраф: 1 ночь × уровень Величия",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Величие",
+        "power": "Незабываемый поцелуй",
+        "level": 2,
+        "tags": [
+         "active",
+         "feeding",
+         "condition",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "feeding"
+       },
+       "cost": {},
+       "duration": {
+        "type": "night"
+       },
+       "effects": [
+        {
+         "id": "presence-lingering-kiss-addiction",
+         "type": "condition",
+         "label": "Незабываемый поцелуй",
+         "description": "Жертва тянется к повторному Поцелую; бонус и последующие штрафы ведутся вручную.",
+         "condition": "lingering_kiss",
+         "action": "apply"
+        },
+        {
+         "id": "presence-lingering-kiss-prompt",
+         "type": "manual_prompt",
+         "label": "Незабываемый поцелуй: ручной эффект",
+         "description": "После успешного кормления выбери временный социальный бонус жертвы, затем веди похмелье и штрафы ко всем действиям, не ведущим к новому Поцелую. Длительность: 1 ночь × Величие.",
+         "message": "После успешного кормления выбери временный социальный бонус жертвы, затем веди похмелье и штрафы ко всем действиям, не ведущим к новому Поцелую. Длительность: 1 ночь × Величие."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Желание повторить Поцелуй"
+       }
+      }
      }
     },
     "3": {
@@ -1999,14 +2929,177 @@
       "pool": "обаяние + Величие vs самообладание + смекалка",
       "cost": "1 испытание Крови",
       "effect": "Пока эффект держится, цель старается угодить вампиру, а он добавляет Величие к социальным проверкам против неё. Просьбы о явном вреде цели, её близким или принципам ломают эффект, если вампир сразу не возобновит воздействие.",
-      "duration": "1 час + 1 час за успехи"
+      "duration": "1 час + 1 час за успехи",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Величие",
+        "power": "Очарование",
+        "level": 3,
+        "tags": [
+         "active",
+         "social",
+         "condition",
+         "charmed",
+         "roll_modifier",
+         "resistance"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Обаяние",
+         "Величие"
+        ],
+        "resistancePool": [
+         "Самообладание",
+         "Смекалка"
+        ],
+        "success": "цель не очарована",
+        "durationFormula": "1 час + 1 час за успехи вампира"
+       },
+       "effects": [
+        {
+         "id": "presence-entrancement-charmed",
+         "type": "condition",
+         "label": "Очарование",
+         "description": "Цель очарована и старается угодить вампиру. Просьбы о явном вреде могут сломать эффект.",
+         "condition": "charmed",
+         "action": "apply"
+        },
+        {
+         "id": "presence-entrancement-social-bonus",
+         "type": "roll_modifier",
+         "label": "Очарование: социальный бонус",
+         "description": "+Величие к социальным проверкам против очарованной цели.",
+         "matcher": {
+          "traits": [
+           "Обаяние",
+           "Манипуляция",
+           "Убеждение",
+           "Хитрость",
+           "Этикет",
+           "Лидерство",
+           "Исполнение",
+           "Запугивание",
+           "Charisma",
+           "Manipulation",
+           "Persuasion",
+           "Subterfuge",
+           "Etiquette",
+           "Leadership",
+           "Performance",
+           "Intimidation"
+          ],
+          "conditions": [
+           "charmed",
+           "charmed_target",
+           "presence_charmed_target"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Величие"
+         }
+        },
+        {
+         "id": "presence-entrancement-prompt",
+         "type": "manual_prompt",
+         "label": "Очарование: сопротивление",
+         "description": "Состязание Обаяние + Величие против Самообладание + Смекалка. Длительность считай вручную: 1 час + 1 час за успехи вампира.",
+         "message": "Состязание Обаяние + Величие против Самообладание + Смекалка. Длительность считай вручную: 1 час + 1 час за успехи вампира."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Цель очарована"
+       }
+      }
      },
      "Устрашающий взор": {
       "description": "Вампир на миг показывает хищную сущность и обрушивает на жертву чистый ужас.",
       "pool": "обаяние + Величие vs самообладание + упорство",
       "cost": "1 испытание Крови",
       "effect": "Смертные бегут, замирают или теряют ход в зависимости от результата. Вампиры не бегут как люди, но могут потерять действия, потратить волю или пройти проверку против бессильной ярости при триумфе вампира.",
-      "duration": "1 ход"
+      "duration": "1 ход",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Величие",
+        "power": "Устрашающий взор",
+        "level": 3,
+        "tags": [
+         "active",
+         "fear",
+         "condition",
+         "frightened",
+         "resistance",
+         "turn"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Обаяние",
+         "Величие"
+        ],
+        "resistancePool": [
+         "Самообладание",
+         "Упорство"
+        ],
+        "success": "цель выдерживает ужас",
+        "failure": "цель бежит, замирает или теряет действие по решению рассказчика"
+       },
+       "effects": [
+        {
+         "id": "presence-dread-gaze-frightened",
+         "type": "condition",
+         "label": "Устрашающий взор",
+         "description": "Цель испугана на ход: смертные бегут, замирают или теряют действие; вампиры ведутся по ручной подсказке.",
+         "condition": "frightened",
+         "action": "apply"
+        },
+        {
+         "id": "presence-dread-gaze-prompt",
+         "type": "manual_prompt",
+         "label": "Устрашающий взор: исход",
+         "description": "Состязание Обаяние + Величие против Самообладание + Упорство. Для вампиров при триумфе проверь потерю действий, трату Воли или сопротивление бессильной ярости.",
+         "message": "Состязание Обаяние + Величие против Самообладание + Упорство. Для вампиров при триумфе проверь потерю действий, трату Воли или сопротивление бессильной ярости."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Цель испугана"
+       }
+      }
      }
     },
     "4": {
@@ -2015,14 +3108,116 @@
       "pool": "манипуляция + Величие vs самообладание + интеллект",
       "cost": "1 испытание Крови",
       "effect": "Цель понимает, кто зовёт и где он находится, и чувствует необходимость прийти. Обычная победа создаёт зов на ночь; триумф заставляет немедленно отправиться к вампиру, если это не грозит жизни или полным разорением.",
-      "duration": "1 ночь"
+      "duration": "1 ночь",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Величие",
+        "power": "Призыв",
+        "level": 4,
+        "tags": [
+         "active",
+         "social",
+         "condition",
+         "summoned",
+         "resistance",
+         "night"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "night"
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Манипуляция",
+         "Величие"
+        ],
+        "resistancePool": [
+         "Самообладание",
+         "Интеллект"
+        ],
+        "requirements": "цель ранее была под воздействием Величия или пробовала Кровь вампира",
+        "success": "цель не поддаётся зову",
+        "criticalActorSuccess": "цель немедленно отправляется к вампиру, если это не грозит жизни или полным разорением"
+       },
+       "effects": [
+        {
+         "id": "presence-summon-condition",
+         "type": "condition",
+         "label": "Призыв",
+         "description": "Цель чувствует зов и понимает, кто зовёт и где он находится. Длительность — ночь.",
+         "condition": "summoned",
+         "action": "apply"
+        },
+        {
+         "id": "presence-summon-prompt",
+         "type": "manual_prompt",
+         "label": "Призыв: сопротивление",
+         "description": "Состязание Манипуляция + Величие против Самообладание + Интеллект. Обычная победа зовёт на ночь; триумф вампира заставляет идти немедленно, если это не саморазрушительно.",
+         "message": "Состязание Манипуляция + Величие против Самообладание + Интеллект. Обычная победа зовёт на ночь; триумф вампира заставляет идти немедленно, если это не саморазрушительно."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Цель призвана"
+       }
+      }
      },
      "Притягательный голос": {
       "description": "Амальгама с Доминированием 1: голос вампира становится достаточным проводником для Доминирования.",
       "pool": "—",
       "cost": "нет",
       "effect": "Силы Доминирования можно применять без зрительного контакта, если цель слышит голос напрямую. Через телефон, телевизор, домофон и записи сила не передаётся.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Величие",
+        "power": "Притягательный голос",
+        "level": 4,
+        "tags": [
+         "passive",
+         "amalgam",
+         "dominate",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "presence-irresistible-voice-prompt",
+         "type": "manual_prompt",
+         "label": "Притягательный голос",
+         "description": "Доминирование можно применять без зрительного контакта, если цель слышит голос напрямую. Телефон, телевизор, домофон и записи не передают эффект.",
+         "message": "Доминирование можно применять без зрительного контакта, если цель слышит голос напрямую. Телефон, телевизор, домофон и записи не передают эффект."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Доминирование через голос"
+       }
+      }
      }
     },
     "5": {
@@ -2031,14 +3226,118 @@
       "pool": "—",
       "cost": "1 испытание Крови (дополнительно)",
       "effect": "Позволяет применять Благоговение, Угрозу и Очарование через прямую видео- или аудиосвязь. Для Очарования нужно назвать конкретную цель; остальные зрители просто сочтут вампира впечатляющим.",
-      "duration": "как у используемой силы"
+      "duration": "как у используемой силы",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Величие",
+        "power": "Звезда эфира",
+        "level": 5,
+        "tags": [
+         "active",
+         "broadcast",
+         "social",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "addon"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene",
+        "linkedToUsedPower": true
+       },
+       "effects": [
+        {
+         "id": "presence-star-magnetism-prompt",
+         "type": "manual_prompt",
+         "label": "Звезда эфира",
+         "description": "Добавь 1 испытание Крови к Благоговению, Угрозе или Очарованию, если они идут через прямой эфир или живой звук. Записи не работают; для Очарования нужна конкретная цель.",
+         "message": "Добавь 1 испытание Крови к Благоговению, Угрозе или Очарованию, если они идут через прямой эфир или живой звук. Записи не работают; для Очарования нужна конкретная цель."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Величие через эфир"
+       }
+      }
      },
      "Преклонение": {
       "description": "Вампир становится иконой красоты, ужаса или власти, перед которой трудно даже спорить.",
       "pool": "обаяние + Величие vs самообладание + упорство",
       "cost": "2 испытания Крови",
       "effect": "Окружающие могут только смотреть, прятать глаза или подчиняться настроению сцены. Чтобы действовать против воли вампира, кроме самозащиты, цель должна победить в состязании; триумф освобождает её до конца сцены.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Величие",
+        "power": "Преклонение",
+        "level": 5,
+        "tags": [
+         "active",
+         "social",
+         "awe",
+         "condition",
+         "resistance",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 2
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Обаяние",
+         "Величие"
+        ],
+        "resistancePool": [
+         "Самообладание",
+         "Упорство"
+        ],
+        "trigger": "цель пытается действовать против воли вампира, кроме самозащиты",
+        "criticalSuccess": "цель освобождается до конца сцены"
+       },
+       "effects": [
+        {
+         "id": "presence-majesty-condition",
+         "type": "condition",
+         "label": "Преклонение",
+         "description": "Окружающие могут только смотреть, прятать глаза или подчиняться настроению сцены; сопротивление ведётся состязанием.",
+         "condition": "majesty",
+         "action": "apply"
+        },
+        {
+         "id": "presence-majesty-prompt",
+         "type": "manual_prompt",
+         "label": "Преклонение: сопротивление",
+         "description": "Чтобы действовать против воли вампира, кроме самозащиты, цель должна победить Обаяние + Величие против Самообладание + Упорство. Триумф освобождает до конца сцены.",
+         "message": "Чтобы действовать против воли вампира, кроме самозащиты, цель должна победить Обаяние + Величие против Самообладание + Упорство. Триумф освобождает до конца сцены."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Икона преклонения"
+       }
+      }
      }
     }
    }
@@ -2058,14 +3357,166 @@
       "pool": "обаяние + Доминирование vs интеллект + упорство",
       "cost": "нет",
       "effect": "Неподозревающий смертный обычно не бросает сопротивление. Вампиры, настороженные люди, повторное воздействие в сцене или приказ против природы цели требуют состязания. Двусмысленные команды трактует рассказчик, часто неприятно для вампира.",
-      "duration": "мгновенно / до 1 сцены"
+      "duration": "мгновенно / до 1 сцены",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Доминирование",
+        "power": "Принуждение",
+        "level": 1,
+        "tags": [
+         "active",
+         "command_input",
+         "condition",
+         "compelled",
+         "resistance"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "commandText",
+          "label": "Текст команды",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Например: «стой», «молчи», «отдай ключ»",
+          "description": "Приложение сохраняет текст приказа, но не трактует его смысл автоматически."
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Обаяние",
+         "Доминирование"
+        ],
+        "resistancePool": [
+         "Интеллект",
+         "Упорство"
+        ],
+        "trigger": "вампир, настороженная цель, повторное воздействие или приказ против природы цели",
+        "success": "цель не выполняет команду"
+       },
+       "effects": [
+        {
+         "id": "dominate-compel-command",
+         "type": "condition",
+         "label": "Принуждение",
+         "description": "Цель получила короткую команду. Смысл и буквальное исполнение трактует рассказчик.",
+         "condition": "compelled",
+         "action": "apply",
+         "payload": {
+          "commandText": "",
+          "interpretation": "manual"
+         }
+        },
+        {
+         "id": "dominate-compel-prompt",
+         "type": "manual_prompt",
+         "label": "Принуждение: приказ не трактуется автоматически",
+         "description": "Команда хранится текстом в condition payload. Двусмысленность, невозможность, противоречие природе цели и сопротивление решает рассказчик.",
+         "message": "Команда хранится текстом в condition payload. Двусмысленность, невозможность, противоречие природе цели и сопротивление решает рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Короткая команда"
+       }
+      }
      },
      "Провал в памяти": {
       "description": "Команда «забудь» стирает текущий момент и последние минуты.",
       "pool": "обаяние + Доминирование vs смекалка + упорство",
       "cost": "нет",
       "effect": "Подходит, чтобы скрыть кормление, случайную встречу или короткое нарушение Маскарада. На месте воспоминаний остаётся пробел, а не новая версия событий; при давлении жертва может понять, что чего-то не помнит.",
-      "duration": "навсегда"
+      "duration": "навсегда",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Доминирование",
+        "power": "Провал в памяти",
+        "level": 1,
+        "tags": [
+         "active",
+         "memory_gap",
+         "condition",
+         "resistance",
+         "permanent"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "memoryGap",
+          "label": "Что забыто",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Например: кормление в переулке, разговор у двери",
+          "description": "Это пробел в памяти, не новая версия событий."
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Обаяние",
+         "Доминирование"
+        ],
+        "resistancePool": [
+         "Смекалка",
+         "Упорство"
+        ],
+        "success": "цель сохраняет воспоминание"
+       },
+       "effects": [
+        {
+         "id": "dominate-cloud-memory-gap",
+         "type": "condition",
+         "label": "Провал в памяти",
+         "description": "В памяти цели остался пробел. Новые воспоминания не создаются.",
+         "condition": "memory_gap",
+         "action": "apply",
+         "payload": {
+          "memoryGap": ""
+         }
+        },
+        {
+         "id": "dominate-cloud-memory-prompt",
+         "type": "manual_prompt",
+         "label": "Провал в памяти: ручная проверка",
+         "description": "При давлении или тщательном расспросе цель может понять, что чего-то не помнит; исход решает рассказчик.",
+         "message": "При давлении или тщательном расспросе цель может понять, что чего-то не помнит; исход решает рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Пробел в памяти"
+       }
+      }
      }
     },
     "2": {
@@ -2074,14 +3525,183 @@
       "pool": "манипуляция + Доминирование vs интеллект + упорство",
       "cost": "1 испытание Крови",
       "effect": "Инструкция не должна требовать самостоятельных условий и сложного размышления. Неподозревающий смертный обычно подчиняется без броска; сопротивление, вампирская природа или действие против характера требуют состязания.",
-      "duration": "до выполнения / 1 сцена"
+      "duration": "до выполнения / 1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Доминирование",
+        "power": "Внушение",
+        "level": 2,
+        "tags": [
+         "active",
+         "command_input",
+         "condition",
+         "compelled",
+         "resistance"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "commandText",
+          "label": "Текст внушения",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Опиши приказ без самостоятельных условий и сложного размышления",
+          "description": "Система хранит инструкцию как текст и не пытается понять, выполнима ли она."
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Манипуляция",
+         "Доминирование"
+        ],
+        "resistancePool": [
+         "Интеллект",
+         "Упорство"
+        ],
+        "trigger": "сопротивление, вампирская природа или действие против характера",
+        "success": "цель не выполняет внушение"
+       },
+       "effects": [
+        {
+         "id": "dominate-mesmerize-command",
+         "type": "condition",
+         "label": "Внушение",
+         "description": "Цель получила инструкцию и начинает выполнять её буквально. Смысл приказа ведётся вручную.",
+         "condition": "compelled",
+         "action": "apply",
+         "payload": {
+          "commandText": "",
+          "interpretation": "manual"
+         }
+        },
+        {
+         "id": "dominate-mesmerize-prompt",
+         "type": "manual_prompt",
+         "label": "Внушение: рамки команды",
+         "description": "Инструкция не должна требовать самостоятельных условий и сложного размышления. Если приказ двусмыслен или спорен, рассказчик решает буквальное исполнение.",
+         "message": "Инструкция не должна требовать самостоятельных условий и сложного размышления. Если приказ двусмыслен или спорен, рассказчик решает буквальное исполнение.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Внушённая команда"
+       }
+      }
      },
      "Помешательство": {
       "description": "Амальгама с Сокрытием 2: обычная беседа превращается в тихую атаку на психику.",
       "pool": "манипуляция + Доминирование vs самообладание + интеллект",
       "cost": "1 испытание Крови за цель",
       "effect": "На протяжении сцены разговор считается социальным конфликтом, где вампир каждый ход наносит лёгкий стресс. Изнурённый смертный получает нервный срыв или расстройство, а Сородич — навязанную одержимость.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Доминирование",
+        "power": "Помешательство",
+        "level": 2,
+        "tags": [
+         "active",
+         "social_conflict",
+         "willpower",
+         "stress",
+         "condition",
+         "resistance"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1,
+        "variableRouseChecks": true
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "targetText",
+          "label": "Цель или цели",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кто вовлечён в социальный конфликт"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Манипуляция",
+         "Доминирование"
+        ],
+        "resistancePool": [
+         "Самообладание",
+         "Интеллект"
+        ],
+        "success": "цель не получает стресс в этом обмене"
+       },
+       "effects": [
+        {
+         "id": "dominate-dementation-social-stress",
+         "type": "condition",
+         "label": "Помешательство",
+         "description": "Сцена ведётся как социальный конфликт; каждый успешный ход наносит лёгкий стресс Воли цели.",
+         "condition": "social_stress",
+         "action": "apply",
+         "payload": {
+          "targetText": "",
+          "stressTracker": "willpower",
+          "stressType": "superficial"
+         }
+        },
+        {
+         "id": "dominate-dementation-willpower-stress",
+         "type": "tracker_modifier",
+         "label": "Помешательство: стресс Воли",
+         "description": "На успешном обмене нанеси цели 1 лёгкий стресс Воли вручную.",
+         "tracker": "willpower",
+         "field": "superficial",
+         "operation": "add",
+         "value": 1
+        },
+        {
+         "id": "dominate-dementation-prompt",
+         "type": "manual_prompt",
+         "label": "Помешательство: исход изнурения",
+         "description": "Изнурённый смертный получает нервный срыв или расстройство; Сородич — навязанную одержимость. Конкретный эффект выбирает рассказчик.",
+         "message": "Изнурённый смертный получает нервный срыв или расстройство; Сородич — навязанную одержимость. Конкретный эффект выбирает рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Социальный стресс Воли"
+       }
+      }
      }
     },
     "3": {
@@ -2090,14 +3710,162 @@
       "pool": "как Внушение",
       "cost": "нет",
       "effect": "Директива может спать годами, пока условие не выполнится. На одной цели может быть только одна такая команда; рассказчику удобно бросать проверку скрытно, чтобы вампир не знал, сработала ли закладка.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Доминирование",
+        "power": "Внедрённая директива",
+        "level": 3,
+        "tags": [
+         "active",
+         "command_input",
+         "triggered_command",
+         "condition",
+         "compelled"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "commandText",
+          "label": "Скрытая команда",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Что цель должна сделать после срабатывания"
+         },
+         {
+          "id": "triggerText",
+          "label": "Триггер",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Фраза, дата, человек, место или событие"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "dominate-submerged-directive",
+         "type": "condition",
+         "label": "Внедрённая директива",
+         "description": "В цели заложена спящая команда с триггером. Система хранит текст, но не отслеживает срабатывание автоматически.",
+         "condition": "compelled",
+         "action": "apply",
+         "payload": {
+          "commandText": "",
+          "triggerText": "",
+          "interpretation": "manual"
+         }
+        },
+        {
+         "id": "dominate-submerged-directive-prompt",
+         "type": "manual_prompt",
+         "label": "Внедрённая директива: скрытый триггер",
+         "description": "На одной цели может быть только одна такая команда. Срабатывание триггера и скрытые проверки ведёт рассказчик.",
+         "message": "На одной цели может быть только одна такая команда. Срабатывание триггера и скрытые проверки ведёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Спящая директива"
+       }
+      }
      },
      "Забвение": {
       "description": "Вампир переписывает воспоминания цели, описывая новую версию событий вслух.",
       "pool": "манипуляция + Доминирование vs интеллект + упорство",
       "cost": "1 испытание Крови",
       "effect": "Каждая ступень выигрыша заменяет одно воспоминание или фрагмент. Обычный успех создаёт правдоподобные, но не идеальные воспоминания; тщательный допрос может выявить швы. Триумф делает подмену почти неотличимой от настоящей памяти.",
-      "duration": "навсегда"
+      "duration": "навсегда",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Доминирование",
+        "power": "Забвение",
+        "level": 3,
+        "tags": [
+         "active",
+         "false_memory",
+         "condition",
+         "resistance",
+         "permanent"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "permanent"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "falseMemory",
+          "label": "Новая версия воспоминания",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Какую версию событий цель теперь помнит"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Манипуляция",
+         "Доминирование"
+        ],
+        "resistancePool": [
+         "Интеллект",
+         "Упорство"
+        ],
+        "success": "воспоминание не переписано",
+        "criticalActorSuccess": "подмена почти неотличима от настоящей памяти"
+       },
+       "effects": [
+        {
+         "id": "dominate-rationalize-false-memory",
+         "type": "condition",
+         "label": "Забвение",
+         "description": "Цель получила ложное или переписанное воспоминание. Швы и устойчивость подмены ведёт рассказчик.",
+         "condition": "false_memory",
+         "action": "apply",
+         "payload": {
+          "falseMemory": ""
+         }
+        },
+        {
+         "id": "dominate-forgetful-mind-prompt",
+         "type": "manual_prompt",
+         "label": "Забвение: качество подмены",
+         "description": "Каждая ступень выигрыша заменяет одно воспоминание или фрагмент. Обычный успех оставляет возможные швы, триумф делает подмену почти идеальной.",
+         "message": "Каждая ступень выигрыша заменяет одно воспоминание или фрагмент. Обычный успех оставляет возможные швы, триумф делает подмену почти идеальной.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Ложное воспоминание"
+       }
+      }
      }
     },
     "4": {
@@ -2106,7 +3874,46 @@
       "pool": "—",
       "cost": "нет",
       "effect": "Даже нелепые поступки получают внутреннее объяснение. Если другие давят на жертву и указывают на противоречия, она может пройти проверку, чтобы усомниться в своей логике и, возможно, в рассудке.",
-      "duration": "навсегда"
+      "duration": "навсегда",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Доминирование",
+        "power": "Оправдание",
+        "level": 4,
+        "tags": [
+         "passive",
+         "memory",
+         "rationalization",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "dominate-rationalize-prompt",
+         "type": "manual_prompt",
+         "label": "Оправдание",
+         "description": "После Доминирования цель рационализирует поступки как собственные решения. Проверки сомнения при давлении ведёт рассказчик.",
+         "message": "После Доминирования цель рационализирует поступки как собственные решения. Проверки сомнения при давлении ведёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Рационализация Доминирования"
+       }
+      }
      }
     },
     "5": {
@@ -2117,11 +3924,49 @@
       "effect": "Смертные и вампиры всё ещё сопротивляются по правилам применяемой силы, но самоубийственное содержание больше не отменяет команду автоматически. Использование почти всегда морально опасно для Человечности.",
       "duration": "постоянная",
       "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Доминирование",
+        "power": "Приказ на самоуничтожение",
+        "level": 5,
+        "tags": [
+         "passive",
+         "command_input",
+         "self_destructive",
+         "humanity_risk",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "dominate-terminal-decree-prompt",
+         "type": "manual_prompt",
+         "label": "Приказ на самоуничтожение",
+         "description": "Саморазрушительный смысл больше не отменяет команду автоматически, но сопротивление и применяемая базовая сила остаются прежними. Смысл приказа не трактуется системой.",
+         "message": "Саморазрушительный смысл больше не отменяет команду автоматически, но сопротивление и применяемая базовая сила остаются прежними. Смысл приказа не трактуется системой.",
+         "requiresStoryteller": true
+        }
+       ],
        "humanity": {
         "risk": true,
         "suggestedStains": 1,
         "requiresStorytellerConfirm": true,
         "reason": "саморазрушительный приказ через Доминирование"
+       },
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Саморазрушительные приказы разрешены"
        }
       }
      },
@@ -2130,7 +3975,79 @@
       "pool": "как применяемая сила",
       "cost": "1 испытание Крови дополнительно",
       "effect": "Все цели должны видеть глаза вампира. Если нужно сопротивление, бросок за группу делает самый сильный представитель. Длительность и основной эффект совпадают с силой Доминирования, которую расширяют.",
-      "duration": "как у способности"
+      "duration": "как у способности",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Доминирование",
+        "power": "Стадный инстинкт",
+        "level": 5,
+        "tags": [
+         "active",
+         "group_target",
+         "command_input",
+         "addon",
+         "resistance",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "addon"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene",
+        "linkedToUsedPower": true
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "groupTarget",
+          "label": "Группа целей",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Кого охватывает расширенная сила",
+          "description": "Все цели должны видеть глаза вампира; основной приказ хранится у базовой силы."
+         }
+        ]
+       },
+       "targeting": {
+        "kind": "group",
+        "requiresEyeContact": true,
+        "resistanceRepresentative": "strongest_target"
+       },
+       "effects": [
+        {
+         "id": "dominate-mass-manipulation-group",
+         "type": "condition",
+         "label": "Стадный инстинкт",
+         "description": "Доминирование расширено на группу. Основной эффект и длительность совпадают с применяемой силой.",
+         "condition": "group_target",
+         "action": "apply",
+         "payload": {
+          "groupTarget": ""
+         }
+        },
+        {
+         "id": "dominate-mass-manipulation-prompt",
+         "type": "manual_prompt",
+         "label": "Стадный инстинкт: группа",
+         "description": "Все цели должны видеть глаза вампира. Если нужно сопротивление, бросок за группу делает самый сильный представитель. Смысл команды берётся из базовой силы и не трактуется автоматически.",
+         "message": "Все цели должны видеть глаза вампира. Если нужно сопротивление, бросок за группу делает самый сильный представитель. Смысл команды берётся из базовой силы и не трактуется автоматически.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Доминирование на группу"
+       }
+      }
      }
     }
    }
@@ -3362,14 +5279,154 @@
       "pool": "—",
       "cost": "нет",
       "effect": "Сила влияет только на слух живых наблюдателей, не на микрофоны. Она не глушит звуки предметов, которые вампир роняет или двигает, но делает обычное подкрадывание почти бесшумным.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Сокрытие",
+        "power": "Безмолвие смерти",
+        "level": 1,
+        "tags": [
+         "active",
+         "stealth",
+         "silence",
+         "roll_modifier",
+         "condition"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "minor"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "obfuscate-silence-condition",
+         "type": "condition",
+         "label": "Безмолвие смерти",
+         "description": "Движение персонажа не создаёт обычных звуков; микрофоны и шум от предметов ведутся вручную.",
+         "condition": "silent_movement",
+         "action": "apply"
+        },
+        {
+         "id": "obfuscate-silence-stealth-bonus",
+         "type": "roll_modifier",
+         "label": "Безмолвие смерти",
+         "description": "+Сокрытие к проверкам тихого подкрадывания.",
+         "matcher": {
+          "traits": [
+           "Скрытность",
+           "Stealth"
+          ],
+          "conditions": [
+           "silent_movement",
+           "sneaking",
+           "sound_stealth"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Сокрытие"
+         }
+        },
+        {
+         "id": "obfuscate-silence-prompt",
+         "type": "manual_prompt",
+         "label": "Безмолвие смерти: ограничения",
+         "description": "Не глушит предметы, которые персонаж роняет или двигает, и не обманывает микрофоны. Рассказчик решает, когда шум уже не считается движением персонажа.",
+         "message": "Не глушит предметы, которые персонаж роняет или двигает, и не обманывает микрофоны. Рассказчик решает, когда шум уже не считается движением персонажа.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Бесшумное движение"
+       }
+      }
      },
      "Плащ теней": {
       "description": "Пока вампир неподвижен и имеет хоть какое-то укрытие, разум окружающих скользит мимо него.",
       "pool": "—",
       "cost": "нет",
       "effect": "Эффект не требует броска, но прекращается, если персонаж двигается, шумит, привлекает внимание или обнаружен сверхъестественно/электронно.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Сокрытие",
+        "power": "Плащ теней",
+        "level": 1,
+        "tags": [
+         "active",
+         "hidden",
+         "stealth",
+         "condition",
+         "roll_modifier"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "minor"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "obfuscate-cloak-hidden",
+         "type": "condition",
+         "label": "Плащ теней",
+         "description": "Персонаж скрыт, пока неподвижен, не шумит и имеет хотя бы минимальное укрытие.",
+         "condition": "hidden",
+         "action": "apply"
+        },
+        {
+         "id": "obfuscate-cloak-stealth-bonus",
+         "type": "roll_modifier",
+         "label": "Плащ теней",
+         "description": "+Сокрытие к проверкам скрытности, когда персонаж неподвижен и в укрытии.",
+         "matcher": {
+          "traits": [
+           "Скрытность",
+           "Stealth"
+          ],
+          "conditions": [
+           "hidden",
+           "stationary",
+           "cover"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Сокрытие"
+         }
+        },
+        {
+         "id": "obfuscate-cloak-prompt",
+         "type": "manual_prompt",
+         "label": "Плащ теней: когда спадает",
+         "description": "Эффект прекращается, если персонаж двигается, шумит, привлекает прямое внимание или обнаружен сверхъестественно/электронно.",
+         "message": "Эффект прекращается, если персонаж двигается, шумит, привлекает прямое внимание или обнаружен сверхъестественно/электронно.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Скрыт в тенях"
+       }
+      }
      }
     },
     "2": {
@@ -3378,7 +5435,79 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Работает, пока он не шумит громче шёпота, не несёт резких запахов и не делает ничего явно привлекающего внимание. Нельзя исчезнуть так, если на вампира прямо смотрят в момент активации.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Сокрытие",
+        "power": "Незримая поступь",
+        "level": 2,
+        "tags": [
+         "active",
+         "invisible",
+         "stealth",
+         "condition",
+         "roll_modifier"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "minor"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "obfuscate-unseen-passage-invisible",
+         "type": "condition",
+         "label": "Незримая поступь",
+         "description": "Персонаж невидим для обычных чувств, пока не привлекает явное внимание.",
+         "condition": "invisible",
+         "action": "apply"
+        },
+        {
+         "id": "obfuscate-unseen-passage-stealth-bonus",
+         "type": "roll_modifier",
+         "label": "Незримая поступь",
+         "description": "+Сокрытие к проверкам скрытного движения.",
+         "matcher": {
+          "traits": [
+           "Скрытность",
+           "Stealth"
+          ],
+          "conditions": [
+           "invisible",
+           "moving_stealth",
+           "obfuscated"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Сокрытие"
+         }
+        },
+        {
+         "id": "obfuscate-unseen-passage-prompt",
+         "type": "manual_prompt",
+         "label": "Незримая поступь: ограничения",
+         "description": "Нельзя активировать, если на персонажа прямо смотрят. Шум громче шёпота, резкий запах или явное привлечение внимания могут снять эффект.",
+         "message": "Нельзя активировать, если на персонажа прямо смотрят. Шум громче шёпота, резкий запах или явное привлечение внимания могут снять эффект.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Невидимая поступь"
+       }
+      }
      }
     },
     "3": {
@@ -3387,14 +5516,174 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Окружающие видят сторожа, рабочего, прохожего или другого фонового человека похожего пола и комплекции. Сила не копирует конкретную личность, но позволяет общаться без немедленного раскрытия.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Сокрытие",
+        "power": "Маска тысячи лиц",
+        "level": 3,
+        "tags": [
+         "active",
+         "disguise",
+         "condition",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "minor"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "disguiseText",
+          "label": "Образ",
+          "type": "text",
+          "required": false,
+          "placeholder": "Например: охранник, прохожий, курьер"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "obfuscate-mask-disguise",
+         "type": "condition",
+         "label": "Маска тысячи лиц",
+         "description": "Персонаж выглядит как непримечательный человек, уместный для места, но не копирует конкретную личность.",
+         "condition": "disguise",
+         "action": "apply",
+         "payload": {
+          "disguiseText": ""
+         }
+        },
+        {
+         "id": "obfuscate-mask-social-cover",
+         "type": "roll_modifier",
+         "label": "Маска тысячи лиц",
+         "description": "+Сокрытие к социальным проверкам, где помогает непримечательный образ.",
+         "matcher": {
+          "traits": [
+           "Хитрость",
+           "Этикет",
+           "Subterfuge",
+           "Etiquette"
+          ],
+          "conditions": [
+           "disguise",
+           "background_person"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Сокрытие"
+         }
+        },
+        {
+         "id": "obfuscate-mask-prompt",
+         "type": "manual_prompt",
+         "label": "Маска тысячи лиц: не самозванец",
+         "description": "Сила не копирует конкретную личность. Рассказчик решает, какой фоновый образ уместен в месте и ситуации.",
+         "message": "Сила не копирует конкретную личность. Рассказчик решает, какой фоновый образ уместен в месте и ситуации.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Непримечательный образ"
+       }
+      }
      },
      "Электронный призрак": {
       "description": "Сокрытие начинает обманывать прямые камеры и ухудшать записи.",
       "pool": "—",
       "cost": "нет",
       "effect": "Наблюдатели прямого эфира подвержены тем же правилам, что и очевидцы. На записях и фото личность размыта: сложность опознания +3. Против автоматического наблюдения вампир получает +3d10.",
-      "duration": "как у способности"
+      "duration": "как у способности",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Сокрытие",
+        "power": "Электронный призрак",
+        "level": 3,
+        "tags": [
+         "passive",
+         "electronic_ghost",
+         "stealth",
+         "roll_modifier",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "obfuscate-ghost-camera-stealth",
+         "type": "roll_modifier",
+         "label": "Электронный призрак",
+         "description": "+3d10 против автоматического наблюдения и камер.",
+         "matcher": {
+          "traits": [
+           "Скрытность",
+           "Stealth"
+          ],
+          "conditions": [
+           "electronic_observation",
+           "camera",
+           "surveillance"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": 3
+        },
+        {
+         "id": "obfuscate-ghost-identification-difficulty",
+         "type": "roll_modifier",
+         "label": "Электронный призрак: опознание",
+         "description": "Сложность опознания по записи или фото повышается на 3.",
+         "matcher": {
+          "conditions": [
+           "identify_recording",
+           "photo_identification",
+           "recording"
+          ]
+         },
+         "operation": "difficulty_modifier",
+         "amount": 3
+        },
+        {
+         "id": "obfuscate-ghost-prompt",
+         "type": "manual_prompt",
+         "label": "Электронный призрак",
+         "description": "Прямой эфир подчиняется правилам очевидцев. Записи и фото размывают личность; автоматическое наблюдение даёт +3d10 к скрытности.",
+         "message": "Прямой эфир подчиняется правилам очевидцев. Записи и фото размывают личность; автоматическое наблюдение даёт +3d10 к скрытности.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Помехи камерам"
+       }
+      }
      }
     },
     "4": {
@@ -3403,14 +5692,139 @@
       "pool": "смекалка + Сокрытие vs смекалка + наблюдательность",
       "cost": "нет",
       "effect": "Требует состязания против наблюдателей. Победа позволяет активировать Плащ теней или Незримую поступь под прямым взглядом; триумф стирает момент исчезновения из памяти смертного. Один раз за сцену.",
-      "duration": "как у способности"
+      "duration": "как у способности",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Сокрытие",
+        "power": "Бесследное исчезновение",
+        "level": 4,
+        "tags": [
+         "active",
+         "hidden",
+         "invisible",
+         "memory_gap",
+         "resistance",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Смекалка",
+         "Сокрытие"
+        ],
+        "resistancePool": [
+         "Смекалка",
+         "Наблюдательность"
+        ],
+        "success": "наблюдатель не теряет персонажа из виду",
+        "criticalActorSuccess": "смертный забывает момент исчезновения"
+       },
+       "effects": [
+        {
+         "id": "obfuscate-vanish-condition",
+         "type": "condition",
+         "label": "Бесследное исчезновение",
+         "description": "Персонаж исчез под прямым взглядом; дальше действует выбранное Сокрытие.",
+         "condition": "vanished",
+         "action": "apply"
+        },
+        {
+         "id": "obfuscate-vanish-prompt",
+         "type": "manual_prompt",
+         "label": "Бесследное исчезновение: состязание",
+         "description": "После победы можно активировать Плащ теней или Незримую поступь под прямым взглядом. При триумфе смертный забывает момент исчезновения. Один раз за сцену.",
+         "message": "После победы можно активировать Плащ теней или Незримую поступь под прямым взглядом. При триумфе смертный забывает момент исчезновения. Один раз за сцену.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Исчез на глазах"
+       }
+      }
      },
      "Маскировка": {
       "description": "Амальгама с Ясновидением 3: скрывает неодушевлённый объект от внимания окружающих.",
       "pool": "интеллект + Сокрытие",
       "cost": "1 испытание Крови",
       "effect": "Вампир касается объекта и бросает Интеллект + Сокрытие, сложность зависит от размера и заметности. Скрывается и содержимое объекта для внешнего наблюдателя. Эффект спадает, если объект начинает двигаться сам по себе.",
-      "duration": "1+ ночи (зависит от успеха)"
+      "duration": "1+ ночи (зависит от успеха)",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Сокрытие",
+        "power": "Маскировка",
+        "level": 4,
+        "tags": [
+         "active",
+         "hidden_object",
+         "condition",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "night"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "objectText",
+          "label": "Скрываемый объект",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Что скрыто и где находится"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "obfuscate-conceal-object",
+         "type": "condition",
+         "label": "Маскировка",
+         "description": "Объект и его содержимое скрыты от внимания внешнего наблюдателя.",
+         "condition": "hidden_object",
+         "action": "apply",
+         "payload": {
+          "objectText": ""
+         }
+        },
+        {
+         "id": "obfuscate-conceal-prompt",
+         "type": "manual_prompt",
+         "label": "Маскировка: размер и срок",
+         "description": "Бросок Интеллект + Сокрытие; сложность зависит от размера и заметности. Длительность по успехам. Если объект движется сам по себе, эффект спадает.",
+         "message": "Бросок Интеллект + Сокрытие; сложность зависит от размера и заметности. Длительность по успехам. Если объект движется сам по себе, эффект спадает.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Скрытый объект"
+       }
+      }
      }
     },
     "5": {
@@ -3419,14 +5833,188 @@
       "pool": "смекалка + Сокрытие; дополнительно манипуляция + исполнение",
       "cost": "1 испытание Крови",
       "effect": "Нужно изучить лицо минимум 5 минут и ещё 10 минут для поведения. Скрытая проверка определяет качество сходства; при обычном успехе может понадобиться Манипуляция + Исполнение, триумф делает образ безупречным.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Сокрытие",
+        "power": "Личина самозванца",
+        "level": 5,
+        "tags": [
+         "active",
+         "disguise",
+         "impostor",
+         "condition",
+         "roll_modifier"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "disguiseText",
+          "label": "Кого копирует",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Имя/описание личности, лицо, голос, манеры"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "obfuscate-impostor-disguise",
+         "type": "condition",
+         "label": "Личина самозванца",
+         "description": "Персонаж копирует конкретную личность; качество сходства и скрытые проверки ведёт рассказчик.",
+         "condition": "impostor_disguise",
+         "action": "apply",
+         "payload": {
+          "disguiseText": ""
+         }
+        },
+        {
+         "id": "obfuscate-impostor-performance-bonus",
+         "type": "roll_modifier",
+         "label": "Личина самозванца",
+         "description": "+Сокрытие к проверкам поддержания образа самозванца.",
+         "matcher": {
+          "traits": [
+           "Исполнение",
+           "Хитрость",
+           "Performance",
+           "Subterfuge"
+          ],
+          "conditions": [
+           "impostor_disguise",
+           "disguise"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Сокрытие"
+         }
+        },
+        {
+         "id": "obfuscate-impostor-prompt",
+         "type": "manual_prompt",
+         "label": "Личина самозванца: подготовка",
+         "description": "Нужно изучить лицо минимум 5 минут и ещё 10 минут для поведения. При обычном успехе может понадобиться Манипуляция + Исполнение; триумф делает образ безупречным.",
+         "message": "Нужно изучить лицо минимум 5 минут и ещё 10 минут для поведения. При обычном успехе может понадобиться Манипуляция + Исполнение; триумф делает образ безупречным.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Личина самозванца"
+       }
+      }
      },
      "Тайное собрание": {
       "description": "Вампир распространяет известную силу Сокрытия на согласных спутников.",
       "pool": "—",
       "cost": "1+ испытаний Крови",
       "effect": "Базово можно укрыть число целей, равное Смекалке; дополнительные цели требуют испытаний Крови. Если один спутник выдаёт себя, раскрывается только он; если выдаёт себя сам инициатор, раскрывается вся группа.",
-      "duration": "как у способности"
+      "duration": "как у способности",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Сокрытие",
+        "power": "Тайное собрание",
+        "level": 5,
+        "tags": [
+         "active",
+         "group_stealth",
+         "condition",
+         "roll_modifier",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "addon"
+       },
+       "cost": {
+        "rouseChecks": 1,
+        "variableRouseChecks": true
+       },
+       "duration": {
+        "type": "scene",
+        "linkedToUsedPower": true
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "groupTarget",
+          "label": "Скрываемые спутники",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Кого укрывает сила"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "obfuscate-cloak-gathering-group",
+         "type": "condition",
+         "label": "Тайное собрание",
+         "description": "Согласные спутники укрыты известной силой Сокрытия.",
+         "condition": "group_stealth",
+         "action": "apply",
+         "payload": {
+          "groupTarget": ""
+         }
+        },
+        {
+         "id": "obfuscate-cloak-gathering-stealth-bonus",
+         "type": "roll_modifier",
+         "label": "Тайное собрание",
+         "description": "+Сокрытие к проверкам групповой скрытности, когда инициатор поддерживает эффект.",
+         "matcher": {
+          "traits": [
+           "Скрытность",
+           "Stealth"
+          ],
+          "conditions": [
+           "group_stealth",
+           "obfuscated_group"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Сокрытие"
+         }
+        },
+        {
+         "id": "obfuscate-cloak-gathering-prompt",
+         "type": "manual_prompt",
+         "label": "Тайное собрание: группа",
+         "description": "Базово укрывает число целей, равное Смекалке; дополнительные цели требуют испытаний Крови. Если спутник выдаёт себя, раскрывается только он; если инициатор — вся группа.",
+         "message": "Базово укрывает число целей, равное Смекалке; дополнительные цели требуют испытаний Крови. Если спутник выдаёт себя, раскрывается только он; если инициатор — вся группа.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Групповое Сокрытие"
+       }
+      }
      }
     }
    }
@@ -4514,14 +7102,186 @@
       "pool": "смекалка + упорство (при перегрузке)",
       "cost": "нет",
       "effect": "Добавляет Ясновидение к проверкам Наблюдательности. Сильный шум, вспышка или запах могут перегрузить чувства: при провале Смекалка + Упорство персонаж получает -3d10 к Наблюдательности до конца сцены.",
-      "duration": "по желанию"
+      "duration": "по желанию",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Ясновидение",
+        "power": "Обострение чувств",
+        "level": 1,
+        "tags": [
+         "active",
+         "sense",
+         "perception",
+         "roll_modifier"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "minor"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "auspex-heightened-senses",
+         "type": "sense",
+         "label": "Обострение чувств",
+         "description": "Чувства персонажа сверхъестественно обострены.",
+         "sense": "heightened_senses",
+         "tags": [
+          "sight",
+          "hearing",
+          "smell",
+          "perception"
+         ]
+        },
+        {
+         "id": "auspex-heightened-perception-bonus",
+         "type": "roll_modifier",
+         "label": "Обострение чувств",
+         "description": "+Ясновидение к проверкам Наблюдательности.",
+         "matcher": {
+          "traits": [
+           "Наблюдательность",
+           "Awareness"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Ясновидение"
+         }
+        },
+        {
+         "id": "auspex-heightened-overload-penalty",
+         "type": "roll_modifier",
+         "label": "Обострение чувств: перегрузка",
+         "description": "-3d10 к Наблюдательности при сенсорной перегрузке до конца сцены.",
+         "matcher": {
+          "traits": [
+           "Наблюдательность",
+           "Awareness"
+          ],
+          "conditions": [
+           "sense_overload",
+           "sensory_overload"
+          ]
+         },
+         "operation": "remove_dice",
+         "amount": 3
+        },
+        {
+         "id": "auspex-heightened-senses-prompt",
+         "type": "manual_prompt",
+         "label": "Обострение чувств: перегрузка",
+         "description": "Сильный шум, вспышка или запах могут потребовать Смекалка + Упорство. При провале добавь condition sense_overload до конца сцены.",
+         "message": "Сильный шум, вспышка или запах могут потребовать Смекалка + Упорство. При провале добавь condition sense_overload до конца сцены.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "+Ясновидение к Наблюдательности"
+       }
+      }
      },
      "Потустороннее зрение": {
       "description": "Вампир замечает сверхъестественное, скрытое и неестественное рядом.",
       "pool": "смекалка/упорство + Ясновидение",
       "cost": "нет",
       "effect": "Может обнаружить Сокрытие, магические ловушки, следы ритуалов, призраков и наблюдение через Ясновидение. Пассивный поиск использует Смекалку + Ясновидение, активный — Упорство + Ясновидение; скрывающиеся сущности сопротивляются состязанием.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Ясновидение",
+        "power": "Потустороннее зрение",
+        "level": 1,
+        "tags": [
+         "passive",
+         "sense",
+         "supernatural_detection",
+         "roll_modifier",
+         "resistance"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Смекалка",
+         "Ясновидение"
+        ],
+        "activeActorPool": [
+         "Упорство",
+         "Ясновидение"
+        ],
+        "trigger": "скрывающаяся сущность, Сокрытие или активное противодействие"
+       },
+       "effects": [
+        {
+         "id": "auspex-sense-unseen",
+         "type": "sense",
+         "label": "Потустороннее зрение",
+         "description": "Персонаж замечает сверхъестественное, скрытое и неестественное рядом.",
+         "sense": "supernatural_sight",
+         "tags": [
+          "obfuscate_detection",
+          "magic",
+          "ghosts",
+          "auspex"
+         ]
+        },
+        {
+         "id": "auspex-sense-unseen-roll",
+         "type": "roll_modifier",
+         "label": "Потустороннее зрение",
+         "description": "+Ясновидение к поиску Сокрытия, магии, призраков и сверхъестественных следов.",
+         "matcher": {
+          "conditions": [
+           "supernatural_detection",
+           "obfuscate_detection",
+           "magic_detection",
+           "ghost_detection",
+           "auspex_detection"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Ясновидение"
+         }
+        },
+        {
+         "id": "auspex-sense-unseen-prompt",
+         "type": "manual_prompt",
+         "label": "Потустороннее зрение: что видно",
+         "description": "Рассказчик сообщает признаки сверхъестественного. Пассивный поиск: Смекалка + Ясновидение; активный: Упорство + Ясновидение; скрывающиеся сущности сопротивляются.",
+         "message": "Рассказчик сообщает признаки сверхъестественного. Пассивный поиск: Смекалка + Ясновидение; активный: Упорство + Ясновидение; скрывающиеся сущности сопротивляются.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Видит сверхъестественное"
+       }
+      }
      }
     },
     "2": {
@@ -4530,7 +7290,69 @@
       "pool": "упорство + Ясновидение",
       "cost": "иногда 1 испытание Крови",
       "effect": "Рассказчик может дать видение без броска, чтобы подсказать пропущенную улику или угрозу. Персонаж может сам вызвать предвестие вопросом и проверкой Упорство + Ясновидение с испытанием Крови; чем больше успехов, тем яснее ответ.",
-      "duration": "мгновенно"
+      "duration": "мгновенно",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Ясновидение",
+        "power": "Предвестие",
+        "level": 2,
+        "tags": [
+         "active",
+         "sense",
+         "premonition",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {},
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "questionText",
+          "label": "Вопрос или опасение",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Что персонаж пытается понять?"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "auspex-premonition-condition",
+         "type": "condition",
+         "label": "Предвестие",
+         "description": "Персонаж получил краткое озарение; ясность ответа зависит от успехов и решения рассказчика.",
+         "condition": "premonition",
+         "action": "apply",
+         "payload": {
+          "questionText": ""
+         }
+        },
+        {
+         "id": "auspex-premonition-prompt",
+         "type": "manual_prompt",
+         "label": "Предвестие: ответ Рассказчика",
+         "description": "Рассказчик может дать видение без броска. Если игрок сам вызывает предвестие, обычно требуется Упорство + Ясновидение и иногда испытание Крови; чем больше успехов, тем яснее ответ.",
+         "message": "Рассказчик может дать видение без броска. Если игрок сам вызывает предвестие, обычно требуется Упорство + Ясновидение и иногда испытание Крови; чем больше успехов, тем яснее ответ.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Краткое предвестие"
+       }
+      }
      }
     },
     "3": {
@@ -4539,14 +7361,179 @@
       "pool": "интеллект + Ясновидение vs самообладание + хитрость",
       "cost": "1 испытание Крови",
       "effect": "За каждую ступень выигрыша можно получить ответ на один вопрос об ауре. Триумф раскрывает дополнительный неожиданный факт. В толпе можно искать нужный тип ауры, сложность зависит от размера и хаоса места.",
-      "duration": "1 ход"
+      "duration": "1 ход",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Ясновидение",
+        "power": "Познание души",
+        "level": 3,
+        "tags": [
+         "active",
+         "sense",
+         "aura_reading",
+         "condition",
+         "resistance"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "senseTarget",
+          "label": "Цель ауры",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого или какую ауру читаем"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Интеллект",
+         "Ясновидение"
+        ],
+        "resistancePool": [
+         "Самообладание",
+         "Хитрость"
+        ],
+        "success": "цель скрывает ауру или даёт меньше ответов"
+       },
+       "effects": [
+        {
+         "id": "auspex-scry-soul-aura",
+         "type": "sense",
+         "label": "Познание души",
+         "description": "Персонаж читает ауру цели: эмоции, резонанс, сверхъестественную природу и следы магии.",
+         "sense": "aura_reading",
+         "tags": [
+          "aura",
+          "emotion",
+          "resonance",
+          "supernatural"
+         ]
+        },
+        {
+         "id": "auspex-scry-soul-condition",
+         "type": "condition",
+         "label": "Познание души",
+         "description": "Аура цели прочитана или исследуется. Конкретные ответы выдаёт рассказчик.",
+         "condition": "aura_reading",
+         "action": "apply",
+         "payload": {
+          "senseTarget": ""
+         }
+        },
+        {
+         "id": "auspex-scry-soul-prompt",
+         "type": "manual_prompt",
+         "label": "Познание души: вопросы об ауре",
+         "description": "За каждую ступень выигрыша дай один ответ об ауре; триумф раскрывает дополнительный неожиданный факт. В толпе сложность зависит от размера и хаоса.",
+         "message": "За каждую ступень выигрыша дай один ответ об ауре; триумф раскрывает дополнительный неожиданный факт. В толпе сложность зависит от размера и хаоса.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Чтение ауры"
+       }
+      }
      },
      "Слияние чувств": {
       "description": "Вампир подключается к органам чувств другого существа.",
       "pool": "упорство + Ясновидение",
       "cost": "1 испытание Крови",
       "effect": "Можно видеть, слышать или ощущать то же, что цель, не теряя собственных чувств. Незнакомую цель нужно видеть; цель с витэ вампира в крови можно искать на расстоянии. Потустороннее зрение помогает заметить вторжение и попытаться изгнать наблюдателя.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Ясновидение",
+        "power": "Слияние чувств",
+        "level": 3,
+        "tags": [
+         "active",
+         "sense",
+         "shared_senses",
+         "condition",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "senseTarget",
+          "label": "Чьи чувства",
+          "type": "text",
+          "required": true,
+          "placeholder": "Существо, к чьим чувствам подключается персонаж"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "auspex-share-senses-sense",
+         "type": "sense",
+         "label": "Слияние чувств",
+         "description": "Персонаж воспринимает через органы чувств выбранного существа.",
+         "sense": "shared_senses",
+         "tags": [
+          "remote_senses",
+          "auspex_intrusion"
+         ]
+        },
+        {
+         "id": "auspex-share-senses-condition",
+         "type": "condition",
+         "label": "Слияние чувств",
+         "description": "Подключение к чужим чувствам активно; цель может быть замечена Потусторонним зрением.",
+         "condition": "shared_senses",
+         "action": "apply",
+         "payload": {
+          "senseTarget": ""
+         }
+        },
+        {
+         "id": "auspex-share-senses-prompt",
+         "type": "manual_prompt",
+         "label": "Слияние чувств: вторжение",
+         "description": "Незнакомую цель нужно видеть; цель с витэ вампира в крови можно искать на расстоянии. Потустороннее зрение может заметить вторжение и дать попытку изгнать наблюдателя.",
+         "message": "Незнакомую цель нужно видеть; цель с витэ вампира в крови можно искать на расстоянии. Потустороннее зрение может заметить вторжение и дать попытку изгнать наблюдателя.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Чужие чувства"
+       }
+      }
      }
     },
     "4": {
@@ -4555,7 +7542,92 @@
       "pool": "интеллект + Ясновидение",
       "cost": "1 испытание Крови",
       "effect": "Сложность зависит от давности и конкретности вопроса. Выигрыш позволяет заглянуть дальше, увидеть больше владельцев предмета или событий в месте. Информация обычно образная, но даёт уникальные зацепки для расследования.",
-      "duration": "1 ход"
+      "duration": "1 ход",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Ясновидение",
+        "power": "Психометрия",
+        "level": 4,
+        "tags": [
+         "active",
+         "sense",
+         "psychometry",
+         "condition",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "objectText",
+          "label": "Предмет или место",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "К чему прикасается персонаж"
+         },
+         {
+          "id": "questionText",
+          "label": "Вопрос",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Что персонаж ищет в прошлом объекта?"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "auspex-psychometry-sense",
+         "type": "sense",
+         "label": "Психометрия",
+         "description": "Персонаж читает эмоциональные следы прошлого предмета или места.",
+         "sense": "psychometry",
+         "tags": [
+          "history",
+          "emotional_trace",
+          "object_memory"
+         ]
+        },
+        {
+         "id": "auspex-psychometry-condition",
+         "type": "condition",
+         "label": "Психометрия",
+         "description": "Психометрическое чтение активно; конкретные образы и ответы выдаёт рассказчик.",
+         "condition": "psychometry",
+         "action": "apply",
+         "payload": {
+          "objectText": "",
+          "questionText": ""
+         }
+        },
+        {
+         "id": "auspex-psychometry-prompt",
+         "type": "manual_prompt",
+         "label": "Психометрия: образы прошлого",
+         "description": "Сложность зависит от давности и конкретности вопроса. Выигрыш позволяет заглянуть дальше, увидеть больше владельцев или событий; информация обычно образная.",
+         "message": "Сложность зависит от давности и конкретности вопроса. Выигрыш позволяет заглянуть дальше, увидеть больше владельцев или событий; информация обычно образная.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Психометрическое чтение"
+       }
+      }
      }
     },
     "5": {
@@ -4564,21 +7636,277 @@
       "pool": "упорство + Ясновидение vs смекалка + хитрость",
       "cost": "1 испытание Крови (+ воля против вампира)",
       "effect": "Сообщения и чтение добровольной цели в пределах видимости не требуют броска. Сопротивляющийся смертный требует зрительного контакта и состязания; сопротивляющийся вампир дополнительно требует потратить пункт воли. Триумф даёт ясную картину текущих мыслей и намерений.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Ясновидение",
+        "power": "Телепатия",
+        "level": 5,
+        "tags": [
+         "active",
+         "sense",
+         "telepathy",
+         "condition",
+         "resistance",
+         "willpower"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "senseTarget",
+          "label": "Цель",
+          "type": "text",
+          "required": false,
+          "placeholder": "С кем установлен телепатический контакт"
+         },
+         {
+          "id": "telepathyMessage",
+          "label": "Сообщение или мысль",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Что передано или что персонаж пытается прочитать"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Упорство",
+         "Ясновидение"
+        ],
+        "resistancePool": [
+         "Смекалка",
+         "Хитрость"
+        ],
+        "trigger": "сопротивляющаяся цель",
+        "extraCost": "против сопротивляющегося вампира дополнительно тратится пункт Воли"
+       },
+       "effects": [
+        {
+         "id": "auspex-telepathy-sense",
+         "type": "sense",
+         "label": "Телепатия",
+         "description": "Мысленный контакт активен; сообщение или цель хранятся как payload, смысл не трактуется системой.",
+         "sense": "telepathy",
+         "tags": [
+          "mind_reading",
+          "thought_sending"
+         ]
+        },
+        {
+         "id": "auspex-telepathy-condition",
+         "type": "condition",
+         "label": "Телепатия",
+         "description": "Телепатический контакт или чтение мыслей активно.",
+         "condition": "telepathy",
+         "action": "apply",
+         "payload": {
+          "senseTarget": "",
+          "telepathyMessage": ""
+         }
+        },
+        {
+         "id": "auspex-telepathy-prompt",
+         "type": "manual_prompt",
+         "label": "Телепатия: чтение мыслей",
+         "description": "Добровольная цель в пределах видимости обычно без броска. Сопротивляющийся смертный требует зрительного контакта и состязания; сопротивляющийся вампир — ещё и пункт Воли. Триумф даёт ясную картину текущих мыслей.",
+         "message": "Добровольная цель в пределах видимости обычно без броска. Сопротивляющийся смертный требует зрительного контакта и состязания; сопротивляющийся вампир — ещё и пункт Воли. Триумф даёт ясную картину текущих мыслей.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Телепатический контакт"
+       }
+      }
      },
      "Дальновидение": {
       "description": "Вампир в трансе исследует участок города или убежище внутренним взором.",
       "pool": "интеллект + Ясновидение",
       "cost": "1 испытание Крови",
       "effect": "После проверки игрок задаёт вопросы о происходящем, слухах, настроениях, недавних потрясениях и скрытых событиях на территории. Сбор занимает минуты, а слабая связь с местом держится до рассвета.",
-      "duration": "до рассвета"
+      "duration": "до рассвета",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Ясновидение",
+        "power": "Дальновидение",
+        "level": 5,
+        "tags": [
+         "active",
+         "sense",
+         "clairvoyance",
+         "condition",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "ritual"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "night"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "areaText",
+          "label": "Место",
+          "type": "textarea",
+          "required": true,
+          "placeholder": "Район, убежище или территория, которую исследует персонаж"
+         },
+         {
+          "id": "questionText",
+          "label": "Вопросы",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Что персонаж хочет узнать?"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "auspex-clairvoyance-sense",
+         "type": "sense",
+         "label": "Дальновидение",
+         "description": "Персонаж исследует место внутренним взором; связь держится до рассвета.",
+         "sense": "clairvoyance",
+         "tags": [
+          "area_sense",
+          "remote_viewing"
+         ]
+        },
+        {
+         "id": "auspex-clairvoyance-condition",
+         "type": "condition",
+         "label": "Дальновидение",
+         "description": "Слабая связь с местом активна до рассвета.",
+         "condition": "clairvoyance",
+         "action": "apply",
+         "payload": {
+          "areaText": "",
+          "questionText": ""
+         }
+        },
+        {
+         "id": "auspex-clairvoyance-prompt",
+         "type": "manual_prompt",
+         "label": "Дальновидение: вопросы о месте",
+         "description": "После проверки игрок задаёт вопросы о происходящем, слухах, настроениях, недавних потрясениях и скрытых событиях. Сбор занимает минуты.",
+         "message": "После проверки игрок задаёт вопросы о происходящем, слухах, настроениях, недавних потрясениях и скрытых событиях. Сбор занимает минуты.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Дальновидение места"
+       }
+      }
      },
      "Вселение": {
       "description": "Амальгама с Доминированием 3: вампир подавляет смертного и занимает его тело.",
       "pool": "упорство + Ясновидение vs упорство + интеллект",
       "cost": "2 испытания Крови",
       "effect": "Тело вампира впадает в подобие торпора. В теле жертвы можно ходить под солнцем, есть и действовать социально, но нельзя читать её мысли или пользоваться её навыками. Тяжёлый вред телу жертвы или вампира может прервать эффект; смерть жертвы наносит тяжёлый стресс.",
-      "duration": "пока не прервётся"
+      "duration": "пока не прервётся",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Ясновидение",
+        "power": "Вселение",
+        "level": 5,
+        "tags": [
+         "active",
+         "possession",
+         "condition",
+         "resistance",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 2
+       },
+       "duration": {
+        "type": "night"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "possessionTarget",
+          "label": "Носитель",
+          "type": "text",
+          "required": true,
+          "placeholder": "Смертный, чьё тело занимает персонаж"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Упорство",
+         "Ясновидение"
+        ],
+        "resistancePool": [
+         "Упорство",
+         "Интеллект"
+        ],
+        "success": "цель не подавлена"
+       },
+       "effects": [
+        {
+         "id": "auspex-possession-condition",
+         "type": "condition",
+         "label": "Вселение",
+         "description": "Сознание вампира занимает тело смертного; собственное тело неподвижно и уязвимо.",
+         "condition": "possession",
+         "action": "apply",
+         "payload": {
+          "possessionTarget": ""
+         }
+        },
+        {
+         "id": "auspex-possession-body-prompt",
+         "type": "manual_prompt",
+         "label": "Вселение: ограничения тела",
+         "description": "В теле жертвы можно ходить под солнцем, есть и действовать социально, но нельзя читать её мысли или пользоваться её навыками. Тяжёлый вред любому телу может прервать эффект; смерть жертвы наносит тяжёлый стресс.",
+         "message": "В теле жертвы можно ходить под солнцем, есть и действовать социально, но нельзя читать её мысли или пользоваться её навыками. Тяжёлый вред любому телу может прервать эффект; смерть жертвы наносит тяжёлый стресс.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Вселение в носителя"
+       }
+      }
      }
     }
    }

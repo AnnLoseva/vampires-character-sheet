@@ -1407,6 +1407,17 @@ function setVitalTrackerValue(key, value) {
     if (key === 'hunger') autoSaveVitalState();
 }
 
+function quenchHunger(amount = 1) {
+  if (!isCharacterSheetFixed()) return;
+  const current = clampHunger(vitalTrackers.hunger || 0);
+  const delta = Math.max(1, Math.floor(Number(amount) || 1));
+  const next = Math.max(0, Math.min(5, current - delta));
+  if (next === current) return;
+  vitalTrackers.hunger = next;
+  renderVitalTracker('hunger');
+  autoSaveVitalState();
+}
+
 function setHealthTracker(nextTracker, { autosave = true, immediate = true, publish = false, reason = t('Здоровье обновлено'), before = null, meta = {} } = {}) {
     vitalTrackers.health = {
         superficial: nextTracker.superficial,

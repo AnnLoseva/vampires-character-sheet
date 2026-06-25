@@ -54,10 +54,16 @@ export type DamageMatcher = {
   conditions?: string[]
 }
 
+export type FeedingMatcher = {
+  sources?: string[]
+  conditions?: string[]
+}
+
 type BaseDisciplineEffect = {
   id?: string
   label?: string
   description?: string
+  payload?: Record<string, unknown>
 }
 
 export type TrackerModifierEffect = BaseDisciplineEffect & {
@@ -131,6 +137,32 @@ export type ConditionEffect = BaseDisciplineEffect & {
   stacks?: FormulaValue
 }
 
+export type EntityEffect = BaseDisciplineEffect & {
+  type: 'entity'
+  entityType: 'famulus' | 'animal' | 'swarm' | string
+  status?: string
+  traits?: Record<string, FormulaValue>
+  properties?: Record<string, string | number | boolean>
+}
+
+export type FeedingModifierEffect = BaseDisciplineEffect & {
+  type: 'feeding_modifier'
+  matcher?: FeedingMatcher
+  operation?: 'add_satiation' | 'set_satiation'
+  value?: FormulaValue
+  amount?: FormulaValue
+  minimumHunger?: number
+}
+
+export type DisciplinePowerInputField = {
+  id: string
+  label?: string
+  type?: 'text' | 'textarea' | 'number' | 'checkbox'
+  placeholder?: string
+  required?: boolean
+  description?: string
+}
+
 export type TransformationEffect = BaseDisciplineEffect & {
   type: 'transformation'
   form: string
@@ -172,6 +204,8 @@ export type DisciplineEffect =
   | DamageModifierEffect
   | WeaponEffect
   | ConditionEffect
+  | EntityEffect
+  | FeedingModifierEffect
   | TransformationEffect
   | MovementEffect
   | SenseEffect
@@ -204,6 +238,9 @@ export type DisciplinePowerMechanics = {
   }
   effects?: DisciplineEffect[]
   deactivateEffects?: DisciplineEffect[]
+  input?: {
+    fields?: DisciplinePowerInputField[]
+  }
   ui?: {
     showOnFullSheet?: boolean
     showOnQuickSheet?: boolean

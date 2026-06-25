@@ -24,6 +24,8 @@ import type {
   DamageMatcher,
   DamageModifierEffect,
   DisciplineEffect,
+  FeedingMatcher,
+  FeedingModifierEffect,
   RollMatcher,
   RollModifierEffect,
 } from './schema'
@@ -117,6 +119,58 @@ type DamageModifierCandidate = {
     level?: number
   }
   effect: DamageModifierEffect
+}
+
+export type DisciplineFeedingContext = {
+  characterData: unknown
+  rulesJson?: unknown
+  hungerBefore: number
+  baseSatiation: number
+  source?: string
+  conditions?: string[]
+  disabledModifierIds?: string[]
+}
+
+export type AppliedDisciplineFeedingModifier = {
+  id: string
+  sourceKind: 'active' | 'passive'
+  operation: 'add_satiation' | 'set_satiation'
+  label: string
+  sourceLabel: string
+  discipline?: string
+  power?: string
+  path?: string
+  level?: number
+  satiationDelta: number
+  beforeSatiation: number
+  afterSatiation: number
+  minimumHunger?: number
+  active: boolean
+  canDisable: boolean
+}
+
+export type DisciplineFeedingEffectResult = {
+  hungerBefore: number
+  hungerAfter: number
+  baseSatiation: number
+  finalSatiation: number
+  minimumHunger: number
+  modifiers: AppliedDisciplineFeedingModifier[]
+  chain: string[]
+}
+
+type FeedingModifierCandidate = {
+  id: string
+  sourceKind: 'active' | 'passive'
+  data: JsonObject
+  normalized: NormalizedCharacterDisciplines
+  source: {
+    discipline: string
+    power: string
+    path?: string
+    level?: number
+  }
+  effect: FeedingModifierEffect
 }
 
 function isObject(value: unknown): value is JsonObject {
@@ -385,6 +439,42 @@ function matchesDamageMatcher(
 
 function isDamageModifierEffect(effect: DisciplineEffect | unknown): effect is DamageModifierEffect {
   return isObject(effect) && effect.type === 'damage_modifier'
+}
+
+function matchesFeedingMatcher(
+  matcher: FeedingMatcher | undefined,
+  context: DisciplineFeedingContext,
+) {
+  if (!matcher) return true
+  return hasMatcherValues(matcher.sources, [context.source])
+    && hasMatcherValues(matcher.conditions, context.conditions || [])
+}
+
+function isFeedingModifierEffect(effect: DisciplineEffect | unknown): effect is FeedingModifierEffect {
+  return isObject(effect) && effect.type === 'feeding_modifier'
+}
+
+function getFeedingEffectAmount(candidate: FeedingModifierCandidate) {
+  return resolveFormulaValue(
+    candidate.effect.value ?? candidate.effect.amount,
+    candidate.data,
+    candidate.normalized,
+    candidate.source.discipline,
+  )
+}
+
+function getFeedingEffectSourceLabel(candidate: FeedingModifierCandidate) {
+  return candidate.effect.label
+    || candidate.source.power
+    || candidate.source.discipline
+}
+
+function normalizeFeedingOperation(
+  effect: FeedingModifierEffect,
+): AppliedDisciplineFeedingModifier['operation'] {
+  return effect.operation === 'set_satiation'
+    ? 'set_satiation'
+    : 'add_satiation'
 }
 
 function getDamageStage(effect: DamageModifierEffect): DisciplineDamageStage {
@@ -670,6 +760,77 @@ function getActiveDamageModifierCandidates(
     }))
 }
 
+function getPassiveFeedingModifierCandidates(
+  data: JsonObject,
+  rulesJson: unknown,
+  normalized: NormalizedCharacterDisciplines,
+): FeedingModifierCandidate[] {
+  const rules = loadDisciplineRules(rulesJson)
+  const candidates: FeedingModifierCandidate[] = []
+
+  for (const disciplineName of Object.keys(normalized.disciplines)) {
+    const learnedPowers = getLearnedPowers(
+      disciplineName,
+      rules,
+      normalized,
+    )
+
+    for (const power of learnedPowers) {
+      getPassivePowerEffects(power).forEach((effect, index) => {
+        if (!isFeedingModifierEffect(effect)) return
+        candidates.push({
+          id: `passive:${disciplineName}:${power.path || ''}:${power.name}:${effect.id || index}`,
+          sourceKind: 'passive',
+          data,
+          normalized,
+          source: {
+            discipline: disciplineName,
+            power: power.name,
+            path: power.path,
+            level: power.level,
+          },
+          effect,
+        })
+      })
+    }
+  }
+
+  return candidates
+}
+
+function getActiveFeedingModifierCandidates(
+  characterData: unknown,
+): FeedingModifierCandidate[] {
+  const data = getCharacterData(characterData)
+  const normalized = normalizeCharacterDisciplines(data)
+  return getActiveEffects(characterData)
+    .filter((activeEffect: ActiveEffect) => activeEffect.active)
+    .filter((activeEffect) => isFeedingModifierEffect(activeEffect.effect))
+    .map((activeEffect) => ({
+      id: `active:${activeEffect.id}`,
+      sourceKind: 'active',
+      data,
+      normalized,
+      source: activeEffect.source,
+      effect: activeEffect.effect as FeedingModifierEffect,
+    }))
+}
+
+function getFeedingModifierCandidates(
+  feedingContext: DisciplineFeedingContext,
+) {
+  const data = getCharacterData(feedingContext.characterData)
+  const normalized = normalizeCharacterDisciplines(data)
+  return [
+    ...getPassiveFeedingModifierCandidates(
+      data,
+      feedingContext.rulesJson,
+      normalized,
+    ),
+    ...getActiveFeedingModifierCandidates(data),
+  ]
+}
+
 function getDamageModifierCandidates(
   damageContext: DisciplineDamageContext,
 ) {
@@ -886,6 +1047,91 @@ export function applyDisciplineEffectsToRoll(
     autoSuccessLabels,
     modifiers,
     ignoredPenaltyIds: [...ignoredPenaltyIds],
+  }
+}
+
+export function applyDisciplineEffectsToFeeding(
+  feedingContext: DisciplineFeedingContext,
+): DisciplineFeedingEffectResult {
+  const disabled = new Set(feedingContext.disabledModifierIds || [])
+  const hungerBefore = Math.max(
+    0,
+    Math.min(5, Math.floor(Number(feedingContext.hungerBefore) || 0)),
+  )
+  const baseSatiation = Math.max(
+    0,
+    Math.floor(Number(feedingContext.baseSatiation) || 0),
+  )
+  let currentSatiation = baseSatiation
+  let minimumHunger = 0
+  const modifiers: AppliedDisciplineFeedingModifier[] = []
+  const chain = [`Утоление Голода ${baseSatiation}`]
+
+  for (const candidate of getFeedingModifierCandidates(feedingContext)) {
+    if (!matchesFeedingMatcher(candidate.effect.matcher, feedingContext)) {
+      continue
+    }
+
+    const operation = normalizeFeedingOperation(candidate.effect)
+    const rawAmount = getFeedingEffectAmount(candidate)
+    if (!Number.isFinite(rawAmount)) continue
+    const amount = Math.max(0, Math.floor(Math.abs(rawAmount)))
+    const active = !disabled.has(candidate.id)
+    const beforeSatiation = currentSatiation
+    const afterSatiation = active
+      ? operation === 'set_satiation'
+        ? amount
+        : beforeSatiation + amount
+      : beforeSatiation
+    const minimumHungerValue = Number(candidate.effect.minimumHunger)
+    const normalizedMinimumHunger = Number.isFinite(minimumHungerValue)
+      ? Math.max(0, Math.min(5, Math.floor(minimumHungerValue)))
+      : undefined
+    const modifier: AppliedDisciplineFeedingModifier = {
+      id: candidate.id,
+      sourceKind: candidate.sourceKind,
+      operation,
+      label: candidate.effect.label || candidate.source.power,
+      sourceLabel: getFeedingEffectSourceLabel(candidate),
+      discipline: candidate.source.discipline,
+      power: candidate.source.power,
+      path: candidate.source.path,
+      level: candidate.source.level,
+      satiationDelta: afterSatiation - beforeSatiation,
+      beforeSatiation,
+      afterSatiation,
+      minimumHunger: normalizedMinimumHunger,
+      active,
+      canDisable: true,
+    }
+    modifiers.push(modifier)
+
+    if (active) {
+      currentSatiation = afterSatiation
+      if (normalizedMinimumHunger !== undefined) {
+        minimumHunger = Math.max(minimumHunger, normalizedMinimumHunger)
+      }
+      const deltaPrefix = modifier.satiationDelta > 0 ? '+' : ''
+      const minimumText = normalizedMinimumHunger !== undefined
+        ? `, минимум Голода ${normalizedMinimumHunger}`
+        : ''
+      chain.push(`${modifier.sourceLabel}: ${deltaPrefix}${modifier.satiationDelta}${minimumText}`)
+    }
+  }
+
+  const hungerAfter = Math.max(
+    minimumHunger,
+    Math.min(5, hungerBefore - currentSatiation),
+  )
+
+  return {
+    hungerBefore,
+    hungerAfter,
+    baseSatiation,
+    finalSatiation: currentSatiation,
+    minimumHunger,
+    modifiers,
+    chain,
   }
 }
 

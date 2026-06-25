@@ -119,6 +119,7 @@ import {
 import { getDisciplineDurationLabel } from '@/lib/vtm/disciplines/durations'
 import type {
   ActiveEffect,
+  DisciplinePowerInputField,
   DisciplinePowerMechanics,
 } from '@/lib/vtm/disciplines/schema'
 import type { DamageSeverity, HealthDamageOptions } from '@/lib/vtm/health'
@@ -639,6 +640,46 @@ function getActiveEffectTitle(
     || activeEffect.effect.type
 }
 
+function getPayloadValueLabel(key: string, value: unknown) {
+  if (value === null || value === undefined || value === '') return ''
+  const payloadLabels: Record<string, string> = {
+    commandText: 'команда',
+    memoryGap: 'провал',
+    falseMemory: 'ложная память',
+    triggerText: 'триггер',
+    groupTarget: 'группа',
+    disguiseText: 'маскировка',
+    objectText: 'объект',
+    senseTarget: 'цель',
+    questionText: 'вопрос',
+    telepathyMessage: 'мысль',
+    possessionTarget: 'носитель',
+    areaText: 'место',
+    famulusName: 'фамулус',
+    animalSpecies: 'вид',
+    animalCommand: 'приказ',
+    swarmTarget: 'цель роя',
+    frenzyTarget: 'цель ярости',
+    feedingSource: 'питание',
+  }
+  const label = payloadLabels[key] || key
+  return `${label}: ${String(value)}`
+}
+
+function getActiveEffectPayloadDescription(
+  activeEffect: CharacterOption['activeEffects'][number],
+) {
+  const payload = activeEffect.effect.payload
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return ''
+  }
+
+  return Object.entries(payload)
+    .map(([key, value]) => getPayloadValueLabel(key, value))
+    .filter(Boolean)
+    .join(' · ')
+}
+
 function getActiveEffectDescription(
   activeEffect: CharacterOption['activeEffects'][number],
   t: (ru: string) => string,
@@ -646,6 +687,7 @@ function getActiveEffectDescription(
 ) {
   return [
     activeEffect.effect.description,
+    getActiveEffectPayloadDescription(activeEffect),
     activeEffect.source.path,
     activeEffect.source.level
       ? tf('уровень {level}', { level: activeEffect.source.level })
@@ -676,6 +718,24 @@ function formatRuleValue(value: unknown): string {
       .join(' · ')
   }
   return String(value)
+}
+
+function getDisciplinePowerInputFields(
+  mechanics: DisciplinePowerRule['mechanics'] | undefined,
+): DisciplinePowerInputField[] {
+  const fields = mechanics?.input?.fields
+  if (!Array.isArray(fields)) return []
+
+  return fields.flatMap(field => {
+    if (!field || typeof field !== 'object' || typeof field.id !== 'string' || !field.id.trim()) {
+      return []
+    }
+    return [{
+      ...field,
+      id: field.id.trim(),
+      type: field.type || 'text',
+    }]
+  })
 }
 
 function getRoomFromLocation() {
@@ -818,6 +878,7 @@ export default function VampireTable() {
   const [previewPowerPoolSelections, setPreviewPowerPoolSelections] = useState<string[]>([])
   const [previewPowerModifier, setPreviewPowerModifier] = useState(0)
   const [disabledPreviewPowerModifierIds, setDisabledPreviewPowerModifierIds] = useState<string[]>([])
+  const [previewPowerInputValues, setPreviewPowerInputValues] = useState<Record<string, string>>({})
   const [previewUseBloodSurge, setPreviewUseBloodSurge] = useState(false)
   const [masterUseBloodSurge, setMasterUseBloodSurge] = useState(false)
   const [willpowerRerollDraft, setWillpowerRerollDraft] = useState<WillpowerRerollDraft | null>(null)
@@ -2257,6 +2318,12 @@ export default function VampireTable() {
     t,
     tf,
   )
+  const selectedPreviewPowerInputFields = getDisciplinePowerInputFields(
+    selectedPreviewPower?.rule.mechanics,
+  )
+  const hasMissingPreviewPowerInput = selectedPreviewPowerInputFields.some(
+    field => field.required && !previewPowerInputValues[field.id]?.trim(),
+  )
   const selectedPreviewPowerIsActiveKind = selectedPreviewPower?.rule.mechanics?.activation?.kind === 'active'
   const selectedPreviewPowerIsActive = Boolean(
     previewCharacter
@@ -2288,6 +2355,7 @@ export default function VampireTable() {
     setPreviewPowerPoolSelections(previewPowerPoolChoices.map(choice => choice.options[0] || ''))
     setPreviewPowerModifier(0)
     setDisabledPreviewPowerModifierIds([])
+    setPreviewPowerInputValues({})
   }, [previewPowerName, resolvedPreviewPowerPool])
 
   useEffect(() => {
@@ -3206,6 +3274,14 @@ export default function VampireTable() {
     await publishRoll(roll)
   }
 
+  const quenchHunger = async (character: CharacterOption, amount: number = 1) => {
+    const current = getCharacterHunger(character)
+    const delta = Math.max(1, Math.floor(Number(amount) || 1))
+    const next = Math.max(0, Math.min(5, current - delta))
+    if (next === current) return
+    await updateCharacterHunger(character.id, next, 'Голод утолён')
+  }
+
   const publishOpposedRoll = async (roll: RollMessage, opposed: OpposedRollResult) => {
     setRolls(prev => mergeRoll(prev, roll))
     broadcast('roll', roll)
@@ -3838,6 +3914,7 @@ export default function VampireTable() {
     character: CharacterOption,
     power: DisciplinePowerEntry,
     cost: DisciplineCost,
+    inputValues: Record<string, string> = {},
   ) => {
     let rouseChecksOverride: number | undefined
     if (cost.variableRouseChecks) {
@@ -3886,6 +3963,7 @@ export default function VampireTable() {
           targetCharacterId: storedCharacter.id,
           reason: `${previewDisciplineName}: ${power.name}`,
           rouseChecksOverride,
+          inputValues,
           t,
           tf,
         },
@@ -4108,6 +4186,10 @@ export default function VampireTable() {
 
   const rollPreviewPower = async () => {
     if (!previewCharacter || !selectedPreviewPower || !canRollPreview) return
+    if (hasMissingPreviewPowerInput) {
+      setConnectionText('Заполни поля силы перед активацией')
+      return
+    }
     let activeCharacter = previewCharacter
     let willpowerMeta: Partial<RollMeta> = {}
     const context: DisciplineRollContext = {
@@ -4139,6 +4221,7 @@ export default function VampireTable() {
       activeCharacter,
       selectedPreviewPower,
       selectedPreviewPowerCost,
+      previewPowerInputValues,
     )
     if (!costResult) return
     activeCharacter = costResult.character
@@ -7805,12 +7888,28 @@ export default function VampireTable() {
                         <span>{t('Сила Крови')}</span>
                         <b>{previewBloodPotency}</b>
                       </div>
-                      {previewSheetFixed ? (
+                    </div>
+                    {previewSheetFixed && previewUsesVampireResources ? (
+                      <div className="preview-blood-actions" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
                         <button type="button" onClick={() => rollRouseCheck(previewCharacter)} disabled={!canRollPreview}>
                           {t('Проверить Голод')}
                         </button>
-                      ) : null}
-                    </div>
+                        <button
+                          type="button"
+                          onClick={() => quenchHunger(previewCharacter, 1)}
+                          disabled={!canRollPreview || previewHunger <= 0}
+                        >
+                          {t('Утолить голод')}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => quenchHunger(previewCharacter, 5)}
+                          disabled={!canRollPreview || previewHunger <= 0}
+                        >
+                          {t('Насытиться')}
+                        </button>
+                      </div>
+                    ) : null}
                     </section> : null}
                   {previewUsesVampireResources ? (
                     <section className="preview-humanity-panel">
@@ -8462,6 +8561,43 @@ export default function VampireTable() {
                           <p>{selectedPreviewPower.rule.effect}</p>
                         </section>
                       ) : null}
+                      {selectedPreviewPowerInputFields.length ? (
+                        <section className="discipline-power-inputs">
+                          <h4>{t('Данные для эффекта')}</h4>
+                          {selectedPreviewPowerInputFields.map(field => (
+                            <label key={field.id}>
+                              <span>
+                                {field.label ? t(field.label) : field.id}
+                                {field.required ? ' *' : ''}
+                              </span>
+                              {field.type === 'textarea' ? (
+                                <textarea
+                                  value={previewPowerInputValues[field.id] || ''}
+                                  placeholder={field.placeholder ? t(field.placeholder) : undefined}
+                                  onChange={event => setPreviewPowerInputValues(current => ({
+                                    ...current,
+                                    [field.id]: event.target.value,
+                                  }))}
+                                />
+                              ) : (
+                                <input
+                                  type={field.type === 'number' ? 'number' : 'text'}
+                                  value={previewPowerInputValues[field.id] || ''}
+                                  placeholder={field.placeholder ? t(field.placeholder) : undefined}
+                                  onChange={event => setPreviewPowerInputValues(current => ({
+                                    ...current,
+                                    [field.id]: event.target.value,
+                                  }))}
+                                />
+                              )}
+                              {field.description ? <em>{t(field.description)}</em> : null}
+                            </label>
+                          ))}
+                          {hasMissingPreviewPowerInput ? (
+                            <p>{t('Заполни обязательные поля перед активацией силы.')}</p>
+                          ) : null}
+                        </section>
+                      ) : null}
 
                       <section className="discipline-power-roll">
                         <div className="preview-section-heading">
@@ -8502,7 +8638,7 @@ export default function VampireTable() {
                                 disabled={!canRollPreview || (
                                   !selectedPreviewPowerIsActive
                                   && previewPowerDiceCount < 1
-                                )}
+                                ) || (!selectedPreviewPowerIsActive && hasMissingPreviewPowerInput)}
                               >
                                 {selectedPreviewPowerIsActive
                                   ? t('Отключить')
@@ -8528,7 +8664,7 @@ export default function VampireTable() {
                                 onClick={selectedPreviewPowerIsActive
                                   ? deactivatePreviewDisciplinePower
                                   : rollPreviewPower}
-                                disabled={!canRollPreview}
+                                disabled={!canRollPreview || (!selectedPreviewPowerIsActive && hasMissingPreviewPowerInput)}
                               >
                                 {selectedPreviewPowerIsActive
                                   ? t('Отключить')

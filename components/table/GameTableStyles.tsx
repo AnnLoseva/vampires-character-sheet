@@ -2684,6 +2684,60 @@ export default function GameTableStyles() {
           white-space: pre-wrap;
         }
 
+        .discipline-power-inputs {
+          display: grid;
+          gap: 10px;
+          margin-top: 14px;
+          border: 1px solid #303030;
+          border-radius: 6px;
+          background: #111;
+          padding: 12px;
+        }
+
+        .discipline-power-inputs h4 {
+          margin: 0;
+          color: #efaaaa;
+          font-size: 11px;
+        }
+
+        .discipline-power-inputs label {
+          display: grid;
+          gap: 5px;
+        }
+
+        .discipline-power-inputs label span {
+          color: #8e8e8e;
+          font-size: 9px;
+          text-transform: uppercase;
+        }
+
+        .discipline-power-inputs input,
+        .discipline-power-inputs textarea {
+          width: 100%;
+          min-width: 0;
+          box-sizing: border-box;
+          border: 1px solid #383838;
+          border-radius: 5px;
+          background: #090909;
+          color: #eee;
+          padding: 8px;
+          font: inherit;
+          font-size: 11px;
+        }
+
+        .discipline-power-inputs textarea {
+          min-height: 74px;
+          resize: vertical;
+        }
+
+        .discipline-power-inputs em,
+        .discipline-power-inputs p {
+          margin: 0;
+          color: #999;
+          font-size: 10px;
+          line-height: 1.45;
+        }
+
         .discipline-power-roll {
           margin-top: 14px;
           border: 1px solid #303030;

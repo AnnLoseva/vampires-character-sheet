@@ -22,6 +22,7 @@ import type {
 } from './schema'
 
 type JsonObject = Record<string, unknown>
+type DisciplinePowerInputValues = Record<string, string | number | boolean>
 
 export type DisciplinePowerIdentity = {
   discipline: string
@@ -38,6 +39,7 @@ export type ActivateDisciplinePowerOptions =
     legacyDuration?: unknown
     targetCharacterId?: string
     startedAt?: string
+    inputValues?: DisciplinePowerInputValues
   }
 
 export type ActivateDisciplinePowerResult<TCharacter> = {
@@ -112,6 +114,39 @@ function getEffects(
     label: identity.power,
     message: `Активна сила «${identity.power}». Эффект применяется вручную.`,
   }]
+}
+
+function getInputValuesPayload(
+  inputValues: DisciplinePowerInputValues | undefined,
+) {
+  if (!inputValues) return {}
+  return Object.fromEntries(
+    Object.entries(inputValues).filter(([, value]) => {
+      if (typeof value === 'string') return value.trim().length > 0
+      return value !== undefined && value !== null
+    }),
+  )
+}
+
+function withEffectInputPayload(
+  effect: DisciplineEffect,
+  inputValues: DisciplinePowerInputValues | undefined,
+): DisciplineEffect {
+  const inputPayload = getInputValuesPayload(inputValues)
+  if (Object.keys(inputPayload).length === 0) return effect
+  if (
+    !isObject(effect)
+    || (effect.type !== 'condition' && effect.type !== 'entity')
+  ) return effect
+
+  const currentPayload = isObject(effect.payload) ? effect.payload : {}
+  return {
+    ...effect,
+    payload: {
+      ...currentPayload,
+      ...inputPayload,
+    },
+  }
 }
 
 export function isDisciplinePowerActive(
@@ -189,7 +224,7 @@ export function activateDisciplinePower<
     (effect, index): ActiveEffect => ({
       id: `${identity.discipline}:${identity.power}:${effect.id || index}:${startedAt}`,
       source: identity,
-      effect,
+      effect: withEffectInputPayload(effect, options.inputValues),
       targetCharacterId: options.targetCharacterId,
       startedAt,
       expiresAt: duration.type === 'permanent' ? null : undefined,
