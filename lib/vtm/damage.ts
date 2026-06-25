@@ -10,10 +10,13 @@ export type DisciplineDamageStage =
 
 export type DisciplineDamageModifierOperation =
   | 'add_damage'
+  | 'set_damage'
   | 'subtract_before_halving'
   | 'subtract_after_halving'
   | 'convert_damage_type'
   | 'ignore_armor'
+  | 'ignore_halving'
+  | 'prevent_damage'
   | 'prevent_first_attack'
 
 export type DisciplineDamageSourceKind = 'active' | 'passive' | 'armor'

@@ -3274,6 +3274,7 @@ export default function VampireTable() {
         modifier.diceDelta !== 0
         || modifier.difficultyDelta !== 0
         || modifier.operation === 'ignore_penalty'
+        || modifier.operation === 'auto_success'
       )
     ))
     const roll: RollMessage = {
@@ -3368,6 +3369,7 @@ export default function VampireTable() {
         modifier.diceDelta !== 0
         || modifier.difficultyDelta !== 0
         || modifier.operation === 'ignore_penalty'
+        || modifier.operation === 'auto_success'
       )
     ))
     const willpowerPenaltyApplied = getActivePenaltyDelta(rollEffectResult, 'willpower_impairment')
@@ -6505,6 +6507,9 @@ export default function VampireTable() {
     if (modifier.operation === 'ignore_penalty') {
       return tf('игнорирует штраф · от {source}', { source: modifier.sourceLabel })
     }
+    if (modifier.operation === 'auto_success') {
+      return tf('бросок не нужен · от {source}', { source: modifier.sourceLabel })
+    }
     if (modifier.difficultyDelta) {
       return tf('Сложность {delta} · от {source}', {
         delta: `${modifier.difficultyDelta > 0 ? '+' : ''}${modifier.difficultyDelta}`,
@@ -6539,6 +6544,7 @@ export default function VampireTable() {
         modifier.diceDelta !== 0
         || modifier.difficultyDelta !== 0
         || modifier.operation === 'ignore_penalty'
+        || modifier.operation === 'auto_success'
       )
     ))
     if (!visibleModifiers.length) return null

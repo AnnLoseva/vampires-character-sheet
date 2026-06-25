@@ -153,6 +153,7 @@ function normalizeRollModifier(
     || value.operation === 'remove_dice'
     || value.operation === 'difficulty_modifier'
     || value.operation === 'ignore_penalty'
+    || value.operation === 'auto_success'
     ? value.operation
     : null
   if (!sourceKind || !operation) return null
@@ -191,10 +192,13 @@ function normalizeDamageModifier(
     : undefined
   const operations = [
     'add_damage',
+    'set_damage',
     'subtract_before_halving',
     'subtract_after_halving',
     'convert_damage_type',
     'ignore_armor',
+    'ignore_halving',
+    'prevent_damage',
     'prevent_first_attack',
   ]
   const operation = operations.includes(String(value.operation))

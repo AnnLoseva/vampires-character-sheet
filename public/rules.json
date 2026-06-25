@@ -2150,14 +2150,163 @@
       "pool": "—",
       "cost": "нет",
       "effect": "Персонаж игнорирует штрафы за темноту, включая сверхъестественную, и получает +2d10 к запугиванию смертных, если светящиеся глаза заметны.",
-      "duration": "по желанию"
+      "duration": "по желанию",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Метаморфозы",
+        "power": "Глаза зверя",
+        "level": 1,
+        "tags": [
+         "active",
+         "sense",
+         "darkvision",
+         "roll_modifier",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "minor"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "protean-eyes-darkvision",
+         "type": "sense",
+         "label": "Глаза зверя: видение во тьме",
+         "sense": "darkvision",
+         "tags": [
+          "darkness",
+          "supernatural_darkness"
+         ]
+        },
+        {
+         "id": "protean-eyes-ignore-darkness",
+         "type": "roll_modifier",
+         "label": "Глаза зверя: темнота не мешает",
+         "matcher": {
+          "conditions": [
+           "darkness",
+           "supernatural_darkness",
+           "darkness_penalty",
+           "vision_darkness"
+          ]
+         },
+         "operation": "ignore_penalty",
+         "penalties": [
+          "darkness",
+          "darkness_penalty",
+          "supernatural_darkness",
+          "vision_penalty"
+         ]
+        },
+        {
+         "id": "protean-eyes-intimidation",
+         "type": "roll_modifier",
+         "label": "Глаза зверя: запугивание смертных",
+         "matcher": {
+          "conditions": [
+           "eyes_visible",
+           "mortal_intimidation",
+           "intimidation_vs_mortal"
+          ],
+          "traits": [
+           "Запугивание",
+           "Intimidation"
+          ],
+          "creatureTypes": [
+           "mortal",
+           "human"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": 2
+        },
+        {
+         "id": "protean-eyes-prompt",
+         "type": "manual_prompt",
+         "message": "Темнота, включая сверхъестественную, не даёт штрафа к зрению. +2d10 к запугиванию смертных применяй только если светящиеся глаза заметны цели; это может угрожать Маскараду."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Видение во тьме"
+       }
+      }
      },
      "Лёгкость пёрышка": {
       "description": "Тело становится почти невесомым, сохраняя форму, но теряя опасную массу.",
       "pool": "смекалка + выживание",
       "cost": "нет",
       "effect": "Защищает от урона падения, столкновений и бросков, может не активировать датчики давления. Если нужно включить силу мгновенно, требуется Смекалка + Выживание со сложностью 3.",
-      "duration": "по желанию"
+      "duration": "по желанию",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Метаморфозы",
+        "power": "Лёгкость пёрышка",
+        "level": 1,
+        "tags": [
+         "active",
+         "reaction",
+         "damage_modifier",
+         "fall",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "reaction"
+       },
+       "cost": {},
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "protean-weight-feather-fall",
+         "type": "damage_modifier",
+         "label": "Лёгкость пёрышка",
+         "matcher": {
+          "owners": [
+           "target"
+          ],
+          "targets": [
+           "health"
+          ],
+          "sources": [
+           "fall",
+           "other"
+          ],
+          "attackTypes": [
+           "fall",
+           "collision",
+           "thrown"
+          ]
+         },
+         "operation": "prevent_damage"
+        },
+        {
+         "id": "protean-weight-feather-prompt",
+         "type": "manual_prompt",
+         "message": "Предотвращает урон падения, столкновения или броска, если сила уже активна. Если нужно включить её мгновенно, сначала проверь Смекалка + Выживание со сложностью 3. Может не активировать датчики давления — решает рассказчик."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Падение без урона"
+       }
+      }
      }
     },
     "2": {
@@ -2166,7 +2315,162 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Выбранное естественное оружие становится лёгким колющим с модификатором урона +2. Укус наносит обычные 2 тяжёлых повреждения, но без штрафа за прицельную атаку; лёгкий урон от такого укуса не делится пополам.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Метаморфозы",
+        "power": "Оружие зверя",
+        "level": 2,
+        "tags": [
+         "active",
+         "weapon_effect",
+         "damage_modifier",
+         "natural_weapon",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "minor"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "protean-feral-weapons-natural-weapon",
+         "type": "weapon_effect",
+         "label": "Оружие зверя",
+         "weaponTags": [
+          "natural_weapon",
+          "claws",
+          "bite",
+          "piercing",
+          "light"
+         ],
+         "damageBonus": 2,
+         "damageSeverity": "superficial",
+         "grantedTags": [
+          "natural_weapon",
+          "protean_weapon"
+         ],
+         "properties": {
+          "equipped": true,
+          "masqueradeRisk": true
+         }
+        },
+        {
+         "id": "protean-feral-weapons-damage",
+         "type": "damage_modifier",
+         "label": "Оружие зверя: естественное оружие",
+         "matcher": {
+          "owners": [
+           "source"
+          ],
+          "targets": [
+           "health"
+          ],
+          "attackTypes": [
+           "natural_weapon",
+           "claws",
+           "unarmed",
+           "brawl"
+          ]
+         },
+         "operation": "add_damage",
+         "stage": "before_halving",
+         "amount": 2
+        },
+        {
+         "id": "protean-feral-weapons-bite-damage",
+         "type": "damage_modifier",
+         "label": "Оружие зверя: укус",
+         "matcher": {
+          "owners": [
+           "source"
+          ],
+          "targets": [
+           "health"
+          ],
+          "attackTypes": [
+           "bite"
+          ]
+         },
+         "operation": "set_damage",
+         "amount": 2
+        },
+        {
+         "id": "protean-feral-weapons-bite-aggravated",
+         "type": "damage_modifier",
+         "label": "Оружие зверя: укус тяжёлый",
+         "matcher": {
+          "owners": [
+           "source"
+          ],
+          "targets": [
+           "health"
+          ],
+          "severities": [
+           "superficial"
+          ],
+          "attackTypes": [
+           "bite"
+          ]
+         },
+         "operation": "convert_damage_type",
+         "severity": "aggravated"
+        },
+        {
+         "id": "protean-feral-weapons-bite-no-halving",
+         "type": "damage_modifier",
+         "label": "Оружие зверя: укус не делится",
+         "matcher": {
+          "owners": [
+           "source"
+          ],
+          "targets": [
+           "health"
+          ],
+          "severities": [
+           "superficial"
+          ],
+          "attackTypes": [
+           "bite"
+          ]
+         },
+         "operation": "ignore_halving"
+        },
+        {
+         "id": "protean-feral-weapons-bite-called-shot",
+         "type": "roll_modifier",
+         "label": "Оружие зверя: укус без штрафа",
+         "matcher": {
+          "conditions": [
+           "bite_attack",
+           "called_shot_bite",
+           "bite_called_shot"
+          ]
+         },
+         "operation": "ignore_penalty",
+         "penalties": [
+          "bite_called_shot",
+          "called_shot_bite",
+          "called_shot_penalty"
+         ]
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Естественное оружие +2"
+       }
+      }
      }
     },
     "3": {
@@ -2175,14 +2479,102 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Нужна природная поверхность, не асфальт и не бетон. Погружение занимает ход, вещи остаются сверху. Вампир смутно воспринимает окружение, если не спит, и может проснуться от тревоги как при дневном сне.",
-      "duration": "до следующей ночи"
+      "duration": "до следующей ночи",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Метаморфозы",
+        "power": "Слияние с землёй",
+        "level": 3,
+        "tags": [
+         "active",
+         "condition",
+         "earth_meld",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "night"
+       },
+       "effects": [
+        {
+         "id": "protean-earth-meld-condition",
+         "type": "condition",
+         "condition": "earth_meld",
+         "action": "apply"
+        },
+        {
+         "id": "protean-earth-meld-prompt",
+         "type": "manual_prompt",
+         "message": "Нужна природная земля, камень или трава — не асфальт и не бетон. Погружение занимает ход, вещи остаются сверху. Персонаж почти недоступен до следующей ночи и смутно воспринимает окружение, если не спит."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Слит с землёй"
+       }
+      }
      },
      "Смена облика": {
       "description": "Вампир превращается в выбранное животное примерно своего размера, чаще волка, крупную кошку или змею.",
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Превращение занимает ход. Персонаж получает физические свойства, чувства и ограничения формы: не говорит по-человечески, не пользуется руками и переносит вещи только так, как может животное. Доступность других дисциплин решает рассказчик.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Метаморфозы",
+        "power": "Смена облика",
+        "level": 3,
+        "tags": [
+         "active",
+         "transformation",
+         "animal_form",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "protean-shapechange-animal",
+         "type": "transformation",
+         "label": "Смена облика",
+         "form": "animal"
+        },
+        {
+         "id": "protean-shapechange-prompt",
+         "type": "manual_prompt",
+         "message": "Выбери животную форму примерно размера персонажа. Форма даёт физические свойства, чувства и ограничения животного: нет человеческой речи, рук и обычного снаряжения; доступность других дисциплин решает рассказчик."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Звериный облик"
+       }
+      }
      }
     },
     "4": {
@@ -2191,7 +2583,51 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Работает как Смена облика, но позволяет стать, например, летучей мышью, крысой, маленькой змеёй или необычным насекомым. Требует уже знать Смену облика.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Метаморфозы",
+        "power": "Перевоплощение",
+        "level": 4,
+        "tags": [
+         "active",
+         "transformation",
+         "small_animal_form",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "protean-metamorphosis-small-animal",
+         "type": "transformation",
+         "label": "Перевоплощение",
+         "form": "small_animal"
+        },
+        {
+         "id": "protean-metamorphosis-prompt",
+         "type": "manual_prompt",
+         "message": "Работает как Смена облика, но форма может быть значительно меньше: летучая мышь, крыса, маленькая змея или необычное насекомое. Требует знать Смену облика; ограничения формы и снаряжения веди вручную."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Малый звериный облик"
+       }
+      }
      }
     },
     "5": {
@@ -2200,14 +2636,114 @@
       "pool": "—",
       "cost": "1–3 испытания Крови",
       "effect": "Туман движется со скоростью шага, просачивается через щели и трубы, не говорит и не устанавливает зрительный контакт. Урон наносят только солнце, огонь и нематериальные сверхъестественные атаки. Превращение занимает до трёх ходов и ускоряется дополнительными испытаниями Крови.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Метаморфозы",
+        "power": "Превращение в туман",
+        "level": 5,
+        "tags": [
+         "active",
+         "transformation",
+         "mist_form",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1,
+        "variableRouseChecks": true
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "protean-mist-form-transformation",
+         "type": "transformation",
+         "label": "Превращение в туман",
+         "form": "mist"
+        },
+        {
+         "id": "protean-mist-form-condition",
+         "type": "condition",
+         "condition": "mist_form",
+         "action": "apply"
+        },
+        {
+         "id": "protean-mist-form-prompt",
+         "type": "manual_prompt",
+         "message": "Туман движется со скоростью шага, просачивается через щели и трубы, не говорит и не устанавливает зрительный контакт. Физический урон обычно не действует; опасны солнце, огонь и нематериальные сверхъестественные атаки. Превращение занимает до трёх ходов; дополнительные испытания Крови ускоряют его вручную."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Туманный облик"
+       }
+      }
      },
      "Свободное сердце": {
       "description": "Сердце вампира смещается внутри груди, и попасть в него колом становится крайне трудно.",
       "pool": "сила + упорство (для выхода из паралича)",
       "cost": "нет",
       "effect": "Сложность протыкания сердца вне боя повышается на 3, а в бою нужен триумф. Если кол всё же вошёл, вампир каждый час может пройти Сила + Упорство со сложностью 5 и испытанием Крови, чтобы исторгнуть его, пока Голод ниже 5.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Метаморфозы",
+        "power": "Свободное сердце",
+        "level": 5,
+        "tags": [
+         "passive",
+         "staking_resistance",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "protean-unfettered-heart-difficulty",
+         "type": "roll_modifier",
+         "label": "Свободное сердце: сложность кола",
+         "matcher": {
+          "conditions": [
+           "staking",
+           "staking_resistance",
+           "stake_heart"
+          ]
+         },
+         "operation": "difficulty_modifier",
+         "amount": 3
+        },
+        {
+         "id": "protean-unfettered-heart-prompt",
+         "type": "manual_prompt",
+         "message": "Вне боя сложность протыкания сердца повышается на 3; в бою нужен триумф. Если кол вошёл, каждый час можно пройти Сила + Упорство со сложностью 5 и испытанием Крови, чтобы исторгнуть его, пока Голод ниже 5."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Сердце трудно пронзить"
+       }
+      }
      }
     }
    }
@@ -3427,14 +3963,135 @@
       "pool": "—",
       "cost": "нет",
       "effect": "В перестрелке он не теряет защитный пул из-за отсутствия укрытия и каждый ход получает одно бесплатное малое действие, которое обычно дало бы штраф 2d10.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Стремительность",
+        "power": "Быстрая реакция",
+        "level": 1,
+        "tags": [
+         "passive",
+         "roll_modifier",
+         "ignore_penalty",
+         "defense",
+         "action_economy"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "celerity-rapid-reflexes-no-cover",
+         "type": "roll_modifier",
+         "label": "Быстрая реакция: защита без укрытия",
+         "matcher": {
+          "conditions": [
+           "no_cover_defense",
+           "firearms_defense",
+           "ranged_defense"
+          ]
+         },
+         "operation": "ignore_penalty",
+         "penalties": [
+          "no_cover_defense",
+          "no_cover_defense_penalty",
+          "no_cover",
+          "firearms_no_cover"
+         ]
+        },
+        {
+         "id": "celerity-rapid-reflexes-minor-action",
+         "type": "roll_modifier",
+         "label": "Быстрая реакция: малое действие без штрафа",
+         "matcher": {
+          "conditions": [
+           "minor_action",
+           "additional_minor_action",
+           "free_minor_action"
+          ]
+         },
+         "operation": "ignore_penalty",
+         "penalties": [
+          "minor_action_penalty",
+          "additional_minor_action",
+          "minor_action",
+          "extra_minor_action"
+         ]
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Игнор штрафов реакции"
+       }
+      }
      },
      "Кошачья грация": {
       "description": "Баланс вампира становится безупречным.",
       "pool": "—",
       "cost": "нет",
       "effect": "Не нужны проверки Ловкости или Атлетики, чтобы удержаться на карнизе, проводе или шаткой опоре, если эта опора физически выдерживает вес персонажа.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Стремительность",
+        "power": "Кошачья грация",
+        "level": 1,
+        "tags": [
+         "passive",
+         "auto_success",
+         "balance",
+         "movement"
+        ]
+       },
+       "activation": {
+        "kind": "passive",
+        "action": "none"
+       },
+       "cost": {},
+       "duration": {
+        "type": "permanent"
+       },
+       "effects": [
+        {
+         "id": "celerity-cat-grace-balance",
+         "type": "roll_modifier",
+         "label": "Кошачья грация: баланс",
+         "matcher": {
+          "conditions": [
+           "balance",
+           "catlike_grace",
+           "keep_balance",
+           "narrow_ledge",
+           "unstable_surface"
+          ]
+         },
+         "operation": "auto_success"
+        },
+        {
+         "id": "celerity-cat-grace-prompt",
+         "type": "manual_prompt",
+         "message": "Если задача — только удержать равновесие на поверхности, которая выдерживает вес персонажа, бросок Ловкости/Атлетики не нужен. Для прыжка, боя или разрушенной опоры рассказчик может потребовать отдельную проверку."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Автоуспех на баланс"
+       }
+      }
      }
     },
     "2": {
@@ -3443,7 +4100,63 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Вне боя добавляет Стремительность к проверкам Ловкости. В бою один раз за ход добавляет Стремительность к защите Ловкость + Атлетика.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "auto"
+       },
+       "identity": {
+        "discipline": "Стремительность",
+        "power": "Проворство",
+        "level": 2,
+        "tags": [
+         "active",
+         "roll_modifier",
+         "dexterity",
+         "defense",
+         "initiative",
+         "scene"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "effects": [
+        {
+         "id": "celerity-fleetness-dexterity",
+         "type": "roll_modifier",
+         "label": "Проворство: Ловкость",
+         "matcher": {
+          "traits": [
+           "Ловкость",
+           "Dexterity"
+          ]
+         },
+         "operation": "add_dice",
+         "amount": {
+          "formula": "discipline_rating",
+          "discipline": "Стремительность"
+         }
+        },
+        {
+         "id": "celerity-fleetness-prompt",
+         "type": "manual_prompt",
+         "message": "Добавляй Стремительность к проверкам Ловкости. В бою применяй бонус к защите Ловкость + Атлетика не чаще одного раза за ход; для инициативных/реактивных проверок используй тот же бонус, если рассказчик считает их проверками скорости реакции."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "+Стремительность к Ловкости"
+       }
+      }
      }
     },
     "3": {
@@ -3452,14 +4165,107 @@
       "pool": "ловкость + атлетика",
       "cost": "1 испытание Крови",
       "effect": "За один ход можно переместиться примерно на 50 метров по прямой и всё ещё действовать без штрафа. На сложной местности нужна Ловкость + Атлетика или состязание, если важно опередить врага.",
-      "duration": "1 ход"
+      "duration": "1 ход",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стремительность",
+        "power": "Быстрее ветра",
+        "level": 3,
+        "tags": [
+         "active",
+         "movement",
+         "dash",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "effects": [
+        {
+         "id": "celerity-blink-movement",
+         "type": "movement",
+         "label": "Быстрее ветра: рывок",
+         "mode": "dash",
+         "speed": 50
+        },
+        {
+         "id": "celerity-blink-prompt",
+         "type": "manual_prompt",
+         "message": "За один ход персонаж перемещается примерно на 50 метров по прямой и всё ещё может действовать без обычного штрафа. На сложной местности или при состязании скорости попроси Ловкость + Атлетика."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Рывок до 50 м"
+       }
+      }
      },
      "Траверс": {
       "description": "Вампир за счёт скорости бежит по стенам, наклонным поверхностям или водной глади.",
       "pool": "ловкость + атлетика",
       "cost": "1 испытание Крови",
       "effect": "Проверка Ловкость + Атлетика со сложностью от 3 до 6. Успех позволяет добраться до ближайшей цели по маршруту; выигрыш увеличивает дистанцию, но предел обычно около 60 метров по воде или 30 этажей вверх.",
-      "duration": "1 ход"
+      "duration": "1 ход",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стремительность",
+        "power": "Траверс",
+        "level": 3,
+        "tags": [
+         "active",
+         "movement",
+         "wall_run",
+         "water_run",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "effects": [
+        {
+         "id": "celerity-traversal-wall",
+         "type": "movement",
+         "label": "Траверс: стены и вода",
+         "mode": "wall_run",
+         "ignoreTerrain": true
+        },
+        {
+         "id": "celerity-traversal-prompt",
+         "type": "manual_prompt",
+         "message": "Проверь Ловкость + Атлетика со сложностью 3–6. Успех позволяет бежать по стенам, наклонным поверхностям или воде до ближайшей цели; выигрыш увеличивает дистанцию. Типичные пределы: около 60 м по воде или 30 этажей вверх."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Бег по стенам/воде"
+       }
+      }
      }
     },
     "4": {
@@ -3468,14 +4274,112 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Перед выстрелом или броском снижает сложность атаки до 1, а цель не может уклоняться или защищаться. Противник со Стремительностью 5 может отменить эффект своим испытанием Крови.",
-      "duration": "1 атака"
+      "duration": "1 атака",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стремительность",
+        "power": "Безупречная точность",
+        "level": 4,
+        "tags": [
+         "active",
+         "ranged",
+         "roll_modifier",
+         "ignore_penalty",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "attack"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "effects": [
+        {
+         "id": "celerity-unerring-aim-ranged-penalties",
+         "type": "roll_modifier",
+         "label": "Безупречная точность: штрафы дальнего боя",
+         "matcher": {
+          "conditions": [
+           "ranged_attack",
+           "unerring_aim",
+           "aimed_shot"
+          ]
+         },
+         "operation": "ignore_penalty",
+         "penalties": [
+          "ranged_attack_penalty",
+          "range_penalty",
+          "cover_penalty",
+          "called_shot_penalty",
+          "visibility_penalty"
+         ]
+        },
+        {
+         "id": "celerity-unerring-aim-prompt",
+         "type": "manual_prompt",
+         "message": "Для одной дистанционной атаки сложность считается 1, цель не уклоняется и не защищается. Противник со Стремительностью 5 может отменить эффект своим испытанием Крови; такие контрмеры решает рассказчик."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Один точный выстрел"
+       }
+      }
      },
      "Глоток изящества": {
       "description": "Кровь вампира временно передаёт часть его Стремительности тому, кто пьёт прямо из жил.",
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Цель получает Стремительность, равную половине показателя вампира с округлением вниз, и известные ему несмешанные силы доступного уровня. Для вампиров эффект держится до следующего насыщения или Голода 5.",
-      "duration": "1 ночь / до насыщения"
+      "duration": "1 ночь / до насыщения",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стремительность",
+        "power": "Глоток изящества",
+        "level": 4,
+        "tags": [
+         "active",
+         "ally_buff",
+         "ghoul",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "night"
+       },
+       "effects": [
+        {
+         "id": "celerity-draught-prompt",
+         "type": "manual_prompt",
+         "message": "Выбери союзника или гуля, который пьёт кровь прямо из жил. До конца действия он получает Стремительность, равную половине Стремительности владельца с округлением вниз, и доступные несмешанные силы этого уровня. Для вампира эффект заканчивается при следующем насыщении или на Голоде 5."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Передать половину Стремительности"
+       }
+      }
      }
     },
     "5": {
@@ -3484,14 +4388,113 @@
       "pool": "—",
       "cost": "1 испытание Крови",
       "effect": "Применяется к атаке дракой или фехтованием: сложность 1, цель не защищается и не уклоняется. Противник со Стремительностью 5 может отменить эффект своим испытанием Крови.",
-      "duration": "1 атака"
+      "duration": "1 атака",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стремительность",
+        "power": "Молниеносный удар",
+        "level": 5,
+        "tags": [
+         "active",
+         "melee",
+         "undefended_attack",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "attack"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "effects": [
+        {
+         "id": "celerity-lightning-strike-difficulty",
+         "type": "roll_modifier",
+         "label": "Молниеносный удар: сложность атаки",
+         "matcher": {
+          "conditions": [
+           "melee_attack",
+           "brawl_attack",
+           "lightning_strike"
+          ]
+         },
+         "operation": "difficulty_modifier",
+         "amount": -1
+        },
+        {
+         "id": "celerity-lightning-strike-prompt",
+         "type": "manual_prompt",
+         "message": "Для одной атаки дракой или фехтованием сложность считается 1, цель не защищается и не уклоняется. Противник со Стремительностью 5 или другой явной контрмерой может отменить эффект своим испытанием Крови."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Ближняя атака без защиты"
+       }
+      }
      },
      "Скорость мысли": {
       "description": "Вампир реагирует в момент объявления события, будто уже начал действовать заранее.",
       "pool": "зависит от действия",
       "cost": "1 испытание Крови",
       "effect": "Когда рассказчик объявляет опасность или факт, игрок может предотвратить его коротким действием: проскользнуть в дверь, уйти с линии огня, отскочить от взрыва. Для сложных действий рассказчик назначает проверку.",
-      "duration": "1 действие"
+      "duration": "1 действие",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Стремительность",
+        "power": "Скорость мысли",
+        "level": 5,
+        "tags": [
+         "active",
+         "mental_action",
+         "action_economy",
+         "reaction",
+         "manual_prompt"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "reaction"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "effects": [
+        {
+         "id": "celerity-split-second-condition",
+         "type": "condition",
+         "condition": "split_second",
+         "action": "apply"
+        },
+        {
+         "id": "celerity-split-second-prompt",
+         "type": "manual_prompt",
+         "message": "Когда рассказчик объявляет опасность или факт, персонаж может немедленно совершить короткое действие, чтобы предотвратить событие: проскользнуть в дверь, уйти с линии огня, отскочить от взрыва и т.п. Для сложных действий назначь подходящий бросок."
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Короткое действие вне очереди"
+       }
+      }
      }
     }
    }

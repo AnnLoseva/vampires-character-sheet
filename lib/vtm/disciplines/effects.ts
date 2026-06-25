@@ -67,7 +67,7 @@ export type DisciplineRollEffectContext = {
 export type AppliedDisciplineRollModifier = {
   id: string
   sourceKind: 'active' | 'passive' | 'penalty'
-  operation: 'add_dice' | 'remove_dice' | 'difficulty_modifier' | 'ignore_penalty'
+  operation: 'add_dice' | 'remove_dice' | 'difficulty_modifier' | 'ignore_penalty' | 'auto_success'
   label: string
   sourceLabel: string
   discipline?: string
@@ -86,6 +86,8 @@ export type DisciplineRollEffectResult = {
   finalDiceCount: number
   diceDelta: number
   difficultyDelta: number
+  autoSuccess: boolean
+  autoSuccessLabels: string[]
   modifiers: AppliedDisciplineRollModifier[]
   ignoredPenaltyIds: string[]
 }
@@ -284,6 +286,7 @@ function normalizeRollOperation(
   }
   if (effect.operation === 'difficulty_modifier') return 'difficulty_modifier'
   if (effect.operation === 'ignore_penalty') return 'ignore_penalty'
+  if (effect.operation === 'auto_success') return 'auto_success'
   return 'add_dice'
 }
 
@@ -396,11 +399,20 @@ function normalizeDamageOperation(
   if (effect.operation === 'prevent_first_attack' || effect.preventFirstAttack) {
     return 'prevent_first_attack'
   }
+  if (effect.operation === 'prevent_damage') {
+    return 'prevent_damage'
+  }
+  if (effect.operation === 'ignore_halving' || effect.ignoreHalving) {
+    return 'ignore_halving'
+  }
   if (effect.operation === 'ignore_armor' || effect.ignoreArmor) {
     return 'ignore_armor'
   }
   if (effect.operation === 'convert_damage_type' || effect.setSeverity || effect.severity) {
     return 'convert_damage_type'
+  }
+  if (effect.operation === 'set_damage' || effect.operation === 'set') {
+    return 'set_damage'
   }
   if (effect.operation === 'subtract_before_halving') return 'subtract_before_halving'
   if (effect.operation === 'subtract_after_halving') return 'subtract_after_halving'
@@ -473,6 +485,12 @@ function getDamageModifierChainLine(
   if (modifier.operation === 'prevent_first_attack') {
     return `${modifier.sourceLabel}: атака предотвращена`
   }
+  if (modifier.operation === 'prevent_damage') {
+    return `${modifier.sourceLabel}: урон предотвращён`
+  }
+  if (modifier.operation === 'ignore_halving') {
+    return `${modifier.sourceLabel}: лёгкий урон не делится пополам`
+  }
   if (modifier.operation === 'ignore_armor') {
     if (modifier.amountDelta < 0) {
       return `${modifier.sourceLabel}: броня ${modifier.amountDelta}`
@@ -483,6 +501,9 @@ function getDamageModifierChainLine(
     return `${modifier.sourceLabel}: ${getDamageSeverityLabel(modifier.beforeSeverity)} урон → ${getDamageSeverityLabel(modifier.afterSeverity)}`
   }
   const prefix = modifier.amountDelta > 0 ? '+' : ''
+  if (modifier.operation === 'set_damage') {
+    return `${modifier.sourceLabel}: урон ${modifier.afterAmount}`
+  }
   const timing = modifier.operation === 'subtract_before_halving'
     ? ' до деления'
     : modifier.operation === 'subtract_after_halving'
@@ -531,7 +552,10 @@ function getPassivePowerEffects(power: LoadedDisciplinePower) {
     ? power.raw.mechanics
     : null
   if (!mechanics || !isObject(mechanics.automation)) return []
-  if (mechanics.automation.status !== 'auto') return []
+  if (
+    mechanics.automation.status !== 'auto'
+    && mechanics.automation.status !== 'partial'
+  ) return []
   if (!isPassiveActivation(mechanics)) return []
   return Array.isArray(mechanics.effects) ? mechanics.effects : []
 }
@@ -796,6 +820,15 @@ export function applyDisciplineEffectsToRoll(
     if (operation === 'ignore_penalty') continue
     if (!matchesRollMatcher(candidate.effect.matcher, rollContext)) continue
 
+    if (operation === 'auto_success') {
+      modifiers.push(createRollModifierApplication(
+        candidate,
+        operation,
+        !disabled.has(candidate.id),
+      ))
+      continue
+    }
+
     const amount = getRollEffectAmount(
       candidate.effect,
       data,
@@ -832,6 +865,9 @@ export function applyDisciplineEffectsToRoll(
     (total, modifier) => total + modifier.difficultyDelta,
     0,
   )
+  const autoSuccessLabels = activeModifiers
+    .filter((modifier) => modifier.operation === 'auto_success')
+    .map((modifier) => modifier.sourceLabel)
   const baseDiceCount = Math.max(
     0,
     Math.floor(Number(rollContext.baseDiceCount) || 0),
@@ -846,6 +882,8 @@ export function applyDisciplineEffectsToRoll(
     finalDiceCount,
     diceDelta,
     difficultyDelta,
+    autoSuccess: autoSuccessLabels.length > 0,
+    autoSuccessLabels,
     modifiers,
     ignoredPenaltyIds: [...ignoredPenaltyIds],
   }
@@ -899,7 +937,7 @@ export function applyDisciplineEffectsToDamage(
 
   for (const candidate of candidates) {
     const operation = normalizeDamageOperation(candidate.effect)
-    if (operation !== 'prevent_first_attack') continue
+    if (operation !== 'prevent_first_attack' && operation !== 'prevent_damage') continue
     const active = !disabled.has(candidate.id)
     pushModifier(
       candidate,
@@ -967,9 +1005,15 @@ export function applyDisciplineEffectsToDamage(
     const active = !disabled.has(candidate.id)
     const beforeAmount = currentAmount
     const amount = Math.floor(Math.abs(rawAmount))
-    const amountDelta = operation === 'add_damage' ? amount : -amount
+    const amountDelta = operation === 'set_damage'
+      ? amount - beforeAmount
+      : operation === 'add_damage'
+        ? amount
+        : -amount
     const afterAmount = active
-      ? Math.max(0, beforeAmount + amountDelta)
+      ? operation === 'set_damage'
+        ? amount
+        : Math.max(0, beforeAmount + amountDelta)
       : beforeAmount
     pushModifier(
       candidate,
@@ -989,6 +1033,9 @@ export function applyDisciplineEffectsToDamage(
       applyAmountModifier(candidate, operation)
     }
     if (operation === 'add_damage' && stage === 'before_halving') {
+      applyAmountModifier(candidate, operation)
+    }
+    if (operation === 'set_damage' && stage === 'before_halving') {
       applyAmountModifier(candidate, operation)
     }
   }
@@ -1040,8 +1087,18 @@ export function applyDisciplineEffectsToDamage(
     chain.push(`Осталось ${currentAmount}`)
   }
 
+  let halvingIgnored = false
+  for (const candidate of candidates) {
+    const operation = normalizeDamageOperation(candidate.effect)
+    if (operation !== 'ignore_halving') continue
+    const active = !disabled.has(candidate.id)
+    pushModifier(candidate, operation, active)
+    if (active) halvingIgnored = true
+  }
+
   const halved = currentSeverity === 'superficial'
     && damageContext.halveSuperficial !== false
+    && !halvingIgnored
   if (halved) {
     currentAmount = Math.ceil(currentAmount / 2)
     chain.push(`Деление лёгкого урона: ${currentAmount}`)
@@ -1054,6 +1111,9 @@ export function applyDisciplineEffectsToDamage(
       applyAmountModifier(candidate, operation)
     }
     if (operation === 'add_damage' && stage === 'after_halving') {
+      applyAmountModifier(candidate, operation)
+    }
+    if (operation === 'set_damage' && stage === 'after_halving') {
       applyAmountModifier(candidate, operation)
     }
   }

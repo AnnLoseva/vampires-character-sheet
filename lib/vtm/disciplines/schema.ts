@@ -80,6 +80,7 @@ export type RollModifierEffect = BaseDisciplineEffect & {
     | 'remove_dice'
     | 'difficulty_modifier'
     | 'ignore_penalty'
+    | 'auto_success'
   value?: FormulaValue
   amount?: FormulaValue
   penalty?: string
@@ -95,10 +96,13 @@ export type DamageModifierEffect = BaseDisciplineEffect & {
     | 'set'
     | 'multiply'
     | 'add_damage'
+    | 'set_damage'
     | 'subtract_before_halving'
     | 'subtract_after_halving'
     | 'convert_damage_type'
     | 'ignore_armor'
+    | 'ignore_halving'
+    | 'prevent_damage'
     | 'prevent_first_attack'
   value?: FormulaValue
   amount?: FormulaValue
