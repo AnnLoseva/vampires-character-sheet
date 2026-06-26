@@ -2,10 +2,12 @@
 
 import { ChangeEvent, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { Dispatch, SetStateAction } from 'react'
+import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkillValue, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import MusicPanel from '../music/MusicPanel'
+import type { DiceOverlayGroup, DiceOverlayRoll } from './DiceRollOverlay'
 import GameTableStyles from './GameTableStyles'
 import LayerManager from './LayerManager'
 import TableCanvas from './TableCanvas'
@@ -177,6 +179,8 @@ import type {
   VoiceQuality,
   VoiceSignal,
 } from '@/lib/table/types'
+
+const DiceRollOverlay = dynamic(() => import('./DiceRollOverlay'), { ssr: false })
 
 let supportsExtendedTableMusicSchema = true
 
@@ -844,6 +848,8 @@ export default function VampireTable() {
   const [room, setRoom] = useState('campaign-666')
   const [tableRole, setTableRole] = useState<TableRole | null>(null)
   const [rolls, setRolls] = useState<RollMessage[]>([])
+  const [diceOverlayQueue, setDiceOverlayQueue] = useState<DiceOverlayRoll[]>([])
+  const shownDiceOverlayIdsRef = useRef<Set<string>>(new Set())
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
   const [chatUser, setChatUser] = useState<ChatUser | null>(null)
   const [chatCharacters, setChatCharacters] = useState<CharacterOption[]>([])
@@ -1790,6 +1796,7 @@ export default function VampireTable() {
         const roll = payload.payload as RollMessage
         if (!roll || roll.room !== currentRoom) return
         setRolls(prev => mergeRoll(prev, roll))
+        triggerDiceOverlay(roll)
         setConnectionText('Онлайн')
       })
       .on('broadcast', { event: 'opposed-roll-proposal' }, payload => {
@@ -1939,7 +1946,9 @@ export default function VampireTable() {
           filter: `room=eq.${currentRoom}`,
         },
         payload => {
-          setRolls(prev => mergeRoll(prev, mapRollRow(payload.new as RollRow)))
+          const roll = mapRollRow(payload.new as RollRow)
+          setRolls(prev => mergeRoll(prev, roll))
+          triggerDiceOverlay(roll)
           setConnectionText('Онлайн')
         }
       )
@@ -2538,8 +2547,59 @@ export default function VampireTable() {
     }
   }
 
+  const queueDiceOverlayRoll = (overlayRoll: DiceOverlayRoll) => {
+    setDiceOverlayQueue(prev => [...prev, overlayRoll])
+  }
+
+  const buildDiceOverlaySummary = (successes: number, meta?: RollMeta) => {
+    if (meta?.bestialFailure) return { text: t('Звериный провал'), tone: 'bad' as const }
+    if (meta?.messyCritical) return { text: tf('Грязный критический успех · {n}', { n: successes }), tone: 'good' as const }
+    if (successes > 0) return { text: tf('Успехов: {n}', { n: successes }), tone: 'good' as const }
+    return { text: t('Провал'), tone: 'bad' as const }
+  }
+
+  // Fires the 3D overlay for any freshly-arrived roll, own or remote. Dedupes by roll id so the
+  // broadcast listener and the postgres_changes listener never show the same roll twice, and so a
+  // contested-roll request (dice already rolled, but deliberately hidden until answered) only
+  // animates once it resolves into `roll.opposed` — never at the moment the request is sent.
+  const triggerDiceOverlay = (roll: RollMessage) => {
+    if (shownDiceOverlayIdsRef.current.has(roll.id)) return
+    if (roll.meta?.rollMode === 'contested' && roll.meta.contested?.status !== 'resolved' && !roll.opposed) return
+
+    if (roll.opposed) {
+      const totalDice = roll.opposed.sides.reduce((sum, side) => sum + side.dice.length, 0)
+      if (totalDice === 0) return
+      shownDiceOverlayIdsRef.current.add(roll.id)
+      const groups: DiceOverlayGroup[] = roll.opposed.sides.map(side => ({
+        key: side.id,
+        label: `${side.actorName} · ${t(side.poolName)}`,
+        dice: side.dice.map(die => ({ value: die.value, kind: die.kind })),
+      }))
+      queueDiceOverlayRoll({
+        id: roll.id,
+        title: t(roll.poolName),
+        groups,
+        summary: roll.opposed.summary,
+        summaryTone: roll.opposed.winnerSideId ? 'good' : 'neutral',
+      })
+      return
+    }
+
+    if (!roll.dice.length) return
+    shownDiceOverlayIdsRef.current.add(roll.id)
+    const summary = buildDiceOverlaySummary(roll.successes, roll.meta)
+    queueDiceOverlayRoll({
+      id: roll.id,
+      title: `${roll.characterName} · ${t(roll.poolName)}`,
+      groups: [{ key: 'main', label: '', dice: roll.dice.map(die => ({ value: die.value, kind: die.kind })) }],
+      summary: summary.text,
+      summaryTone: summary.tone,
+    })
+  }
+
   const publishRoll = async (roll: RollMessage) => {
     setRolls(prev => mergeRoll(prev, roll))
+    triggerDiceOverlay(roll)
     if (roll.hidden) {
       setConnectionText('Скрытый бросок')
       return
@@ -3284,6 +3344,7 @@ export default function VampireTable() {
 
   const publishOpposedRoll = async (roll: RollMessage, opposed: OpposedRollResult) => {
     setRolls(prev => mergeRoll(prev, roll))
+    triggerDiceOverlay(roll)
     broadcast('roll', roll)
     const payload = {
       id: roll.id,
@@ -3773,6 +3834,11 @@ export default function VampireTable() {
       },
     }
     setWillpowerRerollDraft(null)
+    queueDiceOverlayRoll({
+      id: `${updatedRoll.id}-reroll`,
+      title: `${updatedRoll.characterName} · ${t('Переброс Воли')}`,
+      groups: [{ key: 'main', label: '', dice: newDice.map(die => ({ value: die.value, kind: die.kind })) }],
+    })
     await publishRollReplacement(updatedRoll)
   }
 
@@ -8931,6 +8997,14 @@ export default function VampireTable() {
             </div>
           </section>
         </div>
+      ) : null}
+
+      {diceOverlayQueue[0] ? (
+        <DiceRollOverlay
+          key={diceOverlayQueue[0].id}
+          roll={diceOverlayQueue[0]}
+          onDone={() => setDiceOverlayQueue(prev => prev.slice(1))}
+        />
       ) : null}
 
       <GameTableStyles />
