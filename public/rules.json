@@ -7926,14 +7926,166 @@
       "pool": "упорство + Кровавое чародейство",
       "cost": "нет",
       "effect": "Успех определяет резонанс, интенсивность и тип существа: человек, гуль, вампир или иное. Витэ раскрывает силу Крови; триумф уточняет поколение, диаблери и вид сверхъестественного существа, если чародей знаком с такими.",
-      "duration": "мгновенно"
+      "duration": "мгновенно",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Вкус крови",
+        "level": 1,
+        "tags": [
+         "instant",
+         "roll",
+         "blood_analysis",
+         "blood_potency",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "instant",
+        "action": "analysis"
+       },
+       "cost": {},
+       "duration": {
+        "type": "instant"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "bloodSample",
+          "label": "Образец крови",
+          "type": "text",
+          "required": false,
+          "placeholder": "Чья кровь или откуда взята капля"
+         },
+         {
+          "id": "targetName",
+          "label": "Цель",
+          "type": "text",
+          "required": false,
+          "placeholder": "Если образец связан с конкретной целью"
+         }
+        ]
+       },
+       "roll": {
+        "type": "static",
+        "actorPool": [
+         "Упорство",
+         "Кровавое чародейство"
+        ],
+        "result": "manual"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-taste-for-blood-sense",
+         "type": "sense",
+         "label": "Вкус крови",
+         "description": "Результат броска раскрывает резонанс, интенсивность, тип существа и свойства витэ.",
+         "sense": "blood_analysis",
+         "tags": [
+          "resonance",
+          "blood_potency",
+          "creature_type",
+          "diablerie"
+         ]
+        },
+        {
+         "id": "blood-sorcery-taste-for-blood-prompt",
+         "type": "manual_prompt",
+         "label": "Вкус крови: результат",
+         "description": "Успех определяет базовые свойства крови; триумф может уточнить поколение, диаблери и вид сверхъестественного существа.",
+         "message": "Сделай бросок Упорство + Кровавое чародейство. Рассказчик выдаёт сведения по числу успехов; триумф раскрывает дополнительные свойства витэ.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Анализ крови"
+       }
+      }
      },
      "Едкая кровь": {
       "description": "Собственная Кровь вампира становится кислотой для неживой материи.",
       "pool": "—",
       "cost": "1+ испытаний Крови",
       "effect": "Одна порция примерно за 5 минут разъедает около 35 см податливого материала вокруг точки контакта. Мягкие металлы требуют больше времени, твёрдая сталь и сплавы зависят от решения рассказчика. Неживая плоть Сородичей не растворяется.",
-      "duration": "несколько минут"
+      "duration": "несколько минут",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Едкая кровь",
+        "level": 1,
+        "tags": [
+         "active",
+         "rouse",
+         "blood_effect",
+         "acid",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1,
+        "variableRouseChecks": true
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "targetName",
+          "label": "Материал или объект",
+          "type": "text",
+          "required": false,
+          "placeholder": "Что разъедает кровь"
+         },
+         {
+          "id": "deliveryMethod",
+          "label": "Способ нанесения",
+          "type": "text",
+          "required": false,
+          "placeholder": "Порция крови, след, капля, сосуд"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-corrosive-blood-condition",
+         "type": "condition",
+         "label": "Едкая кровь",
+         "description": "Кровь превращена в кислоту против неживой материи; объём зависит от числа Испытаний Крови.",
+         "condition": "corrosive_blood",
+         "action": "apply",
+         "payload": {
+          "targetName": "",
+          "deliveryMethod": ""
+         }
+        },
+        {
+         "id": "blood-sorcery-corrosive-blood-prompt",
+         "type": "manual_prompt",
+         "label": "Едкая кровь: разъедание",
+         "description": "Одна порция примерно за 5 минут разъедает около 35 см податливого материала; твёрдые материалы решает рассказчик.",
+         "message": "Оплати выбранное число Испытаний Крови. Рассказчик определяет, сколько материала растворено и сколько времени это занимает.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Едкая кровь"
+       }
+      }
      }
     },
     "2": {
@@ -7942,7 +8094,81 @@
       "pool": "интеллект + Кровавое чародейство vs выносливость + самообладание",
       "cost": "1 испытание Крови",
       "effect": "Видимая цель-вампир получает +1 Голод при победе, +2 при триумфе. Жертва может попытаться понять источник воздействия, если видит чародея.",
-      "duration": "мгновенно"
+      "duration": "мгновенно",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Истончение витэ",
+        "level": 2,
+        "tags": [
+         "instant",
+         "rouse",
+         "contested",
+         "hunger",
+         "blood_effect"
+        ]
+       },
+       "activation": {
+        "kind": "instant",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "instant"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "targetName",
+          "label": "Цель-вампир",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого ослабляет чародей"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "resistancePool": [
+         "Выносливость",
+         "Самообладание"
+        ],
+        "trigger": "видимая цель-вампир"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-extinguish-vitae-hunger",
+         "type": "tracker_modifier",
+         "label": "Истончение витэ: Голод цели",
+         "description": "При победе цель получает +1 Голод; при триумфе +2. Изменение применяется вручную к цели.",
+         "tracker": "hunger",
+         "operation": "add",
+         "value": 1
+        },
+        {
+         "id": "blood-sorcery-extinguish-vitae-prompt",
+         "type": "manual_prompt",
+         "label": "Истончение витэ: сопротивление",
+         "description": "Видимая цель-вампир сопротивляется Выносливость + Самообладание. При победе чародея цель получает +1 Голод, при триумфе +2.",
+         "message": "Оплати 1 Испытание Крови и проведи состязание. Если чародей победил, вручную увеличь Голод цели на 1; при триумфе на 2.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Истончение витэ"
+       }
+      }
      }
     },
     "3": {
@@ -7951,14 +8177,207 @@
       "pool": "сила + Кровавое чародейство vs выносливость",
       "cost": "1+ испытаний Крови",
       "effect": "Жертва сопротивляется Выносливостью + Оккультизмом или Стойкостью. При победе отравителя смертные получают тяжёлый урон и теряют сознание, вампиры получают неделимый лёгкий урон. Яд неэффективен в напитках, шприцах и на обычных пулях.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Касание скорпиона",
+        "level": 3,
+        "tags": [
+         "active",
+         "rouse",
+         "poison_blood",
+         "weapon_effect",
+         "damage_modifier",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1,
+        "variableRouseChecks": true
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "weaponName",
+          "label": "Оружие или способ",
+          "type": "text",
+          "required": false,
+          "placeholder": "Клинок, плевок, поцелуй"
+         },
+         {
+          "id": "targetName",
+          "label": "Цель",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого отравляет кровь"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Сила",
+         "Кровавое чародейство"
+        ],
+        "resistancePool": [
+         "Выносливость"
+        ],
+        "alternateResistance": [
+         "Выносливость + Оккультизм",
+         "Стойкость"
+        ]
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-scorpions-touch-condition",
+         "type": "condition",
+         "label": "Касание скорпиона",
+         "description": "Кровь превращена в парализующий яд для выбранного способа доставки.",
+         "condition": "scorpions_touch_poison",
+         "action": "apply",
+         "payload": {
+          "weaponName": "",
+          "targetName": ""
+         }
+        },
+        {
+         "id": "blood-sorcery-scorpions-touch-weapon",
+         "type": "weapon_effect",
+         "label": "Касание скорпиона: отравленная кровь",
+         "description": "Оружие, плевок или поцелуй несёт яд крови; точный урон зависит от типа цели и результата состязания.",
+         "weaponTags": [
+          "blood_poison",
+          "scorpions_touch"
+         ],
+         "grantedTags": [
+          "poison_blood"
+         ],
+         "properties": {
+          "poison": "scorpions_touch",
+          "delivery": "weapon_spit_or_kiss"
+         }
+        },
+        {
+         "id": "blood-sorcery-scorpions-touch-unhalved",
+         "type": "damage_modifier",
+         "label": "Касание скорпиона: неделимый лёгкий урон",
+         "description": "Против вампиров лёгкий урон от яда не делится пополам; применяй при подходящем контексте вручную или через damage pipeline.",
+         "matcher": {
+          "sources": [
+           "scorpions_touch",
+           "blood_poison"
+          ],
+          "severities": [
+           "superficial"
+          ],
+          "conditions": [
+           "vampire_target"
+          ]
+         },
+         "operation": "ignore_halving",
+         "ignoreHalving": true
+        },
+        {
+         "id": "blood-sorcery-scorpions-touch-prompt",
+         "type": "manual_prompt",
+         "label": "Касание скорпиона: результат яда",
+         "description": "Смертные получают тяжёлый урон и теряют сознание; вампиры получают неделимый лёгкий урон. Напитки, шприцы и обычные пули не подходят.",
+         "message": "Оплати выбранное число Испытаний Крови. При попадании или доставке яда проведи сопротивление цели и вручную примени результат по типу цели.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Ядовитая кровь"
+       }
+      }
      },
      "Сгущение крови": {
       "description": "Чародей временно усиливает собственную Кровь сверх обычных пределов.",
       "pool": "упорство + Кровавое чародейство",
       "cost": "1 испытание Крови",
       "effect": "Проверка со сложностью 2 + текущая сила Крови. Успех повышает силу Крови на 1 на сцену или до рассвета, триумф — на 2; эффект может превысить поколенческий максимум.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Сгущение крови",
+        "level": 3,
+        "tags": [
+         "active",
+         "rouse",
+         "roll",
+         "blood_potency",
+         "blood_effect"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "roll": {
+        "type": "static",
+        "actorPool": [
+         "Упорство",
+         "Кровавое чародейство"
+        ],
+        "difficulty": "2 + текущая сила Крови",
+        "result": "manual"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-blood-of-potency-condition",
+         "type": "condition",
+         "label": "Сгущение крови",
+         "description": "Сила Крови временно повышена; величина зависит от результата броска.",
+         "condition": "blood_potency_boost",
+         "action": "apply"
+        },
+        {
+         "id": "blood-sorcery-blood-of-potency-tracker",
+         "type": "tracker_modifier",
+         "label": "Сгущение крови: +1 сила Крови",
+         "description": "Успех повышает силу Крови на 1; триумф может повысить на 2. Применяется вручную к данным персонажа.",
+         "tracker": "blood_potency",
+         "operation": "add",
+         "value": 1
+        },
+        {
+         "id": "blood-sorcery-blood-of-potency-prompt",
+         "type": "manual_prompt",
+         "label": "Сгущение крови: сила Крови",
+         "description": "Сложность равна 2 + текущая сила Крови. Успех даёт +1, триумф +2; эффект может превысить поколенческий максимум.",
+         "message": "После оплаты брось Упорство + Кровавое чародейство. При успехе вручную повысь силу Крови на 1, при триумфе на 2.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "+сила Крови"
+       }
+      }
      }
     },
     "4": {
@@ -7967,7 +8386,94 @@
       "pool": "смекалка + Кровавое чародейство",
       "cost": "1 испытание Крови",
       "effect": "Требует видимую смертную цель и состязание. Пока вампир питается, он не делает ничего другого, но пьёт вдвое быстрее, а при триумфе втрое. Рана закрывается сама после окончания, но зрелище почти наверняка нарушает Маскарад.",
-      "duration": "одно насыщение"
+      "duration": "одно насыщение",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Хищение крови",
+        "level": 4,
+        "tags": [
+         "active",
+         "rouse",
+         "blood_theft",
+         "feeding",
+         "masquerade_risk",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "targetName",
+          "label": "Смертная цель",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого вампир пьёт на расстоянии"
+         }
+        ]
+       },
+       "roll": {
+        "type": "static",
+        "actorPool": [
+         "Смекалка",
+         "Кровавое чародейство"
+        ],
+        "result": "manual"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-theft-of-vitae-channel",
+         "type": "condition",
+         "label": "Хищение крови",
+         "description": "Канал кровавого питания открыт; персонаж пьёт быстрее, но не делает ничего другого.",
+         "condition": "blood_theft_channel",
+         "action": "apply",
+         "payload": {
+          "targetName": ""
+         }
+        },
+        {
+         "id": "blood-sorcery-theft-of-vitae-feeding",
+         "type": "feeding_modifier",
+         "label": "Хищение крови: ускоренное питание",
+         "description": "Питание кровью цели идёт вдвое быстрее, при триумфе втрое. Точный объём утоления решает рассказчик.",
+         "matcher": {
+          "sources": [
+           "blood_theft",
+           "mortal_blood"
+          ]
+         },
+         "operation": "add_satiation",
+         "amount": 0
+        },
+        {
+         "id": "blood-sorcery-theft-of-vitae-prompt",
+         "type": "manual_prompt",
+         "label": "Хищение крови: насыщение",
+         "description": "Кровь смертной цели течёт к вампиру по воздуху. Питание вдвое быстрее, при триумфе втрое; сцена почти наверняка нарушает Маскарад.",
+         "message": "Оплати 1 Испытание Крови и брось Смекалка + Кровавое чародейство. При успехе веди насыщение вручную: скорость ×2, при триумфе ×3.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Хищение крови"
+       }
+      }
      }
     },
     "5": {
@@ -7976,14 +8482,220 @@
       "pool": "упорство + Кровавое чародейство vs самообладание",
       "cost": "1 испытание Крови",
       "effect": "Нужно прикоснуться к цели и победить в состязании. Каждая ступень выигрыша наносит тяжёлое повреждение; смертный с любым таким уроном умирает. У вампира-жертвы Голод растёт за каждое повреждение до максимума 5.",
-      "duration": "1 ход"
+      "duration": "1 ход",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Котёл крови",
+        "level": 5,
+        "tags": [
+         "instant",
+         "rouse",
+         "contested",
+         "blood_boiling",
+         "damage_modifier",
+         "hunger"
+        ]
+       },
+       "activation": {
+        "kind": "instant",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "targetName",
+          "label": "Цель",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого касается чародей"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Упорство",
+         "Кровавое чародейство"
+        ],
+        "resistancePool": [
+         "Самообладание"
+        ],
+        "trigger": "прикосновение к цели"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-cauldron-of-blood-damage",
+         "type": "damage_modifier",
+         "label": "Котёл крови: тяжёлый урон",
+         "description": "Каждая ступень выигрыша наносит тяжёлое повреждение; смертный с любым таким уроном умирает.",
+         "matcher": {
+          "sources": [
+           "cauldron_of_blood",
+           "blood_boiling"
+          ]
+         },
+         "operation": "add_damage",
+         "amount": 0,
+         "severity": "aggravated"
+        },
+        {
+         "id": "blood-sorcery-cauldron-of-blood-hunger",
+         "type": "tracker_modifier",
+         "label": "Котёл крови: Голод вампира-цели",
+         "description": "У вампира-жертвы Голод растёт за каждое нанесённое повреждение до максимума 5. Изменение применяется вручную.",
+         "tracker": "hunger",
+         "operation": "add",
+         "value": 1
+        },
+        {
+         "id": "blood-sorcery-cauldron-of-blood-prompt",
+         "type": "manual_prompt",
+         "label": "Котёл крови: ступени выигрыша",
+         "description": "После касания проведи состязание. Каждая ступень выигрыша наносит тяжёлый урон; у вампира-жертвы также растёт Голод.",
+         "message": "Оплати 1 Испытание Крови и проведи состязание. Вручную примени тяжёлый урон по ступеням выигрыша и Голод вампира-цели до 5.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Котёл крови"
+       }
+      }
      },
      "Ласка Ваала": {
       "description": "Собственная Кровь становится смертельным ядом, опасным и для смертных, и для Сородичей.",
       "pool": "сила + Кровавое чародейство",
       "cost": "1+ испытаний Крови",
       "effect": "Работает как Касание скорпиона, но наносит тяжёлые повреждения всем целям. Смертный с любым уроном умирает мгновенно; вампир при дополнительном проигранном состязании впадёт в торпор при следующем сне.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Ласка Ваала",
+        "level": 5,
+        "tags": [
+         "active",
+         "rouse",
+         "poison_blood",
+         "weapon_effect",
+         "damage_modifier",
+         "aggravated_damage",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "standard"
+       },
+       "cost": {
+        "rouseChecks": 1,
+        "variableRouseChecks": true
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "weaponName",
+          "label": "Оружие или способ",
+          "type": "text",
+          "required": false,
+          "placeholder": "Клинок, плевок, поцелуй"
+         },
+         {
+          "id": "targetName",
+          "label": "Цель",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого поражает яд"
+         }
+        ]
+       },
+       "roll": {
+        "type": "static",
+        "actorPool": [
+         "Сила",
+         "Кровавое чародейство"
+        ],
+        "result": "manual"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-baal-caress-condition",
+         "type": "condition",
+         "label": "Ласка Ваала",
+         "description": "Кровь стала смертельным ядом, наносящим тяжёлый урон.",
+         "condition": "baals_caress_poison",
+         "action": "apply",
+         "payload": {
+          "weaponName": "",
+          "targetName": ""
+         }
+        },
+        {
+         "id": "blood-sorcery-baal-caress-weapon",
+         "type": "weapon_effect",
+         "label": "Ласка Ваала: тяжёлый яд",
+         "description": "Выбранный способ доставки несёт смертельный яд крови.",
+         "weaponTags": [
+          "blood_poison",
+          "baals_caress"
+         ],
+         "damageSeverity": "aggravated",
+         "grantedTags": [
+          "poison_blood",
+          "aggravated"
+         ],
+         "properties": {
+          "poison": "baals_caress",
+          "delivery": "weapon_spit_or_kiss"
+         }
+        },
+        {
+         "id": "blood-sorcery-baal-caress-damage",
+         "type": "damage_modifier",
+         "label": "Ласка Ваала: тяжёлый урон",
+         "description": "Урон от яда считается тяжёлым для смертных и вампиров; торпор вампира при дополнительном состязании решает рассказчик.",
+         "matcher": {
+          "sources": [
+           "baals_caress",
+           "blood_poison"
+          ]
+         },
+         "operation": "convert_damage_type",
+         "severity": "aggravated"
+        },
+        {
+         "id": "blood-sorcery-baal-caress-prompt",
+         "type": "manual_prompt",
+         "label": "Ласка Ваала: результат яда",
+         "description": "Работает как Касание скорпиона, но наносит тяжёлые повреждения всем целям. Смертный с любым уроном умирает мгновенно.",
+         "message": "Оплати выбранное число Испытаний Крови. При доставке яда вручную примени тяжёлый урон; для вампира проверь дополнительное состязание на риск торпора при следующем сне.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Ласка Ваала"
+       }
+      }
      }
     }
    },
@@ -7991,55 +8703,795 @@
     "1": {
      "Вечерняя бодрость": {
       "effect": "Если вампира потревожат днём, он может проснуться готовым действовать без дневных штрафов на сцену; триумф продлевает эффект до следующей зари.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Вечерняя бодрость",
+        "level": 1,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "day_sleep",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "casting": {
+        "time": "5 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 2,
+        "result": "manual"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-wake-with-evenings-freshness-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Вечерняя бодрость",
+         "description": "При дневном пробуждении вампир действует без дневных штрафов на сцену; триумф продлевает эффект до следующей зари.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 5 минут и брось Интеллект + Кровавое чародейство со сложностью 2. Результат применяет рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Вечерняя бодрость"
+       }
+      }
      },
      "Пау́чьи лапы": {
       "effect": "Позволяет ползать по стенам и потолку со скоростью примерно вдвое ниже обычной, пока руки и ноги касаются поверхности.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Пау́чьи лапы",
+        "level": 1,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "movement",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "casting": {
+        "time": "5 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 2,
+        "result": "manual"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-clinging-of-the-insect-movement",
+         "type": "movement",
+         "label": "Пау́чьи лапы",
+         "description": "Персонаж может ползать по стенам и потолку примерно с половинной скоростью.",
+         "mode": "climb",
+         "multiplier": 0.5,
+         "ignoreTerrain": true
+        },
+        {
+         "id": "blood-sorcery-ritual-clinging-of-the-insect-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Пау́чьи лапы",
+         "description": "После успешного ритуала движение по стенам и потолку держится сцену.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 5 минут и брось Интеллект + Кровавое чародейство со сложностью 2. Движение и ограничения ведёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Пау́чьи лапы"
+       }
+      }
      },
      "Путеводный камень": {
       "effect": "Создаёт маяк, направление и примерное расстояние до которого чародей чувствует неделю, пока камень цел.",
-      "duration": "1 неделя"
+      "duration": "1 неделя",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Путеводный камень",
+        "level": 1,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "sense",
+         "tracking",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "week"
+       },
+       "casting": {
+        "time": "5 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 2,
+        "result": "manual"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-craft-bloodstone-sense",
+         "type": "sense",
+         "label": "Путеводный камень",
+         "description": "Чародей чувствует направление и примерное расстояние до созданного маяка, пока камень цел.",
+         "sense": "bloodstone_beacon",
+         "tags": [
+          "tracking",
+          "beacon"
+         ]
+        },
+        {
+         "id": "blood-sorcery-ritual-craft-bloodstone-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Путеводный камень",
+         "description": "Создаёт маяк на неделю; направление и расстояние сообщает рассказчик.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 5 минут и брось Интеллект + Кровавое чародейство со сложностью 2. Маяк и его сохранность ведёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Путеводный камень"
+       }
+      }
      }
     },
     "2": {
      "Истина в крови": {
       "effect": "Позволяет по крови цели отличать сознательную ложь от правды; триумф вытягивает дополнительные забытые или подавленные детали.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Истина в крови",
+        "level": 2,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "sense",
+         "truth",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "casting": {
+        "time": "10 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 3,
+        "result": "manual"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "bloodSample",
+          "label": "Кровь цели",
+          "type": "text",
+          "required": false,
+          "placeholder": "Чья кровь использована"
+         },
+         {
+          "id": "targetName",
+          "label": "Цель",
+          "type": "text",
+          "required": false,
+          "placeholder": "Чьи слова проверяются"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-truth-of-blood-sense",
+         "type": "sense",
+         "label": "Истина в крови",
+         "description": "Позволяет отличать сознательную ложь от правды по крови цели.",
+         "sense": "blood_truth",
+         "tags": [
+          "truth",
+          "lie_detection"
+         ]
+        },
+        {
+         "id": "blood-sorcery-ritual-truth-of-blood-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Истина в крови",
+         "description": "Триумф может вытянуть дополнительные забытые или подавленные детали.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 10 минут и брось Интеллект + Кровавое чародейство со сложностью 3. Ответы о правде/лжи выдаёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Истина в крови"
+       }
+      }
      },
      "Связь с сиром": {
       "effect": "Открывает короткий телепатический разговор между потомком и сиром на огромной дистанции.",
-      "duration": "10 минут"
+      "duration": "10 минут",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Связь с сиром",
+        "level": 2,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "telepathy",
+         "communication",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "casting": {
+        "time": "10 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 3,
+        "result": "manual"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "targetName",
+          "label": "Сир или потомок",
+          "type": "text",
+          "required": false,
+          "placeholder": "С кем устанавливается связь"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-communicate-with-kindred-sire-sense",
+         "type": "sense",
+         "label": "Связь с сиром",
+         "description": "Открывает короткий телепатический разговор между потомком и сиром.",
+         "sense": "sire_telepathy",
+         "tags": [
+          "telepathy",
+          "communication"
+         ]
+        },
+        {
+         "id": "blood-sorcery-ritual-communicate-with-kindred-sire-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Связь с сиром",
+         "description": "Телепатический разговор длится около 10 минут; дистанционные и сюжетные ограничения ведёт рассказчик.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 10 минут и брось Интеллект + Кровавое чародейство со сложностью 3. Связь и содержание разговора ведутся вручную.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Связь с сиром"
+       }
+      }
      }
     },
     "3": {
      "Зов Дагона": {
       "effect": "После предварительного контакта с Кровью чародея жертва получает дистанционный урон: её сосуды рвутся, а лёгкие наполняются кровью.",
-      "duration": "мгновенно"
+      "duration": "мгновенно",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Зов Дагона",
+        "level": 3,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "blood_damage",
+         "remote_damage",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "instant"
+       },
+       "casting": {
+        "time": "15 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 4,
+        "result": "manual"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "targetName",
+          "label": "Жертва",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кто ранее контактировал с кровью чародея"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-dagons-call-damage",
+         "type": "damage_modifier",
+         "label": "Зов Дагона",
+         "description": "Дистанционный кровавый урон после предварительного контакта с кровью чародея. Итоговый урон применяет рассказчик.",
+         "matcher": {
+          "sources": [
+           "dagons_call",
+           "blood_ritual"
+          ]
+         },
+         "operation": "add_damage",
+         "amount": 0
+        },
+        {
+         "id": "blood-sorcery-ritual-dagons-call-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Зов Дагона",
+         "description": "После предварительного контакта с Кровью чародея сосуды жертвы рвутся дистанционно.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 15 минут и брось Интеллект + Кровавое чародейство со сложностью 4. Урон и условия контакта применяет рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Зов Дагона"
+       }
+      }
      },
      "Пожиратель пламени": {
       "effect": "До конца ночи огонь наносит защищённому персонажу половину урона; компонентом служит фаланга пальца заклинателя.",
-      "duration": "1 ночь"
+      "duration": "1 ночь",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Пожиратель пламени",
+        "level": 3,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "fire_resistance",
+         "damage_modifier",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "night"
+       },
+       "casting": {
+        "time": "15 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 4,
+        "result": "manual"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "ritualComponents",
+          "label": "Компонент",
+          "type": "text",
+          "required": false,
+          "placeholder": "Фаланга пальца заклинателя"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-firewalker-condition",
+         "type": "condition",
+         "label": "Пожиратель пламени",
+         "description": "До конца ночи огонь наносит защищённому персонажу половину урона.",
+         "condition": "fire_damage_halved",
+         "action": "apply"
+        },
+        {
+         "id": "blood-sorcery-ritual-firewalker-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Пожиратель пламени",
+         "description": "Огонь наносит половину урона до конца ночи; компонентом служит фаланга пальца заклинателя.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 15 минут и брось Интеллект + Кровавое чародейство со сложностью 4. При уроне огнём вручную дели его пополам.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Пожиратель пламени"
+       }
+      }
      }
     },
     "4": {
      "Бесплотный путь": {
       "effect": "Чародей становится видимым, слышимым, но нематериальным и проходит сквозь стены по прямой, пока держит осколок зеркала.",
-      "duration": "1 сцена"
+      "duration": "1 сцена",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Бесплотный путь",
+        "level": 4,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "transformation",
+         "incorporeal",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "casting": {
+        "time": "20 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 5,
+        "result": "manual"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "ritualComponents",
+          "label": "Компонент",
+          "type": "text",
+          "required": false,
+          "placeholder": "Осколок зеркала"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-incorporeal-passage-form",
+         "type": "transformation",
+         "label": "Бесплотный путь",
+         "description": "Чародей видим и слышим, но нематериален и может пройти сквозь стены по прямой.",
+         "form": "incorporeal"
+        },
+        {
+         "id": "blood-sorcery-ritual-incorporeal-passage-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Бесплотный путь",
+         "description": "Перемещение сквозь препятствия и ограничения зеркального осколка ведёт рассказчик.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 20 минут и брось Интеллект + Кровавое чародейство со сложностью 5. Нематериальное перемещение применяй вручную.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Бесплотный путь"
+       }
+      }
      },
      "Защита убежища": {
       "effect": "Окутывает место сна тенями, блокируя солнечный свет внутри защищённого периметра до заката.",
-      "duration": "до заката"
+      "duration": "до заката",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Защита убежища",
+        "level": 4,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "haven",
+         "sunlight_protection",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "night"
+       },
+       "casting": {
+        "time": "20 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 5,
+        "result": "manual"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "ritualTarget",
+          "label": "Убежище",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Какой периметр защищён"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-warding-circle-against-sun-condition",
+         "type": "condition",
+         "label": "Защита убежища",
+         "description": "Защищённый периметр блокирует солнечный свет внутри до заката.",
+         "condition": "haven_sunlight_ward",
+         "action": "apply",
+         "payload": {
+          "ritualTarget": ""
+         }
+        },
+        {
+         "id": "blood-sorcery-ritual-warding-circle-against-sun-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Защита убежища",
+         "description": "Окутывает место сна тенями и блокирует солнечный свет внутри защищённого периметра до заката.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 20 минут и брось Интеллект + Кровавое чародейство со сложностью 5. Периметр и нарушения защиты ведёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Защита убежища"
+       }
+      }
      }
     },
     "5": {
      "Врата": {
       "effect": "Создаёт пару кругов: вход и выход. Войдя во вход и пройдя проверку, чародей мгновенно перемещается к выходу вместе с небольшой ношей или одним существом.",
-      "duration": "постоянная (пока активны)"
+      "duration": "постоянная (пока активны)",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Врата",
+        "level": 5,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "movement",
+         "teleport",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "permanent"
+       },
+       "casting": {
+        "time": "25 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 6,
+        "result": "manual"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "ritualTarget",
+          "label": "Круги врат",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Где вход и выход"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-gate-movement",
+         "type": "movement",
+         "label": "Врата",
+         "description": "Пара кругов позволяет мгновенно переместиться от входа к выходу с небольшой ношей или одним существом.",
+         "mode": "teleport"
+        },
+        {
+         "id": "blood-sorcery-ritual-gate-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Врата",
+         "description": "Создаёт пару активных кругов; входящий проходит проверку и перемещается к выходу.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 25 минут и брось Интеллект + Кровавое чародейство со сложностью 6. Перемещение, ношу и состояние кругов ведёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Врата"
+       }
+      }
      },
      "Каменное сердце": {
       "effect": "Сердце становится каменным и неуязвимым для кола, но вампир получает серьёзную эмоциональную холодность и штрафы к эмпатичным социальным действиям.",
-      "duration": "постоянная"
+      "duration": "постоянная",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Кровавое чародейство",
+        "power": "Каменное сердце",
+        "level": 5,
+        "tags": [
+         "ritual",
+         "casting_helper",
+         "condition",
+         "staking_resistance",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "ritual",
+        "action": "casting"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "permanent"
+       },
+       "casting": {
+        "time": "25 минут",
+        "roll": [
+         "Интеллект",
+         "Кровавое чародейство"
+        ],
+        "difficulty": 6,
+        "result": "manual"
+       },
+       "effects": [
+        {
+         "id": "blood-sorcery-ritual-heart-of-stone-condition",
+         "type": "condition",
+         "label": "Каменное сердце",
+         "description": "Сердце неуязвимо для кола, но персонаж получает эмоциональную холодность и штрафы к эмпатичным социальным действиям.",
+         "condition": "heart_of_stone",
+         "action": "apply"
+        },
+        {
+         "id": "blood-sorcery-ritual-heart-of-stone-prompt",
+         "type": "manual_prompt",
+         "label": "Ритуал: Каменное сердце",
+         "description": "Постоянная защита от кола с социально-эмоциональными последствиями.",
+         "message": "Оплати 1 Испытание Крови, проведи ритуал 25 минут и брось Интеллект + Кровавое чародейство со сложностью 6. Защиту от кола и штрафы к эмпатии применяй вручную.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": false,
+        "activeLabel": "Ритуал: Каменное сердце"
+       }
+      }
      }
     },
     "description": "Ритуалы — отдельные формулы Кровавого чародейства. Обычно они требуют испытания Крови, компонентов, времени 5 минут × уровень и проверки Интеллект + Кровавое чародейство со сложностью уровень + 1. Ритуалы медленнее обычных сил, зато решают задачи, которые дисциплины напрямую не закрывают: защитные печати, связь на расстоянии, сопротивление огню, нематериальность, защита убежища от солнца и магические врата.",

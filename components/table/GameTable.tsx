@@ -665,6 +665,12 @@ function getPayloadValueLabel(key: string, value: unknown) {
     swarmTarget: 'цель роя',
     frenzyTarget: 'цель ярости',
     feedingSource: 'питание',
+    targetName: 'цель',
+    bloodSample: 'образец крови',
+    weaponName: 'оружие',
+    deliveryMethod: 'способ',
+    ritualTarget: 'цель ритуала',
+    ritualComponents: 'компоненты',
   }
   const label = payloadLabels[key] || key
   return `${label}: ${String(value)}`
