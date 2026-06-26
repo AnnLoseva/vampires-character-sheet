@@ -157,10 +157,15 @@ export type FeedingModifierEffect = BaseDisciplineEffect & {
 export type DisciplinePowerInputField = {
   id: string
   label?: string
-  type?: 'text' | 'textarea' | 'number' | 'checkbox'
+  type?: 'text' | 'textarea' | 'number' | 'checkbox' | 'select'
   placeholder?: string
   required?: boolean
   description?: string
+  options?: Array<{
+    label: string
+    value: string
+    description?: string
+  }>
 }
 
 export type TransformationEffect = BaseDisciplineEffect & {

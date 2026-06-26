@@ -21,6 +21,16 @@ const isObject = (value: unknown): value is JsonObject =>
 const hasField = (power: JsonObject, field: string): "yes" | "no" =>
   Object.prototype.hasOwnProperty.call(power, field) ? "yes" : "no";
 
+function getPowerContainer(value: JsonObject): unknown {
+  if (isObject(value.powers)) return value.powers;
+  const levelEntries = Object.entries(value).filter(([key]) =>
+    Number.isFinite(Number(key))
+  );
+  return levelEntries.length > 0
+    ? Object.fromEntries(levelEntries)
+    : undefined;
+}
+
 function collectPowers(
   rows: AuditRow[],
   discipline: string,
@@ -99,7 +109,7 @@ function main(): void {
         );
       }
 
-      collectPowers(rows, disciplineName, pathName, path.powers);
+      collectPowers(rows, disciplineName, pathName, getPowerContainer(path));
     }
   }
 

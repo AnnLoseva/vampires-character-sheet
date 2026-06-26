@@ -1,5 +1,5 @@
 import type { Conviction, HumanityStainEvent, HumanityState, HumanityStatus, MoralityState, Touchstone } from '@/lib/vtm/humanity'
-import type { NormalizedDisciplinePowers, NormalizedDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
+import type { NormalizedDisciplinePathPowers, NormalizedDisciplinePowers, NormalizedDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
 import type { CharacterDerivedStats } from '@/lib/vtm/derived-stats'
 import type { ActiveEffect } from '@/lib/vtm/disciplines/schema'
 import type { AppliedDisciplineRollModifier } from '@/lib/vtm/disciplines/effects'
@@ -265,6 +265,7 @@ export type CharacterOption = {
   skills: Record<string, number | { dots?: number; specs?: string[] }>
   disciplines: NormalizedDisciplines
   selectedPowers: NormalizedDisciplinePowers
+  selectedPathPowers: NormalizedDisciplinePathPowers
   derivedStats: CharacterDerivedStats
   activeEffects: ActiveEffect[]
 }

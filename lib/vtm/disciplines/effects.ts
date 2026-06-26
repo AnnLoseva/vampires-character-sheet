@@ -627,14 +627,30 @@ function getLearnedPowers(
   const discipline = rules[disciplineName]
   if (!discipline) return []
 
-  const selectedPowerNames = normalized.powers[disciplineName] || []
-  if (selectedPowerNames.length > 0) {
+  const selectedPathPowers = normalized.pathPowers[disciplineName] || {}
+  const selectedPathPowerNames = new Set(Object.values(selectedPathPowers).flat())
+  const selectedPowerNames = (normalized.powers[disciplineName] || [])
+    .filter((powerName) => !selectedPathPowerNames.has(powerName))
+  const hasSelectedPathPowers = Object.values(selectedPathPowers).some(
+    (powers) => powers.length > 0,
+  )
+  if (selectedPowerNames.length > 0 || hasSelectedPathPowers) {
     const selected = new Set(selectedPowerNames)
-    return discipline.powers.filter((power) => selected.has(power.name))
+    return discipline.powers.filter((power) => {
+      if (selected.has(power.name)) return true
+      if (!power.path) return false
+      return selectedPathPowers[power.path]?.includes(power.name) || false
+    })
   }
 
-  const rating = getDisciplineRating(normalized, disciplineName)
-  return discipline.powers.filter((power) => power.level <= rating)
+  const disciplineRating = getDisciplineRating(normalized, disciplineName)
+  const sources = normalized.disciplines[disciplineName] || {}
+  return discipline.powers.filter((power) => {
+    const pathRating = power.path && Number(sources[power.path]) > 0
+      ? Number(sources[power.path])
+      : disciplineRating
+    return power.level <= pathRating
+  })
 }
 
 function getPassivePowerEffects(power: LoadedDisciplinePower) {

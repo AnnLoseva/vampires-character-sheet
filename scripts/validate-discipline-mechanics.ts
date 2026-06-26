@@ -47,6 +47,16 @@ const formatPowerLocation = (
 ): string =>
   [discipline, path, `level ${level}`, power].filter(Boolean).join(" / ");
 
+function getPowerContainer(value: JsonObject): unknown {
+  if (isObject(value.powers)) return value.powers;
+  const levelEntries = Object.entries(value).filter(([key]) =>
+    Number.isFinite(Number(key))
+  );
+  return levelEntries.length > 0
+    ? Object.fromEntries(levelEntries)
+    : undefined;
+}
+
 function validatePower(
   discipline: string,
   path: string,
@@ -209,7 +219,7 @@ function main(): void {
       validatePowers(
         disciplineName,
         pathName,
-        path.powers,
+        getPowerContainer(path),
         summary,
         errors,
       );

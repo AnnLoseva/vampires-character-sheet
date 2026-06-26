@@ -9573,19 +9573,245 @@
     "1": {
      "Длинные руки": {
       "type": "control",
+      "pool": "по методу приготовления",
       "extra_roll": "сопротивление цели: Сила + Атлетика; точная манипуляция — отдельная проверка",
       "effect": "Действует на видимые цели до 10 метров и массой примерно до 100 кг. Сопротивляющаяся цель бросает Сила + Атлетика; при победе алхимика её можно подтянуть, оттолкнуть, уронить и нанести лёгкий урон по выигрышу. Точная манипуляция требует отдельной проверки.",
       "range": "до 10 м",
       "duration": "1 ход",
       "cost": "1 испытание Крови",
-      "description": "Телекинетический эффект: алхимик хватает, толкает и удерживает объекты или людей на расстоянии."
+      "description": "Телекинетический эффект: алхимик хватает, толкает и удерживает объекты или людей на расстоянии.",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Длинные руки",
+        "level": 1,
+        "tags": [
+         "formula",
+         "active",
+         "alchemy_method",
+         "telekinesis",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "turn",
+        "turns": 1
+       },
+       "alchemy": {
+        "formula": true,
+        "methods": [
+         "Атанор корпорис",
+         "Кальцинация",
+         "Фиксация"
+        ],
+        "distillationCost": "1 испытание Крови",
+        "methodRolls": {
+         "Атанор корпорис": "Выносливость + Алхимия",
+         "Кальцинация": "Манипуляция + Алхимия",
+         "Фиксация": "Интеллект + Алхимия"
+        }
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — Выносливость + Алхимия",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — Манипуляция + Алхимия",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — Интеллект + Алхимия",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "formulaTarget",
+          "label": "Цель или объект",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого или что хватает формула"
+         },
+         {
+          "id": "alchemyIngredients",
+          "label": "Ингредиенты",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Витэ, кровь резонанса и важные добавки"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-far-reach-condition",
+         "type": "condition",
+         "label": "Длинные руки",
+         "description": "Формула телекинеза активна: видимая цель до 10 м и примерно до 100 кг.",
+         "condition": "thin_blood_formula_far_reach",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "formulaTarget": "",
+          "alchemyIngredients": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-far-reach-prompt",
+         "type": "manual_prompt",
+         "label": "Длинные руки: телекинез",
+         "description": "Метод задаёт пул дистилляции. Сопротивляющаяся цель бросает Сила + Атлетика; точная манипуляция требует отдельной проверки.",
+         "message": "Выбери метод приготовления, оплати 1 Испытание Крови и проведи дистилляцию. После активации веди телекинез вручную; сопротивление цели — Сила + Атлетика.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Формула: Длинные руки"
+       }
+      }
      },
      "Марево": {
       "type": "stealth",
       "effect": "Противники получают -2d10 к дистанционным атакам по алхимику и попыткам опознать его. Дополнительное испытание Крови расширяет облако до пяти человек.",
       "duration": "1 сцена",
-      "cost": "1 испытание Крови",
-      "description": "Алхимика окружает пар или туман, размывающий силуэт и скрывающий лицо."
+      "cost": "1 испытание Крови (+1 для группы до пяти)",
+      "pool": "по методу приготовления",
+      "description": "Алхимика окружает пар или туман, размывающий силуэт и скрывающий лицо.",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Марево",
+        "level": 1,
+        "tags": [
+         "formula",
+         "active",
+         "alchemy_method",
+         "stealth",
+         "roll_modifier"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula"
+       },
+       "cost": {
+        "rouseChecks": 1,
+        "variableRouseChecks": true
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "alchemy": {
+        "formula": true,
+        "methods": [
+         "Атанор корпорис",
+         "Кальцинация",
+         "Фиксация"
+        ],
+        "distillationCost": "1 испытание Крови; ещё 1 для группы до пяти",
+        "methodRolls": {
+         "Атанор корпорис": "Выносливость + Алхимия",
+         "Кальцинация": "Манипуляция + Алхимия",
+         "Фиксация": "Интеллект + Алхимия"
+        }
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — Выносливость + Алхимия",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — Манипуляция + Алхимия",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — Интеллект + Алхимия",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "formulaTarget",
+          "label": "Кого скрывает облако",
+          "type": "text",
+          "required": false,
+          "placeholder": "Алхимик или группа до пяти"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-haze-condition",
+         "type": "condition",
+         "label": "Марево",
+         "description": "Алхимика окружает туман; противники получают -2d10 к дистанционным атакам и опознанию.",
+         "condition": "thin_blood_formula_haze",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "formulaTarget": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-haze-roll-penalty",
+         "type": "roll_modifier",
+         "label": "Марево: -2d10 противникам",
+         "description": "Используется, когда бросок направлен на дистанционную атаку по алхимику или попытку его опознать.",
+         "matcher": {
+          "conditions": [
+           "haze_ranged_attack",
+           "haze_identification"
+          ]
+         },
+         "operation": "remove_dice",
+         "amount": 2
+        },
+        {
+         "id": "thin-blood-alchemy-haze-prompt",
+         "type": "manual_prompt",
+         "label": "Марево: облако",
+         "description": "Дополнительное Испытание Крови расширяет облако до пяти человек; спорные случаи решает рассказчик.",
+         "message": "Выбери метод приготовления и оплати цену. Пока формула активна, применяй -2d10 к дистанционным атакам по алхимику и попыткам его опознать.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Формула: Марево"
+       }
+      }
      }
     },
     "2": {
@@ -9594,13 +9820,286 @@
       "effect": "Цель получает -3d10 к зрительному обнаружению и дистанционным атакам. Против смертного алхимик может выиграть состязание, чтобы вызвать приступ кашля, а при триумфе — потерю сознания. Одновременно действует только на одну цель.",
       "duration": "1 сцена",
       "cost": "1 испытание Крови",
-      "description": "Вокруг выбранной цели сгущается едкое облако, мешающее видеть и дышать."
+      "pool": "по методу приготовления",
+      "description": "Вокруг выбранной цели сгущается едкое облако, мешающее видеть и дышать.",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Смог",
+        "level": 2,
+        "tags": [
+         "formula",
+         "active",
+         "alchemy_method",
+         "control",
+         "roll_modifier",
+         "condition"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "alchemy": {
+        "formula": true,
+        "methods": [
+         "Атанор корпорис",
+         "Кальцинация",
+         "Фиксация"
+        ],
+        "distillationCost": "1 испытание Крови",
+        "methodRolls": {
+         "Атанор корпорис": "Выносливость + Алхимия",
+         "Кальцинация": "Манипуляция + Алхимия",
+         "Фиксация": "Интеллект + Алхимия"
+        }
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — Выносливость + Алхимия",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — Манипуляция + Алхимия",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — Интеллект + Алхимия",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "formulaTarget",
+          "label": "Цель",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого окружает смог"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-fog-condition",
+         "type": "condition",
+         "label": "Смог",
+         "description": "Цель окружена едким облаком; зрительное обнаружение и дистанционные атаки получают -3d10.",
+         "condition": "thin_blood_formula_fog",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "formulaTarget": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-fog-roll-penalty",
+         "type": "roll_modifier",
+         "label": "Смог: -3d10",
+         "description": "Применяется к зрительному обнаружению и дистанционным атакам цели в смоге.",
+         "matcher": {
+          "conditions": [
+           "fog_visual_detection",
+           "fog_ranged_attack"
+          ]
+         },
+         "operation": "remove_dice",
+         "amount": 3
+        },
+        {
+         "id": "thin-blood-alchemy-fog-prompt",
+         "type": "manual_prompt",
+         "label": "Смог: кашель и потеря сознания",
+         "description": "Против смертного можно выиграть состязание, чтобы вызвать приступ кашля; триумф может лишить сознания. Одновременно действует только на одну цель.",
+         "message": "Выбери метод приготовления, оплати 1 Испытание Крови и отметь цель. Штраф -3d10 можно применять к подходящим броскам; кашель и обморок ведёт рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Формула: Смог"
+       }
+      }
      },
      "Имитация дисциплин (1 уровень)": {
       "type": "copy",
       "effect": "Рецепт нужно изучить отдельно, обычно минимум неделю. При использовании все проверки заменяют исходную дисциплину на Алхимию, а рассказчик может запретить эффект, который плохо подходит выбранному методу дистилляции.",
       "note": "требует рецепт",
-      "description": "Алхимик разрабатывает рецепт, копирующий силу 1 уровня другой дисциплины."
+      "cost": "1 испытание Крови + цена выбранной силы",
+      "pool": "по методу приготовления; проверки используют Алхимию вместо исходной дисциплины",
+      "duration": "по выбранной силе",
+      "description": "Алхимик разрабатывает рецепт, копирующий силу 1 уровня другой дисциплины.",
+      "mechanics": {
+       "automation": {
+        "status": "manual"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Имитация дисциплин (1 уровень)",
+        "level": 2,
+        "tags": [
+         "formula",
+         "imitation",
+         "selector",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula_selector"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "alchemy": {
+        "formula": true,
+        "imitationMaxLevel": 1,
+        "researchTime": "минимум неделя",
+        "methods": [
+         "Атанор корпорис",
+         "Кальцинация",
+         "Фиксация"
+        ],
+        "methodRule": "Все проверки заменяют исходную дисциплину на Алхимию."
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — эффект хранится в теле",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — эффект хранится в крови сосуда",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — создаётся зелье",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "imitatedDiscipline",
+          "label": "Копируемая дисциплина",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери дисциплину",
+          "options": [
+           {
+            "label": "Анимализм",
+            "value": "Анимализм"
+           },
+           {
+            "label": "Величие",
+            "value": "Величие"
+           },
+           {
+            "label": "Доминирование",
+            "value": "Доминирование"
+           },
+           {
+            "label": "Метаморфозы",
+            "value": "Метаморфозы"
+           },
+           {
+            "label": "Мощь",
+            "value": "Мощь"
+           },
+           {
+            "label": "Сокрытие",
+            "value": "Сокрытие"
+           },
+           {
+            "label": "Стойкость",
+            "value": "Стойкость"
+           },
+           {
+            "label": "Стремительность",
+            "value": "Стремительность"
+           },
+           {
+            "label": "Ясновидение",
+            "value": "Ясновидение"
+           },
+           {
+            "label": "Другая дисциплина",
+            "value": "Другая дисциплина"
+           }
+          ]
+         },
+         {
+          "id": "imitatedPower",
+          "label": "Копируемая сила",
+          "type": "text",
+          "required": true,
+          "placeholder": "Название силы 1 уровня"
+         },
+         {
+          "id": "alchemyIngredients",
+          "label": "Рецепт и компоненты",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Резонанс, витэ, редкие ингредиенты"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-imitation-1-condition",
+         "type": "condition",
+         "label": "Имитация дисциплины 1 уровня",
+         "description": "Выбранная сила копируется рецептом; смысл и ограничения применяет рассказчик.",
+         "condition": "thin_blood_formula_imitation",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "imitatedDiscipline": "",
+          "imitatedPower": "",
+          "alchemyIngredients": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-imitation-1-prompt",
+         "type": "manual_prompt",
+         "label": "Имитация дисциплин: 1 уровень",
+         "description": "Это selector, а не автоисполнение силы. Проверки используют Алхимию вместо исходной дисциплины; неподходящий методу эффект рассказчик может запретить.",
+         "message": "Выбери метод, дисциплину и силу 1 уровня. Оплати дистилляцию и затем вручную применяй выбранную силу по её правилам, заменяя исходную дисциплину на Алхимию.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Имитация 1 уровня"
+       }
+      }
      }
     },
     "3": {
@@ -9608,19 +10107,360 @@
       "type": "utility",
       "effect": "Каждый успех дистилляции восстанавливает примерно один пакет крови, снимающий 1 Голод. Это особенно полезно тем, кто обычно не может питаться медицинской кровью без достоинства крепкого желудка.",
       "duration": "разовое",
-      "description": "Эликсир возвращает фракционированной донорской крови питательность для вампиров."
+      "cost": "1 испытание Крови",
+      "pool": "по методу приготовления",
+      "description": "Эликсир возвращает фракционированной донорской крови питательность для вампиров.",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Восстановление крови",
+        "level": 3,
+        "tags": [
+         "formula",
+         "active",
+         "alchemy_method",
+         "feeding_modifier",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "alchemy": {
+        "formula": true,
+        "methods": [
+         "Атанор корпорис",
+         "Кальцинация",
+         "Фиксация"
+        ],
+        "distillationCost": "1 испытание Крови",
+        "methodRolls": {
+         "Атанор корпорис": "Выносливость + Алхимия",
+         "Кальцинация": "Манипуляция + Алхимия",
+         "Фиксация": "Интеллект + Алхимия"
+        }
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — Выносливость + Алхимия",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — Манипуляция + Алхимия",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — Интеллект + Алхимия",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "alchemyIngredients",
+          "label": "Партия крови",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Сколько пакетов и какие компоненты использованы"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-blood-restoration-condition",
+         "type": "condition",
+         "label": "Восстановление крови",
+         "description": "Создана партия питательной донорской крови; число пакетов зависит от успехов дистилляции.",
+         "condition": "thin_blood_formula_blood_restoration",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "alchemyIngredients": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-blood-restoration-feeding",
+         "type": "feeding_modifier",
+         "label": "Восстановление крови: пакет крови",
+         "description": "Один восстановленный пакет крови снимает 1 Голод. Количество пакетов равно успехам дистилляции и ведётся вручную.",
+         "matcher": {
+          "sources": [
+           "restored_blood",
+           "medical_blood"
+          ]
+         },
+         "operation": "add_satiation",
+         "amount": 1
+        },
+        {
+         "id": "thin-blood-alchemy-blood-restoration-prompt",
+         "type": "manual_prompt",
+         "label": "Восстановление крови: партия",
+         "description": "Каждый успех дистилляции восстанавливает примерно один пакет крови, снимающий 1 Голод.",
+         "message": "Выбери метод, оплати 1 Испытание Крови и проведи дистилляцию. Запиши число восстановленных пакетов; каждый пакет снимает 1 Голод при употреблении.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Формула: восстановленная кровь"
+       }
+      }
      },
      "Нечестивая иерогамия": {
       "type": "transformation",
       "effect": "Цель смешивает эликсир со своей кровью, пьёт и впадает в лихорадочный сон до следующей ночи. Успех меняет тело в пределах человеческой анатомии; триумф может купить достоинство или убрать недостаток внешности за опыт. Носферату не могут так снять клановое проклятие.",
       "duration": "постоянная",
       "risk": "может дать дефекты",
-      "description": "Редкий рецепт меняет внешность тела в соответствии с внутренним образом цели."
+      "cost": "1 испытание Крови",
+      "pool": "по методу приготовления",
+      "description": "Редкий рецепт меняет внешность тела в соответствии с внутренним образом цели.",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Нечестивая иерогамия",
+        "level": 3,
+        "tags": [
+         "formula",
+         "active",
+         "alchemy_method",
+         "transformation",
+         "permanent",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "permanent"
+       },
+       "alchemy": {
+        "formula": true,
+        "methods": [
+         "Атанор корпорис",
+         "Кальцинация",
+         "Фиксация"
+        ],
+        "distillationCost": "1 испытание Крови",
+        "risk": "может дать дефекты"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — Выносливость + Алхимия",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — Манипуляция + Алхимия",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — Интеллект + Алхимия",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "formulaTarget",
+          "label": "Цель трансформации",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кто пьёт эликсир"
+         },
+         {
+          "id": "alchemyIngredients",
+          "label": "Желаемый образ",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Какие изменения тела ожидаются"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-profane-hieros-gamos-form",
+         "type": "transformation",
+         "label": "Нечестивая иерогамия",
+         "description": "Постоянное изменение тела в пределах человеческой анатомии; итог решает рассказчик.",
+         "form": "human_anatomy_alteration"
+        },
+        {
+         "id": "thin-blood-alchemy-profane-hieros-gamos-condition",
+         "type": "condition",
+         "label": "Нечестивая иерогамия",
+         "description": "Цель выпила эликсир и проходит лихорадочное изменение тела до следующей ночи.",
+         "condition": "thin_blood_formula_profane_hieros_gamos",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "formulaTarget": "",
+          "alchemyIngredients": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-profane-hieros-gamos-prompt",
+         "type": "manual_prompt",
+         "label": "Нечестивая иерогамия: изменение тела",
+         "description": "Успех меняет тело в пределах человеческой анатомии; триумф может купить достоинство или убрать недостаток за опыт. Носферату не снимают клановое проклятие.",
+         "message": "Выбери метод, оплати 1 Испытание Крови и проведи дистилляцию. Цель смешивает эликсир со своей кровью, пьёт и спит до следующей ночи; результат утверждает рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Формула: Нечестивая иерогамия"
+       }
+      }
      },
      "Имитация дисциплин (2 уровень)": {
       "type": "copy",
       "effect": "Изучение обычно занимает минимум месяц, а дистилляция — не меньше одной ночи. Рецепт, компоненты и резонанс фиксируются отдельно.",
-      "description": "Алхимик разрабатывает рецепт, копирующий силу 2 уровня другой дисциплины."
+      "cost": "1 испытание Крови + цена выбранной силы",
+      "pool": "по методу приготовления; проверки используют Алхимию вместо исходной дисциплины",
+      "duration": "по выбранной силе",
+      "description": "Алхимик разрабатывает рецепт, копирующий силу 2 уровня другой дисциплины.",
+      "mechanics": {
+       "automation": {
+        "status": "manual"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Имитация дисциплин (2 уровень)",
+        "level": 3,
+        "tags": [
+         "formula",
+         "imitation",
+         "selector",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula_selector"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "alchemy": {
+        "formula": true,
+        "imitationMaxLevel": 2,
+        "researchTime": "минимум месяц",
+        "distillationTime": "не меньше одной ночи",
+        "methodRule": "Все проверки заменяют исходную дисциплину на Алхимию."
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — эффект хранится в теле",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — эффект хранится в крови сосуда",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — создаётся зелье",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "imitatedDiscipline",
+          "label": "Копируемая дисциплина",
+          "type": "text",
+          "required": true,
+          "placeholder": "Название дисциплины"
+         },
+         {
+          "id": "imitatedPower",
+          "label": "Копируемая сила",
+          "type": "text",
+          "required": true,
+          "placeholder": "Название силы 2 уровня"
+         },
+         {
+          "id": "alchemyIngredients",
+          "label": "Рецепт, резонанс и компоненты",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Что закреплено в рецепте"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-imitation-2-condition",
+         "type": "condition",
+         "label": "Имитация дисциплины 2 уровня",
+         "description": "Выбранная сила 2 уровня копируется рецептом; смысл и ограничения применяет рассказчик.",
+         "condition": "thin_blood_formula_imitation",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "imitatedDiscipline": "",
+          "imitatedPower": "",
+          "alchemyIngredients": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-imitation-2-prompt",
+         "type": "manual_prompt",
+         "label": "Имитация дисциплин: 2 уровень",
+         "description": "Изучение обычно занимает минимум месяц, дистилляция — не меньше одной ночи. Рецепт, компоненты и резонанс фиксируются отдельно.",
+         "message": "Выбери метод, дисциплину и силу 2 уровня. Не применяй эффект автоматически: используй правила выбранной силы вручную, заменяя исходную дисциплину на Алхимию.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Имитация 2 уровня"
+       }
+      }
      }
     },
     "4": {
@@ -9630,12 +10470,244 @@
       "effect": "Движение примерно со скоростью бега. Можно переносить груз весом с человека со скоростью шага. Чтобы поднять сопротивляющегося или вырваться из захвата, нужно состязание Сила + Алхимия против Сила + Атлетика.",
       "duration": "1 сцена",
       "cost": "1 испытание Крови",
-      "description": "Алхимик преодолевает притяжение и может летать или парить."
+      "description": "Алхимик преодолевает притяжение и может летать или парить.",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Импульс",
+        "level": 4,
+        "tags": [
+         "formula",
+         "active",
+         "alchemy_method",
+         "movement",
+         "flight",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "alchemy": {
+        "formula": true,
+        "methods": [
+         "Атанор корпорис",
+         "Кальцинация",
+         "Фиксация"
+        ],
+        "distillationCost": "1 испытание Крови",
+        "methodRolls": {
+         "Атанор корпорис": "Выносливость + Алхимия",
+         "Кальцинация": "Манипуляция + Алхимия",
+         "Фиксация": "Интеллект + Алхимия"
+        }
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — Выносливость + Алхимия",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — Манипуляция + Алхимия",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — Интеллект + Алхимия",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "formulaTarget",
+          "label": "Груз или цель",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого несёт или поднимает алхимик"
+         }
+        ]
+       },
+       "resistance": {
+        "type": "contested",
+        "actorPool": [
+         "Сила",
+         "Алхимия"
+        ],
+        "resistancePool": [
+         "Сила",
+         "Атлетика"
+        ],
+        "trigger": "поднять сопротивляющегося или вырваться из захвата"
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-airborne-momentum-movement",
+         "type": "movement",
+         "label": "Импульс",
+         "description": "Алхимик может летать или парить примерно со скоростью бега; груз весом с человека переносится со скоростью шага.",
+         "mode": "fly"
+        },
+        {
+         "id": "thin-blood-alchemy-airborne-momentum-condition",
+         "type": "condition",
+         "label": "Импульс",
+         "description": "Формула преодоления притяжения активна.",
+         "condition": "thin_blood_formula_airborne_momentum",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "formulaTarget": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-airborne-momentum-prompt",
+         "type": "manual_prompt",
+         "label": "Импульс: полёт и груз",
+         "description": "Чтобы поднять сопротивляющегося или вырваться из захвата, нужно состязание Сила + Алхимия против Сила + Атлетика.",
+         "message": "Выбери метод, оплати 1 Испытание Крови и активируй формулу. Движение ведётся вручную; спорные подъёмы и захваты решаются состязанием.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Формула: Импульс"
+       }
+      }
      },
      "Имитация дисциплин (3 уровень)": {
       "type": "copy",
       "effect": "Обычно требуется капля витэ вампира нужной дисциплины или клана, минимум три месяца исследования и не меньше трёх ночей дистилляции. Объём витэ слишком мал для уз Крови, но добыть его социально опасно.",
-      "description": "Алхимик разрабатывает рецепт, копирующий силу 3 уровня другой дисциплины."
+      "cost": "1 испытание Крови + цена выбранной силы",
+      "pool": "по методу приготовления; проверки используют Алхимию вместо исходной дисциплины",
+      "duration": "по выбранной силе",
+      "description": "Алхимик разрабатывает рецепт, копирующий силу 3 уровня другой дисциплины.",
+      "mechanics": {
+       "automation": {
+        "status": "manual"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Имитация дисциплин (3 уровень)",
+        "level": 4,
+        "tags": [
+         "formula",
+         "imitation",
+         "selector",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula_selector"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "alchemy": {
+        "formula": true,
+        "imitationMaxLevel": 3,
+        "researchTime": "минимум три месяца",
+        "distillationTime": "не меньше трёх ночей",
+        "specialRequirement": "капля витэ вампира нужной дисциплины или клана",
+        "methodRule": "Все проверки заменяют исходную дисциплину на Алхимию."
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — эффект хранится в теле",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — эффект хранится в крови сосуда",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — создаётся зелье",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "imitatedDiscipline",
+          "label": "Копируемая дисциплина",
+          "type": "text",
+          "required": true,
+          "placeholder": "Название дисциплины или клана"
+         },
+         {
+          "id": "imitatedPower",
+          "label": "Копируемая сила",
+          "type": "text",
+          "required": true,
+          "placeholder": "Название силы 3 уровня"
+         },
+         {
+          "id": "alchemyIngredients",
+          "label": "Витэ, рецепт и компоненты",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Чья витэ, какой резонанс, какие ингредиенты"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-imitation-3-condition",
+         "type": "condition",
+         "label": "Имитация дисциплины 3 уровня",
+         "description": "Выбранная сила 3 уровня копируется рецептом; смысл и ограничения применяет рассказчик.",
+         "condition": "thin_blood_formula_imitation",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "imitatedDiscipline": "",
+          "imitatedPower": "",
+          "alchemyIngredients": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-imitation-3-prompt",
+         "type": "manual_prompt",
+         "label": "Имитация дисциплин: 3 уровень",
+         "description": "Нужна витэ подходящего вампира, минимум три месяца исследования и не меньше трёх ночей дистилляции.",
+         "message": "Выбери метод, дисциплину и силу 3 уровня. Не применяй эффект автоматически: рассказчик проверяет рецепт, витэ, резонанс и совместимость метода.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Имитация 3 уровня"
+       }
+      }
      }
     },
     "5": {
@@ -9643,12 +10715,230 @@
       "type": "utility",
       "effect": "Максимальная сила Крови пробуждаемого равна успехам дистилляции минус 2. При кальцинации или атаноре корпорис эликсир берут из тела алхимика или сосуда; при кальцинации сосуд получает тяжёлые повреждения.",
       "duration": "разовое",
-      "description": "Эликсир смешивается с человеческой кровью и может поднять вампира из торпора."
+      "cost": "1 испытание Крови",
+      "pool": "по методу приготовления",
+      "description": "Эликсир смешивается с человеческой кровью и может поднять вампира из торпора.",
+      "mechanics": {
+       "automation": {
+        "status": "partial"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Будильник",
+        "level": 5,
+        "tags": [
+         "formula",
+         "active",
+         "alchemy_method",
+         "torpor",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "alchemy": {
+        "formula": true,
+        "methods": [
+         "Атанор корпорис",
+         "Кальцинация",
+         "Фиксация"
+        ],
+        "distillationCost": "1 испытание Крови",
+        "resultFormula": "максимальная сила Крови пробуждаемого = успехи дистилляции - 2"
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — эликсир из тела алхимика",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — сосуд получает тяжёлые повреждения",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — зелье смешивается с человеческой кровью",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "formulaTarget",
+          "label": "Вампир в торпоре",
+          "type": "text",
+          "required": false,
+          "placeholder": "Кого пытаются пробудить"
+         },
+         {
+          "id": "alchemyIngredients",
+          "label": "Кровь и компоненты",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Человеческая кровь, сосуд, число успехов"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-awaken-the-sleeper-condition",
+         "type": "condition",
+         "label": "Будильник",
+         "description": "Подготовлена попытка пробуждения из торпора; итог зависит от успехов дистилляции.",
+         "condition": "thin_blood_formula_awaken_the_sleeper",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "formulaTarget": "",
+          "alchemyIngredients": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-awaken-the-sleeper-prompt",
+         "type": "manual_prompt",
+         "label": "Будильник: пробуждение из торпора",
+         "description": "Максимальная сила Крови пробуждаемого равна успехам дистилляции минус 2. При кальцинации сосуд получает тяжёлые повреждения.",
+         "message": "Выбери метод, оплати 1 Испытание Крови и проведи дистилляцию. Вручную сравни успехи с силой Крови цели; при кальцинации не забудь тяжёлые повреждения сосуда.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Формула: Будильник"
+       }
+      }
      },
      "Имитация дисциплин (4 уровень)": {
       "type": "copy",
       "effect": "Это почти легендарная работа: обычно минимум три года исследования и около месяца дистилляции. Рецепт должен быть согласован с рассказчиком, потому что не все высокие силы можно правдоподобно или безопасно скопировать.",
-      "description": "Алхимик разрабатывает рецепт, копирующий силу 4 уровня другой дисциплины."
+      "cost": "1 испытание Крови + цена выбранной силы",
+      "pool": "по методу приготовления; проверки используют Алхимию вместо исходной дисциплины",
+      "duration": "по выбранной силе",
+      "description": "Алхимик разрабатывает рецепт, копирующий силу 4 уровня другой дисциплины.",
+      "mechanics": {
+       "automation": {
+        "status": "manual"
+       },
+       "identity": {
+        "discipline": "Алхимия слабокровных",
+        "power": "Имитация дисциплин (4 уровень)",
+        "level": 5,
+        "tags": [
+         "formula",
+         "imitation",
+         "selector",
+         "manual_result"
+        ]
+       },
+       "activation": {
+        "kind": "active",
+        "action": "formula_selector"
+       },
+       "cost": {
+        "rouseChecks": 1
+       },
+       "duration": {
+        "type": "scene"
+       },
+       "alchemy": {
+        "formula": true,
+        "imitationMaxLevel": 4,
+        "researchTime": "минимум три года",
+        "distillationTime": "около месяца",
+        "requiresStorytellerApproval": true,
+        "methodRule": "Все проверки заменяют исходную дисциплину на Алхимию."
+       },
+       "input": {
+        "fields": [
+         {
+          "id": "alchemyMethod",
+          "label": "Метод приготовления",
+          "type": "select",
+          "required": true,
+          "placeholder": "Выбери метод",
+          "options": [
+           {
+            "label": "Атанор корпорис — эффект хранится в теле",
+            "value": "Атанор корпорис"
+           },
+           {
+            "label": "Кальцинация — эффект хранится в крови сосуда",
+            "value": "Кальцинация"
+           },
+           {
+            "label": "Фиксация — создаётся зелье",
+            "value": "Фиксация"
+           }
+          ]
+         },
+         {
+          "id": "imitatedDiscipline",
+          "label": "Копируемая дисциплина",
+          "type": "text",
+          "required": true,
+          "placeholder": "Название дисциплины"
+         },
+         {
+          "id": "imitatedPower",
+          "label": "Копируемая сила",
+          "type": "text",
+          "required": true,
+          "placeholder": "Название силы 4 уровня"
+         },
+         {
+          "id": "alchemyIngredients",
+          "label": "Рецепт, разрешение и компоненты",
+          "type": "textarea",
+          "required": false,
+          "placeholder": "Что согласовано с рассказчиком"
+         }
+        ]
+       },
+       "effects": [
+        {
+         "id": "thin-blood-alchemy-imitation-4-condition",
+         "type": "condition",
+         "label": "Имитация дисциплины 4 уровня",
+         "description": "Выбранная сила 4 уровня копируется рецептом только после согласования с рассказчиком.",
+         "condition": "thin_blood_formula_imitation",
+         "action": "apply",
+         "payload": {
+          "alchemyMethod": "",
+          "imitatedDiscipline": "",
+          "imitatedPower": "",
+          "alchemyIngredients": ""
+         }
+        },
+        {
+         "id": "thin-blood-alchemy-imitation-4-prompt",
+         "type": "manual_prompt",
+         "label": "Имитация дисциплин: 4 уровень",
+         "description": "Минимум три года исследования и около месяца дистилляции. Не все высокие силы можно правдоподобно или безопасно скопировать.",
+         "message": "Выбери метод, дисциплину и силу 4 уровня. Это только ручной selector: рецепт, безопасность и возможность копирования утверждает рассказчик.",
+         "requiresStoryteller": true
+        }
+       ],
+       "ui": {
+        "showOnFullSheet": true,
+        "showOnQuickSheet": true,
+        "activeLabel": "Имитация 4 уровня"
+       }
+      }
      }
     }
    }

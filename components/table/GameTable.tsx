@@ -225,6 +225,10 @@ type DisciplineRule = {
   description?: string
   system?: Record<string, unknown>
   powers?: Record<string, Record<string, DisciplinePowerRule>>
+  paths?: Record<string, {
+    description?: string
+    powers?: Record<string, Record<string, DisciplinePowerRule>>
+  }>
 }
 
 const defaultDisciplineRules = (
@@ -234,6 +238,7 @@ const defaultDisciplineRules = (
 type DisciplinePowerEntry = {
   level: number
   name: string
+  path?: string
   rule: DisciplinePowerRule
 }
 
@@ -359,15 +364,32 @@ function getCharacterPoolPartDots(character: CharacterOption, name: string) {
   return 0
 }
 
-function getDisciplinePowerEntries(rule?: DisciplineRule) {
-  if (!rule?.powers) return []
-  return Object.entries(rule.powers)
+function getDisciplinePowerEntries(rule?: DisciplineRule): DisciplinePowerEntry[] {
+  if (!rule) return []
+  const directPowers: DisciplinePowerEntry[] = Object.entries(rule.powers || {})
     .flatMap(([level, powers]) => Object.entries(powers || {}).map(([name, powerRule]) => ({
       level: Number(level) || 0,
       name,
+      path: undefined,
       rule: powerRule,
     })))
-    .sort((a, b) => a.level - b.level || a.name.localeCompare(b.name, 'ru'))
+  const pathPowers: DisciplinePowerEntry[] = Object.entries(rule.paths || {})
+    .flatMap(([pathName, path]) => Object.entries(path.powers || {})
+      .flatMap(([level, powers]) => Object.entries(powers || {}).map(([name, powerRule]) => ({
+        level: Number(level) || 0,
+        name,
+        path: pathName,
+        rule: powerRule,
+      }))))
+  return [...directPowers, ...pathPowers]
+    .sort((a, b) =>
+      a.level - b.level
+      || (a.path || '').localeCompare(b.path || '', 'ru')
+      || a.name.localeCompare(b.name, 'ru'))
+}
+
+function getDisciplinePowerEntryKey(power: Pick<DisciplinePowerEntry, 'name' | 'path'>) {
+  return power.path ? `${power.path} / ${power.name}` : power.name
 }
 
 // rules.json pool text uses "как <power name>" (Russian); rules_eng.json uses
@@ -636,6 +658,71 @@ function getSelectedPowerNames(value: unknown) {
     .filter(Boolean)
 }
 
+function getSelectedPathPowerNames(value: unknown) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
+  return Object.fromEntries(
+    Object.entries(value as Record<string, unknown>).flatMap(([pathName, powers]) => {
+      const names = getSelectedPowerNames(powers)
+      return names.length ? [[pathName, names]] : []
+    }),
+  ) as Record<string, string[]>
+}
+
+function getSelectedPathPowerLabels(value: unknown) {
+  return Object.entries(getSelectedPathPowerNames(value))
+    .flatMap(([pathName, powers]) => powers.map(power => `${pathName} / ${power}`))
+}
+
+function getPathPowerNameSet(value: unknown) {
+  return new Set(
+    Object.values(getSelectedPathPowerNames(value)).flat(),
+  )
+}
+
+function getStandaloneSelectedPowerNames(
+  selectedPowers: unknown,
+  selectedPathPowers: unknown,
+) {
+  const pathPowerNames = getPathPowerNameSet(selectedPathPowers)
+  return getSelectedPowerNames(selectedPowers)
+    .filter(name => !pathPowerNames.has(name))
+}
+
+function getSelectedDisciplinePowerLabels(
+  selectedPowers: unknown,
+  selectedPathPowers: unknown,
+) {
+  return [
+    ...getStandaloneSelectedPowerNames(selectedPowers, selectedPathPowers),
+    ...getSelectedPathPowerLabels(selectedPathPowers),
+  ]
+}
+
+function hasSelectedPathPowers(value: unknown) {
+  return getSelectedPathPowerLabels(value).length > 0
+}
+
+function isPowerEntrySelected(
+  power: DisciplinePowerEntry,
+  selectedPowerNames: string[],
+  selectedPathPowers: Record<string, string[]>,
+) {
+  if (selectedPowerNames.includes(power.name)) return true
+  return Boolean(power.path && selectedPathPowers[power.path]?.includes(power.name))
+}
+
+function getDisciplinePowerDots(
+  character: CharacterOption,
+  disciplineName: string,
+  pathName?: string,
+) {
+  const sources = character.disciplines[disciplineName] || {}
+  if (pathName && Number(sources[pathName]) > 0) {
+    return Number(sources[pathName]) || 0
+  }
+  return Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
+}
+
 function getActiveEffectTitle(
   activeEffect: CharacterOption['activeEffects'][number],
 ) {
@@ -671,6 +758,13 @@ function getPayloadValueLabel(key: string, value: unknown) {
     deliveryMethod: 'способ',
     ritualTarget: 'цель ритуала',
     ritualComponents: 'компоненты',
+    alchemyMethod: 'метод',
+    alchemyFormula: 'формула',
+    formulaTarget: 'цель формулы',
+    alchemyResonance: 'резонанс',
+    alchemyIngredients: 'ингредиенты',
+    imitatedDiscipline: 'дисциплина',
+    imitatedPower: 'сила',
   }
   const label = payloadLabels[key] || key
   return `${label}: ${String(value)}`
@@ -745,6 +839,24 @@ function getDisciplinePowerInputFields(
       id: field.id.trim(),
       type: field.type || 'text',
     }]
+  })
+}
+
+function getDisciplineManualPrompts(
+  mechanics: DisciplinePowerRule['mechanics'] | undefined,
+) {
+  const effects = mechanics?.effects
+  if (!Array.isArray(effects)) return []
+
+  return effects.flatMap(effect => {
+    if (!effect || typeof effect !== 'object') return []
+    const record = effect as Record<string, unknown>
+    if (record.type !== 'manual_prompt') return []
+    const label = typeof record.label === 'string' ? record.label : ''
+    const description = typeof record.description === 'string' ? record.description : ''
+    const message = typeof record.message === 'string' ? record.message : ''
+    if (!label && !description && !message) return []
+    return [{ label, description, message }]
   })
 }
 
@@ -2212,7 +2324,11 @@ export default function VampireTable() {
   const masterRollExtraAttributes = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.attributes, ATTRIBUTE_GROUPS) : []
   const masterRollExtraSkills = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.skills, SKILL_GROUPS) : []
   const masterRollDisciplineNames = selectedMasterRollCharacter
-    ? Array.from(new Set([...Object.keys(selectedMasterRollCharacter.disciplines), ...Object.keys(selectedMasterRollCharacter.selectedPowers)])).sort((a, b) => a.localeCompare(b, 'ru'))
+    ? Array.from(new Set([
+        ...Object.keys(selectedMasterRollCharacter.disciplines),
+        ...Object.keys(selectedMasterRollCharacter.selectedPowers),
+        ...Object.keys(selectedMasterRollCharacter.selectedPathPowers),
+      ])).sort((a, b) => a.localeCompare(b, 'ru'))
     : []
   const masterRollPoolParts = [
     masterRollAttribute ? `${t(masterRollAttribute)} ${masterRollAttributeDots}` : '',
@@ -2281,20 +2397,39 @@ export default function VampireTable() {
   const previewExtraAttributes = previewCharacter ? getExtraTraitNames(previewCharacter.attributes, ATTRIBUTE_GROUPS) : []
   const previewExtraSkills = previewCharacter ? getExtraTraitNames(previewCharacter.skills, SKILL_GROUPS) : []
   const previewDisciplineNames = previewCharacter
-    ? Array.from(new Set([...Object.keys(previewCharacter.disciplines), ...Object.keys(previewCharacter.selectedPowers)])).sort((a, b) => a.localeCompare(b, 'ru'))
+    ? Array.from(new Set([
+        ...Object.keys(previewCharacter.disciplines),
+        ...Object.keys(previewCharacter.selectedPowers),
+        ...Object.keys(previewCharacter.selectedPathPowers),
+      ])).sort((a, b) => a.localeCompare(b, 'ru'))
     : []
   const previewDisciplineRule = previewDisciplineName && disciplineRules ? disciplineRules[previewDisciplineName] : undefined
   const previewOpenedDisciplineDots = previewCharacter && previewDisciplineName
     ? getDisciplineDots(previewCharacter.disciplines[previewDisciplineName] || {})
     : 0
+  const previewLearnedPathPowers = previewCharacter && previewDisciplineName
+    ? getSelectedPathPowerNames(previewCharacter.selectedPathPowers[previewDisciplineName])
+    : {}
   const previewLearnedPowers = previewCharacter && previewDisciplineName
-    ? getSelectedPowerNames(previewCharacter.selectedPowers[previewDisciplineName])
+    ? getStandaloneSelectedPowerNames(
+        previewCharacter.selectedPowers[previewDisciplineName],
+        previewCharacter.selectedPathPowers[previewDisciplineName],
+      )
     : []
   const allPreviewDisciplinePowers = getDisciplinePowerEntries(previewDisciplineRule)
-  const previewDisciplinePowers = previewLearnedPowers.length
-    ? allPreviewDisciplinePowers.filter(power => previewLearnedPowers.includes(power.name))
-    : allPreviewDisciplinePowers.filter(power => power.level <= previewOpenedDisciplineDots)
-  const selectedPreviewPower = previewDisciplinePowers.find(power => power.name === previewPowerName) || null
+  const hasPreviewLearnedPathPowers = hasSelectedPathPowers(previewLearnedPathPowers)
+  const previewDisciplinePowers = previewLearnedPowers.length || hasPreviewLearnedPathPowers
+    ? allPreviewDisciplinePowers.filter(power => isPowerEntrySelected(
+        power,
+        previewLearnedPowers,
+        previewLearnedPathPowers,
+      ))
+    : allPreviewDisciplinePowers.filter(power => power.level <= (
+        previewCharacter && previewDisciplineName
+          ? getDisciplinePowerDots(previewCharacter, previewDisciplineName, power.path)
+          : previewOpenedDisciplineDots
+      ))
+  const selectedPreviewPower = previewDisciplinePowers.find(power => getDisciplinePowerEntryKey(power) === previewPowerName) || null
   const selectedPreviewPowerRollFormula = getPowerRollFormula(selectedPreviewPower?.rule)
   const selectedPreviewPowerRollSummary = getPowerRollSummary(selectedPreviewPower?.rule, tf)
   const selectedPreviewPowerDifficultySummary = getPowerDifficultySummary(selectedPreviewPower?.rule, tf)
@@ -2336,6 +2471,9 @@ export default function VampireTable() {
   const selectedPreviewPowerInputFields = getDisciplinePowerInputFields(
     selectedPreviewPower?.rule.mechanics,
   )
+  const selectedPreviewPowerManualPrompts = getDisciplineManualPrompts(
+    selectedPreviewPower?.rule.mechanics,
+  )
   const hasMissingPreviewPowerInput = selectedPreviewPowerInputFields.some(
     field => field.required && !previewPowerInputValues[field.id]?.trim(),
   )
@@ -2349,6 +2487,7 @@ export default function VampireTable() {
       selectedPreviewPower.rule.mechanics || {},
       {
         discipline: previewDisciplineName,
+        path: selectedPreviewPower.path,
         power: selectedPreviewPower.name,
         level: selectedPreviewPower.level,
       },
@@ -2359,11 +2498,26 @@ export default function VampireTable() {
     if (!previewDisciplineName || !disciplineRules) return
     const disciplineRule = disciplineRules[previewDisciplineName]
     const allPowers = getDisciplinePowerEntries(disciplineRule)
-    const learnedPowers = previewCharacter ? getSelectedPowerNames(previewCharacter.selectedPowers[previewDisciplineName]) : []
-    const visiblePowers = learnedPowers.length
-      ? allPowers.filter(power => learnedPowers.includes(power.name))
-      : allPowers.filter(power => power.level <= previewOpenedDisciplineDots)
-    setPreviewPowerName(current => visiblePowers.some(power => power.name === current) ? current : visiblePowers[0]?.name || '')
+    const learnedPathPowers = previewCharacter ? getSelectedPathPowerNames(previewCharacter.selectedPathPowers[previewDisciplineName]) : {}
+    const learnedPowers = previewCharacter
+      ? getStandaloneSelectedPowerNames(
+          previewCharacter.selectedPowers[previewDisciplineName],
+          previewCharacter.selectedPathPowers[previewDisciplineName],
+        )
+      : []
+    const hasLearnedPathPowers = hasSelectedPathPowers(learnedPathPowers)
+    const visiblePowers = learnedPowers.length || hasLearnedPathPowers
+      ? allPowers.filter(power => isPowerEntrySelected(
+          power,
+          learnedPowers,
+          learnedPathPowers,
+        ))
+      : allPowers.filter(power => power.level <= (
+          previewCharacter
+            ? getDisciplinePowerDots(previewCharacter, previewDisciplineName, power.path)
+            : previewOpenedDisciplineDots
+        ))
+    setPreviewPowerName(current => visiblePowers.some(power => getDisciplinePowerEntryKey(power) === current) ? current : visiblePowers[0] ? getDisciplinePowerEntryKey(visiblePowers[0]) : '')
   }, [previewDisciplineName, disciplineRules, previewCharacter, previewOpenedDisciplineDots])
 
   useEffect(() => {
@@ -2473,6 +2627,7 @@ export default function VampireTable() {
         skills: {},
         disciplines: {},
         selectedPowers: {},
+        selectedPathPowers: {},
         derivedStats: getDerivedStats({}, {}),
         activeEffects: [],
       })
@@ -2496,6 +2651,7 @@ export default function VampireTable() {
         skills: {},
         disciplines: {},
         selectedPowers: {},
+        selectedPathPowers: {},
         derivedStats: getDerivedStats({}, {}),
         activeEffects: [],
       })
@@ -2548,7 +2704,11 @@ export default function VampireTable() {
       extraAttributes: character ? getExtraTraitNames(character.attributes, ATTRIBUTE_GROUPS) : [],
       extraSkills: character ? getExtraTraitNames(character.skills, SKILL_GROUPS) : [],
       disciplineNames: character
-        ? Array.from(new Set([...Object.keys(character.disciplines), ...Object.keys(character.selectedPowers)])).sort((a, b) => a.localeCompare(b, 'ru'))
+        ? Array.from(new Set([
+            ...Object.keys(character.disciplines),
+            ...Object.keys(character.selectedPowers),
+            ...Object.keys(character.selectedPathPowers),
+          ])).sort((a, b) => a.localeCompare(b, 'ru'))
         : [],
     }
   }
@@ -4027,6 +4187,7 @@ export default function VampireTable() {
         {
           identity: {
             discipline: previewDisciplineName,
+            path: power.path,
             power: power.name,
             level: power.level,
           },
@@ -4202,6 +4363,7 @@ export default function VampireTable() {
       selectedPreviewPower.rule.mechanics || {},
       {
         discipline: previewDisciplineName,
+        path: selectedPreviewPower.path,
         power: selectedPreviewPower.name,
         level: selectedPreviewPower.level,
       },
@@ -8465,11 +8627,14 @@ export default function VampireTable() {
                       <div className="preview-discipline-list">
                         {previewDisciplineNames.map(name => {
                           const dots = getDisciplineDots(previewCharacter.disciplines[name] || {})
-                          const powers = getSelectedPowerNames(previewCharacter.selectedPowers[name])
+                          const powerLabels = getSelectedDisciplinePowerLabels(
+                            previewCharacter.selectedPowers[name],
+                            previewCharacter.selectedPathPowers[name],
+                          )
                           return (
                             <button type="button" className="preview-discipline-card" key={name} onClick={() => openPreviewDiscipline(name)}>
                               <span><strong>{name}</strong><i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i></span>
-                              {powers.length ? <p>{powers.join(' · ')}</p> : <p>{t('Открыть описание и доступные силы')}</p>}
+                              {powerLabels.length ? <p>{powerLabels.join(' · ')}</p> : <p>{t('Открыть описание и доступные силы')}</p>}
                             </button>
                           )
                         })}
@@ -8588,11 +8753,11 @@ export default function VampireTable() {
                     {previewDisciplinePowers.length ? previewDisciplinePowers.map(power => (
                       <button
                         type="button"
-                        key={`${power.level}-${power.name}`}
-                        className={previewPowerName === power.name ? 'active' : ''}
-                        onClick={() => setPreviewPowerName(power.name)}
+                        key={`${power.path || 'direct'}-${power.level}-${power.name}`}
+                        className={previewPowerName === getDisciplinePowerEntryKey(power) ? 'active' : ''}
+                        onClick={() => setPreviewPowerName(getDisciplinePowerEntryKey(power))}
                       >
-                        <span>{tf('Уровень {level}', { level: power.level })}</span>
+                        <span>{power.path ? `${power.path} · ${tf('Уровень {level}', { level: power.level })}` : tf('Уровень {level}', { level: power.level })}</span>
                         <strong>{power.name}</strong>
                       </button>
                     )) : (
@@ -8605,7 +8770,7 @@ export default function VampireTable() {
                   {selectedPreviewPower ? (
                     <>
                       <div className="discipline-power-title">
-                        <div><span>{tf('Уровень {level}', { level: selectedPreviewPower.level })}</span><h3>{selectedPreviewPower.name}</h3></div>
+                        <div><span>{selectedPreviewPower.path ? `${selectedPreviewPower.path} · ${tf('Уровень {level}', { level: selectedPreviewPower.level })}` : tf('Уровень {level}', { level: selectedPreviewPower.level })}</span><h3>{selectedPreviewPower.name}</h3></div>
                         <i>{getDotDisplay(selectedPreviewPower.level)}</i>
                       </div>
                       <p className="discipline-power-description">{selectedPreviewPower.rule.description || t('Описание отсутствует.')}</p>
@@ -8633,6 +8798,17 @@ export default function VampireTable() {
                           <p>{selectedPreviewPower.rule.effect}</p>
                         </section>
                       ) : null}
+                      {selectedPreviewPowerManualPrompts.length ? (
+                        <section className="discipline-power-effect">
+                          <h4>{t('Подсказка')}</h4>
+                          {selectedPreviewPowerManualPrompts.map((prompt, index) => (
+                            <p key={`${prompt.label || 'manual-prompt'}-${index}`}>
+                              {prompt.label ? <strong>{t(prompt.label)}. </strong> : null}
+                              {t(prompt.description || prompt.message)}
+                            </p>
+                          ))}
+                        </section>
+                      ) : null}
                       {selectedPreviewPowerInputFields.length ? (
                         <section className="discipline-power-inputs">
                           <h4>{t('Данные для эффекта')}</h4>
@@ -8642,7 +8818,22 @@ export default function VampireTable() {
                                 {field.label ? t(field.label) : field.id}
                                 {field.required ? ' *' : ''}
                               </span>
-                              {field.type === 'textarea' ? (
+                              {field.type === 'select' ? (
+                                <select
+                                  value={previewPowerInputValues[field.id] || ''}
+                                  onChange={event => setPreviewPowerInputValues(current => ({
+                                    ...current,
+                                    [field.id]: event.target.value,
+                                  }))}
+                                >
+                                  <option value="">{field.placeholder ? t(field.placeholder) : t('Выбери значение')}</option>
+                                  {(field.options || []).map(option => (
+                                    <option key={option.value} value={option.value}>
+                                      {t(option.label)}
+                                    </option>
+                                  ))}
+                                </select>
+                              ) : field.type === 'textarea' ? (
                                 <textarea
                                   value={previewPowerInputValues[field.id] || ''}
                                   placeholder={field.placeholder ? t(field.placeholder) : undefined}

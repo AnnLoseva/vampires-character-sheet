@@ -42,6 +42,16 @@ function optionalString(value: unknown) {
   return typeof value === 'string' ? value : undefined
 }
 
+function getPowerContainer(value: JsonObject) {
+  if (isObject(value.powers)) return value.powers
+  const levelEntries = Object.entries(value).filter(([key]) => (
+    Number.isFinite(Number(key))
+  ))
+  return levelEntries.length > 0
+    ? Object.fromEntries(levelEntries)
+    : undefined
+}
+
 function loadPowers(
   discipline: string,
   path: string | undefined,
@@ -95,10 +105,11 @@ export function loadDisciplineRules(rulesJson: unknown): LoadedDisciplineRules {
         ? Object.fromEntries(
             Object.entries(discipline.paths).flatMap(([pathName, path]) => {
               if (!isObject(path)) return []
+              const powers = getPowerContainer(path)
               return [[pathName, {
                 name: pathName,
                 description: optionalString(path.description),
-                powers: loadPowers(disciplineName, pathName, path.powers),
+                powers: loadPowers(disciplineName, pathName, powers),
                 raw: path,
               } satisfies LoadedDisciplinePath]]
             }),

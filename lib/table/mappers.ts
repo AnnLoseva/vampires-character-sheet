@@ -521,6 +521,7 @@ export function mapCharacterRowToOption(
     skills: data.skills || {},
     disciplines: normalizedDisciplines.disciplines,
     selectedPowers: normalizedDisciplines.powers,
+    selectedPathPowers: normalizedDisciplines.pathPowers,
     derivedStats,
     activeEffects: getActiveEffects(data),
   }
