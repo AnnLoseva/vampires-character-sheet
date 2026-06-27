@@ -30,13 +30,17 @@ const FACE_NUMBERS = [1, 6, 2, 7, 3, 8, 4, 9, 5, 10]
 
 type DieGeometryKind = 'normal' | 'hungry'
 
+// These are the actual kite-shaped face art (transparent outside the kite) extracted from the
+// reference 3D dice bundle, not the project's existing /static/dice/*.png — those are hexagonal
+// icon badges built for the flat 2D roll list and don't line up with this geometry's UVs (the
+// kite's apex/base poke past the hexagon's edges into its background, showing up as white tips).
 const DICE_TEXTURES: Record<DieGeometryKind, string[]> = {
-  normal: ['/static/dice/fail.png', '/static/dice/success.png', '/static/dice/critical-success.png'],
+  normal: ['/static/dice3d/normal-fail.png', '/static/dice3d/normal-success.png', '/static/dice3d/normal-critical.png'],
   hungry: [
-    '/static/dice/hunger-critical-fail.png',
-    '/static/dice/hunger-fail.png',
-    '/static/dice/hunger-success.png',
-    '/static/dice/hunger-critical-success.png',
+    '/static/dice3d/hunger-critical-fail.png',
+    '/static/dice3d/hunger-fail.png',
+    '/static/dice3d/hunger-success.png',
+    '/static/dice3d/hunger-critical.png',
   ],
 }
 
