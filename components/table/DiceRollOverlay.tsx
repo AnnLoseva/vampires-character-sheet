@@ -133,17 +133,19 @@ function getDiceAssets(): DiceAssets {
       texture.colorSpace = THREE.SRGBColorSpace
       texture.anisotropy = 4
       texture.minFilter = THREE.LinearMipmapLinearFilter
-      // Normal dice: the warm key/fill lights blend with the lit diffuse pass and wash the red
-      // textures out toward pink. Layering the same texture in as emissive keeps the true,
-      // saturated PNG color regardless of scene lighting, while `map` still adds shading depth.
+      // Normal dice: the lit diffuse pass (`map` under the warm key/fill lights) was still
+      // doing most of the work and washing the red textures out toward pale pink. Darkening
+      // the diffuse pass via `color` and letting emissive carry the true PNG color instead
+      // (undimmed, so whites/blacks in the artwork stay crisp) makes it dominant.
       return kind === 'normal'
         ? new THREE.MeshStandardMaterial({
             map: texture,
+            color: new THREE.Color(0x3a3a3a),
             emissiveMap: texture,
             emissive: new THREE.Color(0xffffff),
-            emissiveIntensity: 0.9,
-            roughness: 0.6,
-            metalness: 0.05,
+            emissiveIntensity: 1.15,
+            roughness: 0.7,
+            metalness: 0,
           })
         : new THREE.MeshStandardMaterial({ map: texture, roughness: 0.55, metalness: 0.18 })
     })
