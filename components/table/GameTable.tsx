@@ -261,6 +261,9 @@ function getDisciplineCostLabel(
     cost.rouseChecks > 0
       ? tf('{n} испытание Крови', { n: cost.rouseChecks })
       : '',
+    cost.bloodPoints > 0
+      ? tf('{n} пункт крови', { n: cost.bloodPoints })
+      : '',
     cost.willpowerSpend > 0
       ? tf('{n} пункт Воли', { n: cost.willpowerSpend })
       : '',
@@ -406,8 +409,24 @@ function resolvePowerPool(pool: string, rules: Record<string, DisciplineRule>) {
   return trimmed
 }
 
+function getMechanicsRollRecord(rule?: DisciplinePowerRule | null) {
+  const roll = rule?.mechanics?.roll
+  return roll && typeof roll === 'object' && !Array.isArray(roll)
+    ? roll as Record<string, unknown>
+    : null
+}
+
+function formatMechanicsPool(value: unknown) {
+  if (Array.isArray(value)) return value.filter(Boolean).join(' + ')
+  return typeof value === 'string' ? value : ''
+}
+
 function getPowerRollFormula(rule?: DisciplinePowerRule | null) {
-  return rule?.pool || rule?.roll || ''
+  const mechanicsRoll = getMechanicsRollRecord(rule)
+  return rule?.pool
+    || rule?.roll
+    || formatMechanicsPool(mechanicsRoll?.actorPool)
+    || ''
 }
 
 function getPowerRollSummary(rule: DisciplinePowerRule | null | undefined, tf: (ru: string, vars: Record<string, string | number>) => string) {
@@ -421,8 +440,12 @@ function getPowerRollSummary(rule: DisciplinePowerRule | null | undefined, tf: (
 }
 
 function getPowerDifficultySummary(rule: DisciplinePowerRule | null | undefined, tf: (ru: string, vars: Record<string, string | number>) => string) {
+  const mechanicsRoll = getMechanicsRollRecord(rule)
   const rows = [
     rule?.difficulty ? formatRuleValue(rule.difficulty) : '',
+    !rule?.difficulty && mechanicsRoll?.difficulty
+      ? formatRuleValue(mechanicsRoll.difficulty)
+      : '',
     rule?.difficulty_for_victim ? tf('для цели: {value}', { value: formatRuleValue(rule.difficulty_for_victim) }) : '',
     rule?.soak_difficulty ? tf('прочность: {value}', { value: formatRuleValue(rule.soak_difficulty) }) : '',
   ].filter(Boolean)
@@ -8787,6 +8810,18 @@ export default function VampireTable() {
                                 : selectedPreviewPowerCost.manualWillpower
                                   ? t('добровольная трата')
                                   : tf('{n} пункт', { n: selectedPreviewPowerCost.willpowerSpend })}
+                            </dd>
+                          </div>
+                        ) : null}
+                        {selectedPreviewPowerCost.bloodPoints || selectedPreviewPowerCost.manualBlood ? (
+                          <div>
+                            <dt>{t('Кровь')}</dt>
+                            <dd>
+                              {selectedPreviewPowerCost.variableBloodPoints
+                                ? tf('до {n} пункт', { n: selectedPreviewPowerCost.bloodPoints || 1 })
+                                : selectedPreviewPowerCost.bloodPoints
+                                  ? tf('{n} пункт', { n: selectedPreviewPowerCost.bloodPoints })
+                                  : t('ручная стоимость')}
                             </dd>
                           </div>
                         ) : null}

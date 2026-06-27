@@ -4,9 +4,12 @@ type JsonObject = Record<string, unknown>
 
 export type DisciplineCost = {
   rouseChecks: number
+  bloodPoints: number
   willpowerSpend: number
   willpowerRatingReduction: number
   variableRouseChecks: boolean
+  variableBloodPoints: boolean
+  manualBlood: boolean
   manualWillpower: boolean
   warnings: string[]
   source: 'mechanics' | 'legacy' | 'none'
@@ -15,8 +18,13 @@ export type DisciplineCost = {
 export type DisciplineCostMechanics = JsonObject & {
   cost?: {
     rouseChecks?: number
+    bloodPoints?: number
     willpowerSpend?: number
+    willpowerRatingReduction?: number
     variableRouseChecks?: boolean
+    variableBloodPoints?: boolean
+    manualBlood?: boolean
+    manualWillpower?: boolean
   }
   rouse_checks?: number
   variable_rouse_checks?: boolean
@@ -115,13 +123,31 @@ export function resolveDisciplineCost(
   const explicitCost = isObject(mechanics.cost) ? mechanics.cost : null
 
   if (explicitCost && hasOwn(mechanics, 'cost')) {
+    const bloodPoints = toCount(explicitCost.bloodPoints)
+    const manualBlood = bloodPoints > 0 || Boolean(explicitCost.manualBlood)
+    const willpowerRatingReduction = toCount(explicitCost.willpowerRatingReduction)
+    const manualWillpower = willpowerRatingReduction > 0 || Boolean(explicitCost.manualWillpower)
+    const warnings = [
+      ...(manualBlood
+        ? ['Стоимость в пунктах крови отмечена для старой редакции и списывается вручную: трек Голода не меняется автоматически.']
+        : []),
+      ...(willpowerRatingReduction > 0
+        ? ['Стоимость похожа на снижение рейтинга или максимума Воли и требует ручного решения Рассказчика.']
+        : []),
+      ...(manualWillpower && willpowerRatingReduction === 0
+        ? ['В тексте указана ручная или зависящая от цели трата Воли; автоматически она не списывается.']
+        : []),
+    ]
     return {
       rouseChecks: toCount(explicitCost.rouseChecks),
+      bloodPoints,
       willpowerSpend: toCount(explicitCost.willpowerSpend),
-      willpowerRatingReduction: 0,
+      willpowerRatingReduction,
       variableRouseChecks: Boolean(explicitCost.variableRouseChecks),
-      manualWillpower: false,
-      warnings: [],
+      variableBloodPoints: Boolean(explicitCost.variableBloodPoints),
+      manualBlood,
+      manualWillpower,
+      warnings,
       source: 'mechanics',
     }
   }
@@ -131,9 +157,12 @@ export function resolveDisciplineCost(
     : source.legacyCost
   const parsed = parseLegacyDisciplineCost(legacyValue)
   let rouseChecks = parsed.rouseChecks
+  let bloodPoints = 0
   let willpowerSpend = parsed.willpowerSpend
   let willpowerRatingReduction = parsed.willpowerRatingReduction
   let variableRouseChecks = parsed.variableRouseChecks
+  let variableBloodPoints = false
+  let manualBlood = false
   let manualWillpower = parsed.manualWillpower
   const warnings = [...parsed.warnings]
   let hasMachineCost = false
@@ -164,17 +193,23 @@ export function resolveDisciplineCost(
   }
 
   const hasLegacyCost = rouseChecks > 0
+    || bloodPoints > 0
     || willpowerSpend > 0
     || willpowerRatingReduction > 0
     || variableRouseChecks
+    || variableBloodPoints
+    || manualBlood
     || manualWillpower
     || warnings.length > 0
 
   return {
     rouseChecks,
+    bloodPoints,
     willpowerSpend,
     willpowerRatingReduction,
     variableRouseChecks,
+    variableBloodPoints,
+    manualBlood,
     manualWillpower,
     warnings,
     source: hasMachineCost ? 'mechanics' : hasLegacyCost ? 'legacy' : 'none',

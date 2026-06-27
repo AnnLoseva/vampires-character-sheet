@@ -234,8 +234,13 @@ export type DisciplinePowerMechanics = {
   }
   cost?: {
     rouseChecks?: number
+    bloodPoints?: number
     willpowerSpend?: number
+    willpowerRatingReduction?: number
     variableRouseChecks?: boolean
+    variableBloodPoints?: boolean
+    manualBlood?: boolean
+    manualWillpower?: boolean
   }
   duration?: {
     type?: 'scene' | 'night' | 'turn' | 'permanent' | string
