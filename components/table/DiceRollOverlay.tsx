@@ -54,7 +54,7 @@ type FaceBasis = { normal: THREE.Vector3; up: THREE.Vector3 }
 
 type DiceAssets = {
   geometries: Record<DieGeometryKind, THREE.BufferGeometry>
-  materials: Record<DieGeometryKind, THREE.MeshStandardMaterial[]>
+  materials: Record<DieGeometryKind, THREE.MeshBasicMaterial[]>
   faces: FaceBasis[]
 }
 
@@ -122,8 +122,12 @@ function getDiceAssets(): DiceAssets {
 
   const loader = new THREE.TextureLoader()
   const geometries = {} as Record<DieGeometryKind, THREE.BufferGeometry>
-  const materials = {} as Record<DieGeometryKind, THREE.MeshStandardMaterial[]>
+  const materials = {} as Record<DieGeometryKind, THREE.MeshBasicMaterial[]>
 
+  // Lit materials (MeshStandardMaterial) put the rolled face almost square-on to both the
+  // camera and the key light at once, so several light contributions stacked on the same
+  // face and clipped to white instead of showing the artwork. The face art already has its
+  // baked-in border/shading, so render it unlit and let it show through exactly as authored.
   ;(['normal', 'hungry'] as DieGeometryKind[]).forEach(kind => {
     const geometry = base.clone()
     for (let f = 0; f < 10; f++) geometry.addGroup(f * 6, 6, materialGroupForFace(FACE_NUMBERS[f], kind))
@@ -133,21 +137,7 @@ function getDiceAssets(): DiceAssets {
       texture.colorSpace = THREE.SRGBColorSpace
       texture.anisotropy = 4
       texture.minFilter = THREE.LinearMipmapLinearFilter
-      // Normal dice: the lit diffuse pass (`map` under the warm key/fill lights) was still
-      // doing most of the work and washing the red textures out toward pale pink. Darkening
-      // the diffuse pass via `color` and letting emissive carry the true PNG color instead
-      // (undimmed, so whites/blacks in the artwork stay crisp) makes it dominant.
-      return kind === 'normal'
-        ? new THREE.MeshStandardMaterial({
-            map: texture,
-            color: new THREE.Color(0x3a3a3a),
-            emissiveMap: texture,
-            emissive: new THREE.Color(0xffffff),
-            emissiveIntensity: 1.15,
-            roughness: 0.7,
-            metalness: 0,
-          })
-        : new THREE.MeshStandardMaterial({ map: texture, roughness: 0.55, metalness: 0.18 })
+      return new THREE.MeshBasicMaterial({ map: texture })
     })
   })
 
@@ -217,11 +207,6 @@ function DiceCanvas({ dice, cellSize, onSettled }: { dice: DiceOverlayDie[]; cel
         0.1, 100,
       )
       camera.position.set(0, 0, 12)
-
-      scene.add(new THREE.HemisphereLight(0xffffff, 0x2a1418, 0.62))
-      const key = new THREE.DirectionalLight(0xfff1e6, 1.0); key.position.set(3, 5, 6); scene.add(key)
-      const fill = new THREE.DirectionalLight(0x8a3a44, 0.45); fill.position.set(-4, -1, 4); scene.add(fill)
-      const rim = new THREE.DirectionalLight(0xffd9c2, 0.35); rim.position.set(0, 2, -5); scene.add(rim)
 
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true })
       renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1))
