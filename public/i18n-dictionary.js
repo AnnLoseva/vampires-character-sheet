@@ -429,6 +429,7 @@ window.VTM_I18N = {
   "Выбери дисциплину (+{value} точка)": "Choose a Discipline (+{value} dot)",
   "Дисциплина НПС": "NPC Discipline",
   "Для НПС список не ограничен кланом. После добавления уровень можно менять точками прямо в листе.": "For NPCs, the list is not restricted by clan. After adding it, the level can be changed with dots directly on the sheet.",
+  "Для НПС список не ограничен кланом. Добавление попадёт в чек магазина опыта.": "For NPCs, the list is not restricted by clan. Adding it will appear in the experience shop receipt.",
   "Добавить": "Add",
 
   // main.js: clan gallery, predator type gallery

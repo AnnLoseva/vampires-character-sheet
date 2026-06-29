@@ -3277,6 +3277,11 @@ function closePredDiscModal() {
 
 function openNpcDisciplineModal() {
     if (currentCharType !== 'npc-vampire') return;
+    if (startingSheetFixed && !expShopMode) {
+        alert(t("Лист зафиксирован. Дисциплины сейчас нельзя менять."));
+        return;
+    }
+
     const names = Object.keys(RULES.disciplines || {}).sort();
     if (!names.length) return alert(t('Список дисциплин ещё не загрузился.'));
 
@@ -3284,7 +3289,9 @@ function openNpcDisciplineModal() {
     <div id="npc-discipline-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:20000;display:flex;align-items:center;justify-content:center;padding:20px;">
         <div style="background:#111;border:2px solid #a14600;padding:28px;width:min(520px,95vw);border-radius:10px;">
             <h2 style="color:#ffae00;text-align:center;margin:0 0 18px;">${t('Дисциплина НПС')}</h2>
-            <p style="color:#aaa;line-height:1.45;">${t('Для НПС список не ограничен кланом. После добавления уровень можно менять точками прямо в листе.')}</p>
+            <p style="color:#aaa;line-height:1.45;">${expShopMode
+                ? t('Для НПС список не ограничен кланом. Добавление попадёт в чек магазина опыта.')
+                : t('Для НПС список не ограничен кланом. После добавления уровень можно менять точками прямо в листе.')}</p>
             <select id="npc-discipline-select" style="width:100%;padding:12px;background:#050505;color:white;border:1px solid #555;font-size:16px;">
                 ${names.map(name => `<option value="${name}">${name}</option>`).join('')}
             </select>
@@ -3307,6 +3314,10 @@ function addNpcDiscipline() {
     updateDisciplineTotal();
     renderDisciplines();
     updateVitals();
+    if (expShopMode) {
+        updateExpPurchasedStyles();
+        renderExpShopPanel();
+    }
     closeNpcDisciplineModal();
 }
 
@@ -8553,7 +8564,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         selectedThinBloodFlaws = Array.isArray(d.thinBloodFlaws) ? [...d.thinBloodFlaws] : [];
         enforceClanSpecificRules();
 
-        startingSheetFixed = isNpcCharacterType() ? false : resolveCharacterSheetFixed(d);
+        startingSheetFixed = resolveCharacterSheetFixed(d);
         const savedBaseLevels = d.sheetLock?.baseLevels;
         baseLevels = (savedBaseLevels && Object.keys(savedBaseLevels).length > 0)
             ? JSON.parse(JSON.stringify(savedBaseLevels))
@@ -10331,7 +10342,7 @@ function applySheetLockState() {
 
     const lockedControls = document.querySelectorAll('#char-type-select, #clan-input, #predator-input, #generation-input, #type-input, #base-humanity, #initial-hunger, #val-blood-potency, .locked-origin-control');
     lockedControls.forEach(control => {
-        const isFixedOrigin = startingSheetFixed && !isNpcCharacterType();
+        const isFixedOrigin = startingSheetFixed;
         const isFixedPlayerResource = isPlayerVampire() && ['initial-hunger', 'val-blood-potency'].includes(control.id);
         const shouldDisable = isFixedOrigin || isFixedPlayerResource;
         control.disabled = shouldDisable;
@@ -10343,12 +10354,13 @@ function applySheetLockState() {
         document.getElementById('clan-modal')?.style.setProperty('display', 'none');
         document.getElementById('predator-modal')?.style.setProperty('display', 'none');
         document.getElementById('generation-modal')?.style.setProperty('display', 'none');
+        document.getElementById('npc-discipline-modal')?.remove();
     }
     updateCreationRuleControls();
 }
 
 function isCharacterSheetFixed() {
-    return Boolean(startingSheetFixed && !isNpcCharacterType());
+    return Boolean(startingSheetFixed);
 }
 
 function updateSheetFixedVisibility() {
@@ -10463,7 +10475,7 @@ function setupCreationRuleGuards() {
     }, true);
 
     document.addEventListener('click', event => {
-        if (currentCharType !== 'npc-vampire' || expShopMode) return;
+        if (currentCharType !== 'npc-vampire' || expShopMode || startingSheetFixed) return;
         const dot = event.target.closest('.discipline-item:not(.xp-shop-discipline-option) .disc-dot');
         if (!dot) return;
         const item = dot.closest('.discipline-item');
