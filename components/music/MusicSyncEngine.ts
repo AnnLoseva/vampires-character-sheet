@@ -17,6 +17,7 @@ export class MusicSyncEngine {
   private state: MusicState
   private lastPersistAt = 0
   private lifecycleLocked = false
+  private removeLifecycleListeners: (() => void) | null = null
 
   constructor(private options: MusicEngineOptions) {
     this.state = {
@@ -35,7 +36,17 @@ export class MusicSyncEngine {
       }
       window.addEventListener('pagehide', lock)
       window.addEventListener('beforeunload', lock)
+      this.removeLifecycleListeners = () => {
+        window.removeEventListener('pagehide', lock)
+        window.removeEventListener('beforeunload', lock)
+      }
     }
+  }
+
+  destroy() {
+    this.lifecycleLocked = true
+    this.removeLifecycleListeners?.()
+    this.removeLifecycleListeners = null
   }
 
   getCurrentState() {

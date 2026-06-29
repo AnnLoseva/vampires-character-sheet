@@ -69,11 +69,11 @@ function markdownToHtml(text: string): string {
   }
   if (buf.length) chunks.push(`<p>${buf.join('<br>')}</p>`)
 
-  return chunks.join('') || `<p>${text}</p>`
+  return chunks.join('') || `<p>${escapeHtml(text)}</p>`
 }
 
 function convertInline(text: string): string {
-  return text
+  return escapeHtml(text)
     // images first (before links)
     .replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1">')
     // links
@@ -86,6 +86,14 @@ function convertInline(text: string): string {
     .replace(/_([^_]+)_/g, '<em>$1</em>')
     // inline code
     .replace(/`([^`]+)`/g, '<code>$1</code>')
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
 }
 
 // ─── local storage helpers ────────────────────────────────────────────────────
@@ -306,10 +314,10 @@ export default function JournalPage() {
       }
     }
 
-    getDroppedImageUrls(event.dataTransfer).forEach(async url => {
+    for (const url of getDroppedImageUrls(event.dataTransfer)) {
       await insertImageIntoEditor(url, getLinkTitle(url, t))
       items.push(url)
-    })
+    }
 
     if (items.length === 0) {
       setStatus('Перетащите изображение, ссылку на изображение или медиа со стола')

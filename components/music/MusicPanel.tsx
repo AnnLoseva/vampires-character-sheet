@@ -217,7 +217,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
   }, [room])
 
   useEffect(() => {
-    engineRef.current = new MusicSyncEngine({
+    const engine = new MusicSyncEngine({
       room,
       isMaster,
       getChannel: () => musicChannelRef.current || channelRef?.current || null,
@@ -229,6 +229,13 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
       },
       onStatus: setMusicStatus,
     })
+
+    engineRef.current = engine
+
+    return () => {
+      engine.destroy()
+      if (engineRef.current === engine) engineRef.current = null
+    }
   }, [room, isMaster, channelRef])
 
   useEffect(() => {

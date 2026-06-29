@@ -6,11 +6,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "tsc --noEmit --incremental false",
     "audit:structure": "node --import tsx scripts/audit-project-structure.ts",
-    "audit:disciplines": "tsx scripts/audit-discipline-rules.ts",
-    "validate:disciplines": "tsx scripts/validate-discipline-mechanics.ts",
-    "test:disciplines": "tsx scripts/test-discipline-engine.ts"
+    "audit:disciplines": "node --import tsx scripts/audit-discipline-rules.ts",
+    "validate:disciplines": "node --import tsx scripts/validate-discipline-mechanics.ts",
+    "test:disciplines": "node --import tsx scripts/test-discipline-engine.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
