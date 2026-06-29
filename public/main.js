@@ -515,6 +515,8 @@ async function initializeApp() {
         setCharacterSavedState(Boolean(new URLSearchParams(window.location.search).get('characterId')));
         setCharacterType(savedType);
         renderVitalTrackers();
+        renderDerivedStatsPanel();
+        renderActiveDisciplineEffects();
 
         // Обновлять морталь-трекер при смене характеристик/навыков
         document.addEventListener('change', function(e) {
@@ -800,13 +802,24 @@ function getSheetDamageProfile() {
 }
 
 function getHealthTracker() {
-    const stamina = parseInt(document.querySelector('input[name="Выносливость"]:checked')?.value || '1', 10) || 1;
-    const tracker = window.VTMHealth.normalizeHealthTracker(vitalTrackers.health, stamina, getSheetDamageProfile());
+    const stamina = getCurrentAttributeDotsForDerived('Выносливость');
+    const sourceHealth = isFullSheetObject(vitalTrackers.health)
+        ? vitalTrackers.health
+        : { superficial: 0, aggravated: 0, bonusMax: 0, maxOverride: null };
+    const derived = getFullSheetDerivedStats();
+    const tracker = window.VTMHealth.normalizeHealthTracker({
+        superficial: sourceHealth.superficial,
+        aggravated: sourceHealth.aggravated,
+        bonusMax: Math.max(0, derived.health.totalMax - stamina - 3),
+        maxOverride: derived.health.totalMax
+    }, stamina, getSheetDamageProfile());
     vitalTrackers.health = {
         superficial: tracker.superficial,
         aggravated: tracker.aggravated,
-        bonusMax: tracker.bonusMax,
-        maxOverride: tracker.maxOverride
+        bonusMax: Math.max(0, parseInt(sourceHealth.bonusMax || 0, 10) || 0),
+        maxOverride: sourceHealth.maxOverride === null || sourceHealth.maxOverride === undefined
+            ? null
+            : Math.max(0, parseInt(sourceHealth.maxOverride, 10) || 0)
     };
     characterPhysicalState = tracker.physicalState;
     return tracker;
@@ -1889,27 +1902,25 @@ function adjustSheetWillpowerStress(severity, delta) {
 }
 
 function updateVitals() {
-    // Здоровье
-    const staminaInput = document.querySelector('input[name="Выносливость"]:checked');
-    const stamina = staminaInput ? parseInt(staminaInput.value) : 1;
-    const hp = stamina + 3;
-    document.getElementById('val-hp').textContent = hp;
-    document.getElementById('val-hp').setAttribute('data-tooltip',
-        tf('Здоровье = Выносливость({stamina}) + 3 = {hp}', { stamina, hp }));
+    const derived = getFullSheetDerivedStats();
+    const hp = derived.health.totalMax;
+    const healthValue = document.getElementById('val-hp');
+    if (healthValue) {
+        healthValue.textContent = hp;
+        healthValue.setAttribute('data-tooltip', formatDerivedStatFormula('health', derived));
+    }
     const healthFormula = document.getElementById('creation-health-formula');
-    if (healthFormula) healthFormula.textContent = tf('Выносливость {stamina} + 3', { stamina });
+    if (healthFormula) healthFormula.textContent = formatDerivedStatFormula('health', derived);
 
-    // Сила воли
-    const composureInput = document.querySelector('input[name="Самообладание"]:checked');
-    const resolveInput = document.querySelector('input[name="Упорство"]:checked');
-    const composure = composureInput ? parseInt(composureInput.value) : 1;
-    const resolve = resolveInput ? parseInt(resolveInput.value) : 1;
-    const wp = composure + resolve;
-    document.getElementById('val-wp').textContent = wp;
-    document.getElementById('val-wp').setAttribute('data-tooltip',
-        tf('Сила воли = Самообладание({composure}) + Упорство({resolve}) = {wp}', { composure, resolve, wp }));
+    const wp = derived.willpower.totalMax;
+    const willpowerValue = document.getElementById('val-wp');
+    if (willpowerValue) {
+        willpowerValue.textContent = wp;
+        willpowerValue.setAttribute('data-tooltip', formatDerivedStatFormula('willpower', derived));
+    }
     const willpowerFormula = document.getElementById('creation-willpower-formula');
-    if (willpowerFormula) willpowerFormula.textContent = tf('Самообладание {composure} + Упорство {resolve}', { composure, resolve });
+    if (willpowerFormula) willpowerFormula.textContent = formatDerivedStatFormula('willpower', derived);
+    renderDerivedStatsPanel(derived);
     renderVitalTracker('health');
     renderVitalTracker('willpower');
 
@@ -1993,13 +2004,12 @@ function updateHumanity() {
 }
 
 function updateCreationSummaryFormulas() {
-    const stamina = parseInt(document.querySelector('input[name="Выносливость"]:checked')?.value || '1', 10) || 1;
-    const composure = parseInt(document.querySelector('input[name="Самообладание"]:checked')?.value || '1', 10) || 1;
-    const resolve = parseInt(document.querySelector('input[name="Упорство"]:checked')?.value || '1', 10) || 1;
+    const derived = getFullSheetDerivedStats();
     const healthFormula = document.getElementById('creation-health-formula');
     const willpowerFormula = document.getElementById('creation-willpower-formula');
-    if (healthFormula) healthFormula.textContent = tf('Выносливость {stamina} + 3', { stamina });
-    if (willpowerFormula) willpowerFormula.textContent = tf('Самообладание {composure} + Упорство {resolve}', { composure, resolve });
+    if (healthFormula) healthFormula.textContent = formatDerivedStatFormula('health', derived);
+    if (willpowerFormula) willpowerFormula.textContent = formatDerivedStatFormula('willpower', derived);
+    renderDerivedStatsPanel(derived);
 }
 
 function setInitialHunger(value) {
@@ -2071,9 +2081,9 @@ function getSelectedPowerName(power) {
     return typeof power === 'string' ? power : power?.name || power?.название || '';
 }
 
-function findDisciplinePower(disciplineName, powerName) {
+function findDisciplinePower(disciplineName, powerName, pathName = '') {
     return loadDisciplinePowersForFullSheet(disciplineName)
-        .find(power => power.name === powerName) || null;
+        .find(power => power.name === powerName && (!pathName || power.path === pathName)) || null;
 }
 
 function getPowerRollSummary(power) {
@@ -2093,8 +2103,8 @@ function getPowerDifficultySummary(power) {
     ].filter(Boolean).join(' · ');
 }
 
-function getPowerDetailsHTML(disciplineName, powerName) {
-    const resolved = findDisciplinePower(disciplineName, powerName);
+function getPowerDetailsHTML(disciplineName, powerName, pathName = '') {
+    const resolved = findDisciplinePower(disciplineName, powerName, pathName);
     if (!resolved) return `<p>${t('Описание способности пока не добавлено.')}</p>`;
 
     const { level, path, rule: power } = resolved;
@@ -2131,7 +2141,768 @@ function setupPowerDetails(panel) {
             if (details) details.hidden = expanded;
         });
     });
+
+    panel.querySelectorAll('[data-discipline-activate]').forEach(button => {
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            activateFullSheetDisciplinePower(
+                button.dataset.discipline || '',
+                button.dataset.power || '',
+                button.dataset.path || ''
+            );
+        });
+    });
+
+    panel.querySelectorAll('[data-discipline-deactivate]').forEach(button => {
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            deactivateFullSheetDisciplinePower(
+                button.dataset.discipline || '',
+                button.dataset.power || '',
+                button.dataset.path || ''
+            );
+        });
+    });
 }
+
+function isFullSheetObject(value) {
+    return Boolean(value && typeof value === 'object' && !Array.isArray(value));
+}
+
+function cloneFullSheetData(value) {
+    return JSON.parse(JSON.stringify(value ?? null));
+}
+
+function showFullSheetSaveStatus(text, kind = '') {
+    if (typeof setAutoSaveStatus === 'function') {
+        setAutoSaveStatus(text, kind);
+        return;
+    }
+    const status = document.getElementById('autosave-status');
+    if (!status) return;
+    status.textContent = text || '';
+    status.dataset.kind = kind;
+}
+
+function getCurrentAttributeDotsForDerived(name) {
+    const checked = document.querySelector(`input[name="${CSS.escape(name)}"]:checked`);
+    return Math.max(0, parseInt(checked?.value || '0', 10) || 0);
+}
+
+function getFullSheetAttributeSnapshot() {
+    return {
+        'Выносливость': getCurrentAttributeDotsForDerived('Выносливость'),
+        'Самообладание': getCurrentAttributeDotsForDerived('Самообладание'),
+        'Упорство': getCurrentAttributeDotsForDerived('Упорство')
+    };
+}
+
+function getFullSheetLegacyHealthSettings() {
+    const health = isFullSheetObject(vitalTrackers?.health) ? vitalTrackers.health : {};
+    const legacyBonus = Math.max(0, Math.floor(Number(health.bonusMax) || 0));
+    const maxOverride = health.maxOverride === null || health.maxOverride === undefined
+        ? null
+        : Math.max(0, Math.floor(Number(health.maxOverride) || 0));
+    return { legacyBonus, maxOverride };
+}
+
+function getPowerContainerFromRule(value) {
+    if (!isFullSheetObject(value)) return null;
+    if (isFullSheetObject(value.powers)) return value.powers;
+    const levelEntries = Object.entries(value).filter(([key]) => Number.isFinite(Number(key)));
+    return levelEntries.length ? Object.fromEntries(levelEntries) : null;
+}
+
+function collectRulePowers(disciplineName, pathName, container) {
+    if (!isFullSheetObject(container)) return [];
+    return Object.entries(container).flatMap(([levelKey, levelPowers]) => {
+        if (!isFullSheetObject(levelPowers)) return [];
+        const level = Number(levelKey);
+        if (!Number.isFinite(level)) return [];
+        return Object.entries(levelPowers).flatMap(([name, rule]) => {
+            if (!isFullSheetObject(rule)) return [];
+            return [{
+                discipline: disciplineName,
+                path: pathName || '',
+                level,
+                name,
+                rule
+            }];
+        });
+    });
+}
+
+function loadDisciplinePowersForFullSheet(disciplineName) {
+    const discipline = RULES.disciplines?.[disciplineName];
+    if (!isFullSheetObject(discipline)) return [];
+
+    const directPowers = collectRulePowers(disciplineName, '', discipline.powers);
+    const pathPowers = isFullSheetObject(discipline.paths)
+        ? Object.entries(discipline.paths).flatMap(([pathName, pathRule]) => (
+            collectRulePowers(disciplineName, pathName, getPowerContainerFromRule(pathRule))
+        ))
+        : [];
+    return [...directPowers, ...pathPowers].sort((a, b) => (
+        a.level - b.level || a.name.localeCompare(b.name, 'ru')
+    ));
+}
+
+function getPowerNameFromSelection(value) {
+    if (typeof value === 'string') return value.trim();
+    if (!isFullSheetObject(value)) return '';
+    return String(value.name || value.power || value['название'] || '').trim();
+}
+
+function addSelectedPowerName(bucket, value, fallbackPath = '') {
+    const name = getPowerNameFromSelection(value);
+    if (!name) return;
+    bucket.names.add(name);
+    const path = isFullSheetObject(value)
+        ? String(value.path || value.pathName || value.path_name || value['путь'] || fallbackPath || '').trim()
+        : String(fallbackPath || '').trim();
+    if (path) {
+        if (!bucket.pathPowers[path]) bucket.pathPowers[path] = new Set();
+        bucket.pathPowers[path].add(name);
+    }
+}
+
+function addSelectedPowerList(bucket, value, fallbackPath = '') {
+    if (!Array.isArray(value)) return;
+    value.forEach(item => addSelectedPowerName(bucket, item, fallbackPath));
+}
+
+function getSelectedDisciplinePowerNames(disciplineName) {
+    const bucket = { names: new Set(), pathPowers: {} };
+    const value = selectedPowers?.[disciplineName];
+    if (Array.isArray(value)) {
+        addSelectedPowerList(bucket, value);
+        return bucket;
+    }
+    if (!isFullSheetObject(value)) return bucket;
+
+    ['powers', 'selectedPowers', 'selected_powers'].forEach(key => {
+        addSelectedPowerList(bucket, value[key]);
+    });
+    if (isFullSheetObject(value.paths)) {
+        Object.entries(value.paths).forEach(([pathName, pathValue]) => {
+            if (Array.isArray(pathValue)) {
+                addSelectedPowerList(bucket, pathValue, pathName);
+            } else if (isFullSheetObject(pathValue)) {
+                ['powers', 'selectedPowers', 'selected_powers'].forEach(key => {
+                    addSelectedPowerList(bucket, pathValue[key], pathName);
+                });
+            }
+        });
+    }
+    Object.entries(value).forEach(([pathName, pathValue]) => {
+        if (['paths', 'powers', 'selectedPowers', 'selected_powers', 'sources', 'rating', 'dots', 'value'].includes(pathName)) return;
+        if (Array.isArray(pathValue)) addSelectedPowerList(bucket, pathValue, pathName);
+    });
+    return bucket;
+}
+
+function hasSelectedFullSheetPowers(selection) {
+    return selection.names.size > 0 || Object.values(selection.pathPowers).some(set => set.size > 0);
+}
+
+function getDisciplinePathRatingForFullSheet(disciplineName, pathName = '') {
+    const sources = disciplineSources?.[disciplineName] || {};
+    if (pathName && Number(sources[pathName]) > 0) return Math.max(0, Number(sources[pathName]) || 0);
+    return Object.values(sources).reduce((sum, value) => sum + (Number(value) || 0), 0);
+}
+
+function getKnownDisciplinePowersForFullSheet(disciplineName) {
+    const powers = loadDisciplinePowersForFullSheet(disciplineName);
+    const selected = getSelectedDisciplinePowerNames(disciplineName);
+    if (hasSelectedFullSheetPowers(selected)) {
+        return powers.filter(power => {
+            if (selected.names.has(power.name)) return true;
+            return Boolean(power.path && selected.pathPowers[power.path]?.has(power.name));
+        });
+    }
+
+    const rating = getDisciplinePathRatingForFullSheet(disciplineName);
+    return powers.filter(power => power.level <= (
+        power.path ? getDisciplinePathRatingForFullSheet(disciplineName, power.path) || rating : rating
+    ));
+}
+
+function isPassiveDisciplineActivation(mechanics) {
+    const activation = mechanics?.activation;
+    if (activation === 'passive') return true;
+    return isFullSheetObject(activation) && (
+        activation.passive === true ||
+        activation.type === 'passive' ||
+        activation.mode === 'passive' ||
+        activation.kind === 'passive'
+    );
+}
+
+function getDisciplineAutomationStatus(mechanics) {
+    return isFullSheetObject(mechanics?.automation) ? mechanics.automation.status : '';
+}
+
+function resolveFullSheetTraitValue(trait, disciplineName) {
+    const normalizedTrait = String(trait || '').trim().toLocaleLowerCase('ru');
+    if (
+        normalizedTrait === 'discipline' ||
+        normalizedTrait === 'discipline_rating' ||
+        normalizedTrait === disciplineName.toLocaleLowerCase('ru')
+    ) {
+        return getDisciplinePathRatingForFullSheet(disciplineName);
+    }
+    const attributes = getFullSheetAttributeSnapshot();
+    if (Object.prototype.hasOwnProperty.call(attributes, trait)) return attributes[trait];
+    return getDisciplinePathRatingForFullSheet(trait);
+}
+
+function applyFullSheetFormulaBounds(value, formula) {
+    let result = value;
+    const multiplier = Number(formula.multiplier);
+    const offset = Number(formula.offset);
+    const min = Number(formula.min);
+    const max = Number(formula.max);
+    if (Number.isFinite(multiplier)) result *= multiplier;
+    if (Number.isFinite(offset)) result += offset;
+    if (Number.isFinite(min)) result = Math.max(min, result);
+    if (Number.isFinite(max)) result = Math.min(max, result);
+    return result;
+}
+
+function resolveFullSheetFormulaValue(value, disciplineName) {
+    if (value === undefined) return getDisciplinePathRatingForFullSheet(disciplineName);
+    if (typeof value === 'number') return value;
+    if (typeof value === 'string') {
+        const numeric = Number(value);
+        return Number.isFinite(numeric) ? numeric : resolveFullSheetTraitValue(value, disciplineName);
+    }
+    if (!isFullSheetObject(value)) return 0;
+    if (value.formula === 'discipline_rating') {
+        return applyFullSheetFormulaBounds(
+            getDisciplinePathRatingForFullSheet(String(value.discipline || disciplineName)),
+            value
+        );
+    }
+    if (value.type === 'trait' && typeof value.trait === 'string') {
+        return applyFullSheetFormulaBounds(resolveFullSheetTraitValue(value.trait, disciplineName), value);
+    }
+    if (value.type === 'formula' && typeof value.expression === 'string') {
+        const expression = value.expression.trim();
+        const numeric = Number(expression);
+        return Number.isFinite(numeric)
+            ? numeric
+            : applyFullSheetFormulaBounds(resolveFullSheetTraitValue(expression, disciplineName), value);
+    }
+    return 0;
+}
+
+function getFullSheetPassiveTrackerModifiers() {
+    const modifiers = [];
+    Object.keys(disciplineSources || {}).forEach(disciplineName => {
+        getKnownDisciplinePowersForFullSheet(disciplineName).forEach(power => {
+            const mechanics = isFullSheetObject(power.rule?.mechanics) ? power.rule.mechanics : null;
+            const status = getDisciplineAutomationStatus(mechanics);
+            if (status !== 'auto' && status !== 'partial') return;
+            if (!isPassiveDisciplineActivation(mechanics)) return;
+            const effects = Array.isArray(mechanics.effects) ? mechanics.effects : [];
+            effects.forEach(effect => {
+                if (!isFullSheetObject(effect) || effect.type !== 'tracker_modifier') return;
+                if (effect.operation !== 'add_max') return;
+                if (effect.tracker !== 'health' && effect.tracker !== 'willpower') return;
+                const value = Math.floor(resolveFullSheetFormulaValue(effect.value ?? effect.amount, disciplineName));
+                if (!Number.isFinite(value) || value === 0) return;
+                modifiers.push({
+                    tracker: effect.tracker,
+                    operation: 'add_max',
+                    value,
+                    source: {
+                        discipline: disciplineName,
+                        power: power.name,
+                        path: power.path || '',
+                        level: power.level
+                    }
+                });
+            });
+        });
+    });
+    return modifiers;
+}
+
+function getFullSheetDerivedStats() {
+    const attrs = getFullSheetAttributeSnapshot();
+    const healthBaseMax = Math.max(0, Math.floor(attrs['Выносливость'] + 3));
+    const willpowerBaseMax = Math.max(0, Math.floor(attrs['Самообладание'] + attrs['Упорство']));
+    const modifiers = getFullSheetPassiveTrackerModifiers();
+    const healthPassiveBonus = modifiers
+        .filter(modifier => modifier.tracker === 'health')
+        .reduce((total, modifier) => total + modifier.value, 0);
+    const willpowerPassiveBonus = modifiers
+        .filter(modifier => modifier.tracker === 'willpower')
+        .reduce((total, modifier) => total + modifier.value, 0);
+    const { legacyBonus, maxOverride } = getFullSheetLegacyHealthSettings();
+
+    return {
+        health: {
+            baseMax: healthBaseMax,
+            passiveBonus: healthPassiveBonus,
+            legacyBonus,
+            totalMax: maxOverride ?? Math.max(0, healthBaseMax + legacyBonus + healthPassiveBonus)
+        },
+        willpower: {
+            baseMax: willpowerBaseMax,
+            passiveBonus: willpowerPassiveBonus,
+            legacyBonus: 0,
+            totalMax: Math.max(0, willpowerBaseMax + willpowerPassiveBonus)
+        },
+        modifiers
+    };
+}
+
+function formatDerivedStatFormula(kind, derived = getFullSheetDerivedStats()) {
+    const attrs = getFullSheetAttributeSnapshot();
+    if (kind === 'health') {
+        const parts = [tf('Выносливость {stamina} + 3', { stamina: attrs['Выносливость'] })];
+        if (derived.health.legacyBonus) parts.push(tf('бонус +{bonus}', { bonus: derived.health.legacyBonus }));
+        if (derived.health.passiveBonus) parts.push(tf('пассивные силы +{bonus}', { bonus: derived.health.passiveBonus }));
+        if (vitalTrackers.health?.maxOverride !== null && vitalTrackers.health?.maxOverride !== undefined) {
+            parts.push(tf('ручной максимум {max}', { max: derived.health.totalMax }));
+        }
+        return `${parts.join(' · ')} = ${derived.health.totalMax}`;
+    }
+    const parts = [tf('Самообладание {composure} + Упорство {resolve}', {
+        composure: attrs['Самообладание'],
+        resolve: attrs['Упорство']
+    })];
+    if (derived.willpower.passiveBonus) parts.push(tf('пассивные силы +{bonus}', { bonus: derived.willpower.passiveBonus }));
+    return `${parts.join(' · ')} = ${derived.willpower.totalMax}`;
+}
+
+function renderDerivedStatsPanel(derived = getFullSheetDerivedStats()) {
+    const healthTotal = document.getElementById('derived-health-total');
+    const healthFormula = document.getElementById('derived-health-formula');
+    const willpowerTotal = document.getElementById('derived-willpower-total');
+    const willpowerFormula = document.getElementById('derived-willpower-formula');
+
+    if (healthTotal) healthTotal.textContent = derived.health.totalMax;
+    if (healthFormula) healthFormula.textContent = formatDerivedStatFormula('health', derived);
+    if (willpowerTotal) willpowerTotal.textContent = derived.willpower.totalMax;
+    if (willpowerFormula) willpowerFormula.textContent = formatDerivedStatFormula('willpower', derived);
+}
+
+function normalizeActiveDisciplineEffect(value) {
+    if (!isFullSheetObject(value) || typeof value.id !== 'string' || !value.id.trim()) return null;
+    const source = isFullSheetObject(value.source) ? value.source : {};
+    const effect = isFullSheetObject(value.effect) && typeof value.effect.type === 'string' ? value.effect : null;
+    if (!effect) return null;
+    const duration = isFullSheetObject(value.duration) ? value.duration : null;
+    const durationType = duration && ['scene', 'night', 'turn', 'permanent'].includes(duration.type)
+        ? duration.type
+        : null;
+
+    return {
+        ...cloneFullSheetData(value),
+        id: value.id,
+        source: {
+            discipline: typeof source.discipline === 'string' ? source.discipline : '',
+            power: typeof source.power === 'string' ? source.power : '',
+            path: typeof source.path === 'string' ? source.path : undefined,
+            level: Number.isFinite(Number(source.level)) ? Number(source.level) : undefined
+        },
+        effect: cloneFullSheetData(effect),
+        targetCharacterId: typeof value.targetCharacterId === 'string' ? value.targetCharacterId : undefined,
+        startedAt: typeof value.startedAt === 'string' ? value.startedAt : new Date(0).toISOString(),
+        expiresAt: typeof value.expiresAt === 'string' || value.expiresAt === null ? value.expiresAt : undefined,
+        remainingUses: typeof value.remainingUses === 'number' || value.remainingUses === null ? value.remainingUses : undefined,
+        duration: durationType ? {
+            type: durationType,
+            turns: Number.isFinite(Number(duration.turns)) ? Number(duration.turns) : undefined,
+            startedAt: typeof duration.startedAt === 'string'
+                ? duration.startedAt
+                : typeof value.startedAt === 'string'
+                    ? value.startedAt
+                    : new Date(0).toISOString()
+        } : undefined,
+        active: value.active !== false
+    };
+}
+
+function normalizeActiveDisciplineEffects(value) {
+    return Array.isArray(value)
+        ? value.map(normalizeActiveDisciplineEffect).filter(Boolean)
+        : [];
+}
+
+function getActiveDisciplineEffects() {
+    activeDisciplineEffects = normalizeActiveDisciplineEffects(activeDisciplineEffects);
+    return cloneFullSheetData(activeDisciplineEffects);
+}
+
+function setActiveDisciplineEffectsFromData(effects, { render = true } = {}) {
+    activeDisciplineEffects = normalizeActiveDisciplineEffects(effects);
+    if (window.__loadedCharacterData && isFullSheetObject(window.__loadedCharacterData)) {
+        window.__loadedCharacterData.activeEffects = getActiveDisciplineEffects();
+    }
+    if (render) {
+        renderActiveDisciplineEffects();
+        renderDisciplines();
+    }
+}
+
+function getActiveEffectTitleForFullSheet(activeEffect) {
+    return activeEffect.effect?.label || activeEffect.source?.power || activeEffect.effect?.type || t('Эффект');
+}
+
+function getActiveEffectDescriptionForFullSheet(activeEffect) {
+    const payload = isFullSheetObject(activeEffect.effect?.payload)
+        ? Object.entries(activeEffect.effect.payload)
+            .map(([key, value]) => `${key}: ${value}`)
+            .join(' · ')
+        : '';
+    return [
+        activeEffect.effect?.description,
+        payload,
+        activeEffect.source?.path,
+        activeEffect.source?.level ? tf('уровень {level}', { level: activeEffect.source.level }) : '',
+        getFullSheetDurationLabel(activeEffect.duration)
+    ].filter(Boolean).join(' · ');
+}
+
+function getFullSheetDurationLabel(duration) {
+    if (!isFullSheetObject(duration)) return '';
+    if (duration.type === 'permanent') return t('постоянно');
+    if (duration.type === 'scene') return t('до конца сцены');
+    if (duration.type === 'night') return t('до конца ночи');
+    if (duration.type === 'turn') return duration.turns
+        ? tf('{turns} ход(ов)', { turns: duration.turns })
+        : t('ход');
+    return '';
+}
+
+function renderActiveDisciplineEffects() {
+    const list = document.getElementById('active-effects-list');
+    if (!list) return;
+    const effects = getActiveDisciplineEffects().filter(effect => effect.active);
+    if (!effects.length) {
+        list.innerHTML = `<p class="power-action-note">${t('Активных эффектов нет.')}</p>`;
+        return;
+    }
+    list.innerHTML = effects.map(effect => `
+        <article class="active-effect-item">
+            <div>
+                <strong>${escapeHTML(getActiveEffectTitleForFullSheet(effect))}</strong>
+                <small>${escapeHTML([
+                    effect.source?.discipline,
+                    effect.source?.power,
+                    getActiveEffectDescriptionForFullSheet(effect)
+                ].filter(Boolean).join(' · '))}</small>
+            </div>
+            <button type="button" data-remove-active-effect="${escapeHTML(effect.id)}">${t('Отключить')}</button>
+        </article>
+    `).join('');
+    list.querySelectorAll('[data-remove-active-effect]').forEach(button => {
+        button.addEventListener('click', event => {
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            removeFullSheetActiveEffect(button.dataset.removeActiveEffect || '');
+        });
+    });
+}
+
+function isFullSheetPowerActive(disciplineName, powerName, pathName = '') {
+    return getActiveDisciplineEffects().some(effect => (
+        effect.active &&
+        effect.source?.discipline === disciplineName &&
+        effect.source?.power === powerName &&
+        (!pathName || effect.source?.path === pathName)
+    ));
+}
+
+function getFullSheetActivationKind(mechanics) {
+    return isFullSheetObject(mechanics?.activation) && typeof mechanics.activation.kind === 'string'
+        ? mechanics.activation.kind
+        : '';
+}
+
+function getFullSheetPowerEffects(mechanics, power) {
+    if (Array.isArray(mechanics?.effects) && mechanics.effects.length > 0) {
+        return mechanics.effects;
+    }
+    return [{
+        type: 'manual_prompt',
+        label: power.name,
+        message: tf('Активна сила «{power}». Эффект применяется вручную.', { power: power.name })
+    }];
+}
+
+function normalizeFullSheetDuration(mechanicsDuration, legacyDuration) {
+    if (isFullSheetObject(mechanicsDuration) && ['scene', 'night', 'turn', 'permanent'].includes(mechanicsDuration.type)) {
+        return {
+            type: mechanicsDuration.type,
+            turns: Math.max(0, Math.floor(Number(mechanicsDuration.turns) || 0)) || undefined
+        };
+    }
+    const text = String(legacyDuration || '').toLocaleLowerCase('ru');
+    if (/постоян|permanent/.test(text)) return { type: 'permanent' };
+    if (/ноч|night/.test(text)) return { type: 'night' };
+    if (/ход|turn|раунд|round/.test(text)) return { type: 'turn' };
+    return { type: 'scene' };
+}
+
+function createFullSheetDurationState(duration, startedAt) {
+    return {
+        type: duration.type,
+        turns: duration.type === 'turn' ? duration.turns : undefined,
+        startedAt
+    };
+}
+
+function getFullSheetDurationRemainingUses(duration) {
+    return duration.type === 'turn' && duration.turns ? duration.turns : undefined;
+}
+
+function resolveFullSheetCost(mechanics = {}, legacyCost = '') {
+    const explicitCost = isFullSheetObject(mechanics.cost) ? mechanics.cost : null;
+    const costText = String(legacyCost || '').toLocaleLowerCase('ru');
+    const rouseFromText = /испытан|rouse/.test(costText) ? 1 : 0;
+    const willpowerFromText = /вол[ияи]|willpower/.test(costText) ? 1 : 0;
+    const willpowerCost = mechanics.willpower_cost;
+    const willpowerFromMechanics = typeof willpowerCost === 'number'
+        ? willpowerCost
+        : isFullSheetObject(willpowerCost)
+            ? Number(willpowerCost.spend || 0)
+            : 0;
+
+    return {
+        rouseChecks: Math.max(0, Math.floor(Number(explicitCost?.rouseChecks ?? mechanics.rouse_checks ?? rouseFromText) || 0)),
+        willpowerSpend: Math.max(0, Math.floor(Number(explicitCost?.willpowerSpend ?? willpowerFromMechanics ?? willpowerFromText) || 0)),
+        manualBlood: Boolean(explicitCost?.manualBlood || (Number(explicitCost?.bloodPoints || 0) > 0)),
+        manualWillpower: Boolean(explicitCost?.manualWillpower || willpowerCost?.manual_choice),
+        willpowerRatingReduction: Math.max(0, Math.floor(Number(explicitCost?.willpowerRatingReduction || willpowerCost?.reduce_rating || 0) || 0)),
+        variableRouseChecks: Boolean(explicitCost?.variableRouseChecks || mechanics.variable_rouse_checks)
+    };
+}
+
+function payFullSheetDisciplineCost(power) {
+    const mechanics = power.rule?.mechanics || {};
+    const cost = resolveFullSheetCost(mechanics, power.rule?.cost);
+    const warnings = [];
+
+    if (cost.willpowerRatingReduction > 0) {
+        return {
+            success: false,
+            warnings: [t('Стоимость требует ручного изменения максимума Воли.')]
+        };
+    }
+
+    if (cost.manualBlood) warnings.push(t('Стоимость в пунктах крови отмечена как ручная.'));
+    if (cost.manualWillpower && cost.willpowerSpend <= 0) warnings.push(t('Стоимость Воли требует ручного решения.'));
+
+    let spentWillpower = 0;
+    if (cost.willpowerSpend > 0 && !cost.manualWillpower) {
+        const before = getWillpowerState();
+        const result = applyWillpowerStress(before, cost.willpowerSpend);
+        if (result.applied < cost.willpowerSpend) {
+            return {
+                success: false,
+                warnings: [t('Воля полностью заполнена тяжёлым стрессом: оплатить силу нельзя.')]
+            };
+        }
+        vitalTrackers.willpower = {
+            superficial: result.tracker.superficial,
+            aggravated: result.tracker.aggravated
+        };
+        spentWillpower = result.applied;
+        warnings.push(...result.warnings);
+    }
+
+    const rouseChecks = [];
+    let hunger = clampHunger(vitalTrackers.hunger || 0);
+    const checksCount = cost.variableRouseChecks ? Math.max(1, cost.rouseChecks || 1) : cost.rouseChecks;
+    for (let index = 0; index < checksCount; index += 1) {
+        const before = hunger;
+        const value = Math.floor(Math.random() * 10) + 1;
+        const success = value >= 6;
+        if (!success) hunger = clampHunger(hunger + 1);
+        rouseChecks.push({ value, success, hungerBefore: before, hungerAfter: hunger });
+    }
+    if (rouseChecks.length) {
+        vitalTrackers.hunger = hunger;
+        renderVitalTracker('hunger');
+    }
+    if (spentWillpower > 0) renderVitalTracker('willpower');
+
+    return { success: true, cost, rouseChecks, spentWillpower, warnings };
+}
+
+function activateFullSheetDisciplinePower(disciplineName, powerName, pathName = '') {
+    const power = loadDisciplinePowersForFullSheet(disciplineName)
+        .find(item => item.name === powerName && (!pathName || item.path === pathName));
+    if (!power) {
+        showFullSheetSaveStatus(t('Сила не найдена'), 'error');
+        return;
+    }
+    const mechanics = isFullSheetObject(power.rule?.mechanics) ? power.rule.mechanics : {};
+    if (getFullSheetActivationKind(mechanics) !== 'active') {
+        showFullSheetSaveStatus(t('Эта сила не создаёт активный эффект'), 'idle');
+        return;
+    }
+    if (isFullSheetPowerActive(disciplineName, powerName, pathName)) {
+        deactivateFullSheetDisciplinePower(disciplineName, powerName, pathName);
+        return;
+    }
+
+    const payment = payFullSheetDisciplineCost(power);
+    if (!payment.success) {
+        showFullSheetSaveStatus(payment.warnings?.[0] || t('Сила не активирована'), 'error');
+        return;
+    }
+
+    const startedAt = new Date().toISOString();
+    const duration = normalizeFullSheetDuration(mechanics.duration, power.rule?.duration);
+    const createdEffects = getFullSheetPowerEffects(mechanics, power).map((effect, index) => ({
+        id: `${disciplineName}:${powerName}:${effect.id || index}:${startedAt}`,
+        source: {
+            discipline: disciplineName,
+            power: powerName,
+            path: pathName || undefined,
+            level: power.level
+        },
+        effect: cloneFullSheetData(effect),
+        targetCharacterId: undefined,
+        startedAt,
+        expiresAt: duration.type === 'permanent' ? null : undefined,
+        remainingUses: getFullSheetDurationRemainingUses(duration),
+        duration: createFullSheetDurationState(duration, startedAt),
+        active: true
+    }));
+
+    activeDisciplineEffects = normalizeActiveDisciplineEffects([
+        ...activeDisciplineEffects,
+        ...createdEffects
+    ]);
+    renderActiveDisciplineEffects();
+    renderDisciplines();
+    updateVitals();
+    queueFullSheetDisciplineAutosave(true);
+
+    const rouseText = payment.rouseChecks?.length
+        ? tf('Испытаний Крови: {count}', { count: payment.rouseChecks.length })
+        : '';
+    const wpText = payment.spentWillpower
+        ? tf('Воля: -{count}', { count: payment.spentWillpower })
+        : '';
+    showFullSheetSaveStatus([t('Сила активирована'), rouseText, wpText, ...(payment.warnings || [])].filter(Boolean).join(' · '), 'saved');
+}
+
+function deactivateFullSheetDisciplinePower(disciplineName, powerName, pathName = '') {
+    const before = activeDisciplineEffects.length;
+    activeDisciplineEffects = normalizeActiveDisciplineEffects(activeDisciplineEffects)
+        .filter(effect => !(
+            effect.active &&
+            effect.source?.discipline === disciplineName &&
+            effect.source?.power === powerName &&
+            (!pathName || effect.source?.path === pathName)
+        ));
+    if (activeDisciplineEffects.length === before) {
+        showFullSheetSaveStatus(t('Активный эффект не найден'), 'idle');
+        return;
+    }
+    renderActiveDisciplineEffects();
+    renderDisciplines();
+    queueFullSheetDisciplineAutosave(true);
+    showFullSheetSaveStatus(t('Сила отключена'), 'saved');
+}
+
+function removeFullSheetActiveEffect(effectId) {
+    if (!effectId) return;
+    const before = activeDisciplineEffects.length;
+    activeDisciplineEffects = normalizeActiveDisciplineEffects(activeDisciplineEffects)
+        .filter(effect => effect.id !== effectId);
+    if (activeDisciplineEffects.length === before) return;
+    renderActiveDisciplineEffects();
+    renderDisciplines();
+    queueFullSheetDisciplineAutosave(true);
+    showFullSheetSaveStatus(t('Эффект отключён'), 'saved');
+}
+
+function getFullSheetDisciplineAutosavePatch() {
+    return {
+        activeEffects: getActiveDisciplineEffects(),
+        vitalTrackers: getVitalTrackerData(),
+        status: {
+            physicalState: getHealthTracker().physicalState,
+            humanityState: getHumanityState().value <= 0 ? 'lost_to_beast' : null
+        },
+        healthState: { ...healthState }
+    };
+}
+
+function queueFullSheetDisciplineAutosave(immediate = false) {
+    if (isApplyingCharacterData) return;
+    if (window.__loadedCharacterData && isFullSheetObject(window.__loadedCharacterData)) {
+        window.__loadedCharacterData.activeEffects = getActiveDisciplineEffects();
+        window.__loadedCharacterData.vitalTrackers = getVitalTrackerData();
+    }
+    if (!window.autoSaveCharacterPatch) return;
+
+    if (disciplineAutoSaveTimeout) {
+        clearTimeout(disciplineAutoSaveTimeout);
+        disciplineAutoSaveTimeout = null;
+    }
+
+    const run = () => window.autoSaveCharacterPatch(getFullSheetDisciplineAutosavePatch(), {
+        immediate,
+        silent: true
+    });
+
+    if (immediate) {
+        run();
+        return;
+    }
+    disciplineAutoSaveTimeout = setTimeout(run, 650);
+}
+
+function getPowerActionHTML(power) {
+    const mechanics = isFullSheetObject(power.rule?.mechanics) ? power.rule.mechanics : null;
+    const automation = getDisciplineAutomationStatus(mechanics);
+    const isActiveKind = getFullSheetActivationKind(mechanics) === 'active';
+    const active = isFullSheetPowerActive(power.discipline, power.name, power.path || '');
+    const label = active ? t('Отключить') : t('Активировать');
+    const actionAttr = active ? 'data-discipline-deactivate' : 'data-discipline-activate';
+
+    if (isActiveKind) {
+        return `
+            <div class="power-action-row">
+                <span class="power-action-note">${escapeHTML(automation ? `mechanics: ${automation}` : t('активная сила'))}</span>
+                <button type="button"
+                        class="power-action-btn${active ? ' is-active' : ''}"
+                        ${actionAttr}
+                        data-discipline="${escapeHTML(power.discipline)}"
+                        data-power="${escapeHTML(power.name)}"
+                        data-path="${escapeHTML(power.path || '')}">
+                    ${label}
+                </button>
+            </div>
+        `;
+    }
+
+    const note = automation === 'manual'
+        ? t('Эффект применяется вручную.')
+        : automation === 'partial'
+            ? t('Частичная автоматизация.')
+            : isPassiveDisciplineActivation(mechanics)
+                ? t('Пассивный эффект учтён автоматически.')
+                : t('Автоматической активации нет.');
+    return `<div class="power-action-row"><span class="power-action-note">${escapeHTML(note)}</span></div>`;
+}
+
+window.getActiveDisciplineEffects = getActiveDisciplineEffects;
+window.setActiveDisciplineEffectsFromData = setActiveDisciplineEffectsFromData;
+window.activateFullSheetDisciplinePower = activateFullSheetDisciplinePower;
+window.deactivateFullSheetDisciplinePower = deactivateFullSheetDisciplinePower;
+window.removeFullSheetActiveEffect = removeFullSheetActiveEffect;
 
 function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     if (!name) return;
@@ -2158,6 +2929,7 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     updateDisciplineRow(name);
     updateDisciplineTotal();
     renderDisciplines();
+    updateVitals();
 }
 // Обновление или создание строки дисциплины
 function updateDisciplineRow(name) {
@@ -2220,6 +2992,7 @@ function addDisciplineRow(name, dots = 1, sourceText = "") {
         item.remove();
         updateDisciplineTotal();
         renderDisciplines();
+        updateVitals();
         if (expShopMode) renderExpShopPanel();
     });
 
@@ -2321,21 +3094,25 @@ function renderDisciplines() {
 
         nameEl.parentNode.insertBefore(addBtn, nameEl.nextSibling);
 
-        // Панель способностей
-        if (selectedPowers[discName] && selectedPowers[discName].length > 0) {
+        // Панель известных сил
+        const knownPowers = getKnownDisciplinePowersForFullSheet(discName);
+        if (knownPowers.length > 0) {
             const panel = document.createElement('div');
             panel.className = 'powers-panel';
             panel.innerHTML = `
-                <strong>${t('Способности')}</strong>
+                <strong>${t('Известные силы')}</strong>
                 <div class="power-list">
-                    ${selectedPowers[discName].map(power => {
-                        const powerName = getSelectedPowerName(power);
+                    ${knownPowers.map(power => {
+                        const powerName = power.name;
                         return `
                             <section class="power-entry">
                                 <button type="button" class="power-title" aria-expanded="false">
-                                    <span>${powerName}</span><i aria-hidden="true">⌄</i>
+                                    <span>${escapeHTML(powerName)} <small style="color:#777;">${tf('ур. {level}', { level: power.level })}${power.path ? ` · ${escapeHTML(power.path)}` : ''}</small></span><i aria-hidden="true">⌄</i>
                                 </button>
-                                <div class="power-details" hidden>${getPowerDetailsHTML(discName, powerName)}</div>
+                                <div class="power-details" hidden>
+                                    ${getPowerDetailsHTML(discName, powerName, power.path || '')}
+                                    ${getPowerActionHTML(power)}
+                                </div>
                             </section>
                         `;
                     }).join('')}
@@ -2347,6 +3124,7 @@ function renderDisciplines() {
     });
 
     renderShopAvailableDisciplines();
+    renderDerivedStatsPanel();
 }
 
 // ==================== ПОДТВЕРЖДЕНИЕ ====================
@@ -2528,6 +3306,7 @@ function addNpcDiscipline() {
     updateAllDisciplineRows();
     updateDisciplineTotal();
     renderDisciplines();
+    updateVitals();
     closeNpcDisciplineModal();
 }
 
@@ -2711,6 +3490,7 @@ function updateAllDisciplineRows() {
             addDisciplineRow(name, total, text);
         }
     });
+    renderDerivedStatsPanel();
 }
 
 function openPowerSelectionModal(discName, maxLevel) {
@@ -2820,6 +3600,7 @@ function openPowerSelectionModal(discName, maxLevel) {
             selectedPowers[discName] = selected;
             closePowerModal();
             renderDisciplines();
+            updateVitals();
             if (expShopMode) renderExpShopPanel();
         };
     }
@@ -4238,12 +5019,10 @@ function updateTrackers() {
         }
     });
 
-    const stamina = parseInt(document.querySelector('input[name="Выносливость"]:checked')?.value || 1);
-    const composure = parseInt(document.querySelector('input[name="Самообладание"]:checked')?.value || 1);
-    const resolve = parseInt(document.querySelector('input[name="Упорство"]:checked')?.value || 1);
-
-    document.getElementById('val-hp').textContent = stamina + 3;
-    document.getElementById('val-wp').textContent = composure + resolve;
+    const derived = getFullSheetDerivedStats();
+    document.getElementById('val-hp').textContent = derived.health.totalMax;
+    document.getElementById('val-wp').textContent = derived.willpower.totalMax;
+    renderDerivedStatsPanel(derived);
     renderVitalTracker('health');
     renderVitalTracker('willpower');
 
@@ -7582,6 +8361,7 @@ function getFullCharacterData() {
         skills: {},
         disciplines: JSON.parse(JSON.stringify(disciplineSources || {})),
         selectedPowers: JSON.parse(JSON.stringify(selectedPowers || {})),
+        activeEffects: getActiveDisciplineEffects(),
         merits: JSON.parse(JSON.stringify(selectedMerits || [])),
         flaws: JSON.parse(JSON.stringify(selectedFlaws || [])),
         thinBloodMerits: JSON.parse(JSON.stringify(selectedThinBloodMerits || [])),
@@ -7632,6 +8412,7 @@ function resetCharacterSheetForLoad() {
 
     disciplineSources = {};
     selectedPowers = {};
+    activeDisciplineEffects = [];
     selectedMerits = [];
     selectedFlaws = [];
     selectedThinBloodMerits = [];
@@ -7659,6 +8440,8 @@ function resetCharacterSheetForLoad() {
     renderTouchstones();
     renderInventory();
     renderVitalTrackers();
+    renderActiveDisciplineEffects();
+    renderDerivedStatsPanel();
 }
 
 function applyCharacterData(d, sourceName = 'JSON') {
@@ -7748,6 +8531,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         if (d.selectedPowers) {
             selectedPowers = JSON.parse(JSON.stringify(d.selectedPowers));
         }
+        activeDisciplineEffects = normalizeActiveDisciplineEffects(d.activeEffects || []);
 
         // Полная перерисовка дисциплин
         const list = document.getElementById('disciplines-list');
@@ -7760,6 +8544,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         });
 
         renderDisciplines();   // кнопки "+" и панели способностей
+        renderActiveDisciplineEffects();
 
         // Преимущества и недостатки
         if (d.merits) selectedMerits = [...d.merits];

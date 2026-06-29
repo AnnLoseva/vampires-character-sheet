@@ -47,6 +47,17 @@ function mergeCharacterPatch(base, patch) {
     return result;
 }
 
+function syncLoadedCharacterData(nextData) {
+    if (!isPlainObject(nextData)) return;
+    window.__loadedCharacterData = {
+        ...(isPlainObject(window.__loadedCharacterData) ? window.__loadedCharacterData : {}),
+        ...nextData
+    };
+    if (Array.isArray(nextData.activeEffects)) {
+        window.setActiveDisciplineEffectsFromData?.(nextData.activeEffects, { render: true });
+    }
+}
+
 function initSupabase() {
     if (supabaseClient) return supabaseClient;
     
@@ -291,12 +302,15 @@ async function saveCharacter() {
             existingCharacterData = existingRecord.data;
         }
     }
+    const currentActiveEffects = Array.isArray(characterData.activeEffects)
+        ? characterData.activeEffects
+        : null;
     const storedActiveEffects = Array.isArray(existingCharacterData?.activeEffects)
         ? existingCharacterData.activeEffects
         : Array.isArray(window.__loadedCharacterData?.activeEffects)
             ? window.__loadedCharacterData.activeEffects
             : [];
-    characterData.activeEffects = JSON.parse(JSON.stringify(storedActiveEffects));
+    characterData.activeEffects = JSON.parse(JSON.stringify(currentActiveEffects ?? storedActiveEffects));
 
     const payload = {
         user_id: currentUser.id,
@@ -319,10 +333,7 @@ async function saveCharacter() {
     } else {
         currentCharacterRecordId = data?.id || existingId;
         charactersListCache = null;
-        window.__loadedCharacterData = {
-            ...(isPlainObject(window.__loadedCharacterData) ? window.__loadedCharacterData : {}),
-            ...characterData
-        };
+        syncLoadedCharacterData(characterData);
         window.setCharacterSavedState?.(true);
         if (currentCharacterRecordId) {
             const params = new URLSearchParams(window.location.search);
@@ -375,6 +386,7 @@ async function autoSaveCharacterPatch(patch = {}, options = {}) {
         if (updateError) throw updateError;
 
         charactersListCache = null;
+        syncLoadedCharacterData(nextData);
         setAutoSaveStatus('Сохранено', 'saved');
         return { ok: true, data: nextData };
     } catch (error) {
@@ -414,6 +426,7 @@ async function updateCurrentCharacterData(mutator, options = {}) {
         if (updateError) throw updateError;
 
         charactersListCache = null;
+        syncLoadedCharacterData(nextData);
         setAutoSaveStatus('Сохранено', 'saved');
         return { ok: true, data: nextData };
     } catch (error) {
