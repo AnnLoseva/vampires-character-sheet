@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "audit:disciplines": "tsx scripts/audit-discipline-rules.ts",
-    "validate:disciplines": "tsx scripts/validate-discipline-mechanics.ts"
+    "validate:disciplines": "tsx scripts/validate-discipline-mechanics.ts",
+    "test:disciplines": "tsx scripts/test-discipline-engine.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
