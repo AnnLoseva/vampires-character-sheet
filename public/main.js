@@ -958,6 +958,7 @@ function getVitalAutosavePatch() {
         baseHumanity: String(baseHumanity),
         humanity: { ...humanity, base: baseHumanity },
         morality: getMoralityData(),
+        touchstones: JSON.parse(JSON.stringify(touchstones || [])),
         status: {
             physicalState: health.physicalState,
             humanityState: humanity.value <= 0 ? 'lost_to_beast' : null
@@ -2024,6 +2025,8 @@ function setInitialHunger(value) {
 
 let disciplineSources = {}; 
 let selectedPowers = {};
+let activeDisciplineEffects = [];
+let disciplineAutoSaveTimeout = null;
 
 function getDisciplineDetailsHTML(name) {
     const discipline = RULES.disciplines?.[name];
@@ -2069,12 +2072,8 @@ function getSelectedPowerName(power) {
 }
 
 function findDisciplinePower(disciplineName, powerName) {
-    const powers = RULES.disciplines?.[disciplineName]?.powers || {};
-    for (let level = 1; level <= 5; level++) {
-        const power = powers[level]?.[powerName];
-        if (power) return { level, power };
-    }
-    return null;
+    return loadDisciplinePowersForFullSheet(disciplineName)
+        .find(power => power.name === powerName) || null;
 }
 
 function getPowerRollSummary(power) {
@@ -2098,11 +2097,12 @@ function getPowerDetailsHTML(disciplineName, powerName) {
     const resolved = findDisciplinePower(disciplineName, powerName);
     if (!resolved) return `<p>${t('Описание способности пока не добавлено.')}</p>`;
 
-    const { level, power } = resolved;
+    const { level, path, rule: power } = resolved;
     const rollSummary = getPowerRollSummary(power);
     const difficultySummary = getPowerDifficultySummary(power);
     const facts = [
         [t('Уровень'), level],
+        [t('Путь'), path],
         [t('Бросок'), rollSummary],
         [t('Сложность'), difficultySummary],
         [t('Стоимость'), power.cost],
@@ -9616,6 +9616,7 @@ function isSheetLockedTarget(target) {
     if (expShopMode) return false;
     if (!target || target.closest('#exp-modal')) return false;
     if (target.closest('.show-master-btn, .selected-item-show-master, [data-inventory-show-master]')) return false;
+    if (target.closest('#touchstones-list, .touchstone-add-btn')) return false;
     const dotLabel = target.closest('.dot-label');
     const dotRow = dotLabel?.closest('.row');
     if ((dotLabel && (dotRow?.querySelector('.attr-name') || dotRow?.querySelector('.skill-name'))) || target.closest('.discipline-item:not(.xp-shop-discipline-option) .disc-dot')) return false;
