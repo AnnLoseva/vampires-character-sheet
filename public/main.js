@@ -31,6 +31,7 @@ let expShopSnapshot = null;
 let expShopStartLevels = {};
 let expShopDisciplineMode = 'клановая';
 let startingSheetBase = null;
+let sheetUnlockedForEditing = false;
 let expHistory = [];
 let lastAutoExperienceBonus = null;
 let characterImageData = '';
@@ -416,6 +417,7 @@ function rebuildDisciplineListFromSources() {
     const list = document.getElementById('disciplines-list');
     if (!list) return;
 
+    pruneSelectedPowersForCurrentDisciplines();
     list.innerHTML = '';
     Object.keys(disciplineSources || {}).forEach(name => {
         const total = Object.values(disciplineSources[name]).reduce((a, b) => a + b, 0);
@@ -423,6 +425,22 @@ function rebuildDisciplineListFromSources() {
     });
     renderDisciplines();
     updateDisciplineTotal();
+}
+
+function pruneSelectedPowersForCurrentDisciplines() {
+    Object.keys(selectedPowers || {}).forEach(name => {
+        const dots = Object.values(disciplineSources?.[name] || {})
+            .reduce((sum, value) => sum + (parseInt(value, 10) || 0), 0);
+
+        if (dots <= 0) {
+            delete selectedPowers[name];
+            return;
+        }
+
+        if (Array.isArray(selectedPowers[name]) && selectedPowers[name].length > dots) {
+            selectedPowers[name] = selectedPowers[name].slice(0, dots);
+        }
+    });
 }
 
 // ==================== ЗАГРУЗКА ДАННЫХ ====================
@@ -2587,18 +2605,7 @@ function resetClanDisciplines() {
 
     console.log("Итоговые disciplineSources после восстановления:", JSON.parse(JSON.stringify(disciplineSources)));
 
-    // Перерисовка
-    const list = document.getElementById('disciplines-list');
-    if (list) list.innerHTML = '';
-
-    Object.keys(disciplineSources).forEach(name => {
-        if (disciplineSources[name]) {
-            const total = Object.values(disciplineSources[name]).reduce((a,b)=>a+b,0);
-            const text = Object.keys(disciplineSources[name]).join(" + ");
-            addDisciplineRow(name, total, text);
-        }
-    });
-
+    updateAllDisciplineRows();
     updateDisciplineTotal();
     renderDisciplines();
 }
@@ -2621,6 +2628,8 @@ function resetPredatorDisciplines() {
 
     disciplineSources = {};
     predatorProvidedDisciplines = {};
+    selectedMerits = selectedMerits.filter(item => !item.fromPredator);
+    selectedFlaws = selectedFlaws.filter(item => !item.fromPredator);
 
     Object.keys(clanBackup).forEach(disc => {
         disciplineSources[disc] = { ...clanBackup[disc] };
@@ -2630,23 +2639,14 @@ function resetPredatorDisciplines() {
         console.log(`   ✅ Восстановлено от Клана: ${disc} → ${total} (${text})`);
     });
 
-    const list = document.getElementById('disciplines-list');
-    if (list) list.innerHTML = '';
-
-    Object.keys(disciplineSources).forEach(name => {
-        if (disciplineSources[name]) {
-            const total = Object.values(disciplineSources[name]).reduce((a,b)=>a+b,0);
-            const text = Object.keys(disciplineSources[name]).join(" + ");
-            addDisciplineRow(name, total, text);
-        }
-    });
-
     resetPredatorSpecialties();
 
     document.querySelectorAll('#pred-disc-modal, #spec-choice-modal').forEach(m => m.remove());
 
+    updateAllDisciplineRows();
     updateDisciplineTotal();
     renderDisciplines();
+    renderSelectedMeritsFlaws();
 }
 
 // Сброс специализаций от предыдущего стиля охоты
@@ -2703,6 +2703,7 @@ function updateAllDisciplineRows() {
     const list = document.getElementById('disciplines-list');
     if (list) list.innerHTML = '';
 
+    pruneSelectedPowersForCurrentDisciplines();
     Object.keys(disciplineSources).forEach(name => {
         if (disciplineSources[name]) {
             const total = Object.values(disciplineSources[name]).reduce((a,b)=>a+b,0);
@@ -3194,13 +3195,11 @@ function openClanGallery() {
 
 function resetAndOpenClanGallery() {
     if (startingSheetFixed && !expShopMode) return;
-    resetClanDisciplines();        // очищаем старые дисциплины клана
     openClanGallery();
 }
 
 function resetAndOpenPredatorGallery() {
     if (startingSheetFixed && !expShopMode) return;
-    resetPredatorDisciplines();    // очищаем старые дисциплины охоты
     openPredatorGallery();
 }
 
@@ -3397,7 +3396,12 @@ async function showSinglePredator(pred) {
 
 // Выбор стиля охоты из галереи
 function selectThisPredator(name) {
-    document.getElementById('predator-input').value = name;
+    if (name && !validatePredatorRestrictions(name)) return;
+
+    const predatorSelect = document.getElementById('predator-input');
+    const previous = predatorSelect?.value || '';
+    if (previous !== name) resetPredatorDisciplines();
+    if (predatorSelect) predatorSelect.value = name;
     closePredatorModal();
     loadPredatorHint();
     
@@ -3416,7 +3420,10 @@ function closePredatorModal() {
 
 // Выбор клана из галереи
 function selectThisClan(name) {
-    document.getElementById('clan-input').value = name;
+    const clanSelect = document.getElementById('clan-input');
+    const previous = clanSelect?.value || '';
+    if (previous !== name) resetClanDisciplines();
+    if (clanSelect) clanSelect.value = name;
     closeClanModal();
     loadClanHint();        // обновляем подсказку
     updateClanIcon();      // обновляем иконку
@@ -6394,6 +6401,7 @@ function setupEventListeners() {
             console.log(`🔄 Смена стиля охоты на: ${newPredator}`);
 
             if (newPredator && !validatePredatorRestrictions(newPredator)) {
+                resetPredatorDisciplines();
                 this.value = '';
                 loadPredatorHint();
                 updateTrackers();
@@ -7610,6 +7618,7 @@ window.getFullCharacterData = getFullCharacterData;
 
 function resetCharacterSheetForLoad() {
     startingSheetFixed = false;
+    sheetUnlockedForEditing = false;
     document.querySelectorAll('.dot-input').forEach(input => {
         input.checked = parseInt(input.value, 10) === 0;
     });
@@ -9527,13 +9536,11 @@ function applySheetLockState() {
     const btn = document.getElementById('fix-start-btn');
     if (btn) {
         btn.textContent = startingSheetFixed
-            ? isPlayerVampire() ? t("Стартовый лист зафиксирован") : t("Расфиксировать лист")
+            ? t("Расфиксировать лист")
             : isPlayerVampire() ? t("Завершить создание и зафиксировать") : t("Зафиксировать стартовый лист");
-        btn.style.background = startingSheetFixed ? "#555" : "#ff3131";
+        btn.style.background = startingSheetFixed ? "#a14600" : "#ff3131";
         btn.title = startingSheetFixed
-            ? isPlayerVampire()
-                ? t("Дальнейшие изменения доступны через магазин опыта")
-                : t("Снять фиксацию и снова редактировать лист вручную")
+            ? t("Снять фиксацию и снова редактировать лист вручную")
             : t("Проверить правила создания и зафиксировать стартовый лист");
     }
 
@@ -9597,6 +9604,11 @@ function autoSaveSheetLockState() {
         sheetFixed: data.sheetFixed,
         sheetLock: data.sheetLock
     }, { silent: true });
+}
+
+function autoSaveCurrentCharacterData({ silent = true } = {}) {
+    if (!window.autoSaveCharacterPatch || isApplyingCharacterData) return;
+    window.autoSaveCharacterPatch(getFullCharacterData(), { silent });
 }
 
 function isSheetLockedTarget(target) {
@@ -9690,35 +9702,46 @@ function runExperiencePurchase(callback) {
     }
 }
 
+function captureStartingSheetBase({ force = false } = {}) {
+    const hasExistingStartBase = startingSheetBase && Object.keys(startingSheetBase.levels || {}).length > 0;
+
+    if (force || !hasExistingStartBase) {
+        baseLevels = captureCurrentLevels();
+        sheetLockSnapshot = captureSheetSnapshot();
+        startingSheetBase = JSON.parse(JSON.stringify(sheetLockSnapshot));
+        return;
+    }
+
+    if (!Object.keys(baseLevels || {}).length) {
+        baseLevels = captureCurrentLevels();
+    }
+    sheetLockSnapshot = captureSheetSnapshot();
+}
+
 function fixStartingSheet({ silent = false } = {}) {
     if (silent && !startingSheetFixed) {
         if (!validatePlayerCreation({ silent: true })) return false;
         if (!validateThinBloodBalance({ silent: true })) return false;
-        const hasExistingStartBase = startingSheetBase && Object.keys(startingSheetBase.levels || {}).length > 0;
-        if (!hasExistingStartBase) {
-            baseLevels = captureCurrentLevels();
-            sheetLockSnapshot = captureSheetSnapshot();
-            startingSheetBase = JSON.parse(JSON.stringify(sheetLockSnapshot));
-        } else {
-            if (!Object.keys(baseLevels || {}).length) baseLevels = captureCurrentLevels();
-            sheetLockSnapshot = captureSheetSnapshot();
-        }
+        captureStartingSheetBase({ force: sheetUnlockedForEditing });
         startingSheetFixed = true;
+        sheetUnlockedForEditing = false;
         applySheetLockState();
         autoSaveSheetLockState();
+        autoSaveCurrentCharacterData({ silent: true });
         autoSaveVitalState({ immediate: true });
         updateExpPurchasedStyles();
         return true;
     }
     if (startingSheetFixed) {
-        if (isPlayerVampire()) {
-            alert(t("Стартовый лист уже зафиксирован. Дальнейшие изменения делаются через магазин опыта."));
-            return;
-        }
         if (confirm(t("Расфиксировать лист?\nПосле этого поля снова можно будет менять вручную."))) {
             startingSheetFixed = false;
+            sheetUnlockedForEditing = true;
+            expShopMode = false;
+            expShopSnapshot = null;
+            expShopStartLevels = {};
             applySheetLockState();
             autoSaveSheetLockState();
+            autoSaveCurrentCharacterData({ silent: true });
             alert(t("Лист расфиксирован. Ручное редактирование снова доступно."));
         }
         return;
@@ -9731,22 +9754,12 @@ function fixStartingSheet({ silent = false } = {}) {
         return;
     }
 
-    const hasExistingStartBase = startingSheetBase && Object.keys(startingSheetBase.levels || {}).length > 0;
-    if (!hasExistingStartBase) {
-        baseLevels = captureCurrentLevels();
-        sheetLockSnapshot = captureSheetSnapshot();
-        startingSheetBase = JSON.parse(JSON.stringify(sheetLockSnapshot));
-    } else {
-        // Если baseLevels пустой (старые данные без sheetLock или первая фиксация),
-        // захватываем текущие уровни как базу, иначе оставляем как есть (XP-история)
-        if (!Object.keys(baseLevels || {}).length) {
-            baseLevels = captureCurrentLevels();
-        }
-        sheetLockSnapshot = captureSheetSnapshot();
-    }
+    captureStartingSheetBase({ force: sheetUnlockedForEditing });
     startingSheetFixed = true;
+    sheetUnlockedForEditing = false;
     applySheetLockState();
     autoSaveSheetLockState();
+    autoSaveCurrentCharacterData({ silent: true });
     autoSaveVitalState({ immediate: true });
     updateExpPurchasedStyles();
 
