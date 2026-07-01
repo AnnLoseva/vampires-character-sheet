@@ -2864,6 +2864,22 @@
     .cw-field textarea:focus { outline: none; border-color: #ff3131; }
     .cw-field.required label::after { content: ' *'; color: #ff3131; }
 
+    .cw-label-row {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        margin-bottom: 6px;
+    }
+    .cw-label-row label {
+        margin-bottom: 0;
+    }
+    .cw-label-row [data-tooltip] {
+        cursor: help;
+    }
+    .cw-archetype-hint-btn {
+        margin-top: -1px;
+    }
+
     .cw-inline-picker {
         display: grid;
         grid-template-columns: minmax(0, 1fr) auto;
@@ -3489,6 +3505,12 @@
         padding-top: 20px;
         border-top: 1px solid #222;
     }
+    .cw-nav::before {
+        content: "";
+        order: 1;
+        flex: 1 1 auto;
+        min-width: 12px;
+    }
     .cw-btn {
         padding: 13px 22px;
         font-size: 15px;
@@ -3505,7 +3527,9 @@
     .cw-btn.primary:hover { background: #ff5151; }
     .cw-btn.primary:disabled { opacity: 0.45; cursor: not-allowed; background: #5a1414; border-color: #5a1414; }
     .cw-btn.ghost { background: transparent; }
-    .cw-btn.to-sheet { margin-left: auto; color: #9ab7ff; border-color: #3a4a6a; }
+    .cw-nav-left { order: 0; }
+    .cw-nav-forward { order: 2; }
+    .cw-btn.to-sheet { color: #9ab7ff; border-color: #3a4a6a; }
     .cw-btn.to-sheet:hover { border-color: #9ab7ff; background: #0d1018; }
 
     #cw-return-btn {
@@ -4474,7 +4498,12 @@
     }
 
     function navBtn(label, handler, cls) {
-        return `<button type="button" class="cw-btn ${cls || ''}" data-cw="${handler}">${esc(label)}</button>`;
+        const placement = ['next', 'start', 'finish', 'skip', 'skipOptionalIdentity', 'toSheet'].includes(handler)
+            ? 'cw-nav-forward'
+            : handler === 'prev'
+                ? 'cw-nav-left'
+                : '';
+        return `<button type="button" class="cw-btn ${placement} ${cls || ''}" data-cw="${handler}">${esc(label)}</button>`;
     }
     const toSheetBtn = navBtn('Перейти к листу персонажа', 'toSheet', 'to-sheet');
 
@@ -5046,9 +5075,9 @@
                 ${row('Инвентарь', inv ? 'заполнен' : 'пропущен', '')}
              </div>
              ${allOk ? '' : '<div class="cw-error">Не все обязательные шаги завершены. Чтобы зафиксировать лист, исправь отмеченные красным пункты.</div>'}`,
-            navBtn('Открыть полный лист', 'toSheet', 'to-sheet')
-            + navBtn('Вернуться и исправить', 'prev')
-            + `<button type="button" class="cw-btn primary" data-cw="finish" ${allOk ? '' : 'disabled'}>Зафиксировать лист</button>`);
+            navBtn('Вернуться и исправить', 'prev')
+            + navBtn('Открыть полный лист', 'toSheet', 'to-sheet')
+            + `<button type="button" class="cw-btn cw-nav-forward primary" data-cw="finish" ${allOk ? '' : 'disabled'}>Зафиксировать лист</button>`);
     };
 
     function finishSheet() {

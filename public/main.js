@@ -3223,14 +3223,14 @@ function openClanDisciplineModal(clanName) {
                     </select>
                 </div>
 
-                <div style="text-align:center;">
-                    <button onclick="confirmClanDisciplines('${clanName}')"
-                            style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;cursor:pointer;margin-right:15px;">
-                         ${t('Подтвердить')}
-                    </button>
+                <div style="display:flex;gap:12px;justify-content:space-between;">
                     <button onclick="closeClanDiscModal()"
                             style="background:#333;color:white;padding:15px 35px;border:none;font-size:18px;border-radius:6px;cursor:pointer;">
                         ${t('Отмена')}
+                    </button>
+                    <button onclick="confirmClanDisciplines('${clanName}')"
+                            style="background:#ff3131;color:black;padding:15px 45px;border:none;font-size:18px;border-radius:6px;cursor:pointer;">
+                         ${t('Подтвердить')}
                     </button>
                 </div>
             </div>
@@ -3284,14 +3284,14 @@ function openPredatorDisciplineModal(predName) {
                 ${options.map(d => `<option value="${d}">${d}</option>`).join('')}
             </select>
 
-            <div style="text-align:center;">
-                <button onclick="confirmPredatorDiscipline('${predName}')"
-                        style="background:#ff3131;color:black;padding:14px 40px;border:none;font-size:17px;border-radius:6px;margin-right:12px;">
-                    ${t('Подтвердить')}
-                </button>
+            <div style="display:flex;gap:12px;justify-content:space-between;">
                 <button onclick="closePredDiscModal()"
                         style="background:#333;color:white;padding:14px 35px;border:none;font-size:17px;border-radius:6px;">
                     ${t('Отмена')}
+                </button>
+                <button onclick="confirmPredatorDiscipline('${predName}')"
+                        style="background:#ff3131;color:black;padding:14px 40px;border:none;font-size:17px;border-radius:6px;">
+                    ${t('Подтвердить')}
                 </button>
             </div>
         </div>
@@ -3330,8 +3330,8 @@ function openNpcDisciplineModal() {
                 ${names.map(name => `<option value="${name}">${name}</option>`).join('')}
             </select>
             <div style="display:flex;gap:10px;margin-top:20px;">
-                <button type="button" onclick="addNpcDiscipline()" style="flex:1;padding:12px;background:#a14600;color:white;border:none;border-radius:6px;cursor:pointer;">${t('Добавить')}</button>
                 <button type="button" onclick="closeNpcDisciplineModal()" style="flex:1;padding:12px;background:#333;color:white;border:none;border-radius:6px;cursor:pointer;">${t('Отмена')}</button>
+                <button type="button" onclick="addNpcDiscipline()" style="flex:1;padding:12px;background:#a14600;color:white;border:none;border-radius:6px;cursor:pointer;">${t('Добавить')}</button>
             </div>
         </div>
     </div>`;
@@ -3565,8 +3565,8 @@ function openPowerSelectionModal(discName, maxLevel) {
         </div>
 
         <div style="position:absolute; bottom:40px; left:50%; transform:translateX(-50%); display:flex; gap:15px;">
-            <button id="power-confirm-btn" style="background:#ff3131;color:black;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">${t('Подтвердить')}</button>
             <button id="power-cancel-btn" style="background:#333;color:white;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">${t('Отмена')}</button>
+            <button id="power-confirm-btn" style="background:#ff3131;color:black;padding:14px 40px;border:none;border-radius:8px;font-size:16px;">${t('Подтвердить')}</button>
         </div>
     </div>`;
 
@@ -7321,8 +7321,8 @@ function showPredatorAllocationModal(predName, group) {
                 <div id="pred-allocation-left" style="text-align:center;color:#ffcc66;margin-bottom:14px;">${tf('Осталось: {left}', { left: group.total })}</div>
                 <div style="display:grid;gap:10px;">${rows}</div>
                 <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:16px;">
-                    <button id="pred-allocation-confirm" style="padding:12px;background:#ff9500;color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">${t('Применить')}</button>
                     <button id="pred-allocation-cancel" style="padding:12px;background:#333;color:#eee;border:none;border-radius:6px;cursor:pointer;">${t('Отмена')}</button>
+                    <button id="pred-allocation-confirm" style="padding:12px;background:#ff9500;color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">${t('Применить')}</button>
                 </div>
             </div>
         `;
@@ -8598,14 +8598,14 @@ function showPredatorMeritsFlawsSelection(predName, predData) {
     }
 
     html += `</div>
-            <div style="margin-top:30px; text-align:center;">
-                <button id="pred-confirm-btn"
-                        style="background:#ff3131; color:black; padding:14px 40px; border:none; border-radius:6px; font-size:17px; margin-right:15px;">
-                    ${t('Применить выбранное')}
-                </button>
+            <div style="margin-top:30px; display:flex; gap:12px; justify-content:space-between;">
                 <button onclick="closePredatorSelectionModal()"
                         style="background:#333; color:white; padding:14px 35px; border:none; border-radius:6px; font-size:17px;">
                     ${t('Отмена')}
+                </button>
+                <button id="pred-confirm-btn"
+                        style="background:#ff3131; color:black; padding:14px 40px; border:none; border-radius:6px; font-size:17px;">
+                    ${t('Применить выбранное')}
                 </button>
             </div>
         </div>
@@ -10250,8 +10250,8 @@ function renderExpShopPanel() {
         </div>
         ${overBudget ? `<div style="color:#ff6666; font-size:12px; margin-top:8px;">${tf('Не хватает {amount} XP.', { amount: total - freeXP })}</div>` : ''}
         <div class="xp-shop-actions">
-            <button onclick="acceptExpShopPurchases()" style="background:#ff9500; color:#111;">${t('Принять')}</button>
             <button onclick="cancelExpShopPurchases()" style="background:#333; color:#eee;">${t('Отмена')}</button>
+            <button onclick="acceptExpShopPurchases()" style="background:#ff9500; color:#111;">${t('Принять')}</button>
         </div>
     `;
 }

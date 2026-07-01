@@ -308,9 +308,9 @@ export default function TableCanvas({
                     ))}
                   </div>
                   <div className="inline-crop-toolbar" onPointerDown={event => event.stopPropagation()}>
-                    <button type="button" onClick={() => void applyImageEditor(false)}>✓ {t('Применить')}</button>
-                    <button type="button" onClick={() => updateImageEditor(() => createEditorState({ ...layer, cropX: null, cropY: null, cropWidth: null, cropHeight: null, rotation: layer.rotation, flipX: layer.flipX, flipY: layer.flipY, brightness: layer.brightness, contrast: layer.contrast, saturation: layer.saturation }))}>{t('Сбросить обрезку')}</button>
                     <button type="button" onClick={() => setImageEditor(null)}>{t('Отмена')}</button>
+                    <button type="button" onClick={() => updateImageEditor(() => createEditorState({ ...layer, cropX: null, cropY: null, cropWidth: null, cropHeight: null, rotation: layer.rotation, flipX: layer.flipX, flipY: layer.flipY, brightness: layer.brightness, contrast: layer.contrast, saturation: layer.saturation }))}>{t('Сбросить обрезку')}</button>
+                    <button type="button" onClick={() => void applyImageEditor(false)}>✓ {t('Применить')}</button>
                   </div>
                 </div>
               ) : null}

@@ -867,13 +867,13 @@ export default function GameTableStyles() {
           white-space: nowrap;
         }
 
-        .inline-crop-toolbar button:first-child {
+        .inline-crop-toolbar button:last-child {
           background: #1a3a1a;
           border-color: #36d675;
           color: #36d675;
         }
 
-        .inline-crop-toolbar button:first-child:hover {
+        .inline-crop-toolbar button:last-child:hover {
           background: #204a20;
         }
 
@@ -1795,7 +1795,7 @@ export default function GameTableStyles() {
 
         .opposed-proposal-actions {
           display: flex;
-          justify-content: flex-end;
+          justify-content: space-between;
           gap: 8px;
           padding: 12px;
           border-top: 1px solid #2b2b2b;
@@ -3729,6 +3729,7 @@ export default function GameTableStyles() {
         }
 
         .roll-reroll-actions span {
+          margin-right: auto;
           color: #aaa;
           font-size: 11px;
         }
@@ -4622,6 +4623,10 @@ export default function GameTableStyles() {
           justify-content: flex-end;
           align-items: center;
           flex-wrap: wrap;
+        }
+
+        .character-preview-actions .secondary-left {
+          margin-right: auto;
         }
 
         .diary-editor footer span {

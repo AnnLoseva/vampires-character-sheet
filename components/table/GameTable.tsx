@@ -7668,12 +7668,12 @@ export default function VampireTable() {
                           <div className="roll-reroll-actions">
                             {rerollDraftForRoll ? (
                               <>
+                                <button type="button" onClick={() => setWillpowerRerollDraft(null)}>
+                                  {t('Отмена')}
+                                </button>
                                 <span>{tf('Выбрано {n} / 3', { n: rerollDraftForRoll.selectedDieIds.length })}</span>
                                 <button type="button" onClick={() => confirmWillpowerReroll(roll)} disabled={rerollDraftForRoll.selectedDieIds.length < 1}>
                                   {t('Перебросить за Волю')}
-                                </button>
-                                <button type="button" onClick={() => setWillpowerRerollDraft(null)}>
-                                  {t('Отмена')}
                                 </button>
                               </>
                             ) : (
@@ -8731,11 +8731,11 @@ export default function VampireTable() {
               )}
             </div>
             <footer className="character-preview-actions">
+              <button type="button" className="secondary-left" onClick={() => setPreviewCharacter(null)}>{t('Закрыть')}</button>
               {previewCharacter.id && previewCharacter.id === selectedActiveCharacter?.id ? (
                 <button type="button" onClick={addExperienceToActiveCharacter}>{t('Добавить опыт')}</button>
               ) : null}
               <a href={getCharacterSheetHref(previewCharacter.id)}>{t('Открыть полный лист')}</a>
-              <button type="button" onClick={() => setPreviewCharacter(null)}>{t('Закрыть')}</button>
             </footer>
           </section>
         </div>

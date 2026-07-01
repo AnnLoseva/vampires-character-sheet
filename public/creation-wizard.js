@@ -203,7 +203,12 @@
     }
 
     function navBtn(label, handler, cls) {
-        return `<button type="button" class="cw-btn ${cls || ''}" data-cw="${handler}">${esc(label)}</button>`;
+        const placement = ['next', 'start', 'finish', 'skip', 'skipOptionalIdentity', 'toSheet'].includes(handler)
+            ? 'cw-nav-forward'
+            : handler === 'prev'
+                ? 'cw-nav-left'
+                : '';
+        return `<button type="button" class="cw-btn ${placement} ${cls || ''}" data-cw="${handler}">${esc(label)}</button>`;
     }
     const toSheetBtn = navBtn(t('Перейти к листу персонажа'), 'toSheet', 'to-sheet');
 
@@ -296,17 +301,50 @@
             overlay.innerHTML = '<div class="cw-card" id="cw-card"></div>';
         }
         const card = el('cw-card');
-        const renderer = RENDERERS[step];
-        if (!renderer) return;
-        card.innerHTML = renderer();
+        const section = getWizardSection(step);
+        if (!section) return;
+        card.innerHTML = section.render();
         card.scrollTop = 0;
         overlay.scrollTop = 0;
         bindNav(card);
-        if (typeof AFTER_RENDER[step] === 'function') AFTER_RENDER[step]();
+        section.afterRender();
     }
 
     const AFTER_RENDER = {};
     const RENDERERS = {};
+    const WIZARD_SECTIONS = {};
+
+    class CreationWizardSection {
+        constructor(key, renderFn, afterRenderFn) {
+            this.key = key;
+            this.renderFn = renderFn;
+            this.afterRenderFn = afterRenderFn || null;
+        }
+
+        render() {
+            return this.renderFn();
+        }
+
+        afterRender() {
+            if (typeof this.afterRenderFn === 'function') this.afterRenderFn();
+        }
+    }
+
+    function registerWizardSection(section) {
+        WIZARD_SECTIONS[section.key] = section;
+        RENDERERS[section.key] = () => section.render();
+        AFTER_RENDER[section.key] = () => section.afterRender();
+        return section;
+    }
+
+    function getWizardSection(step) {
+        if (WIZARD_SECTIONS[step]) return WIZARD_SECTIONS[step];
+        const renderer = RENDERERS[step];
+        if (typeof renderer !== 'function') return null;
+        const section = new CreationWizardSection(step, renderer, AFTER_RENDER[step]);
+        WIZARD_SECTIONS[step] = section;
+        return section;
+    }
 
     /* ================= ШАГ 1: ПРЕДУПРЕЖДЕНИЕ ================= */
     RENDERERS.warning = () => shell('warning', t('Лёгкое создание персонажа'), '',
@@ -314,87 +352,104 @@
         navBtn(t('Начать'), 'start', 'primary') + toSheetBtn);
 
     /* ================= ШАГ 2: СОЦИАЛКА + АВАТАР ================= */
-    RENDERERS.identity = () => {
-        const data = sheetData();
-        const portraitValue = data.characterImage || data.image || data.portrait || '';
-        const f = (id, label, req, picker = '') => `
-            <div class="cw-field ${req ? 'required' : ''}">
-                <label for="cw-${id}">${esc(t(label))}${req ? '' : tf(' ({optional})', { optional: t('необязательно') })}</label>
-                ${picker
-                    ? `<div class="cw-inline-picker">
-                        <input type="text" id="cw-${id}" data-mirror="${id}" value="${esc(val(id))}">
-                        <button type="button" class="cw-btn ghost" data-archetype-field="${id}">${esc(t('Галерея'))}</button>
-                    </div>`
-                    : `<input type="text" id="cw-${id}" data-mirror="${id}" value="${esc(val(id))}">`}
-            </div>`;
-        const portrait = portraitValue
-            ? `<img class="cw-portrait-preview" src="${esc(portraitValue)}" alt="${t('Портрет')}">`
-            : `<div class="cw-portrait-placeholder">${t('Портрет персонажа')}</div>`;
-        return shell('identity', t('Кто этот персонаж?'), '',
-            `<div class="cw-error" id="cw-identity-error" style="display:none"></div>
-             <div class="cw-portrait-row">
-                ${portrait}
-                <div style="flex:1">
-                    <p style="color:#888;font-size:13px;margin:0 0 10px;line-height:1.5;">${t('Изображение персонажа (необязательно)')}</p>
-                    <button type="button" class="cw-btn" id="cw-portrait-upload">${t('Загрузить изображение')}</button>
-                    ${portraitValue ? `<button type="button" class="cw-btn ghost" id="cw-portrait-remove" style="margin-left:8px">${t('Удалить')}</button>` : ''}
-                </div>
-             </div>
-             <div class="cw-fields">
-                ${f('char-name', 'Имя', true)}
-                ${f('sire-input', 'Сир')}
-                ${f('concept-input', 'Концепция')}
-                ${f('nature-input', 'Натура', false, 'archetype')}
-                ${f('mask-input', 'Маска', false, 'archetype')}
-                ${f('true-age-input', 'Истинный возраст')}
-                ${f('apparent-age-input', 'Видимый возраст')}
-                ${f('birth-date-input', 'Дата рождения')}
-                ${f('death-date-input', 'Дата смерти')}
-             </div>`,
-            navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary')
-            + navBtn(t('Пропустить необязательное'), 'skipOptionalIdentity')
-            + toSheetBtn);
-    };
-    AFTER_RENDER.identity = () => {
-        el('cw-card').querySelectorAll('[data-mirror]').forEach(inp => {
-            inp.addEventListener('input', () => {
-                setVal(inp.getAttribute('data-mirror'), inp.value);
-            });
-        });
-        el('cw-card').querySelectorAll('[data-archetype-field]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                const fieldId = btn.getAttribute('data-archetype-field');
-                openSheetPicker('openArchetypeModal', t('Галерея натуры и маски пока недоступна.'), [fieldId]);
-            });
-        });
-        ['nature-input', 'mask-input'].forEach(fieldId => {
-            const source = el(fieldId);
-            const mirror = el('cw-' + fieldId);
-            if (!source || !mirror || source.__cwArchetypeBound) return;
-            source.__cwArchetypeBound = true;
-            const sync = () => {
-                const current = el('cw-' + fieldId);
-                if (current) current.value = source.value || '';
-            };
-            source.addEventListener('input', sync);
-            source.addEventListener('change', sync);
-        });
-        const up = el('cw-portrait-upload');
-        if (up) up.addEventListener('click', () => el('character-image-input')?.click());
-        const rm = el('cw-portrait-remove');
-        if (rm) rm.addEventListener('click', () => {
-            if (typeof window.deleteCharacterImage === 'function') window.deleteCharacterImage();
-            renderStep('identity');
-        });
-        // когда листовой uploader загрузит картинку — перерисуем шаг
-        const fileInp = el('character-image-input');
-        if (fileInp && !fileInp.__cwBound) {
-            fileInp.__cwBound = true;
-            fileInp.addEventListener('change', () => {
-                setTimeout(() => { if (activeStep === 'identity') renderStep('identity'); }, 400);
-            });
+    class IdentityWizardSection extends CreationWizardSection {
+        constructor() {
+            super('identity', () => this.renderIdentity(), () => this.afterIdentityRender());
         }
-    };
+
+        renderIdentity() {
+            const data = sheetData();
+            const portraitValue = data.characterImage || data.image || data.portrait || '';
+            const portrait = portraitValue
+                ? `<img class="cw-portrait-preview" src="${esc(portraitValue)}" alt="${esc(t('Портрет'))}">`
+                : `<div class="cw-portrait-placeholder">${t('Портрет персонажа')}</div>`;
+
+            return shell('identity', t('Кто этот персонаж?'), '',
+                `<div class="cw-error" id="cw-identity-error" style="display:none"></div>
+                 <div class="cw-portrait-row">
+                    ${portrait}
+                    <div style="flex:1">
+                        <p style="color:#888;font-size:13px;margin:0 0 10px;line-height:1.5;">${t('Изображение персонажа (необязательно)')}</p>
+                        <button type="button" class="cw-btn" id="cw-portrait-upload">${t('Загрузить изображение')}</button>
+                        ${portraitValue ? `<button type="button" class="cw-btn ghost" id="cw-portrait-remove" style="margin-left:8px">${t('Удалить')}</button>` : ''}
+                    </div>
+                 </div>
+                 <div class="cw-fields">
+                    ${this.field('char-name', 'Имя', { required: true })}
+                    ${this.field('sire-input', 'Сир', { labelKey: 'Сир ⓘ', hintKey: 'Сир — вампир, который обратил вашего персонажа. Он является вашим создателем, наставником и, нередко, цепью, которая удерживает вас в обществе Сородичей. Отношения с сиром могут быть всем — от любви до ненависти, от слепой покорности до кровной вражды.' })}
+                    ${this.field('concept-input', 'Концепция', { labelKey: 'Концепция ⓘ', hintKey: 'Концепция — краткое описание личности персонажа в нескольких словах или одном предложении. Это не архетип и не роль, а скорее суть того, кем персонаж себя считает. Примеры: «потерявшийся идеалист», «хищник в человеческой шкуре», «страж Маскарада».' })}
+                    ${this.field('nature-input', 'Натура', { labelKey: 'Натура ⓘ', hintKey: 'Натура — истинная личность персонажа, его глубинная суть. Её опасно показывать окружающим, но именно она определяет, что персонаж представляет собой на самом деле. Действуя согласно натуре, персонаж восстанавливает пункт воли.', archetype: true })}
+                    ${this.field('mask-input', 'Маска', { labelKey: 'Маска ⓘ', hintKey: 'Маска — фальшивое лицо, которое персонаж показывает окружающему миру. Маска позволяет взаимодействовать с обществом так, как это выгодно персонажу, скрывая его истинную суть. У персонажа может быть несколько масок для разных ситуаций.', archetype: true })}
+                    ${this.field('true-age-input', 'Истинный возраст')}
+                    ${this.field('apparent-age-input', 'Видимый возраст')}
+                    ${this.field('birth-date-input', 'Дата рождения')}
+                    ${this.field('death-date-input', 'Дата смерти')}
+                 </div>`,
+                navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary')
+                + navBtn(t('Пропустить необязательное'), 'skipOptionalIdentity')
+                + toSheetBtn);
+        }
+
+        field(id, label, options = {}) {
+            const labelKey = options.labelKey || label;
+            const tooltip = options.hintKey ? ` data-tooltip="${esc(t(options.hintKey))}" data-i18n-tooltip="${esc(options.hintKey)}"` : '';
+            const required = options.required === true;
+            return `<div class="cw-field ${required ? 'required' : ''}">
+                <div class="cw-label-row">
+                    <label for="cw-${id}"${tooltip}>${esc(t(labelKey))}${required ? '' : tf(' ({optional})', { optional: t('необязательно') })}</label>
+                    ${options.archetype ? this.archetypeButton(id, label) : ''}
+                </div>
+                <input type="text" id="cw-${id}" data-mirror="${id}" value="${esc(val(id))}">
+            </div>`;
+        }
+
+        archetypeButton(id, label) {
+            const aria = `${t('Список архетипов')}: ${t(label)}`;
+            return `<button type="button" class="archetype-hint-btn cw-archetype-hint-btn" data-archetype-field="${id}" data-i18n-title="Список архетипов" title="${esc(t('Список архетипов'))}" aria-label="${esc(aria)}">?</button>`;
+        }
+
+        afterIdentityRender() {
+            el('cw-card').querySelectorAll('[data-mirror]').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    setVal(inp.getAttribute('data-mirror'), inp.value);
+                });
+            });
+            el('cw-card').querySelectorAll('[data-archetype-field]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const fieldId = btn.getAttribute('data-archetype-field');
+                    openSheetPicker('openArchetypeModal', t('Галерея натуры и маски пока недоступна.'), [fieldId]);
+                });
+            });
+            ['nature-input', 'mask-input'].forEach(fieldId => {
+                const source = el(fieldId);
+                const mirror = el('cw-' + fieldId);
+                if (!source || !mirror || source.__cwArchetypeBound) return;
+                source.__cwArchetypeBound = true;
+                const sync = () => {
+                    const current = el('cw-' + fieldId);
+                    if (current) current.value = source.value || '';
+                };
+                source.addEventListener('input', sync);
+                source.addEventListener('change', sync);
+            });
+            const up = el('cw-portrait-upload');
+            if (up) up.addEventListener('click', () => el('character-image-input')?.click());
+            const rm = el('cw-portrait-remove');
+            if (rm) rm.addEventListener('click', () => {
+                if (typeof window.deleteCharacterImage === 'function') window.deleteCharacterImage();
+                renderStep('identity');
+            });
+            // когда листовой uploader загрузит картинку — перерисуем шаг
+            const fileInp = el('character-image-input');
+            if (fileInp && !fileInp.__cwBound) {
+                fileInp.__cwBound = true;
+                fileInp.addEventListener('change', () => {
+                    setTimeout(() => { if (activeStep === 'identity') renderStep('identity'); }, 400);
+                });
+            }
+        }
+    }
+    registerWizardSection(new IdentityWizardSection());
     STEP_ACTIONS.skipOptionalIdentity = () => {
         if (!val('char-name')) { showIdentityError(); return; }
         markCompleted('identity'); nextStep();
@@ -1213,9 +1268,9 @@
                 ${row('Инвентарь', inv ? t('заполнен') : t('пропущен'), '')}
              </div>
              ${allOk ? '' : `<div class="cw-error">${t('Не все обязательные шаги завершены. Чтобы зафиксировать лист, исправь отмеченные красным пункты.')}</div>`}`,
-            navBtn(t('Открыть полный лист'), 'toSheet', 'to-sheet')
-            + navBtn(t('Вернуться и исправить'), 'prev')
-            + `<button type="button" class="cw-btn primary" data-cw="finish" ${allOk ? '' : 'disabled'}>${t('Зафиксировать лист')}</button>`);
+            navBtn(t('Вернуться и исправить'), 'prev')
+            + navBtn(t('Открыть полный лист'), 'toSheet', 'to-sheet')
+            + `<button type="button" class="cw-btn cw-nav-forward primary" data-cw="finish" ${allOk ? '' : 'disabled'}>${t('Зафиксировать лист')}</button>`);
     };
 
     function finishSheet() {
