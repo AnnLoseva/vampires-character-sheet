@@ -319,6 +319,8 @@ export default function ReferencePage() {
       <style jsx>{`
         .reference-shell {
           min-height: 100vh;
+          min-height: 100dvh;
+          overflow-x: hidden;
           padding: 18px clamp(14px, 2.4vw, 34px) 60px;
           font-family: "Courier New", Courier, monospace;
           background:
@@ -335,6 +337,10 @@ export default function ReferencePage() {
           border-bottom: 1px solid #2d2d2d;
           padding-bottom: 12px;
           margin-bottom: 18px;
+        }
+
+        .reference-topbar > div {
+          min-width: 0;
         }
 
         .reference-kicker {
@@ -370,6 +376,8 @@ export default function ReferencePage() {
           background: #141414;
           font: inherit;
           font-size: 14px;
+          line-height: 1.2;
+          text-align: center;
           cursor: pointer;
           box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
           transition: border-color 180ms ease, background 180ms ease, color 180ms ease, transform 180ms ease;
@@ -426,7 +434,7 @@ export default function ReferencePage() {
           top: 0;
           z-index: 20;
           display: grid;
-          grid-template-columns: minmax(280px, 680px) minmax(220px, 1fr);
+          grid-template-columns: minmax(0, 680px) minmax(220px, 1fr);
           gap: 12px;
           align-items: end;
           margin: 0 0 20px;
@@ -441,6 +449,7 @@ export default function ReferencePage() {
         .reference-search {
           display: grid;
           gap: 8px;
+          min-width: 0;
         }
 
         .reference-search span,
@@ -451,6 +460,8 @@ export default function ReferencePage() {
         }
 
         .reference-search input {
+          width: 100%;
+          min-width: 0;
           min-height: 46px;
           box-sizing: border-box;
           border: 1px solid rgba(151, 44, 44, 0.78);
@@ -522,9 +533,10 @@ export default function ReferencePage() {
         .reference-layout {
           width: 100%;
           display: grid;
-          grid-template-columns: 300px minmax(0, 1fr);
+          grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
           gap: 28px;
           align-items: start;
+          min-width: 0;
         }
 
         :global(.reference-sidebar) {
@@ -577,11 +589,13 @@ export default function ReferencePage() {
 
         :global(.reference-markdown) {
           width: 100%;
+          min-width: 0;
           max-width: none;
           color: #eadfd3;
           font-family: Georgia, "Times New Roman", serif;
           font-size: 18px;
           line-height: 1.78;
+          overflow-wrap: anywhere;
         }
 
         :global(.reference-markdown h1),
@@ -696,6 +710,11 @@ export default function ReferencePage() {
           padding: 16px;
         }
 
+        :global(.reference-markdown img) {
+          max-width: 100%;
+          height: auto;
+        }
+
         :global(.reference-markdown pre code) {
           border: 0;
           background: transparent;
@@ -773,7 +792,7 @@ export default function ReferencePage() {
           }
 
           .reference-topbar a {
-            flex: 1 1 auto;
+            flex: 1 1 120px;
             text-align: center;
           }
 

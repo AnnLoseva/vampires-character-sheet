@@ -98,47 +98,53 @@ export default function CharacterSheetPage() {
         }
       `}</style>
 
-      <nav className="sheet-nav-links" aria-label={t('Навигация листа персонажа')}>
-        <a href="/" title={t('На главную')}>{t('На главную')}</a>
-        <button type="button" onClick={startNewCharacter}>
-          {t('Создать нового персонажа')}
-        </button>
-        <a
-          href={tableHref}
-          onClick={() => {
-            window.localStorage.setItem('vtm-table-room', room)
-            window.localStorage.setItem('vtm-table-role', role)
-          }}
-          title={t('В игровую комнату')}
-        >
-          {t('В игровую комнату')}
-        </a>
-      </nav>
+      <main className="sheet-page-shell">
+        <nav className="sheet-nav-links" aria-label={t('Навигация листа персонажа')}>
+          <a href="/" title={t('На главную')}>{t('На главную')}</a>
+          <button type="button" onClick={startNewCharacter}>
+            {t('Создать нового персонажа')}
+          </button>
+          <a
+            href={tableHref}
+            onClick={() => {
+              window.localStorage.setItem('vtm-table-room', room)
+              window.localStorage.setItem('vtm-table-role', role)
+            }}
+            title={t('В игровую комнату')}
+          >
+            {t('В игровую комнату')}
+          </a>
+        </nav>
 
-      {isReady ? (
-        <iframe
-          key={`${characterId || 'new'}-${newCharacterSession}`}
-          src={iframeSrc}
-          className="sheet-iframe"
-          title="VTM V5 Character Sheet"
-        />
-      ) : null}
+        {isReady ? (
+          <iframe
+            key={`${characterId || 'new'}-${newCharacterSession}`}
+            src={iframeSrc}
+            className="sheet-iframe"
+            title="VTM V5 Character Sheet"
+          />
+        ) : null}
+      </main>
 
       <style jsx>{`
+        .sheet-page-shell {
+          width: 100vw;
+          height: 100vh;
+          height: 100dvh;
+          display: grid;
+          grid-template-rows: auto minmax(0, 1fr);
+          overflow: hidden;
+          background: #0a0a0a;
+        }
+
         .sheet-nav-links {
-          position: fixed;
-          top: 0;
-          left: 0;
-          right: 0;
           z-index: 2;
-          min-height: 64px;
           display: flex;
           gap: 8px;
           flex-wrap: wrap;
           justify-content: flex-end;
           align-items: center;
           padding: 12px 18px;
-          box-sizing: border-box;
           border-bottom: 1px solid #2d2d2d;
           background: #0a0a0a;
         }
@@ -147,6 +153,7 @@ export default function CharacterSheetPage() {
         .sheet-nav-links button {
           min-width: 92px;
           min-height: 38px;
+          max-width: 100%;
           display: inline-grid;
           place-items: center;
           border: 1px solid #773030;
@@ -155,6 +162,8 @@ export default function CharacterSheetPage() {
           color: #fff;
           font-family: "Courier New", Courier, monospace;
           font-size: 14px;
+          line-height: 1.2;
+          text-align: center;
           text-decoration: none;
           box-shadow: 0 10px 30px rgba(0,0,0,0.35);
           cursor: pointer;
@@ -167,14 +176,28 @@ export default function CharacterSheetPage() {
         }
 
         .sheet-iframe {
-          position: fixed;
-          top: 64px;
-          left: 0;
-          width: 100vw;
-          height: calc(100vh - 64px);
-          height: calc(100dvh - 64px);
+          width: 100%;
+          height: 100%;
+          min-height: 0;
           border: none;
+          display: block;
           z-index: 1;
+        }
+
+        @media (max-width: 640px) {
+          .sheet-nav-links {
+            justify-content: flex-start;
+            padding: 10px;
+          }
+
+          .sheet-nav-links a,
+          .sheet-nav-links button {
+            flex: 1 1 150px;
+            min-width: 0;
+            min-height: 36px;
+            padding: 7px 8px;
+            font-size: 12px;
+          }
         }
       `}</style>
     </>

@@ -17,6 +17,7 @@ export default function GameTableStyles() {
       <style jsx global>{`
         .table-page-shell {
           height: 100vh;
+          height: 100dvh;
           padding: 18px;
           font-family: "Courier New", Courier, monospace;
           background:
@@ -33,6 +34,8 @@ export default function GameTableStyles() {
           align-items: center;
           justify-content: space-between;
           gap: 18px;
+          width: 100%;
+          min-width: 0;
           margin: 0 auto 14px;
           border-bottom: 1px solid #2d2d2d;
           padding-bottom: 12px;
@@ -54,8 +57,12 @@ export default function GameTableStyles() {
 
         .table-actions {
           display: flex;
+          flex-wrap: wrap;
+          justify-content: flex-end;
           gap: 10px;
           align-items: center;
+          min-width: 0;
+          max-width: 100%;
         }
 
         .table-actions > input[type="file"] {
@@ -70,6 +77,8 @@ export default function GameTableStyles() {
           border-radius: 6px;
           padding: 9px 12px;
           font: inherit;
+          line-height: 1.2;
+          text-align: center;
           text-decoration: none;
           cursor: pointer;
         }
@@ -91,6 +100,7 @@ export default function GameTableStyles() {
           align-items: center;
           color: #a9a9a9;
           font-size: 11px;
+          min-width: 0;
         }
 
         .master-password-control input {
@@ -106,9 +116,11 @@ export default function GameTableStyles() {
 
         .active-character-strip {
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 320px;
+          grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
           gap: 12px;
           margin: 0 auto 12px;
+          width: 100%;
+          min-width: 0;
         }
 
         .active-character-card,
@@ -117,6 +129,7 @@ export default function GameTableStyles() {
           border-radius: 8px;
           background: #101010;
           padding: 10px;
+          min-width: 0;
         }
 
         .active-character-card {
@@ -160,6 +173,8 @@ export default function GameTableStyles() {
           padding: 8px 10px;
           font: inherit;
           font-size: 12px;
+          line-height: 1.2;
+          text-align: center;
           text-decoration: none;
           cursor: pointer;
         }
@@ -180,14 +195,15 @@ export default function GameTableStyles() {
         .table-layout {
           position: relative;
           display: grid;
-          grid-template-columns: minmax(0, 1fr) 420px;
+          grid-template-columns: minmax(360px, 1fr) minmax(320px, 420px);
           gap: 12px;
           flex: 1;
           min-height: 0;
+          min-width: 0;
         }
 
         .table-layout.with-left-toolbar {
-          grid-template-columns: 380px minmax(0, 1fr) 420px;
+          grid-template-columns: minmax(320px, 380px) minmax(360px, 1fr) minmax(320px, 420px);
         }
 
         .table-layout.right-collapsed {
@@ -195,7 +211,7 @@ export default function GameTableStyles() {
         }
 
         .table-layout.with-left-toolbar.right-collapsed {
-          grid-template-columns: 380px minmax(0, 1fr);
+          grid-template-columns: minmax(320px, 380px) minmax(360px, 1fr);
         }
 
         .play-surface,
@@ -4802,12 +4818,46 @@ export default function GameTableStyles() {
 
           .table-page-shell {
             padding: 14px 10px;
+            height: auto;
+            min-height: 100vh;
+            min-height: 100dvh;
+            overflow: visible;
           }
 
-          .table-layout {
+          .active-character-strip {
+            grid-template-columns: 1fr;
+          }
+
+          .table-layout,
+          .table-layout.with-left-toolbar,
+          .table-layout.with-left-toolbar.right-collapsed,
+          .table-layout.right-collapsed {
             grid-template-columns: 1fr;
             height: auto;
             min-height: 0;
+          }
+
+          .left-toolbar,
+          .right-rail {
+            min-height: 320px;
+          }
+
+          .master-toggle,
+          .left-collapsed .master-toggle {
+            position: fixed;
+            left: 0;
+            top: auto;
+            bottom: calc(66px + env(safe-area-inset-bottom));
+            transform: none;
+          }
+
+          .right-toggle,
+          .right-collapsed .right-toggle {
+            position: fixed;
+            right: 0;
+            top: auto;
+            bottom: calc(12px + env(safe-area-inset-bottom));
+            transform: none;
           }
 
           .play-surface {
@@ -4918,8 +4968,9 @@ export default function GameTableStyles() {
 
           .table-actions {
             width: 100%;
-            overflow-x: auto;
+            overflow: visible;
             padding-bottom: 2px;
+            justify-content: flex-start;
           }
 
           .table-actions a,
@@ -4930,7 +4981,27 @@ export default function GameTableStyles() {
           }
 
           .master-password-control {
-            min-width: 260px;
+            width: 100%;
+            min-width: 0;
+            grid-template-columns: 1fr;
+          }
+
+          .master-password-control input {
+            width: 100%;
+          }
+
+          .active-character-card {
+            grid-template-columns: 52px minmax(0, 1fr);
+          }
+
+          .active-character-card a,
+          .active-character-card button {
+            grid-column: 1 / -1;
+            width: 100%;
+          }
+
+          .active-character-picker {
+            grid-template-columns: 1fr;
           }
 
           .table-layout {

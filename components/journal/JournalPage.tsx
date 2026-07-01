@@ -455,12 +455,22 @@ export default function JournalPage() {
           color: #f4eadf !important;
           gap: unset !important;
         }
+
+        @media (max-width: 980px) {
+          html,
+          body {
+            height: auto !important;
+            min-height: 100% !important;
+            overflow: auto !important;
+          }
+        }
       `}</style>
 
       <style jsx>{`
         /* ── Full-viewport shell ── */
         .journal-shell {
           height: 100vh;
+          height: 100dvh;
           overflow: hidden;
           display: grid;
           /* topbar / toolbar / editor layout */
@@ -482,6 +492,12 @@ export default function JournalPage() {
           border-bottom: 1px solid #2d2d2d;
           padding-bottom: 12px;
           margin-bottom: 14px;
+        }
+
+        .journal-topbar > div,
+        .journal-toolbar > div,
+        .journal-toolbar label {
+          min-width: 0;
         }
 
         .journal-kicker {
@@ -517,6 +533,8 @@ export default function JournalPage() {
           background: #141414;
           font: inherit;
           font-size: 14px;
+          line-height: 1.2;
+          text-align: center;
           cursor: pointer;
           box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
         }
@@ -558,10 +576,13 @@ export default function JournalPage() {
         .journal-toolbar strong {
           color: #ffd89a;
           font-size: 14px;
+          overflow-wrap: anywhere;
         }
 
         input {
           box-sizing: border-box;
+          width: 100%;
+          min-width: 0;
           border: 1px solid rgba(151, 44, 44, 0.78);
           border-radius: 7px;
           background: rgba(12, 10, 10, 0.88);
@@ -720,11 +741,16 @@ export default function JournalPage() {
           .journal-shell {
             height: auto;
             min-height: 100vh;
+            min-height: 100dvh;
             overflow: auto;
           }
 
           .journal-toolbar {
             grid-template-columns: 1fr 1fr;
+          }
+
+          .journal-toolbar button {
+            grid-column: 1 / -1;
           }
 
           .journal-layout {
@@ -755,7 +781,7 @@ export default function JournalPage() {
           }
 
           nav a {
-            flex: 1 1 auto;
+            flex: 1 1 140px;
             text-align: center;
           }
 

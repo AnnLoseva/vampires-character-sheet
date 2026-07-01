@@ -494,7 +494,9 @@ export default function MainScreen() {
         .salon-shell {
           position: relative;
           min-height: 100vh;
-          overflow: hidden;
+          min-height: 100dvh;
+          overflow-x: hidden;
+          overflow-y: auto;
           color: #eee8df;
           background: #030303;
           font-family: Inter, system-ui, sans-serif;
@@ -609,7 +611,8 @@ export default function MainScreen() {
 
         .hero-content {
           min-height: 100vh;
-          width: min(1240px, calc(100% - 36px));
+          min-height: 100dvh;
+          width: min(1240px, calc(100% - clamp(20px, 5vw, 48px)));
           margin: 0 auto;
           padding: 52px 0 40px;
           display: grid;
@@ -640,6 +643,8 @@ export default function MainScreen() {
           line-height: 0.95;
           letter-spacing: 0.08em;
           text-shadow: 0 10px 38px rgba(0,0,0,0.9);
+          max-width: 100%;
+          overflow-wrap: anywhere;
         }
 
         h1 span:first-child {
@@ -701,6 +706,7 @@ export default function MainScreen() {
         .elysium-card {
           position: relative;
           min-height: 372px;
+          min-width: 0;
           padding: 30px 28px;
           display: grid;
           align-content: end;
@@ -837,6 +843,7 @@ export default function MainScreen() {
           position: relative;
           z-index: 1;
           min-width: 190px;
+          max-width: 100%;
           min-height: 42px;
           border: 1px solid color-mix(in srgb, var(--accent) 58%, transparent);
           border-radius: 4px;
@@ -849,6 +856,8 @@ export default function MainScreen() {
           text-transform: uppercase;
           letter-spacing: 0.12em;
           font-size: 12px;
+          line-height: 1.25;
+          text-align: center;
           transition: background 220ms ease, box-shadow 220ms ease;
           cursor: pointer;
         }
@@ -910,6 +919,7 @@ export default function MainScreen() {
           position: relative;
           z-index: 1;
           width: 100%;
+          min-width: 0;
           display: grid;
           justify-items: center;
           gap: 9px;
@@ -941,6 +951,10 @@ export default function MainScreen() {
           font-family: Cinzel, Georgia, serif;
           font-size: 17px;
           font-weight: 500;
+          max-width: 100%;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .identity-panel small {
@@ -975,11 +989,14 @@ export default function MainScreen() {
         }
 
         .ghost-action {
-          min-width: 100%;
+          width: 100%;
+          min-width: 0;
           height: 42px;
           border-color: rgba(255,255,255,0.14);
           display: inline-grid;
           place-items: center;
+          line-height: 1.25;
+          text-align: center;
           text-decoration: none;
         }
 
@@ -1110,23 +1127,44 @@ export default function MainScreen() {
         @media (max-width: 980px) {
           .hero-content {
             align-content: start;
-            padding-top: 42px;
+            padding-top: 72px;
           }
 
           .card-grid {
             grid-template-columns: 1fr;
+          }
+
+          .elysium-card {
+            min-height: min(372px, 78svh);
           }
         }
 
         @media (max-width: 620px) {
           .hero-content {
             width: min(100% - 20px, 1180px);
-            padding-top: 32px;
+            padding-top: 64px;
           }
 
           .elysium-card {
             min-height: 300px;
             padding: 22px;
+          }
+
+          h1 span:first-child {
+            font-size: clamp(42px, 15vw, 60px);
+          }
+
+          h1 span:last-child {
+            letter-spacing: 0.12em;
+          }
+
+          .identity-actions {
+            grid-template-columns: 1fr;
+          }
+
+          .card-action {
+            width: 100%;
+            min-width: 0;
           }
 
           .room-line {
