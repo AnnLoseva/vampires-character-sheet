@@ -9,6 +9,9 @@ let predatorDisciplines = [];
 let currentClanData = [];
 let currentPredatorData = [];
 let currentGenerationData = [];
+let currentClanGalleryBaseData = [];
+let currentClanGalleryOptions = {};
+let currentClanGallerySearch = '';
 let currentClanIndex = 0;
 let currentPredatorIndex = 0;
 let currentGenerationIndex = 0;
@@ -971,7 +974,7 @@ function getVitalAutosavePatch() {
         baseHumanity: String(baseHumanity),
         humanity: { ...humanity, base: baseHumanity },
         morality: getMoralityData(),
-        touchstones: JSON.parse(JSON.stringify(touchstones || [])),
+        touchstones: getTouchstonesSnapshot(),
         status: {
             physicalState: health.physicalState,
             humanityState: humanity.value <= 0 ? 'lost_to_beast' : null
@@ -1007,12 +1010,14 @@ function getHumanityState(characterData = null) {
 function getMoralityData() {
     const normalized = window.VTMHumanity.normalizeMorality(moralityState);
     const legacyTouchstones = (touchstones || []).flatMap((item, index) => {
-        const name = String(item.name || item.text || '').trim();
-        if (!name) return [];
+        item = normalizeTouchstoneItem(item, index);
+        const hasContent = [item.name, item.principle, item.description].some(value => String(value || '').trim());
+        if (!hasContent) return [];
+        const name = getTouchstoneLabel(item, index);
         return [{
             id: item.id || `touchstone-${index}`,
             name,
-            description: item.description || '',
+            description: getTouchstoneDescription(item),
             status: ['safe', 'threatened', 'harmed', 'lost'].includes(item.status) ? item.status : 'safe'
         }];
     });
@@ -3140,6 +3145,7 @@ function confirmClanDisciplines(clanName) {
     if (disc1) mergeDiscipline(disc1, 1, `${t("Клан")} ${clanName}`);
 
     closeClanDiscModal();
+    notifySheetChoice('clanDisciplines', clanName);
 }
 
 function confirmPredatorDiscipline(predatorName) {
@@ -3150,6 +3156,7 @@ function confirmPredatorDiscipline(predatorName) {
     mergeDiscipline(disc, 1, `${t("Охота")}: ${predatorName}`);
 
     closePredDiscModal();
+    notifySheetChoice('predatorDiscipline', predatorName);
 }
 // ==================== МОДАЛЬНЫЕ ОКНА ДЛЯ ВЫБОРА ДИСЦИПЛИН ====================
 
@@ -3626,6 +3633,8 @@ function closePowerModal() {
     if (modal) modal.remove();
 }
 
+window.openPowerSelectionModal = openPowerSelectionModal;
+
 // ==================== МОДАЛЬНЫЙ ВЫБОР СПЕЦИАЛЬНОСТИ ====================
 function showSpecialtyChoiceModal(predatorName, options, predData) {
     let html = `
@@ -3881,6 +3890,32 @@ const CLAN_SECTION_BY_NAME = CLAN_GALLERY_SECTIONS.reduce((sections, group) => {
     return sections;
 }, {});
 
+const CLAN_SEARCH_SYNONYMS = {
+    сила: ['мощь', 'физическая сила', 'физический', 'боевой', 'боец', 'potence', 'strength', 'combat'],
+    сильный: ['мощь', 'физическая сила', 'физический', 'боевой', 'potence', 'strength'],
+    простой: ['новичкам', 'простой старт', 'понятный отыгрыш', 'beginner', 'easy start', 'clear roleplay'],
+    новичок: ['новичкам', 'простой старт', 'понятный отыгрыш', 'beginner friendly', 'easy start'],
+    социальный: ['величие', 'харизма', 'политика', 'власть', 'social', 'presence', 'politics'],
+    скрытность: ['сокрытие', 'тайны', 'шпионаж', 'stealth', 'obfuscate', 'secrets'],
+    магия: ['кровавое чародейство', 'оккультизм', 'blood sorcery', 'occult', 'magic'],
+    смерть: ['некромантия', 'мертвые', 'necromancy', 'dead', 'death'],
+    выживание: ['стойкость', 'survival', 'fortitude'],
+    beginner: ['beginner friendly', 'easy start', 'clear roleplay', 'новичкам', 'простой старт'],
+    simple: ['beginner friendly', 'easy start', 'clear roleplay', 'новичкам', 'простой старт'],
+    strength: ['physical strength', 'potence', 'combat', 'мощь', 'физическая сила']
+};
+
+function notifySheetChoice(type, value) {
+    document.dispatchEvent(new CustomEvent('vtm:sheet-choice', { detail: { type, value } }));
+}
+
+function getClanSectionKey(name) {
+    const canonical = vtmCanonicalName(name);
+    if (CLAN_GALLERY_SECTIONS[0].names.includes(canonical)) return 'v5';
+    if (CLAN_GALLERY_SECTIONS[1].names.includes(canonical)) return 'v20';
+    return 'legacy';
+}
+
 function getClanSectionTitle(name) {
     return CLAN_SECTION_BY_NAME[vtmCanonicalName(name)] || t("Линии крови");
 }
@@ -3905,12 +3940,31 @@ function getClanGalleryDescription(name, data) {
     return firstSentence.length > 140 ? `${firstSentence.slice(0, 137)}...` : firstSentence;
 }
 
+function getClanSearchParts(name, data = {}) {
+    return [
+        name,
+        vtmCanonicalName(name),
+        data.description,
+        data.types,
+        data.playstyle,
+        data.conflict,
+        data.bane,
+        ...(data.disciplines || []),
+        ...Object.values(data.discipline_description || {}),
+        ...(data.archetypes || []),
+        ...(data.tags || [])
+    ];
+}
+
 function buildClanGalleryData() {
     const rulesGalleryData = Object.entries(RULES.clans || {})
         .map(([name, data]) => ({
             name,
             image: CLAN_GALLERY_IMAGE_OVERRIDES[vtmCanonicalName(name)] || data.gallery_image,
-            desc: getClanGalleryDescription(name, data)
+            desc: getClanGalleryDescription(name, data),
+            tags: Array.isArray(data.tags) ? data.tags : [],
+            edition: data.edition || getClanSectionKey(name),
+            searchText: normalizeClanSearch(getClanSearchParts(name, data).join(' '))
         }))
         .filter(clan => clan.image);
 
@@ -3919,7 +3973,10 @@ function buildClanGalleryData() {
         .filter(clan => !clansWithImages.has(clan.name))
         .map(clan => ({
             ...clan,
-            desc: getClanGalleryDescription(clan.name, clan)
+            desc: getClanGalleryDescription(clan.name, clan),
+            tags: [],
+            edition: getClanSectionKey(clan.name),
+            searchText: normalizeClanSearch([clan.name, getClanGalleryDescription(clan.name, clan)].join(' '))
         }));
 
     return [...rulesGalleryData, ...supplementalGalleryData];
@@ -3935,18 +3992,93 @@ function buildClanSelectData() {
     return [...galleryData, ...rulesOnlyData];
 }
 
-// Открытие галереи кланов
-function openClanGallery() {
-    if (startingSheetFixed && !expShopMode) return;
-    const modal = document.getElementById('clan-modal');
+function normalizeClanSearch(value) {
+    return String(value ?? '')
+        .toLowerCase()
+        .replace(/ё/g, 'е')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/[^a-zа-я0-9]+/gi, ' ')
+        .trim();
+}
+
+function stemClanSearchWord(word) {
+    if (word.length < 5) return word;
+    return word.replace(/(иями|ями|ами|ого|ему|ому|ыми|ими|ая|яя|ое|ее|ые|ие|ий|ый|ой|ам|ям|ах|ях|ом|ем|ов|ев|а|я|ы|и|е|у|ю)$/u, '');
+}
+
+function expandClanSearchToken(token) {
+    const normalized = normalizeClanSearch(token);
+    const synonyms = CLAN_SEARCH_SYNONYMS[normalized] || [];
+    return [normalized, ...synonyms.map(normalizeClanSearch)].filter(Boolean);
+}
+
+function textHasClanToken(text, token) {
+    if (!token) return true;
+    if (text.includes(token)) return true;
+    const stem = stemClanSearchWord(token);
+    if (stem.length < 4) return false;
+    return text.split(' ').some(word => stemClanSearchWord(word) === stem);
+}
+
+function scoreClanSearch(clan, search) {
+    const tokens = normalizeClanSearch(search).split(' ').filter(Boolean);
+    if (!tokens.length) return 1;
+
+    const nameText = normalizeClanSearch(`${clan.name} ${vtmCanonicalName(clan.name)}`);
+    const tagText = normalizeClanSearch((clan.tags || []).join(' '));
+    const disciplineText = normalizeClanSearch((RULES.clans?.[clan.name]?.disciplines || []).join(' '));
+    const fullText = clan.searchText || normalizeClanSearch([clan.name, clan.desc, ...(clan.tags || [])].join(' '));
+
+    let total = 0;
+    for (const token of tokens) {
+        const expanded = expandClanSearchToken(token);
+        let tokenScore = 0;
+        expanded.forEach(part => {
+            if (textHasClanToken(nameText, part)) tokenScore = Math.max(tokenScore, 18);
+            if (textHasClanToken(tagText, part)) tokenScore = Math.max(tokenScore, 15);
+            if (textHasClanToken(disciplineText, part)) tokenScore = Math.max(tokenScore, 11);
+            if (textHasClanToken(fullText, part)) tokenScore = Math.max(tokenScore, 3);
+        });
+        if (!tokenScore) return 0;
+        total += tokenScore;
+    }
+    return total;
+}
+
+function clanAllowedByGalleryOptions(clan, options = currentClanGalleryOptions) {
+    const filter = options.editionFilter || 'all';
+    if (filter === 'all') return true;
+    const key = clan.edition || getClanSectionKey(clan.name);
+    if (filter === 'v5_v20') return key === 'v5' || key === 'v20';
+    return key === 'v5';
+}
+
+function renderClanGalleryList() {
     const gallery = document.getElementById('clan-gallery');
-    if (!modal || !gallery) return;
+    if (!gallery) return;
 
-    gallery.innerHTML = '';
+    const results = document.getElementById('clan-gallery-results');
+    if (!results) return;
 
-    currentClanData = buildClanGalleryData();
+    const search = currentClanGallerySearch;
+    const ranked = currentClanGalleryBaseData
+        .filter(clan => clanAllowedByGalleryOptions(clan))
+        .map(clan => ({ clan, score: scoreClanSearch(clan, search) }))
+        .filter(item => !search || item.score > 0)
+        .sort((a, b) => b.score - a.score || a.clan.name.localeCompare(b.clan.name));
 
-    currentClanIndex = 0;
+    currentClanData = ranked.map(item => item.clan);
+    currentClanIndex = Math.min(currentClanIndex, Math.max(0, currentClanData.length - 1));
+
+    results.innerHTML = '';
+
+    const count = document.getElementById('clan-gallery-count');
+    if (count) count.textContent = tf('Найдено: {count}', { count: currentClanData.length });
+
+    if (!currentClanData.length) {
+        results.innerHTML = `<p style="grid-column:1/-1;color:#777;text-align:center;padding:60px 20px;">${t('Кланы не найдены. Попробуй другой запрос или фильтр.')}</p>`;
+        return;
+    }
 
     groupClansBySection(currentClanData).forEach(group => {
         const heading = document.createElement('div');
@@ -3960,25 +4092,79 @@ function openClanGallery() {
                 <div style="height:1px; flex:1; background:linear-gradient(90deg, #6f1515, transparent);"></div>
             </div>
         `;
-        gallery.appendChild(heading);
+        results.appendChild(heading);
 
         group.clans.forEach(c => {
             const index = currentClanData.indexOf(c);
-            const div = document.createElement('div');
-            div.style.cursor = 'pointer';
+            const tags = (c.tags || []).slice(0, 6).map(tag => `
+                <span style="display:inline-block;color:#ffcc66;border:1px solid #553500;border-radius:999px;padding:2px 7px;font-size:11px;margin:6px 4px 0 0;">${escapeHTML(tag)}</span>
+            `).join('');
+            const div = document.createElement('button');
+            div.type = 'button';
+            div.style.cssText = 'cursor:pointer;text-align:left;background:#0d0d0d;border:1px solid #2a2a2a;border-radius:8px;padding:0;color:inherit;font:inherit;overflow:hidden;';
             div.innerHTML = `
-                <img src="${c.image}" style="width:100%; max-height:60vh; object-fit:contain; border-radius:8px; border:2px solid #550000;">
-                <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${t(c.name)}</h3>
-                <p style="color:#ddd; font-size:14px; padding:0 10px;">${c.desc}</p>
+                <img src="${c.image}" alt="${escapeHTML(c.name)}" style="width:100%; max-height:60vh; object-fit:contain; border-bottom:2px solid #550000; background:#050505;">
+                <div style="padding:14px 16px 17px;">
+                    <h3 style="color:#ff3131; margin:0 0 8px; text-align:center;">${t(c.name)}</h3>
+                    <p style="color:#ddd; font-size:14px; margin:0; line-height:1.45;">${escapeHTML(c.desc)}</p>
+                    ${tags ? `<div style="margin-top:8px;">${tags}</div>` : ''}
+                </div>
             `;
             div.onclick = () => {
                 currentClanIndex = index;
                 showSingleClan(c);
             };
-            gallery.appendChild(div);
+            results.appendChild(div);
         });
     });
+}
 
+function renderClanGalleryShell() {
+    const gallery = document.getElementById('clan-gallery');
+    if (!gallery) return;
+
+    gallery.innerHTML = `
+        <div style="grid-column:1/-1;display:grid;gap:10px;margin-bottom:6px;">
+            <label style="display:grid;gap:7px;color:#888;font-size:12px;text-transform:uppercase;letter-spacing:1px;">
+                ${t('Поиск по кланам')}
+                <input id="clan-gallery-search" type="search" value="${escapeHTML(currentClanGallerySearch)}"
+                    placeholder="${t('Например: сила, простой, магия, скрытность...')}"
+                    style="width:100%;box-sizing:border-box;background:#050505;border:1px solid #444;border-radius:6px;color:#eee;padding:11px 13px;font:inherit;font-size:15px;">
+            </label>
+            <div id="clan-gallery-count" style="color:#777;font-size:13px;"></div>
+        </div>
+        <div id="clan-gallery-results" style="display:contents;"></div>
+    `;
+
+    const search = document.getElementById('clan-gallery-search');
+    if (search) {
+        search.addEventListener('input', () => {
+            currentClanGallerySearch = search.value;
+            renderClanGalleryList();
+        });
+    }
+
+    renderClanGalleryList();
+    search?.focus();
+}
+
+function returnToClanGalleryList() {
+    renderClanGalleryShell();
+}
+
+// Открытие галереи кланов
+function openClanGallery(options = {}) {
+    if (startingSheetFixed && !expShopMode) return;
+    const modal = document.getElementById('clan-modal');
+    const gallery = document.getElementById('clan-gallery');
+    if (!modal || !gallery) return;
+
+    currentClanGalleryOptions = typeof options === 'object' && options ? options : {};
+    currentClanGalleryBaseData = buildClanGalleryData();
+    currentClanGallerySearch = currentClanGalleryOptions.search || '';
+    currentClanIndex = 0;
+
+    renderClanGalleryShell();
     modal.style.display = 'block';
 }
 
@@ -4069,7 +4255,7 @@ async function showSingleClan(clan) {
                         style="background:#ff3131; color:black; border:none; padding:16px 40px; font-size:18px; border-radius:6px; cursor:pointer; margin:0 10px;">
                     ${t('Выбрать этот клан')}
                 </button>
-                <button onclick="openClanGallery()"
+                <button onclick="returnToClanGalleryList()"
                         style="background:transparent; color:#ff3131; border:2px solid #ff3131; padding:16px 40px; font-size:18px; border-radius:6px; cursor:pointer;">
                     ← ${t('Назад к списку')}
                 </button>
@@ -4106,7 +4292,7 @@ function openPredatorGallery() {
         { name: "Фермер",       desc: t("Содержание «фермы» из смертных доноров."), image: "/static/predator_gallery/Фермер.png" }
     ];
 
-    currentPredatorData.forEach(p => {
+    currentPredatorData.forEach((p, index) => {
         const div = document.createElement('div');
         div.style.cursor = 'pointer';
         div.innerHTML = `
@@ -4114,7 +4300,10 @@ function openPredatorGallery() {
             <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${t(p.name)}</h3>
             <p style="color:#ddd; font-size:14px; padding:0 10px;">${p.desc}</p>
         `;
-        div.onclick = () => showSinglePredator(p);
+        div.onclick = () => {
+            currentPredatorIndex = index;
+            showSinglePredator(p);
+        };
         gallery.appendChild(div);
     });
 
@@ -4196,6 +4385,7 @@ function selectThisPredator(name) {
     if (predatorSelect) predatorSelect.value = name;
     closePredatorModal();
     loadPredatorHint();
+    notifySheetChoice('predator', name);
     
     setTimeout(() => {
         applyPredatorType(name);   // ← главный вызов
@@ -4220,6 +4410,7 @@ function selectThisClan(name) {
     loadClanHint();        // обновляем подсказку
     updateClanIcon();      // обновляем иконку
     enforceClanSpecificRules();
+    notifySheetChoice('clan', name);
     if (!isThinBloodClan(name)) {
         setTimeout(() => openClanDisciplineModal(name), 100);
     }
@@ -4466,12 +4657,21 @@ function selectThisGeneration(value, typeKey) {
     }
 
     closeGenerationModal();
+    notifySheetChoice('generation', value);
 }
 
 function closeGenerationModal() {
     const modal = document.getElementById('generation-modal');
     if (modal) modal.style.display = 'none';
 }
+
+window.openClanGallery = openClanGallery;
+window.openPredatorGallery = openPredatorGallery;
+window.openGenerationGallery = openGenerationGallery;
+window.selectThisClan = selectThisClan;
+window.selectThisPredator = selectThisPredator;
+window.selectThisGeneration = selectThisGeneration;
+window.openClanDisciplineModal = openClanDisciplineModal;
 
 // ==================== ТИП ПЕРСОНАЖА ====================
 
@@ -4801,6 +5001,7 @@ function confirmClanDisciplines(clanName) {
 
     closeClanDiscModal();
     updateDisciplineTotal();
+    notifySheetChoice('clanDisciplines', clanName);
 }
 
 // ==================== ПОДТВЕРЖДЕНИЕ ОХОТЫ ====================
@@ -4813,6 +5014,7 @@ function confirmPredatorDiscipline(predatorName) {
 
     closePredDiscModal();
     updateDisciplineTotal();
+    notifySheetChoice('predatorDiscipline', predatorName);
 }
 
 function closeClanDiscModal() {
@@ -6114,6 +6316,11 @@ function updateSBadgeState(skillName) {
     }
 }
 
+window.updateTrackers = updateTrackers;
+window.addSpecLine = addSpecLine;
+window.updateSpecUI = updateSpecUI;
+window.updateSBadgeState = updateSBadgeState;
+
 
 
 
@@ -6449,14 +6656,119 @@ function deleteCharacterImage() {
     renderCharacterImage();
 }
 
+function normalizeTouchstoneItem(item, index = 0) {
+    const normalized = item && typeof item === 'object'
+        ? item
+        : { text: String(item || '') };
+    const legacyText = String(normalized.text || '').trim();
+    normalized.id = normalized.id || `touchstone-${Date.now()}-${index}`;
+    normalized.name = String(normalized.name || '').trim();
+    normalized.principle = String(normalized.principle || normalized.conviction || '').trim();
+    normalized.description = String(normalized.description || '').trim();
+    normalized.image = normalized.image || '';
+    normalized.status = ['safe', 'threatened', 'harmed', 'lost'].includes(normalized.status)
+        ? normalized.status
+        : 'safe';
+
+    if (!normalized.principle && legacyText) normalized.principle = legacyText;
+    normalized.text = formatTouchstoneText(normalized);
+    return normalized;
+}
+
+function ensureTouchstone(index) {
+    if (!touchstones[index]) return null;
+    touchstones[index] = normalizeTouchstoneItem(touchstones[index], index);
+    return touchstones[index];
+}
+
+function formatTouchstoneText(item = {}) {
+    const name = String(item.name || '').trim();
+    const principle = String(item.principle || '').trim();
+    const description = String(item.description || '').trim();
+    return [
+        name,
+        principle ? `${t('Принцип')}: ${principle}` : '',
+        description
+    ].filter(Boolean).join('\n');
+}
+
+function getTouchstoneLabel(item, index) {
+    return String(item?.name || item?.principle || item?.text || '').trim()
+        || tf('Опора {n}', { n: index + 1 });
+}
+
+function getTouchstoneDescription(item = {}) {
+    return [
+        item.principle ? `${t('Принцип')}: ${item.principle}` : '',
+        item.description || ''
+    ].filter(Boolean).join('\n');
+}
+
+function getTouchstonesSnapshot() {
+    return (touchstones || []).map((item, index) => {
+        const copy = item && typeof item === 'object'
+            ? JSON.parse(JSON.stringify(item))
+            : { text: String(item || '') };
+        return normalizeTouchstoneItem(copy, index);
+    });
+}
+
+function updateTouchstoneField(index, field, value, options = {}) {
+    const item = ensureTouchstone(index);
+    if (!item || !['name', 'principle', 'description'].includes(field)) return null;
+    item[field] = String(value || '');
+    item.text = formatTouchstoneText(item);
+    getMoralityData();
+    updateHumanityFormOptions();
+    autoSaveVitalState({ immediate: Boolean(options.immediate) });
+    if (options.render) renderTouchstones();
+    return JSON.parse(JSON.stringify(item));
+}
+
+function updateTouchstoneStatus(index, status, options = {}) {
+    const item = ensureTouchstone(index);
+    if (!item) return null;
+    item.status = ['safe', 'threatened', 'harmed', 'lost'].includes(status) ? status : 'safe';
+    getMoralityData();
+    updateHumanityFormOptions();
+    autoSaveVitalState({ immediate: options.immediate !== false });
+    if (options.render) renderTouchstones();
+    return JSON.parse(JSON.stringify(item));
+}
+
+function removeTouchstone(index) {
+    if (!touchstones[index]) return;
+    touchstones.splice(index, 1);
+    getMoralityData();
+    updateHumanityFormOptions();
+    renderTouchstones();
+    autoSaveVitalState({ immediate: true });
+}
+
+async function setTouchstoneImageFromFile(index, file) {
+    const item = ensureTouchstone(index);
+    if (!file || !item) return;
+    item.image = await readImageAsCompressedDataURL(file, 700, 0.8);
+    renderTouchstones();
+    autoSaveVitalState();
+}
+
+function removeTouchstoneImage(index) {
+    const item = ensureTouchstone(index);
+    if (!item) return;
+    item.image = '';
+    renderTouchstones();
+    autoSaveVitalState();
+}
+
 function renderTouchstones() {
     const list = document.getElementById('touchstones-list');
     if (!list) return;
 
     list.innerHTML = '';
     touchstones.forEach((item, index) => {
-        item.id = item.id || `touchstone-${Date.now()}-${index}`;
-        item.status = ['safe', 'threatened', 'harmed', 'lost'].includes(item.status) ? item.status : 'safe';
+        item = ensureTouchstone(index);
+        if (!item) return;
         const row = document.createElement('div');
         row.className = 'touchstone-item';
         row.innerHTML = `
@@ -6464,7 +6776,20 @@ function renderTouchstones() {
                 ${item.image ? `<img class="touchstone-image" src="${item.image}" alt="${t('Изображение опоры')}">` : `<div class="touchstone-placeholder">${t('Изображение опоры')}</div>`}
                 <input type="file" accept="image/*" style="display:none;" data-touchstone-file="${index}">
             </div>
-            <textarea data-touchstone-text="${index}" placeholder="${t('Опора или принцип')}">${escapeHTML(item.text || '')}</textarea>
+            <div class="touchstone-fields">
+                <label>
+                    ${t('Имя опоры')}
+                    <input type="text" data-touchstone-index="${index}" data-touchstone-field="name" value="${escapeHTML(item.name || '')}" placeholder="${t('Имя смертного или символа')}">
+                </label>
+                <label>
+                    ${t('Принцип')}
+                    <textarea data-touchstone-index="${index}" data-touchstone-field="principle" placeholder="${t('Во что эта опора помогает верить')}">${escapeHTML(item.principle || '')}</textarea>
+                </label>
+                <label>
+                    ${t('Описание')}
+                    <textarea data-touchstone-index="${index}" data-touchstone-field="description" placeholder="${t('Кто это, как связан с персонажем, почему важен')}">${escapeHTML(item.description || '')}</textarea>
+                </label>
+            </div>
             <div class="touchstone-actions">
                 <select data-touchstone-status="${index}" aria-label="${t('Статус Опоры')}">
                     <option value="safe"${item.status === 'safe' ? ' selected' : ''}>${t('В безопасности')}</option>
@@ -6480,13 +6805,10 @@ function renderTouchstones() {
         list.appendChild(row);
     });
 
-    list.querySelectorAll('[data-touchstone-text]').forEach(textarea => {
-        textarea.addEventListener('input', (e) => {
-            const index = parseInt(e.target.dataset.touchstoneText, 10);
-            if (touchstones[index]) touchstones[index].text = e.target.value;
-            getMoralityData();
-            updateHumanityFormOptions();
-            autoSaveVitalState();
+    list.querySelectorAll('[data-touchstone-field]').forEach(field => {
+        field.addEventListener('input', (e) => {
+            const index = parseInt(e.target.dataset.touchstoneIndex, 10);
+            updateTouchstoneField(index, e.target.dataset.touchstoneField, e.target.value);
         });
     });
 
@@ -6494,10 +6816,7 @@ function renderTouchstones() {
         select.addEventListener('change', (e) => {
             const index = parseInt(e.target.dataset.touchstoneStatus, 10);
             if (!touchstones[index]) return;
-            touchstones[index].status = e.target.value;
-            getMoralityData();
-            updateHumanityFormOptions();
-            autoSaveVitalState({ immediate: true });
+            updateTouchstoneStatus(index, e.target.value, { immediate: true });
             if (e.target.value === 'harmed' || e.target.value === 'lost') {
                 const type = document.getElementById('humanity-event-type');
                 const related = document.getElementById('humanity-event-touchstone');
@@ -6521,11 +6840,11 @@ function renderTouchstones() {
             const file = e.target.files?.[0];
             if (!file || !touchstones[index]) return;
             try {
-                touchstones[index].image = await readImageAsCompressedDataURL(file, 700, 0.8);
-                renderTouchstones();
-                autoSaveVitalState();
+                await setTouchstoneImageFromFile(index, file);
             } catch (err) {
                 alert(err.message || t('Ошибка загрузки изображения.'));
+            } finally {
+                e.target.value = '';
             }
         });
     });
@@ -6533,18 +6852,14 @@ function renderTouchstones() {
     list.querySelectorAll('[data-touchstone-remove-image]').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const index = parseInt(e.target.dataset.touchstoneRemoveImage, 10);
-            if (touchstones[index]) touchstones[index].image = '';
-            renderTouchstones();
-            autoSaveVitalState();
+            removeTouchstoneImage(index);
         });
     });
 
     list.querySelectorAll('[data-touchstone-delete]').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const index = parseInt(e.target.dataset.touchstoneDelete, 10);
-            touchstones.splice(index, 1);
-            renderTouchstones();
-            autoSaveVitalState({ immediate: true });
+            removeTouchstone(index);
         });
     });
 
@@ -6875,9 +7190,18 @@ function stabilizeImagesForCapture(area) {
 }
 
 function addTouchstone() {
-    touchstones.push({ id: `touchstone-${Date.now()}-${Math.random().toString(16).slice(2)}`, text: '', image: '', status: 'safe' });
+    touchstones.push({
+        id: `touchstone-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        name: '',
+        principle: '',
+        description: '',
+        text: '',
+        image: '',
+        status: 'safe'
+    });
     renderTouchstones();
     autoSaveVitalState();
+    return touchstones.length - 1;
 }
 
 function setupCharacterDetails() {
@@ -6890,6 +7214,13 @@ function setupCharacterDetails() {
 window.uploadCharacterImage = uploadCharacterImage;
 window.deleteCharacterImage = deleteCharacterImage;
 window.addTouchstone = addTouchstone;
+window.renderTouchstones = renderTouchstones;
+window.getTouchstones = getTouchstonesSnapshot;
+window.updateTouchstoneField = updateTouchstoneField;
+window.updateTouchstoneStatus = updateTouchstoneStatus;
+window.removeTouchstone = removeTouchstone;
+window.removeTouchstoneImage = removeTouchstoneImage;
+window.setTouchstoneImageFromFile = setTouchstoneImageFromFile;
 
 function showPredatorChoiceModal(predName, entries) {
     return new Promise(resolve => {
@@ -7000,6 +7331,54 @@ function showPredatorAllocationModal(predName, group) {
     });
 }
 
+function getFixedPredatorTraitRows(predData) {
+    return [
+        ...(predData.advantages || [])
+            .filter(item => !isPredatorChoiceItem(item))
+            .map(item => ({ item, isMerit: true })),
+        ...(predData.disadvantages || [])
+            .filter(item => !isPredatorChoiceItem(item))
+            .map(item => ({ item, isMerit: false }))
+    ];
+}
+
+function showPredatorAutoTraitsModal(predName, predData) {
+    const rows = getFixedPredatorTraitRows(predData);
+    if (!rows.length) {
+        notifySheetChoice('predatorTraits', predName);
+        return Promise.resolve();
+    }
+
+    return new Promise(resolve => {
+        const modal = document.createElement('div');
+        modal.id = 'predator-auto-traits-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.96);z-index:27000;display:flex;align-items:center;justify-content:center;padding:18px;';
+        modal.innerHTML = `
+            <div style="width:min(760px,100%);max-height:88vh;overflow:auto;background:#111;border:2px solid #ff3131;border-radius:10px;padding:24px;color:#eee;box-shadow:0 0 36px rgba(255,49,49,0.35);">
+                <h2 style="margin:0 0 8px;text-align:center;color:#ff3131;">${escapeHTML(predName)}</h2>
+                <p style="margin:0 0 18px;text-align:center;color:#aaa;line-height:1.45;">${t('Стиль охоты сразу добавил эти преимущества и недостатки.')}</p>
+                <div style="display:grid;gap:10px;">
+                    ${rows.map(row => `
+                        <div style="background:#1a1a1a;border:1px solid #333;border-left:4px solid ${row.isMerit ? '#ffcc00' : '#ff6666'};border-radius:6px;padding:12px 14px;line-height:1.45;">
+                            <strong style="color:${row.isMerit ? '#ffcc00' : '#ff6666'};">${row.isMerit ? t('Преимущество') : t('Недостаток')}</strong><br>
+                            ${escapeHTML(formatPredatorTraitLine(row.item, row.isMerit))}
+                        </div>
+                    `).join('')}
+                </div>
+                <button id="pred-auto-traits-ok" style="margin-top:18px;width:100%;padding:12px;background:#ff3131;color:#111;border:none;border-radius:6px;cursor:pointer;font-weight:bold;">${t('Понятно')}</button>
+            </div>
+        `;
+
+        document.getElementById('predator-auto-traits-modal')?.remove();
+        document.body.appendChild(modal);
+        modal.querySelector('#pred-auto-traits-ok').onclick = () => {
+            modal.remove();
+            notifySheetChoice('predatorTraits', predName);
+            resolve();
+        };
+    });
+}
+
 async function applyPredatorChoiceItems(predName) {
     const predData = RULES.predator_types?.[predName];
     if (!predData) return;
@@ -7026,6 +7405,7 @@ async function applyPredatorChoiceItems(predName) {
     }
 
     renderSelectedMeritsFlaws();
+    await showPredatorAutoTraitsModal(predName, predData);
 }
 
 function hasPredatorChoiceItems(predData) {
@@ -7135,10 +7515,13 @@ function applyPredatorType(predName) {
 
         if (hasPredItems) {
             console.log("✅ Преимущества/недостатки от охоты добавлены автоматически");
+            showPredatorAutoTraitsModal(predName, predData);
+            return;
         }
 
         if (!hasSpecialty && !hasDisciplines && !hasPredItems) {
             console.warn(`Стиль охоты ${predName} не имеет дополнительных механик`);
+            notifySheetChoice('predatorTraits', predName);
         }
     }, 250);
 }
@@ -7426,6 +7809,10 @@ document.addEventListener('change', function(e) {
 
 // ==================== ПРЕИМУЩЕСТВА И НЕДОСТАТКИ ====================
 
+let meritsModalCategory = null;
+let meritsModalTab = 0;
+const meritsModalScrollByTab = { 0: 0, 1: 0 };
+
 function openMeritsFlawsModal() {
     if (startingSheetFixed && !expShopMode) return alert(t("Лист зафиксирован. Преимущества и недостатки меняются только через расфиксацию или магазин опыта."));
     document.getElementById('merits-flaws-modal').style.display = 'block';
@@ -7440,7 +7827,9 @@ function switchMeritsTab(tab) {
     document.getElementById('tab-merits').style.background = tab === 0 ? '#222' : '#111';
     document.getElementById('tab-flaws').style.background = tab === 1 ? '#222' : '#111';
     document.getElementById('merits-flaws-modal').dataset.activeTab = String(tab);
-    renderCategories(tab);
+    meritsModalTab = tab;
+    meritsModalCategory = null;
+    renderCategories(tab, meritsModalScrollByTab[tab] || 0);
 }
 
 function normalizeTraitSearch(value) {
@@ -7562,19 +7951,36 @@ function createTraitVariantCard(category, variant, tab, { showCategory = false }
             };
             if (tab === 0) selectedMerits.push(item);
             else selectedFlaws.push(item);
+            const container = document.getElementById('merits-list');
+            const scrollTop = container?.scrollTop || 0;
             renderSelectedMeritsFlaws();
             if (expShopMode) renderExpShopPanel();
-            closeMeritsFlawsModal();
+            if (meritsModalCategory) renderVariantsInCategory(meritsModalCategory, tab, scrollTop);
+            else renderCategories(tab, scrollTop);
         });
     }
 
     return div;
 }
 
-function renderCategories(tab) {
+function restoreMeritsListScroll(scrollTop = 0) {
+    const container = document.getElementById('merits-list');
+    if (!container) return;
+    requestAnimationFrame(() => {
+        container.scrollTop = scrollTop || 0;
+    });
+}
+
+function returnToMeritsCategories(tab) {
+    renderCategories(tab, meritsModalScrollByTab[tab] || 0);
+}
+
+function renderCategories(tab, restoreScroll = 0) {
     const container = document.getElementById('merits-list');
     container.innerHTML = '';
     const search = document.getElementById('merits-search').value.trim();
+    meritsModalTab = tab;
+    meritsModalCategory = null;
 
     let source = tab === 0 
         ? (RULES.advantages?.merits || {}) 
@@ -7604,6 +8010,7 @@ function renderCategories(tab) {
         if (matches.length === 0) {
             container.innerHTML = `<p style="color:#666;text-align:center;padding:60px;">${t('Ничего не найдено. Попробуйте название, слово из описания или количество точек.')}</p>`;
         }
+        restoreMeritsListScroll(restoreScroll);
         return;
     }
 
@@ -7631,20 +8038,26 @@ function renderCategories(tab) {
             </div>
         `;
 
-        div.onclick = () => renderVariantsInCategory(category, tab);
+        div.onclick = () => {
+            meritsModalScrollByTab[tab] = container.scrollTop;
+            renderVariantsInCategory(category, tab);
+        };
         container.appendChild(div);
     });
 
     if (container.children.length === 0) {
         container.innerHTML = `<p style="color:#666; text-align:center; padding:60px;">${t('Ничего не найдено')}</p>`;
     }
+    restoreMeritsListScroll(restoreScroll);
 }
 
 
-function renderVariantsInCategory(category, tab) {
+function renderVariantsInCategory(category, tab, restoreScroll = 0) {
     const container = document.getElementById('merits-list');
+    meritsModalTab = tab;
+    meritsModalCategory = category;
     container.innerHTML = `
-        <button onclick="switchMeritsTab(${tab})"
+        <button onclick="returnToMeritsCategories(${tab})"
                 style="margin-bottom:15px; background:#333; color:white; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">
             ← ${t('Назад к категориям')}
         </button>
@@ -7652,6 +8065,7 @@ function renderVariantsInCategory(category, tab) {
     `;
 
     category.варианты.forEach(variant => container.appendChild(createTraitVariantCard(category, variant, tab)));
+    restoreMeritsListScroll(restoreScroll);
 }
 
 
@@ -8215,6 +8629,7 @@ function confirmPredatorDiscipline(predatorName) {
     updateTrackers();
     renderSelectedMeritsFlaws();
     applyPredatorChoiceItems(predatorName);
+    notifySheetChoice('predatorDiscipline', predatorName);
 }
 
 function closePredatorSelectionModal() {
@@ -8328,7 +8743,7 @@ function getFullCharacterData() {
         deathDate: getInputValue('death-date-input'),
         clanBane: getInputValue('clan-bane-input'),
         characterImage: characterImageData || '',
-        touchstones: JSON.parse(JSON.stringify(touchstones || [])),
+        touchstones: getTouchstonesSnapshot(),
         inventory: normalizeInventory(inventory),
         appearance: getInputValue('appearance-input'),
         backstory: getInputValue('backstory-input'),
@@ -8483,6 +8898,7 @@ function applyCharacterData(d, sourceName = 'JSON') {
         touchstones = Array.isArray(d.touchstones)
             ? JSON.parse(JSON.stringify(d.touchstones))
             : [];
+        touchstones = touchstones.map((item, index) => normalizeTouchstoneItem(item, index));
         moralityState = window.VTMHumanity.normalizeMorality(d.morality);
         humanityState = window.VTMHumanity.getHumanityState(d);
         inventory = normalizeInventory(d.inventory);
@@ -8967,7 +9383,10 @@ function buildPDFHTML(d) {
         ${d.clanBane ? _pdfSection(t('ИЗЪЯН КЛАНА'), `<div style="font-size:9.5pt;line-height:1.5;color:#1a1a1a;white-space:pre-wrap;">${_pdfEsc(d.clanBane)}</div>`) : ''}
 
         ${d.touchstones.length ? _pdfSection(t('ОПОРЫ И ПРИНЦИПЫ'),
-            d.touchstones.map((t, i) => t.text ? `<div style="margin-bottom:6px;"><span style="color:#8b0000;font-weight:bold;">${i+1}.</span> ${_pdfEsc(t.text)}</div>` : '').join('')
+            d.touchstones.map((item, i) => {
+                const text = formatTouchstoneText(item) || item.text || '';
+                return text ? `<div style="margin-bottom:6px;"><span style="color:#8b0000;font-weight:bold;">${i+1}.</span> ${_pdfEsc(text)}</div>` : '';
+            }).join('')
         ) : ''}
 
         ${_pdfTextBlock(t('ВНЕШНОСТЬ'), d.appearance)}
@@ -9143,7 +9562,7 @@ function getSheetPdfData() {
             [t('Тип'), getSelectText('type-input')]
         ],
         clanBane: getInputValue('clan-bane-input'),
-        touchstones: (touchstones || []).map(item => item.text || '').filter(Boolean),
+        touchstones: getTouchstonesSnapshot().map(item => formatTouchstoneText(item) || item.text || '').filter(Boolean),
         appearance: getInputValue('appearance-input'),
         backstory: getInputValue('backstory-input'),
         notes: getInputValue('notes-input'),
@@ -10280,7 +10699,7 @@ function captureSheetSnapshot() {
         deathDate: getInputValue('death-date-input'),
         clanBane: getInputValue('clan-bane-input'),
         characterImage: characterImageData || '',
-        touchstones: JSON.parse(JSON.stringify(touchstones || [])),
+        touchstones: getTouchstonesSnapshot(),
         inventory: normalizeInventory(inventory),
         appearance: getInputValue('appearance-input'),
         backstory: getInputValue('backstory-input'),

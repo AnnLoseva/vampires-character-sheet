@@ -505,7 +505,7 @@
 
         .touchstone-item {
             display: grid;
-            grid-template-columns: 120px 1fr auto;
+            grid-template-columns: 132px minmax(0, 1fr) 150px;
             gap: 12px;
             align-items: start;
             padding: 12px;
@@ -517,8 +517,8 @@
 
         .touchstone-image,
         .touchstone-placeholder {
-            width: 120px;
-            height: 120px;
+            width: 132px;
+            height: 132px;
             object-fit: cover;
             background: #111;
             border: 1px solid #333;
@@ -538,6 +538,36 @@
         .touchstone-actions {
             display: grid;
             gap: 8px;
+        }
+
+        .touchstone-fields {
+            display: grid;
+            gap: 10px;
+        }
+
+        .touchstone-fields label {
+            display: grid;
+            gap: 5px;
+            color: #888;
+            font-size: 12px;
+        }
+
+        .touchstone-fields input,
+        .touchstone-fields textarea,
+        .touchstone-actions select {
+            width: 100%;
+            box-sizing: border-box;
+            border: 1px solid #333;
+            border-radius: 6px;
+            background: #101010;
+            color: #eee;
+            padding: 9px;
+            font: inherit;
+        }
+
+        .touchstone-fields textarea {
+            min-height: 68px;
+            resize: vertical;
         }
 
         h2 { 
@@ -2706,6 +2736,23 @@
     }
     #cw-overlay.cw-open { display: block; }
     body.cw-active { overflow: hidden; }
+    body.cw-active #archetype-modal,
+    body.cw-active #clan-modal,
+    body.cw-active #predator-modal,
+    body.cw-active #generation-modal,
+    body.cw-active #merits-flaws-modal,
+    body.cw-active #clan-disc-modal,
+    body.cw-active #pred-disc-modal,
+    body.cw-active #spec-choice-modal,
+    body.cw-active #predator-choice-modal,
+    body.cw-active #predator-allocation-modal,
+    body.cw-active #predator-auto-traits-modal,
+    body.cw-active #predator-selection-modal,
+    body.cw-active #thin-blood-traits-modal,
+    body.cw-active #power-modal,
+    body.cw-active #cw-editor-modal {
+        z-index: 50000 !important;
+    }
 
     .cw-card {
         max-width: 1180px;
@@ -2816,6 +2863,288 @@
     .cw-field input:focus,
     .cw-field textarea:focus { outline: none; border-color: #ff3131; }
     .cw-field.required label::after { content: ' *'; color: #ff3131; }
+
+    .cw-inline-picker {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 8px;
+        align-items: stretch;
+    }
+    .cw-inline-picker .cw-btn {
+        padding-left: 14px;
+        padding-right: 14px;
+        white-space: nowrap;
+    }
+
+    .cw-picker-panel {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 18px;
+        align-items: center;
+        margin-bottom: 22px;
+        padding: 18px;
+        border: 1px solid #2a2a2a;
+        border-radius: 8px;
+        background: #0d0d0d;
+    }
+    .cw-picker-current {
+        display: grid;
+        gap: 7px;
+        min-width: 0;
+    }
+    .cw-picker-kicker {
+        color: #777;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .cw-picker-current strong {
+        color: #ff3131;
+        font-size: 24px;
+        line-height: 1.2;
+    }
+    .cw-picker-current p {
+        margin: 0;
+        color: #bbb;
+        font-size: 14px;
+        line-height: 1.55;
+    }
+    .cw-picker-current small {
+        color: #ffae00;
+        line-height: 1.4;
+    }
+
+    .cw-touchstone-list {
+        display: grid;
+        gap: 14px;
+        margin-bottom: 16px;
+    }
+    .cw-touchstone-editor {
+        display: grid;
+        grid-template-columns: 150px minmax(0, 1fr) auto;
+        gap: 14px;
+        align-items: start;
+        padding: 14px;
+        border: 1px solid #2a2a2a;
+        border-radius: 8px;
+        background: #0d0d0d;
+    }
+    .cw-touchstone-image {
+        display: grid;
+        gap: 8px;
+    }
+    .cw-touchstone-image img,
+    .cw-touchstone-image span {
+        width: 150px;
+        aspect-ratio: 1 / 1;
+        border: 1px solid #333;
+        border-radius: 6px;
+        background: #080808;
+        object-fit: cover;
+    }
+    .cw-touchstone-image span {
+        display: grid;
+        place-items: center;
+        color: #666;
+        font-size: 12px;
+        text-align: center;
+        padding: 10px;
+        box-sizing: border-box;
+    }
+    .cw-touchstone-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 10px;
+    }
+    .cw-touchstone-fields label {
+        display: grid;
+        gap: 5px;
+        color: #777;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
+    .cw-touchstone-fields label:nth-child(2),
+    .cw-touchstone-fields label:nth-child(3) {
+        grid-column: 1 / -1;
+    }
+    .cw-touchstone-fields input,
+    .cw-touchstone-fields textarea,
+    .cw-touchstone-fields select {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid #333;
+        border-radius: 6px;
+        background: #050505;
+        color: #fff;
+        padding: 10px 12px;
+        font: inherit;
+        font-size: 15px;
+    }
+    .cw-touchstone-fields textarea {
+        min-height: 76px;
+        resize: vertical;
+        line-height: 1.5;
+    }
+    .cw-touchstone-delete {
+        align-self: start;
+        white-space: nowrap;
+    }
+
+    #cw-editor-modal {
+        position: fixed;
+        inset: 0;
+        z-index: 50000;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 18px;
+        background: rgba(0,0,0,0.94);
+        font-family: 'Courier New', Courier, monospace;
+        color: #ddd;
+    }
+    .cw-editor-shell {
+        width: min(1180px, 96vw);
+        max-height: 92vh;
+        overflow: auto;
+        border: 1px solid #333;
+        border-radius: 10px;
+        background: #080808;
+        box-shadow: 0 0 40px rgba(255,49,49,0.16);
+        padding: 22px;
+    }
+    .cw-editor-header {
+        display: flex;
+        justify-content: space-between;
+        gap: 14px;
+        align-items: start;
+        margin-bottom: 16px;
+    }
+    .cw-editor-header span {
+        color: #888;
+        font-size: 12px;
+    }
+    .cw-editor-header h2 {
+        margin: 4px 0 0;
+        padding: 0;
+        border: 0;
+        color: #ff3131;
+        text-align: left;
+        letter-spacing: 2px;
+    }
+    .cw-editor-close {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        border: 1px solid #444;
+        background: #171717;
+        color: #eee;
+        font-size: 25px;
+        cursor: pointer;
+    }
+    .cw-editor-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+    }
+    .cw-editor-group,
+    .cw-spec-card {
+        border: 1px solid #282828;
+        border-radius: 8px;
+        background: #101010;
+        padding: 14px;
+    }
+    .cw-editor-group h3 {
+        margin: 0 0 12px;
+        color: #ffae00;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        font-size: 14px;
+    }
+    .cw-editor-row {
+        display: grid;
+        grid-template-columns: minmax(120px, 1fr) auto;
+        gap: 10px;
+        align-items: center;
+        padding: 7px 0;
+        border-top: 1px solid #1d1d1d;
+    }
+    .cw-editor-row:first-of-type {
+        border-top: 0;
+    }
+    .cw-editor-dots {
+        display: flex;
+        gap: 6px;
+    }
+    .cw-editor-dots button {
+        width: 24px;
+        height: 24px;
+        border-radius: 50%;
+        border: 2px solid #555;
+        background: #111;
+        color: #999;
+        cursor: pointer;
+        font: inherit;
+        font-size: 11px;
+        line-height: 1;
+    }
+    .cw-editor-dots button.filled {
+        border-color: #ff3131;
+        background: #ff3131;
+        box-shadow: 0 0 8px rgba(255,49,49,0.55);
+    }
+    .cw-editor-dots button.current {
+        outline: 2px solid #ffae00;
+        outline-offset: 2px;
+    }
+    .cw-editor-dots button:first-child {
+        border-radius: 6px;
+        width: 28px;
+    }
+    .cw-spec-list {
+        display: grid;
+        gap: 12px;
+    }
+    .cw-spec-card-head {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 10px;
+    }
+    .cw-spec-card-head strong { color: #ffae00; }
+    .cw-spec-card-head span { color: #888; }
+    .cw-spec-card p {
+        margin: 0 0 12px;
+        color: #bbb;
+        line-height: 1.5;
+    }
+    .cw-spec-lines {
+        display: grid;
+        gap: 8px;
+        margin-bottom: 10px;
+    }
+    .cw-spec-line {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) 36px;
+        gap: 8px;
+    }
+    .cw-spec-line input {
+        min-width: 0;
+        border: 1px solid #333;
+        border-radius: 6px;
+        background: #050505;
+        color: #fff;
+        padding: 10px 12px;
+        font: inherit;
+    }
+    .cw-spec-line button {
+        border: 1px solid #553333;
+        border-radius: 6px;
+        background: #201010;
+        color: #ff8080;
+        cursor: pointer;
+        font-size: 20px;
+    }
 
     .cw-portrait-row {
         display: flex;
@@ -3206,6 +3535,18 @@
         .cw-gallery-visual,
         .cw-generation-gallery {
             grid-template-columns: 1fr;
+        }
+        .cw-inline-picker,
+        .cw-picker-panel,
+        .cw-touchstone-editor,
+        .cw-touchstone-fields,
+        .cw-editor-grid {
+            grid-template-columns: 1fr;
+        }
+        .cw-touchstone-image img,
+        .cw-touchstone-image span {
+            width: 100%;
+            max-width: 220px;
         }
         .cw-gallery-title {
             font-size: 14px;

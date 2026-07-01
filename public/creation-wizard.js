@@ -235,6 +235,58 @@
 
     const STEP_ACTIONS = {};
 
+    function dispatchSheetChange(id) {
+        const node = el(id);
+        if (!node) return;
+        node.dispatchEvent(new Event('input', { bubbles: true }));
+        node.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+
+    function setSheetValue(id, value) {
+        const node = el(id);
+        if (!node) return;
+        node.value = value == null ? '' : value;
+        dispatchSheetChange(id);
+    }
+
+    function openSheetPicker(fnName, fallbackMessage, args = []) {
+        const fn = window[fnName];
+        if (typeof fn === 'function') {
+            fn.apply(window, args);
+            return true;
+        }
+        showStepError(fallbackMessage || t('Это окно пока недоступно.'));
+        return false;
+    }
+
+    function refreshCurrentStepAfterSheetChoice(type) {
+        if (!wizard || !activeStep) return;
+        const stepByType = {
+            clan: 'clan',
+            clanDisciplines: 'disciplines',
+            predator: 'predator',
+            predatorSpecialty: 'predator',
+            predatorDiscipline: 'disciplines',
+            predatorTraits: 'predator',
+            generation: 'generation'
+        };
+        const touchedStep = stepByType[type];
+        if (touchedStep) markCompleted(touchedStep);
+        persist();
+
+        if (activeStep === touchedStep || activeStep === 'disciplines') {
+            renderStep(activeStep);
+        } else if (activeStep === 'attributes') {
+            renderAttrStatus();
+        } else if (activeStep === 'meritsFlaws') {
+            renderMfStatus();
+        }
+    }
+
+    document.addEventListener('vtm:sheet-choice', (event) => {
+        refreshCurrentStepAfterSheetChoice(event.detail?.type);
+    });
+
     // ---------- рендер шага ----------
     function renderStep(step) {
         activeStep = step;
@@ -265,10 +317,15 @@
     RENDERERS.identity = () => {
         const data = sheetData();
         const portraitValue = data.characterImage || data.image || data.portrait || '';
-        const f = (id, label, req) => `
+        const f = (id, label, req, picker = '') => `
             <div class="cw-field ${req ? 'required' : ''}">
                 <label for="cw-${id}">${esc(t(label))}${req ? '' : tf(' ({optional})', { optional: t('необязательно') })}</label>
-                <input type="text" id="cw-${id}" data-mirror="${id}" value="${esc(val(id))}">
+                ${picker
+                    ? `<div class="cw-inline-picker">
+                        <input type="text" id="cw-${id}" data-mirror="${id}" value="${esc(val(id))}">
+                        <button type="button" class="cw-btn ghost" data-archetype-field="${id}">${esc(t('Галерея'))}</button>
+                    </div>`
+                    : `<input type="text" id="cw-${id}" data-mirror="${id}" value="${esc(val(id))}">`}
             </div>`;
         const portrait = portraitValue
             ? `<img class="cw-portrait-preview" src="${esc(portraitValue)}" alt="${t('Портрет')}">`
@@ -287,8 +344,8 @@
                 ${f('char-name', 'Имя', true)}
                 ${f('sire-input', 'Сир')}
                 ${f('concept-input', 'Концепция')}
-                ${f('nature-input', 'Натура')}
-                ${f('mask-input', 'Маска')}
+                ${f('nature-input', 'Натура', false, 'archetype')}
+                ${f('mask-input', 'Маска', false, 'archetype')}
                 ${f('true-age-input', 'Истинный возраст')}
                 ${f('apparent-age-input', 'Видимый возраст')}
                 ${f('birth-date-input', 'Дата рождения')}
@@ -303,6 +360,24 @@
             inp.addEventListener('input', () => {
                 setVal(inp.getAttribute('data-mirror'), inp.value);
             });
+        });
+        el('cw-card').querySelectorAll('[data-archetype-field]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const fieldId = btn.getAttribute('data-archetype-field');
+                openSheetPicker('openArchetypeModal', t('Галерея натуры и маски пока недоступна.'), [fieldId]);
+            });
+        });
+        ['nature-input', 'mask-input'].forEach(fieldId => {
+            const source = el(fieldId);
+            const mirror = el('cw-' + fieldId);
+            if (!source || !mirror || source.__cwArchetypeBound) return;
+            source.__cwArchetypeBound = true;
+            const sync = () => {
+                const current = el('cw-' + fieldId);
+                if (current) current.value = source.value || '';
+            };
+            source.addEventListener('input', sync);
+            source.addEventListener('change', sync);
         });
         const up = el('cw-portrait-upload');
         if (up) up.addEventListener('click', () => el('character-image-input')?.click());
@@ -392,114 +467,53 @@
     }
     RENDERERS.clan = () => {
         const cur = getCurrentClanValue();
-        const list = clanCardData();
-        const editionOrder = ['v5', 'v20', 'legacy'];
-        const sections = editionOrder.map(edition => {
-            const cards = list.filter(({ name }) => clanSection(name) === edition).map(({ name, d }) => {
-                const disc = (d.disciplines || []).join(', ');
-                const desc = (d.description || '').split(/\n+/).find(Boolean) || '';
-                const image = clanImage(name, d);
-                return `<button type="button" class="cw-tile cw-gallery-card ${cur === name ? 'selected' : ''}" data-cw="pickClan" data-clan="${esc(name)}" aria-pressed="${cur === name}">
-                    ${galleryImage(image, `${t("Клан")} ${name}`)}
-                    <span class="cw-tile-body">
-                        <span class="cw-tile-heading">
-                            <span class="cw-tile-name">${esc(name)}</span>
-                            <span class="cw-tile-badge">${edition === 'legacy' ? 'Legacy' : edition.toUpperCase()}</span>
-                        </span>
-                        <span class="cw-tile-desc">${esc(desc.length > 150 ? desc.slice(0, 147) + '…' : desc)}</span>
-                        ${disc ? `<span class="cw-tile-meta"><b>${t('Дисциплины:')}</b> ${esc(disc)}</span>` : ''}
-                    </span>
-                </button>`;
-            }).join('');
-            return cards
-                ? `<section class="cw-gallery-section">
-                    <h3 class="cw-gallery-title"><span>${CLAN_EDITION_LABELS[edition]}</span></h3>
-                    <div class="cw-gallery cw-gallery-visual">${cards}</div>
-                </section>`
-                : '';
-        }).join('');
+        const d = cur ? (rules().clans || {})[cur] : null;
+        const desc = (d?.description || '').split(/\n+/).find(Boolean) || '';
+        const disc = (d?.disciplines || []).join(', ');
         return shell('clan', t('Выбери клан'), cur ? tf('Выбран: {cur}', { cur }) : '',
-            sections,
+            `<div class="cw-picker-panel">
+                <div class="cw-picker-current">
+                    <span class="cw-picker-kicker">${t('Клан')}</span>
+                    <strong>${esc(cur || t('Не выбран'))}</strong>
+                    ${desc ? `<p>${esc(desc.length > 240 ? desc.slice(0, 237) + '…' : desc)}</p>` : `<p>${t('Открой большую галерею: там есть изображения, правила, теги и умный поиск.')}</p>`}
+                    ${disc ? `<small>${t('Дисциплины:')} ${esc(disc)}</small>` : ''}
+                </div>
+                <button type="button" class="cw-btn primary" data-cw="openClanGalleryLarge">${t('Открыть галерею кланов')}</button>
+            </div>`,
             navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
     function getCurrentClanValue() { return val('clan-input'); }
     STEP_ACTIONS.pickClan = function () {}; // заменяется делегированием
-    AFTER_RENDER.clan = () => {
-        el('cw-card').querySelectorAll('[data-cw="pickClan"]').forEach(tile => {
-            tile.addEventListener('click', () => {
-                const name = tile.getAttribute('data-clan');
-                if (val('clan-input') !== name && typeof window.resetClanDisciplines === 'function') {
-                    window.resetClanDisciplines();
-                }
-                setVal('clan-input', name);
-                if (typeof window.loadClanHint === 'function') window.loadClanHint();
-                if (typeof window.updateClanIcon === 'function') window.updateClanIcon();
-                if (typeof window.enforceClanSpecificRules === 'function') window.enforceClanSpecificRules();
-                markCompleted('clan');
-                // подсветка
-                el('cw-card').querySelectorAll('[data-cw="pickClan"]').forEach(t => {
-                    t.classList.remove('selected');
-                    t.setAttribute('aria-pressed', 'false');
-                });
-                tile.classList.add('selected');
-                tile.setAttribute('aria-pressed', 'true');
-                const sub = el('cw-card').querySelector('h2.cw-sub');
-                if (sub) sub.textContent = tf('Выбран: {name}', { name });
-                persist();
-            });
-        });
+    STEP_ACTIONS.openClanGalleryLarge = () => {
+        openSheetPicker('openClanGallery', t('Галерея кланов пока недоступна.'), [{ editionFilter: wizard.clanFilter || 'v5' }]);
     };
+    AFTER_RENDER.clan = () => {};
 
     /* ================= ШАГ 5: ГАЛЕРЕЯ ТИПОВ ОХОТЫ ================= */
     RENDERERS.predator = () => {
         const cur = val('predator-input');
-        const preds = rules().predator_types || {};
-        const cards = Object.entries(preds).map(([name, d]) => {
-            const desc = (d.description || '').split(/\n+/).find(Boolean) || '';
-            const disc = d.disciplines && d.disciplines.increase
-                ? (d.disciplines.increase.options || []).join(' / ') : '';
-            const hum = typeof d.humanity === 'number' && d.humanity !== 0
-                ? (d.humanity > 0 ? '+' + d.humanity : '' + d.humanity) : '0';
-            const bp = d.blood_potency ? '+' + d.blood_potency : '0';
-            const image = `/static/predator_gallery/${encodeURIComponent(name)}.png`;
-            return `<button type="button" class="cw-tile cw-gallery-card ${cur === name ? 'selected' : ''}" data-cw="pickPred" data-pred="${esc(name)}" aria-pressed="${cur === name}">
-                ${galleryImage(image, tf('Тип охоты {name}', { name }))}
-                <span class="cw-tile-body">
-                    <span class="cw-tile-name">${esc(name)}</span>
-                    <span class="cw-tile-desc">${esc(desc.length > 155 ? desc.slice(0, 152) + '…' : desc)}</span>
-                    ${disc ? `<span class="cw-tile-meta"><b>${t('Дисциплина:')}</b> ${esc(disc)}</span>` : ''}
-                    <span class="cw-tile-meta"><b>${t('Сила крови:')}</b> ${esc(bp)} · <b>${t('Человечность:')}</b> ${esc(hum)}</span>
-                </span>
-            </button>`;
-        }).join('');
+        const d = cur ? (rules().predator_types || {})[cur] : null;
+        const desc = (d?.description || '').split(/\n+/).find(Boolean) || '';
+        const disc = d?.disciplines?.increase ? (d.disciplines.increase.options || []).join(' / ') : '';
+        const hum = typeof d?.humanity === 'number' && d.humanity !== 0
+            ? (d.humanity > 0 ? '+' + d.humanity : '' + d.humanity) : '0';
+        const bp = d?.blood_potency ? '+' + d.blood_potency : '0';
         return shell('predator', t('Выбери тип охоты'), cur ? tf('Выбран: {cur}', { cur }) : '',
-            `<div class="cw-gallery cw-gallery-visual">${cards}</div>`,
+            `<div class="cw-picker-panel">
+                <div class="cw-picker-current">
+                    <span class="cw-picker-kicker">${t('Тип охоты')}</span>
+                    <strong>${esc(cur || t('Не выбран'))}</strong>
+                    ${desc ? `<p>${esc(desc.length > 240 ? desc.slice(0, 237) + '…' : desc)}</p>` : `<p>${t('Большое окно сразу покажет описание и после выбора откроет дисциплину, специализацию и бонусы охоты.')}</p>`}
+                    ${cur ? `<small>${t('Дисциплина:')} ${esc(disc || '—')} · ${t('Сила крови:')} ${esc(bp)} · ${t('Человечность:')} ${esc(hum)}</small>` : ''}
+                </div>
+                <button type="button" class="cw-btn primary" data-cw="openPredatorGalleryLarge">${t('Открыть галерею типов охоты')}</button>
+            </div>`,
             navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
-    AFTER_RENDER.predator = () => {
-        el('cw-card').querySelectorAll('[data-cw="pickPred"]').forEach(tile => {
-            tile.addEventListener('click', () => {
-                const name = tile.getAttribute('data-pred');
-                if (val('predator-input') !== name) {
-                    if (typeof window.resetPredatorDisciplines === 'function') window.resetPredatorDisciplines();
-                    if (typeof window.resetPredatorSpecialties === 'function') window.resetPredatorSpecialties();
-                }
-                setVal('predator-input', name);
-                if (typeof window.loadPredatorHint === 'function') window.loadPredatorHint();
-                if (typeof window.updateVitals === 'function') window.updateVitals();
-                markCompleted('predator');
-                el('cw-card').querySelectorAll('[data-cw="pickPred"]').forEach(t => {
-                    t.classList.remove('selected');
-                    t.setAttribute('aria-pressed', 'false');
-                });
-                tile.classList.add('selected');
-                tile.setAttribute('aria-pressed', 'true');
-                const sub = el('cw-card').querySelector('h2.cw-sub');
-                if (sub) sub.textContent = tf('Выбран: {name}', { name });
-                persist();
-            });
-        });
+    STEP_ACTIONS.openPredatorGalleryLarge = () => {
+        openSheetPicker('openPredatorGallery', t('Галерея типов охоты пока недоступна.'));
     };
+    AFTER_RENDER.predator = () => {};
 
     /* ================= ШАГ 6: ГАЛЕРЕЯ ПОКОЛЕНИЙ ================= */
     const GEN_INFO = [
@@ -545,58 +559,24 @@
     }
     RENDERERS.generation = () => {
         const cur = val('generation-input');
-        const cards = GENERATION_GALLERY_GROUPS.map(group => {
-            const selected = group.generations.some(gen => String(gen) === cur);
-            const options = group.generations.map(gen => {
-                const info = GEN_INFO.find(item => item.gen === gen);
-                if (!info) return '';
-                const disabled = generationOptionDisabled(gen);
-                const isSelected = String(gen) === cur;
-                return `<button type="button" class="cw-generation-option ${isSelected ? 'selected' : ''}" data-cw="pickGen" data-gen="${gen}" data-bp="${info.bp}" ${disabled ? 'disabled' : ''} aria-pressed="${isSelected}">
-                    <strong>${tf('{gen}-е поколение', { gen })}</strong>
-                    <span>${tf('Сила крови {bp}', { bp: info.bp })}</span>
-                </button>`;
-            }).join('');
-            return `<article class="cw-generation-card ${selected ? 'selected' : ''}" style="--cw-generation-accent:${group.accent}">
-                ${galleryImage(group.image, group.title)}
-                <div class="cw-generation-body">
-                    <span class="cw-generation-kicker">${group.subtitle}</span>
-                    <h3>${group.title}</h3>
-                    <div class="cw-generation-options">${options}</div>
-                </div>
-            </article>`;
-        }).join('');
+        const info = GEN_INFO.find(item => String(item.gen) === String(cur));
+        const typeText = val('type-input') || '';
         return shell('generation', t('Выбери поколение'), cur ? tf('Выбрано: {cur}-е', { cur }) : '',
-            `<div class="cw-generation-gallery">${cards}</div>`,
+            `<div class="cw-picker-panel">
+                <div class="cw-picker-current">
+                    <span class="cw-picker-kicker">${t('Поколение')}</span>
+                    <strong>${esc(cur ? tf('{cur}-е', { cur }) : t('Не выбрано'))}</strong>
+                    <p>${esc(info?.note || t('Открой большое окно, чтобы выбрать поколение и тип персонажа по стартовой группе.'))}</p>
+                    ${cur ? `<small>${tf('Сила крови {bp}', { bp: info?.bp ?? (val('val-blood-potency') || 0) })}${typeText ? ` · ${esc(typeText)}` : ''}</small>` : ''}
+                </div>
+                <button type="button" class="cw-btn primary" data-cw="openGenerationGalleryLarge">${t('Открыть галерею поколений')}</button>
+            </div>`,
             navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
-    AFTER_RENDER.generation = () => {
-        el('cw-card').querySelectorAll('[data-cw="pickGen"]').forEach(tile => {
-            tile.addEventListener('click', () => {
-                const gen = tile.getAttribute('data-gen');
-                const bp = parseInt(tile.getAttribute('data-bp'), 10) || 0;
-                setVal('generation-input', gen);
-                if (el('generation-input')) el('generation-input').dispatchEvent(new Event('change'));
-                if (el('val-blood-potency')) {
-                    el('val-blood-potency').value = String(bp);
-                    el('val-blood-potency').dispatchEvent(new Event('change'));
-                }
-                if (typeof window.updateBloodPotencyAndBonuses === 'function') window.updateBloodPotencyAndBonuses();
-                markCompleted('generation');
-                el('cw-card').querySelectorAll('[data-cw="pickGen"]').forEach(t => {
-                    t.classList.remove('selected');
-                    t.setAttribute('aria-pressed', 'false');
-                });
-                el('cw-card').querySelectorAll('.cw-generation-card').forEach(card => card.classList.remove('selected'));
-                tile.classList.add('selected');
-                tile.setAttribute('aria-pressed', 'true');
-                tile.closest('.cw-generation-card')?.classList.add('selected');
-                const sub = el('cw-card').querySelector('h2.cw-sub');
-                if (sub) sub.textContent = tf('Выбрано: {gen}-е', { gen });
-                persist();
-            });
-        });
+    STEP_ACTIONS.openGenerationGalleryLarge = () => {
+        openSheetPicker('openGenerationGallery', t('Галерея поколений пока недоступна.'));
     };
+    AFTER_RENDER.generation = () => {};
 
     /* ================= ШАГ 7: НАЧАЛЬНАЯ ЧЕЛОВЕЧНОСТЬ ================= */
     function predatorHumanityMod() {
@@ -629,16 +609,118 @@
     STEP_ACTIONS.humanity8 = () => setHumanity(8);
 
     /* ================= ШАГИ 8-11: ОПОРЫ И ТЕКСТ ================= */
+    function wizardTouchstones() {
+        if (typeof window.getTouchstones === 'function') return window.getTouchstones();
+        return sheetData().touchstones || [];
+    }
+    function touchstoneTitle(item, index) {
+        return String(item?.name || item?.principle || item?.text || '').trim()
+            || tf('Опора {n}', { n: index + 1 });
+    }
     RENDERERS.touchstones = () => {
-        const ts = sheetData().touchstones || [];
+        const ts = wizardTouchstones();
         const rows = ts.length
-            ? ts.map((touchstone, i) => `<div class="cw-summary-row"><span class="lbl">${esc(touchstone.name || t('Без имени'))}</span><span class="val">${esc((touchstone.description || '').slice(0, 80))}</span></div>`).join('')
+            ? ts.map((touchstone, i) => `<article class="cw-touchstone-editor">
+                <div class="cw-touchstone-image">
+                    ${touchstone.image ? `<img src="${esc(touchstone.image)}" alt="${esc(touchstoneTitle(touchstone, i))}">` : `<span>${t('Изображение опоры')}</span>`}
+                    <input type="file" accept="image/*" data-cw-touchstone-file="${i}" hidden>
+                    <button type="button" class="cw-btn ghost" data-cw-touchstone-upload="${i}">${touchstone.image ? t('Заменить') : t('Загрузить')}</button>
+                    ${touchstone.image ? `<button type="button" class="cw-btn ghost" data-cw-touchstone-remove-image="${i}">${t('Удалить фото')}</button>` : ''}
+                </div>
+                <div class="cw-touchstone-fields">
+                    <label>${t('Имя опоры')}
+                        <input type="text" data-cw-touchstone-index="${i}" data-cw-touchstone-field="name" value="${esc(touchstone.name || '')}" placeholder="${t('Имя смертного или символа')}">
+                    </label>
+                    <label>${t('Принцип')}
+                        <textarea data-cw-touchstone-index="${i}" data-cw-touchstone-field="principle" placeholder="${t('Во что эта опора помогает верить')}">${esc(touchstone.principle || '')}</textarea>
+                    </label>
+                    <label>${t('Описание')}
+                        <textarea data-cw-touchstone-index="${i}" data-cw-touchstone-field="description" placeholder="${t('Кто это, как связан с персонажем, почему важен')}">${esc(touchstone.description || '')}</textarea>
+                    </label>
+                    <label>${t('Статус')}
+                        <select data-cw-touchstone-status="${i}">
+                            <option value="safe"${touchstone.status === 'safe' ? ' selected' : ''}>${t('В безопасности')}</option>
+                            <option value="threatened"${touchstone.status === 'threatened' ? ' selected' : ''}>${t('Под угрозой')}</option>
+                            <option value="harmed"${touchstone.status === 'harmed' ? ' selected' : ''}>${t('Пострадала')}</option>
+                            <option value="lost"${touchstone.status === 'lost' ? ' selected' : ''}>${t('Утрачена')}</option>
+                        </select>
+                    </label>
+                </div>
+                <button type="button" class="cw-btn ghost cw-touchstone-delete" data-cw-touchstone-delete="${i}">${t('Удалить')}</button>
+            </article>`).join('')
             : `<p style="color:#888;font-size:14px">${t('Опоры пока не добавлены.')}</p>`;
         return shell('touchstones', t('Опоры (Touchstones)'), t('Люди и принципы, удерживающие человечность'),
             `<div class="cw-intro" style="margin-bottom:14px">${t('Опоры — это смертные и убеждения, которые связывают персонажа с человечностью. Можно добавить несколько.')}</div>
-             <div class="cw-summary" style="margin-bottom:16px">${rows}</div>
+             <div class="cw-touchstone-list">${rows}</div>
              <button type="button" class="cw-btn" data-cw="addTouchstone">+ ${t('Добавить опору')}</button>`,
             navBtn(t('Назад'), 'prev') + navBtn(t('Пропустить'), 'skip') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
+    };
+    AFTER_RENDER.touchstones = () => {
+        const card = el('cw-card');
+        card.querySelectorAll('[data-cw-touchstone-field]').forEach(field => {
+            field.addEventListener('input', () => {
+                const index = parseInt(field.getAttribute('data-cw-touchstone-index'), 10);
+                const key = field.getAttribute('data-cw-touchstone-field');
+                if (typeof window.updateTouchstoneField === 'function') {
+                    window.updateTouchstoneField(index, key, field.value);
+                    markCompleted('touchstones');
+                    persist();
+                }
+            });
+        });
+        card.querySelectorAll('[data-cw-touchstone-status]').forEach(select => {
+            select.addEventListener('change', () => {
+                const index = parseInt(select.getAttribute('data-cw-touchstone-status'), 10);
+                if (typeof window.updateTouchstoneStatus === 'function') {
+                    window.updateTouchstoneStatus(index, select.value);
+                    markCompleted('touchstones');
+                    persist();
+                }
+            });
+        });
+        card.querySelectorAll('[data-cw-touchstone-upload]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = btn.getAttribute('data-cw-touchstone-upload');
+                card.querySelector(`[data-cw-touchstone-file="${index}"]`)?.click();
+            });
+        });
+        card.querySelectorAll('[data-cw-touchstone-file]').forEach(input => {
+            input.addEventListener('change', async () => {
+                const index = parseInt(input.getAttribute('data-cw-touchstone-file'), 10);
+                const file = input.files?.[0];
+                if (!file || typeof window.setTouchstoneImageFromFile !== 'function') return;
+                try {
+                    await window.setTouchstoneImageFromFile(index, file);
+                    markCompleted('touchstones');
+                    renderStep('touchstones');
+                    persist();
+                } catch (error) {
+                    showStepError(error.message || t('Ошибка загрузки изображения.'));
+                } finally {
+                    input.value = '';
+                }
+            });
+        });
+        card.querySelectorAll('[data-cw-touchstone-remove-image]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.getAttribute('data-cw-touchstone-remove-image'), 10);
+                if (typeof window.removeTouchstoneImage === 'function') {
+                    window.removeTouchstoneImage(index);
+                    renderStep('touchstones');
+                    persist();
+                }
+            });
+        });
+        card.querySelectorAll('[data-cw-touchstone-delete]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.getAttribute('data-cw-touchstone-delete'), 10);
+                if (typeof window.removeTouchstone === 'function') {
+                    window.removeTouchstone(index);
+                    renderStep('touchstones');
+                    persist();
+                }
+            });
+        });
     };
     STEP_ACTIONS.addTouchstone = () => {
         if (typeof window.addTouchstone === 'function') window.addTouchstone();
@@ -673,6 +755,18 @@
         balanced: { label: t('Сбалансированный'), limits: { 3: 3, 2: 5, 1: 7 } },
         specialist: { label: t('Специалист'), limits: { 4: 1, 3: 3, 2: 3, 1: 3 } }
     };
+    const TRAIT_GROUPS = {
+        attr: {
+            'Физические': ['Сила', 'Ловкость', 'Выносливость'],
+            'Социальные': ['Обаяние', 'Манипуляция', 'Самообладание'],
+            'Ментальные': ['Интеллект', 'Смекалка', 'Упорство']
+        },
+        skill: {
+            'Физические': ['Атлетика', 'Вождение', 'Воровство', 'Выживание', 'Драка', 'Ремесло', 'Скрытность', 'Стрельба', 'Фехтование'],
+            'Социальные': ['Запугивание', 'Исполнение', 'Лидерство', 'Обращение с животными', 'Проницательность', 'Убеждение', 'Уличное чутьё', 'Хитрость', 'Этикет'],
+            'Ментальные': ['Гуманитарные науки', 'Естественные науки', 'Медицина', 'Наблюдательность', 'Оккультизм', 'Политика', 'Расследование', 'Техника', 'Финансы']
+        }
+    };
     function counts(type) {
         const r = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
         document.querySelectorAll(`.dot-input[data-type="${type}"]:checked`).forEach(i => {
@@ -697,12 +791,14 @@
             `<button type="button" class="cw-choice-btn ${pkg === id ? 'selected' : ''}" data-cw="setPkg" data-pkg="${id}" style="${pkg === id ? 'border-color:#ff3131;background:#2a1111' : ''}">${esc(s.label)}<small>${esc(formatScheme(s.limits))}</small></button>`
         ).join('');
         return shell('attributes', t('Характеристики и навыки'),
-            t('Распредели точки прямо на листе по схеме'),
-            `<div class="cw-intro" style="margin-bottom:14px">${tf('Характеристики: распредели по схеме <b>{scheme}</b>.\n             Навыки: выбери способ развития и распредели согласно схеме. Точки ставятся на листе персонажа — нажми «Открыть характеристики на листе», расставь кружки, затем вернись сюда для проверки.', { scheme: esc(formatScheme(ATTR_SCHEME)) })}</div>
+            t('Распредели точки небольшими окнами'),
+            `<div class="cw-intro" style="margin-bottom:14px">${tf('Характеристики: распредели по схеме <b>{scheme}</b>. Навыки: выбери способ развития и заполни их в отдельном окне. Специализации можно добавить отдельным шагом, не открывая весь лист.', { scheme: esc(formatScheme(ATTR_SCHEME)) })}</div>
              <div class="cw-section-title">${t('Способ развития навыков')}</div>
              <div class="cw-choice-grid" style="margin-bottom:18px">${pkgButtons}</div>
              <div id="cw-attr-status"></div>
-             <button type="button" class="cw-btn" data-cw="openAttrSheet">${t('Открыть характеристики на листе')}</button>
+             <button type="button" class="cw-btn" data-cw="openAttrEditor">${t('Заполнить характеристики')}</button>
+             <button type="button" class="cw-btn" data-cw="openSkillEditor">${t('Заполнить навыки')}</button>
+             <button type="button" class="cw-btn" data-cw="openSpecEditor">${t('Специализации')}</button>
              <button type="button" class="cw-btn ghost" data-cw="recheckAttr" style="margin-left:8px">${t('Проверить заполнение')}</button>`,
             navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
@@ -734,12 +830,171 @@
         if (attrOk && skillOk) markCompleted('attributes'); else markSkipped('attributes');
     }
     STEP_ACTIONS.setPkg = function () {};
-    STEP_ACTIONS.openAttrSheet = () => {
-        goToSheet();
-        if (typeof window.switchSheetSection === 'function') window.switchSheetSection('mechanics');
-        setTimeout(() => el('attributes-grid')?.scrollIntoView({ behavior: 'smooth' }), 100);
-    };
+    STEP_ACTIONS.openAttrEditor = () => openTraitEditor('attr');
+    STEP_ACTIONS.openSkillEditor = () => openTraitEditor('skill');
+    STEP_ACTIONS.openSpecEditor = () => openSpecialtyEditor();
     STEP_ACTIONS.recheckAttr = () => renderAttrStatus();
+
+    function traitNames(type) {
+        return Object.values(TRAIT_GROUPS[type] || {}).flat();
+    }
+    function dotInputs(type) {
+        return Array.from(document.querySelectorAll(`.dot-input[data-type="${type}"]`));
+    }
+    function getTraitDots(type, name) {
+        const checked = dotInputs(type).find(input => input.name === name && input.checked);
+        return parseInt(checked?.value || '0', 10) || 0;
+    }
+    function setTraitDots(type, name, value) {
+        const input = dotInputs(type).find(item => item.name === name && String(item.value) === String(value));
+        if (!input) return;
+        input.checked = true;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        if (typeof window.updateTrackers === 'function') window.updateTrackers();
+        if (type === 'skill' && typeof window.updateSBadgeState === 'function') window.updateSBadgeState(name);
+        renderAttrStatus();
+        persist();
+    }
+    function traitEditorStatus(type) {
+        if (type === 'attr') {
+            return schemeRemaining(ATTR_SCHEME, counts('attr')).map(r =>
+                `<span class="${r.used === r.max ? 'ok' : 'bad'}">×${r.n}: ${r.used}/${r.max}</span>`).join('');
+        }
+        const pkg = val('skill-package');
+        if (!pkg || !SKILL_SCHEMES[pkg]) return `<span class="bad">${t('Сначала выбери способ развития навыков.')}</span>`;
+        return schemeRemaining(SKILL_SCHEMES[pkg].limits, counts('skill')).map(r =>
+            `<span class="${r.used === r.max ? 'ok' : 'bad'}">×${r.n}: ${r.used}/${r.max}</span>`).join('');
+    }
+    function renderTraitEditorContent(modal, type) {
+        const groups = TRAIT_GROUPS[type] || {};
+        const title = type === 'attr' ? t('Характеристики') : t('Навыки');
+        modal.innerHTML = `<div class="cw-editor-shell" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+            <div class="cw-editor-header">
+                <div>
+                    <span>${type === 'attr' ? t('Схема') + ': ' + formatScheme(ATTR_SCHEME) : t('Схема навыков')}</span>
+                    <h2>${esc(title)}</h2>
+                </div>
+                <button type="button" class="cw-editor-close" data-cw-editor-close aria-label="${t('Закрыть')}">×</button>
+            </div>
+            <div class="cw-counter cw-editor-status">${traitEditorStatus(type)}</div>
+            <div class="cw-editor-grid">
+                ${Object.entries(groups).map(([group, names]) => `<section class="cw-editor-group">
+                    <h3>${esc(t(group))}</h3>
+                    ${names.map(name => {
+                        const current = getTraitDots(type, name);
+                        return `<div class="cw-editor-row">
+                            <span>${esc(t(name))}</span>
+                            <div class="cw-editor-dots">
+                                ${[0, 1, 2, 3, 4, 5].map(value => `<button type="button"
+                                    class="${value === current ? 'current' : ''} ${value > 0 && value <= current ? 'filled' : ''}"
+                                    data-cw-dot-type="${type}"
+                                    data-cw-dot-name="${esc(name)}"
+                                    data-cw-dot-value="${value}"
+                                    aria-label="${esc(t(name))}: ${value}">${value === 0 ? '0' : ''}</button>`).join('')}
+                            </div>
+                        </div>`;
+                    }).join('')}
+                </section>`).join('')}
+            </div>
+        </div>`;
+        modal.querySelector('[data-cw-editor-close]')?.addEventListener('click', closeCwEditor);
+        modal.querySelectorAll('[data-cw-dot-value]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                setTraitDots(btn.getAttribute('data-cw-dot-type'), btn.getAttribute('data-cw-dot-name'), parseInt(btn.getAttribute('data-cw-dot-value'), 10));
+                renderTraitEditorContent(modal, type);
+            });
+        });
+    }
+    function openTraitEditor(type) {
+        document.getElementById('cw-editor-modal')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'cw-editor-modal';
+        document.body.appendChild(modal);
+        renderTraitEditorContent(modal, type);
+    }
+    function closeCwEditor() {
+        document.getElementById('cw-editor-modal')?.remove();
+        renderAttrStatus();
+    }
+    function specInputs(skillName) {
+        return Array.from(document.getElementById('specs-' + skillName)?.querySelectorAll('input[type="text"]') || []);
+    }
+    function specialtyCount() {
+        return document.querySelectorAll('.skill-spec-line').length;
+    }
+    function renderSpecialtyEditorContent(modal) {
+        const names = traitNames('skill');
+        const rows = names
+            .map(name => ({ name, dots: getTraitDots('skill', name), specs: specInputs(name) }))
+            .filter(item => item.dots > 0 || item.specs.length > 0);
+        modal.innerHTML = `<div class="cw-editor-shell cw-spec-editor" role="dialog" aria-modal="true" aria-label="${t('Специализации')}">
+            <div class="cw-editor-header">
+                <div>
+                    <span>${tf('Специализации (S): {current} / {max}', { current: specialtyCount(), max: 5 })}</span>
+                    <h2>${t('Специализации')}</h2>
+                </div>
+                <button type="button" class="cw-editor-close" data-cw-editor-close aria-label="${t('Закрыть')}">×</button>
+            </div>
+            ${rows.length ? `<div class="cw-spec-list">${rows.map(item => `<section class="cw-spec-card">
+                <div class="cw-spec-card-head">
+                    <strong>${esc(t(item.name))}</strong>
+                    <span>${tf('{dots} точек', { dots: item.dots })}</span>
+                </div>
+                <div class="cw-spec-lines">
+                    ${item.specs.map((input, index) => `<div class="cw-spec-line">
+                        <input type="text" value="${esc(input.value || '')}" data-cw-spec-name="${esc(item.name)}" data-cw-spec-index="${index}" placeholder="${t('Название специализации')}">
+                        <button type="button" data-cw-spec-delete="${index}" data-cw-spec-name="${esc(item.name)}">×</button>
+                    </div>`).join('')}
+                </div>
+                <button type="button" class="cw-btn ghost" data-cw-spec-add="${esc(item.name)}" ${item.specs.length >= item.dots ? 'disabled' : ''}>+ ${t('Добавить специализацию')}</button>
+            </section>`).join('')}</div>` : `<div class="cw-intro">${t('Сначала поставь хотя бы одну точку в навык, затем здесь появятся специализации.')}</div>`}
+        </div>`;
+        modal.querySelector('[data-cw-editor-close]')?.addEventListener('click', closeCwEditor);
+        modal.querySelectorAll('[data-cw-spec-add]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const skill = btn.getAttribute('data-cw-spec-add');
+                const container = document.getElementById('specs-' + skill);
+                if (container) container.style.display = 'flex';
+                if (typeof window.addSpecLine === 'function') window.addSpecLine(skill);
+                if (typeof window.updateSpecUI === 'function') window.updateSpecUI(skill);
+                renderSpecialtyEditorContent(modal);
+                persist();
+            });
+        });
+        modal.querySelectorAll('[data-cw-spec-delete]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const skill = btn.getAttribute('data-cw-spec-name');
+                const index = parseInt(btn.getAttribute('data-cw-spec-delete'), 10);
+                const input = specInputs(skill)[index];
+                input?.closest('.skill-spec-line')?.remove();
+                if (typeof window.updateSBadgeState === 'function') window.updateSBadgeState(skill);
+                if (typeof window.updateSpecUI === 'function') window.updateSpecUI(skill);
+                renderSpecialtyEditorContent(modal);
+                persist();
+            });
+        });
+        modal.querySelectorAll('[data-cw-spec-index]').forEach(input => {
+            input.addEventListener('input', () => {
+                const skill = input.getAttribute('data-cw-spec-name');
+                const index = parseInt(input.getAttribute('data-cw-spec-index'), 10);
+                const real = specInputs(skill)[index];
+                if (real) {
+                    real.value = input.value;
+                    real.dispatchEvent(new Event('input', { bubbles: true }));
+                    real.dispatchEvent(new Event('change', { bubbles: true }));
+                }
+                persist();
+            });
+        });
+    }
+    function openSpecialtyEditor() {
+        document.getElementById('cw-editor-modal')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'cw-editor-modal';
+        document.body.appendChild(modal);
+        renderSpecialtyEditorContent(modal);
+    }
     // делегирование выбора пакета
     document.addEventListener('click', e => {
         const b = e.target.closest && e.target.closest('[data-cw="setPkg"]');
@@ -779,9 +1034,10 @@
         const allowed = Array.from(new Set([...cd, ...predDisc]));
         const total = disciplineDotsTotal();
         return shell('disciplines', t('Дисциплины'), t('Распредели 3 точки по клановым дисциплинам'),
-            `<div class="cw-intro" style="margin-bottom:14px">${tf('Стартовому персонажу доступно <b>3 точки</b> дисциплин: одна дисциплина на 2 точки и одна на 1 (только из клановых и предоставленной типом охоты).\n            Доступные дисциплины: <b>{allowed}</b>. Точки и конкретные силы выбираются на листе.', { allowed: esc(allowed.join(', ') || '—') })}</div>
+            `<div class="cw-intro" style="margin-bottom:14px">${tf('Стартовому персонажу доступно <b>3 точки</b> дисциплин: одна дисциплина на 2 точки и одна на 1 (только из клановых и предоставленной типом охоты).\n            Доступные дисциплины: <b>{allowed}</b>. Точки и конкретные силы выбираются в отдельных окнах.', { allowed: esc(allowed.join(', ') || '—') })}</div>
              <div id="cw-disc-status"></div>
-             <button type="button" class="cw-btn" data-cw="openDiscSheet">${t('Открыть дисциплины на листе')}</button>
+             <button type="button" class="cw-btn" data-cw="openClanDiscEditor">${t('Выбрать стартовые дисциплины')}</button>
+             <button type="button" class="cw-btn" data-cw="openPowerEditor">${t('Выбрать способности')}</button>
              <button type="button" class="cw-btn ghost" data-cw="recheckDisc" style="margin-left:8px">${t('Проверить')}</button>`,
             navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
@@ -798,16 +1054,58 @@
             <span class="${ok ? 'ok' : 'bad'}">${ok ? '✓ ' + t('готово') : t('нужно выбрать клановые 2 + 1')}</span></div>`;
         if (ok) markCompleted('disciplines'); else markSkipped('disciplines');
     }
-    STEP_ACTIONS.openDiscSheet = () => {
+    STEP_ACTIONS.openClanDiscEditor = () => {
         const clan = getCurrentClanValue();
-        goToSheet();
         if (clan && typeof window.openClanDisciplineModal === 'function') {
             window.openClanDisciplineModal(clan);
         } else {
-            setTimeout(() => el('disciplines-list')?.scrollIntoView({ behavior: 'smooth' }), 100);
+            showStepError(t('Сначала выбери клан.'));
         }
     };
+    STEP_ACTIONS.openPowerEditor = () => openDisciplinePowerEditor();
     STEP_ACTIONS.recheckDisc = () => renderDiscStatus();
+
+    function currentDisciplineRows() {
+        const data = sheetData();
+        return Object.entries(data.disciplines || {}).map(([name, sources]) => {
+            const dots = Object.values(sources || {}).reduce((sum, value) => sum + (parseInt(value, 10) || 0), 0);
+            const powers = (data.selectedPowers?.[name] || []).map(power =>
+                typeof power === 'string' ? power : power.name || power.название || '').filter(Boolean);
+            return { name, dots, powers };
+        }).filter(item => item.dots > 0);
+    }
+    function openDisciplinePowerEditor() {
+        document.getElementById('cw-editor-modal')?.remove();
+        const modal = document.createElement('div');
+        modal.id = 'cw-editor-modal';
+        const rows = currentDisciplineRows();
+        modal.innerHTML = `<div class="cw-editor-shell" role="dialog" aria-modal="true" aria-label="${t('Способности дисциплин')}">
+            <div class="cw-editor-header">
+                <div>
+                    <span>${t('Выбор сил')}</span>
+                    <h2>${t('Способности дисциплин')}</h2>
+                </div>
+                <button type="button" class="cw-editor-close" data-cw-editor-close aria-label="${t('Закрыть')}">×</button>
+            </div>
+            ${rows.length ? `<div class="cw-spec-list">${rows.map(item => `<section class="cw-spec-card">
+                <div class="cw-spec-card-head">
+                    <strong>${esc(item.name)}</strong>
+                    <span>${tf('{dots} точек', { dots: item.dots })}</span>
+                </div>
+                <p>${item.powers.length ? esc(item.powers.join(', ')) : t('Способности еще не выбраны.')}</p>
+                <button type="button" class="cw-btn" data-cw-power-disc="${esc(item.name)}" data-cw-power-dots="${item.dots}">${t('Открыть выбор способностей')}</button>
+            </section>`).join('')}</div>` : `<div class="cw-intro">${t('Сначала выбери стартовые дисциплины, затем здесь появятся доступные способности.')}</div>`}
+        </div>`;
+        document.body.appendChild(modal);
+        modal.querySelector('[data-cw-editor-close]')?.addEventListener('click', closeCwEditor);
+        modal.querySelectorAll('[data-cw-power-disc]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const disc = btn.getAttribute('data-cw-power-disc');
+                const dots = parseInt(btn.getAttribute('data-cw-power-dots'), 10) || 1;
+                openSheetPicker('openPowerSelectionModal', t('Окно способностей пока недоступно.'), [disc, dots]);
+            });
+        });
+    }
 
     /* ================= ШАГ 14: ПРЕИМУЩЕСТВА И НЕДОСТАТКИ ================= */
     function itemPoints(item) {
@@ -850,7 +1148,6 @@
         if (ok) markCompleted('meritsFlaws'); else markSkipped('meritsFlaws');
     }
     STEP_ACTIONS.openMfSheet = () => {
-        goToSheet();
         if (typeof window.openMeritsFlawsModal === 'function') window.openMeritsFlawsModal();
     };
     STEP_ACTIONS.recheckMf = () => renderMfStatus();

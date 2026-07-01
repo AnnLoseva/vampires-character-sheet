@@ -570,7 +570,8 @@
         "The Troll — provokes conflict for its own sake",
         "Wolf in Sheep's Clothing — tries to live like a human"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","beginner friendly","easy start","physical strength","Potence","fighter","rebellion","emotion","anarch"]
     },
     "Ventrue": {
       "gallery_image": "/static/clan_gallery/ventru_full.png",
@@ -596,7 +597,8 @@
         "The Godfather — controls the criminal underworld",
         "Dynasty Heir — obsessed with the greatness of their clan"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","beginner friendly","clear roleplay","social","politics","power","control","Fortitude","leader"]
     },
     "Gangrel": {
       "gallery_image": "/static/clan_gallery/gangrel_full.png",
@@ -622,7 +624,8 @@
         "Corporate Predator — uses force in the world of business",
         "Born Beast — has almost completely abandoned their humanity"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","beginner friendly","easy start","physical strength","survival","Fortitude","Protean","beast","loner"]
     },
     "Malkavian": {
       "gallery_image": "/static/clan_gallery/malkavian_full.png",
@@ -648,7 +651,8 @@
         "The Medium — communicates with what others cannot see",
         "The Manipulator — uses madness as a tool"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","advanced roleplay","mystic","prophecy","madness","Auspex","Obfuscate","manipulation"]
     },
     "Nosferatu": {
       "gallery_image": "/static/clan_gallery/nosferatu_full.png",
@@ -674,7 +678,8 @@
         "The Hunter — relies on strength and surprise",
         "The Traitor — survives at any cost, even at the cost of others"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","beginner friendly","stealth","information","spying","survival","Potence","monstrous","secrets"]
     },
     "Toreador": {
       "gallery_image": "/static/clan_gallery/toreador_full.png",
@@ -700,7 +705,8 @@
         "The Patron — shapes other people's fates like a work of art",
         "The Spy — uses charm and theatrics to gather information"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","beginner friendly","easy start","social","art","beauty","Presence","Celerity","emotion"]
     },
     "Tremere": {
       "gallery_image": "/static/clan_gallery/tremere_full.png",
@@ -726,7 +732,8 @@
         "Ambitious Upstart — breaks tradition for the sake of power",
         "Warding Sorcerer — uses magic for control and security"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","advanced roleplay","blood magic","occult","knowledge","Blood Sorcery","control","scholar"]
     },
     "Caitiff": {
       "gallery_image": "/static/clan_gallery/kaitiff_full.png",
@@ -748,7 +755,8 @@
         "Unwanted Child — rejected by their own \"family\"",
         "A Clan of One — builds their own power from nothing"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","flexible","free choice","clanless","outcast","customization","beginner with storyteller"]
     },
     "Thin-blood": {
       "gallery_image": "/static/clan_gallery/thinblood_full.png",
@@ -779,7 +787,8 @@
         "The Beast": "Frenzies less often.",
         "Spark of Life": "Can look and function like a living human."
       },
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","advanced roleplay","humanity","alchemy","weak blood","modern","survival","outcast"]
     },
     "Assamite": {
       "gallery_image": "/static/clan_gallery/assamite_full.png",
@@ -805,7 +814,8 @@
         "The Tracker — can find a target anywhere in the world",
         "The Bodyguard — protects a client as effectively as they kill enemies"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","hunter","assassin","stealth","Celerity","precision","judge","combat"]
     },
     "Giovanni": {
       "gallery_image": "/static/clan_gallery/giovanni_full.png",
@@ -831,7 +841,8 @@
         "The Mobster — uses criminal connections and family resources",
         "Keeper of the Shroud — seeks to tear down the boundary between worlds"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","necromancy","family","money","Potence","intrigue","dead","mafia"]
     },
     "Lasombra": {
       "gallery_image": "/static/clan_gallery/lasombra_full.png",
@@ -857,7 +868,8 @@
         "The Inquisitor — hunts for weakness and betrayal",
         "The Manipulator — builds networks of dependency, debt, and power"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","physical strength","Potence","shadows","power","leader","ambition","Dominate"]
     },
     "Followers of Set": {
       "gallery_image": "/static/clan_gallery/setites_full.png",
@@ -884,7 +896,8 @@
         "Broken Neophyte — was broken themselves, and so understands perfectly those ready to accept the forbidden fruit",
         "Serpent at Court — an outwardly polite go-between secretly owed favors by half the influential Kindred"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","social","temptation","cult","secrets","Presence","Obfuscate","manipulation"]
     },
     "Ravnos": {
       "gallery_image": "/static/clan_gallery/ravnos_full.png",
@@ -912,7 +925,8 @@
         "Unwanted Child — was Embraced by accident or for someone's convenience, and now survives however they can",
         "The Slippery Ally — helps against a shared threat, but vanishes the moment it's defeated"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","road","deception","illusions","survival","Fortitude","adventure","mobility"]
     },
     "Tzimisce": {
       "gallery_image": "/static/clan_gallery/tzimisce_full.png",
@@ -941,7 +955,8 @@
         "Domain Recluse — almost never leaves their haven, and treats outsiders as a threat to their property",
         "Reshaped Monster — willingly abandoned human form for a new shape"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","advanced roleplay","body horror","dominion","transformation","Vicissitude","aristocracy"]
     },
     "Ahrimanes": {
       "gallery_image": "/static/clan_gallery/angra_mainyu_full.png",
@@ -969,7 +984,8 @@
         "Sabbat Runaway — formally counted among them, but lets no one give her orders",
         "Vanished Pilgrim — one of those who may have left with Maricia for unknown, hallowed places"
       ],
-      "edition": "legacy"
+      "edition": "legacy",
+      "tags": ["legacy","bloodline","mystic","shamanism","survival","independence","sisterhood"]
     },
     "Anda": {
       "gallery_image": "/static/clan_gallery/anda_full.png",
@@ -997,7 +1013,8 @@
         "Spirit of the Earth — a master of Earth Meld, able to vanish into the steppe without a trace",
         "Relic of the Dark Medieval — one of the last Anda, awakened after centuries of sleep underground"
       ],
-      "edition": "legacy"
+      "edition": "legacy",
+      "tags": ["legacy","bloodline","physical strength","survival","Fortitude","nomads","steppe","protector"]
     },
     "Baali": {
       "gallery_image": "/static/clan_gallery/baali_full.png",
@@ -1026,7 +1043,8 @@
         "Bearer of Blight — rats, insects, disease, and ill omens gather around their haven",
         "End-Times Fatalist — unafraid of their own destruction, so long as it hastens the world's"
       ],
-      "edition": "v20"
+      "edition": "v20",
+      "tags": ["v20","advanced roleplay","infernalism","cult","secrets","Obfuscate","forbidden knowledge"]
     },
     "Gargoyles": {
       "gallery_image": "/static/clan_gallery/gargoyles_full.png",
@@ -1057,7 +1075,8 @@
         "Shattered Memory — searches for fragments of their identity from before the Becoming",
         "Brood Founder — a lone Gargoyle who gathers new free kin around them"
       ],
-      "edition": "v20"
+      "edition": "v20",
+      "tags": ["v20","physical strength","Potence","Fortitude","protector","flight","monster","service"]
     },
     "Children of Osiris": {
       "gallery_image": "/static/clan_gallery/children_of_osiris_full.png",
@@ -1084,7 +1103,8 @@
         "Setite Refugee — found protection and new meaning among the Children of Osiris",
         "Student of Bardo — studies the spiritual Discipline as a path to inner freedom"
       ],
-      "edition": "legacy"
+      "edition": "legacy",
+      "tags": ["legacy","advanced roleplay","humanity","spirituality","Bardo","self-control","golconda"]
     },
     "Daughters of Cacophony": {
       "gallery_image": "/static/clan_gallery/daughters_of_cacophony_full.png",
@@ -1113,7 +1133,8 @@
         "Lone Singer — hides in a room with perfect acoustics and sings only for herself",
         "Choir of One Blood — senses other Sirens through strange, simultaneous performances"
       ],
-      "edition": "v20"
+      "edition": "v20",
+      "tags": ["v20","social","music","voice","art","Presence","Fortitude","emotion"]
     },
     "True Brujah": {
       "gallery_image": "/static/clan_gallery/true_brujah_full.png",
@@ -1142,7 +1163,8 @@
         "Master of Temporis — treats time as a discipline, a weapon, and a subject of research",
         "Heir of the Stolen Clan — believes the modern Brujah are descendants of a usurper and a thief"
       ],
-      "edition": "legacy"
+      "edition": "legacy",
+      "tags": ["v20","physical strength","Potence","Temporis","philosophy","cold control","rare"]
     },
     "Cappadocians": {
       "gallery_image": "/static/clan_gallery/cappadocians_full.png",
@@ -1171,7 +1193,8 @@
         "Philosopher of Charon — prepares for their own final death as for one last conversation",
         "Tragic Mentor — passes on knowledge, knowing their clan has nearly vanished"
       ],
-      "edition": "v20"
+      "edition": "v20",
+      "tags": ["v20","necromancy","knowledge","death","Fortitude","Auspex","mystic"]
     },
     "Kiasyd": {
       "gallery_image": "/static/clan_gallery/kyasid_full.png",
@@ -1200,7 +1223,8 @@
         "Master of the Impossible House — has built a library-haven best entered only by invitation",
         "Reality Mystifier — uses Mytherceria so that others come to doubt their own perception"
       ],
-      "edition": "v20"
+      "edition": "v20",
+      "tags": ["v20","advanced roleplay","fae","knowledge","Oblivion","Dominate","strangeness"]
     },
     "Blood Brothers": {
       "gallery_image": "/static/clan_gallery/blood_brothers_full.png",
@@ -1229,7 +1253,8 @@
         "Guardian Circle — created not for war, but to protect a haven, temple, or Sabbat laboratory",
         "Collective Monster — sees itself not as a separate being, but as a single flesh in many bodies"
       ],
-      "edition": "v20"
+      "edition": "v20",
+      "tags": ["v20","physical strength","Potence","Fortitude","combat","group","collective"]
     },
     "Lamia": {
       "gallery_image": "/static/clan_gallery/lamia_full.png",
@@ -1258,7 +1283,8 @@
         "Survivor of the Coup — a rare Gorgon who went into hiding after the Giovanni uprising",
         "The Last Lamia — a relic of a vanished line, carrying the memory of a clan she couldn't save"
       ],
-      "edition": "legacy"
+      "edition": "legacy",
+      "tags": ["v20","physical strength","Potence","necromancy","warrior","protector","death"]
     },
     "Lhiannan": {
       "gallery_image": "/static/clan_gallery/liannan_full.png",
@@ -1287,7 +1313,8 @@
         "Inquisition Survivor — hid for centuries in remote thickets while the world forgot their name",
         "The New Covenant — a vampire chosen by the forest spirit after the old bloodline vanished"
       ],
-      "edition": "legacy"
+      "edition": "legacy",
+      "tags": ["v20","mystic","nature","art","Presence","Animalism","wild"]
     },
     "Nagaraja": {
       "gallery_image": "/static/clan_gallery/nagaraja_full.png",
@@ -1316,7 +1343,8 @@
         "Occult Antiquarian — trades in artifacts, relics, and knowledge that smells of the grave",
         "Last of the Hungry — one of the few surviving Nagaraja, too careful to die easily"
       ],
-      "edition": "v20"
+      "edition": "v20",
+      "tags": ["v20","necromancy","knowledge","cannibalism","Auspex","Dominate","death"]
     },
     "Noiad": {
       "gallery_image": "/static/clan_gallery/noiad_full.png",
@@ -1345,7 +1373,8 @@
         "Outsider-Banisher — kills anyone who brings change to the tundra",
         "Child of the Midnight Sun — considers himself part of a family other Kindred could never understand"
       ],
-      "edition": "legacy"
+      "edition": "legacy",
+      "tags": ["legacy","survival","north","shamanism","prophecy","Animalism","Protean"]
     },
     "Harbingers of Skulls": {
       "gallery_image": "/static/clan_gallery/harbingers_of_skulls_full.png",
@@ -1374,7 +1403,8 @@
         "Traveler of the Dead Roads — moves by means other Kindred can't comprehend",
         "Debt Collector — treats every favor as a future noose around someone else's neck"
       ],
-      "edition": "legacy"
+      "edition": "legacy",
+      "tags": ["legacy","necromancy","vengeance","ancient","Fortitude","Auspex","dead"]
     },
     "Salubri": {
       "gallery_image": "/static/clan_gallery/salubri_full.png",
@@ -1403,7 +1433,8 @@
         "Enemy of the Tremere — doesn't seek open revenge, but will never forgive Saulot's murder",
         "Last of the Seven — one of the few surviving Salubri, forced to choose a successor with painful care"
       ],
-      "edition": "v5"
+      "edition": "v5",
+      "tags": ["v5","advanced roleplay","healing","spirituality","humanity","Fortitude","Auspex"]
     },
     "Samedi": {
       "gallery_image": "/static/clan_gallery/samedi_full.png",
@@ -1432,7 +1463,8 @@
         "Debtor of an Old Deal — knows there's a secret between Baron Samedi and the Giovanni best left undug",
         "Mummy Without Wrappings — a dry, withered Samedi, more like an ancient corpse than rotting meat"
       ],
-      "edition": "v20"
+      "edition": "v20",
+      "tags": ["v20","stealth","mercenary","death","Fortitude","decay","horror","loner"]
     }
   },
   "predator_types": {
