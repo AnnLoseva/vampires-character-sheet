@@ -2936,6 +2936,29 @@ function mergeDiscipline(name, dotsToAdd = 1, source = "") {
     renderDisciplines();
     updateVitals();
 }
+
+function removeDisciplineSource(source) {
+    if (!source) return;
+    Object.keys(disciplineSources || {}).forEach(name => {
+        if (!disciplineSources[name] || disciplineSources[name][source] === undefined) return;
+        delete disciplineSources[name][source];
+        if (Object.keys(disciplineSources[name]).length === 0) {
+            delete disciplineSources[name];
+        }
+    });
+    pruneSelectedPowersForCurrentDisciplines();
+}
+
+function setDisciplineSource(name, dots, source) {
+    if (!name || !source) return;
+    name = name.trim();
+    if (!disciplineSources[name]) disciplineSources[name] = {};
+    disciplineSources[name][source] = dots;
+    updateDisciplineRow(name);
+    updateDisciplineTotal();
+    renderDisciplines();
+    updateVitals();
+}
 // Обновление или создание строки дисциплины
 function updateDisciplineRow(name) {
     if (!disciplineSources[name]) return;
@@ -3141,8 +3164,10 @@ function confirmClanDisciplines(clanName) {
         return alert(t("Выберите две разные дисциплины."));
     }
     
-    if (disc2) mergeDiscipline(disc2, 2, `${t("Клан")} ${clanName}`);
-    if (disc1) mergeDiscipline(disc1, 1, `${t("Клан")} ${clanName}`);
+    const clanSource = `${t("Клан")} ${clanName}`;
+    removeDisciplineSource(clanSource);
+    if (disc2) setDisciplineSource(disc2, 2, clanSource);
+    if (disc1) setDisciplineSource(disc1, 1, clanSource);
 
     closeClanDiscModal();
     notifySheetChoice('clanDisciplines', clanName);
@@ -3153,7 +3178,9 @@ function confirmPredatorDiscipline(predatorName) {
     if (!disc) return alert(t("Выберите дисциплину!"));
     if (!canUseDiscipline(disc) || isThinBloodClan()) return alert(t('Эта дисциплина недоступна текущему клану.'));
 
-    mergeDiscipline(disc, 1, `${t("Охота")}: ${predatorName}`);
+    const predatorSource = `${t("Охота")}: ${predatorName}`;
+    removeDisciplineSource(predatorSource);
+    setDisciplineSource(disc, 1, predatorSource);
 
     closePredDiscModal();
     notifySheetChoice('predatorDiscipline', predatorName);
@@ -4990,16 +5017,21 @@ function confirmClanDisciplines(clanName) {
         return alert(t("Выберите две разные дисциплины."));
     }
 
+    const clanSource = `${t("Клан")} ${clanName}`;
+    removeDisciplineSource(clanSource);
+    clanProvidedDisciplines = {};
+
     if (disc2) {
-        mergeDiscipline(disc2, 2, `${t("Клан")} ${clanName}`);
+        setDisciplineSource(disc2, 2, clanSource);
         clanProvidedDisciplines[disc2] = 2;
     }
     if (disc1) {
-        mergeDiscipline(disc1, 1, `${t("Клан")} ${clanName}`);
+        setDisciplineSource(disc1, 1, clanSource);
         clanProvidedDisciplines[disc1] = 1;
     }
 
     closeClanDiscModal();
+    updateAllDisciplineRows();
     updateDisciplineTotal();
     notifySheetChoice('clanDisciplines', clanName);
 }
@@ -5009,10 +5041,14 @@ function confirmPredatorDiscipline(predatorName) {
     const disc = document.getElementById('pred-disc-select').value;
     if (!disc) return alert(t("Выберите дисциплину!"));
 
-    mergeDiscipline(disc, 1, `${t("Охота")}: ${predatorName}`);
+    const predatorSource = `${t("Охота")}: ${predatorName}`;
+    removeDisciplineSource(predatorSource);
+    predatorProvidedDisciplines = {};
+    setDisciplineSource(disc, 1, predatorSource);
     predatorProvidedDisciplines[disc] = 1;
 
     closePredDiscModal();
+    updateAllDisciplineRows();
     updateDisciplineTotal();
     notifySheetChoice('predatorDiscipline', predatorName);
 }
@@ -8620,12 +8656,15 @@ function confirmPredatorDiscipline(predatorName) {
     const disc = document.getElementById('pred-disc-select').value;
     if (!disc) return alert(t("Выберите дисциплину!"));
 
-    // Добавляем дисциплину
-    mergeDiscipline(disc, 1, `${t("Охота")}: ${predatorName}`);
+    const predatorSource = `${t("Охота")}: ${predatorName}`;
+    removeDisciplineSource(predatorSource);
+    predatorProvidedDisciplines = {};
+    setDisciplineSource(disc, 1, predatorSource);
     predatorProvidedDisciplines[disc] = 1;
 
     closePredDiscModal();
 
+    updateAllDisciplineRows();
     updateTrackers();
     renderSelectedMeritsFlaws();
     applyPredatorChoiceItems(predatorName);
