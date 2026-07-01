@@ -12,6 +12,8 @@ let currentGenerationData = [];
 let currentClanGalleryBaseData = [];
 let currentClanGalleryOptions = {};
 let currentClanGallerySearch = '';
+let currentPredatorGalleryBaseData = [];
+let currentPredatorGallerySearch = '';
 let currentClanIndex = 0;
 let currentPredatorIndex = 0;
 let currentGenerationIndex = 0;
@@ -33,6 +35,7 @@ let expShopMode = false;
 let expShopSnapshot = null;
 let expShopStartLevels = {};
 let expShopDisciplineMode = 'клановая';
+let xpShopDisciplineSearch = '';
 let startingSheetBase = null;
 let sheetUnlockedForEditing = false;
 let expHistory = [];
@@ -3065,8 +3068,40 @@ function renderShopAvailableDisciplines() {
     if (!list) return;
     if (isThinBloodClan()) return;
 
-    getStandardDisciplineNames().forEach(name => {
-        if (disciplineSources[name]) return;
+    let browser = document.getElementById('xp-discipline-shop-browser');
+    if (!browser) {
+        browser = document.createElement('section');
+        browser.id = 'xp-discipline-shop-browser';
+        browser.className = 'xp-discipline-browser';
+        list.appendChild(browser);
+    }
+
+    const availableNames = getStandardDisciplineNames()
+        .filter(name => !disciplineSources[name]);
+    const visibleNames = getRankedDisciplineNames(availableNames, xpShopDisciplineSearch);
+
+    browser.innerHTML = `
+        <header class="xp-discipline-browser-head">
+            <div>
+                <strong>${t('Дисциплины магазина')}</strong>
+                <span>${t('Кликни по точкам, чтобы купить или повысить дисциплину.')}</span>
+            </div>
+            <small>${tf('Найдено: {count}', { count: visibleNames.length })}</small>
+        </header>
+        <label class="xp-discipline-search">
+            <span>${t('Умный поиск дисциплины')}</span>
+            <input id="xp-discipline-shop-search" type="search" value="${escapeHTML(xpShopDisciplineSearch)}"
+                placeholder="${t('Например: кровь, скорость, животные, контроль, скрытность...')}">
+        </label>
+        <div id="xp-discipline-shop-results" class="xp-discipline-results"></div>
+    `;
+
+    const results = browser.querySelector('#xp-discipline-shop-results');
+    if (!visibleNames.length) {
+        results.innerHTML = `<p class="large-list-empty">${t('Ничего не найдено. Попробуй другое ключевое слово.')}</p>`;
+    }
+
+    visibleNames.forEach(name => {
 
         const item = document.createElement('div');
         item.className = 'discipline-item xp-shop-discipline-option';
@@ -3089,11 +3124,26 @@ function renderShopAvailableDisciplines() {
 
         setupDisciplineDetails(item, name);
 
-        list.appendChild(item);
+        results.appendChild(item);
     });
+
+    const search = browser.querySelector('#xp-discipline-shop-search');
+    if (search) {
+        search.addEventListener('input', () => {
+            xpShopDisciplineSearch = search.value;
+            renderShopAvailableDisciplines();
+            const restored = document.getElementById('xp-discipline-shop-search');
+            if (restored) {
+                restored.focus();
+                const cursor = restored.value.length;
+                restored.setSelectionRange(cursor, cursor);
+            }
+        });
+    }
 }
 
 function renderDisciplines() {
+    document.getElementById('xp-discipline-shop-browser')?.remove();
     document.querySelectorAll('.xp-shop-discipline-option').forEach(item => item.remove());
 
     document.querySelectorAll('.discipline-item').forEach(item => {
@@ -3556,6 +3606,11 @@ function openPowerSelectionModal(discName, maxLevel) {
                     ${discName} — ${t('Выбор способностей')}
                     <span id="power-count" style="color:#ffae00;">(${selected.length}/${maxLevel})</span>
                 </h2>
+                <label class="power-search">
+                    <span>${t('Поиск способности')}</span>
+                    <input id="power-search" type="search" placeholder="${t('Название, эффект, бросок, стоимость...')}">
+                    <small id="power-search-count"></small>
+                </label>
                 <div id="power-list" style="overflow-y:auto;padding:10px;height:65vh;display:grid;grid-template-columns:repeat(auto-fill,minmax(380px,1fr));gap:14px;"></div>
             </div>
 
@@ -3578,14 +3633,18 @@ function openPowerSelectionModal(discName, maxLevel) {
 
     function renderPowerCards() {
         listContainer.innerHTML = '';
+        const searchValue = document.getElementById('power-search')?.value || '';
+        let visibleCount = 0;
         
         for (let lvl = 1; lvl <= maxLevel; lvl++) {
             if (!disc.powers[lvl]) continue;
 
             Object.keys(disc.powers[lvl]).forEach(powerName => {
                 const power = disc.powers[lvl][powerName];
+                if (searchValue && scorePowerSearch(discName, powerName, power, lvl, searchValue) <= 0) return;
                 const isSelected = selected.includes(powerName);
                 const xpPrice = lvl * 3;
+                visibleCount++;
 
                 const card = document.createElement('div');
                 card.style.cssText = `
@@ -3632,9 +3691,18 @@ function openPowerSelectionModal(discName, maxLevel) {
                 listContainer.appendChild(card);
             });
         }
+
+        if (!visibleCount) {
+            listContainer.innerHTML = `<p class="large-list-empty" style="grid-column:1/-1;">${t('Ничего не найдено. Попробуй другое ключевое слово.')}</p>`;
+        }
+        const count = document.getElementById('power-search-count');
+        if (count) count.textContent = tf('Найдено: {count}', { count: visibleCount });
     }
 
     renderPowerCards();
+
+    const powerSearch = document.getElementById('power-search');
+    if (powerSearch) powerSearch.addEventListener('input', renderPowerCards);
 
     // Надёжное назначение кнопок
     const confirmBtn = document.getElementById('power-confirm-btn');
@@ -3932,6 +4000,38 @@ const CLAN_SEARCH_SYNONYMS = {
     strength: ['physical strength', 'potence', 'combat', 'мощь', 'физическая сила']
 };
 
+const SMART_LIST_SEARCH_SYNONYMS = {
+    зверь: ['анимализм', 'animalism', 'животные', 'звери'],
+    животные: ['анимализм', 'animalism', 'зверь'],
+    кровь: ['кровавое чародейство', 'тауматургия', 'blood sorcery', 'thaumaturgy', 'донор', 'vitae'],
+    магия: ['кровавое чародейство', 'тауматургия', 'blood sorcery', 'thaumaturgy', 'оккультизм'],
+    разум: ['доминирование', 'ясновидение', 'dominate', 'auspex', 'контроль', 'мысли'],
+    контроль: ['доминирование', 'dominate', 'приказ', 'разум'],
+    скорость: ['стремительность', 'celerity', 'быстрота'],
+    быстро: ['стремительность', 'celerity', 'налетчик'],
+    сила: ['мощь', 'potence', 'физическая сила'],
+    стойкость: ['fortitude', 'выживание', 'защита'],
+    защита: ['стойкость', 'fortitude', 'выживание'],
+    скрытность: ['сокрытие', 'obfuscate', 'stealth', 'невидимость', 'тайна'],
+    тайна: ['сокрытие', 'obfuscate', 'stealth', 'мистификация'],
+    облик: ['метаморфозы', 'protean', 'форма', 'тело'],
+    форма: ['метаморфозы', 'protean', 'преображение'],
+    власть: ['величие', 'presence', 'социальный', 'харизма'],
+    социальный: ['величие', 'presence', 'харизма', 'джентльмен', 'идол'],
+    смерть: ['некромантия', 'танатозис', 'necromancy', 'death'],
+    сон: ['морфей', 'sandman', 'спящий', 'сны'],
+    насилие: ['бестия', 'налетчик', 'alleycat', 'blood leech', 'нападение'],
+    семья: ['семьянин', 'cleaver', 'близкие'],
+    вечеринка: ['тусовщик', 'scene queen', 'клуб', 'тусовка'],
+    донор: ['фермер', 'суррогатчик', 'farmer', 'bagger', 'кровь'],
+    beginner: ['новичок', 'простой', 'easy', 'simple'],
+    stealth: ['сокрытие', 'скрытность', 'obfuscate'],
+    social: ['величие', 'presence', 'харизма', 'социальный'],
+    magic: ['кровавое чародейство', 'тауматургия', 'blood sorcery'],
+    blood: ['кровь', 'blood sorcery', 'фермер', 'суррогатчик'],
+    speed: ['стремительность', 'celerity', 'налетчик']
+};
+
 function notifySheetChoice(type, value) {
     document.dispatchEvent(new CustomEvent('vtm:sheet-choice', { detail: { type, value } }));
 }
@@ -4045,6 +4145,98 @@ function textHasClanToken(text, token) {
     const stem = stemClanSearchWord(token);
     if (stem.length < 4) return false;
     return text.split(' ').some(word => stemClanSearchWord(word) === stem);
+}
+
+function normalizeSmartSearch(value) {
+    return normalizeClanSearch(value);
+}
+
+function expandSmartSearchToken(token) {
+    const normalized = normalizeSmartSearch(token);
+    const synonyms = [
+        ...(CLAN_SEARCH_SYNONYMS[normalized] || []),
+        ...(SMART_LIST_SEARCH_SYNONYMS[normalized] || [])
+    ];
+    return [normalized, ...synonyms.map(normalizeSmartSearch)].filter(Boolean);
+}
+
+function stringifySearchValue(value) {
+    if (value == null) return '';
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
+    if (Array.isArray(value)) return value.map(stringifySearchValue).join(' ');
+    if (typeof value === 'object') {
+        return Object.entries(value)
+            .map(([key, item]) => `${key} ${stringifySearchValue(item)}`)
+            .join(' ');
+    }
+    return '';
+}
+
+function scoreSmartSearchFields(search, fields) {
+    const tokens = normalizeSmartSearch(search).split(' ').filter(Boolean);
+    if (!tokens.length) return 1;
+
+    const normalizedFields = fields
+        .map(field => {
+            if (typeof field === 'string') return { text: normalizeSmartSearch(field), weight: 1 };
+            return { text: normalizeSmartSearch(field.text || ''), weight: field.weight || 1 };
+        })
+        .filter(field => field.text);
+
+    let total = 0;
+    for (const token of tokens) {
+        const expanded = expandSmartSearchToken(token);
+        let tokenScore = 0;
+        expanded.forEach(part => {
+            normalizedFields.forEach(field => {
+                if (textHasClanToken(field.text, part)) tokenScore = Math.max(tokenScore, field.weight);
+            });
+        });
+        if (!tokenScore) return 0;
+        total += tokenScore;
+    }
+    return total;
+}
+
+function getDisciplineSearchFields(name) {
+    const data = RULES.disciplines?.[name] || {};
+    return [
+        { text: `${name} ${vtmCanonicalName(name)}`, weight: 24 },
+        { text: [data.description, data.system?.type, data.system?.masquerade, data.system?.resonance, data.system?.limitations].filter(Boolean).join(' '), weight: 8 },
+        { text: loadDisciplinePowersForFullSheet(name).map(power => [
+            power.name,
+            power.path,
+            power.rule?.description,
+            power.rule?.effect,
+            power.rule?.cost,
+            power.rule?.duration,
+            getPowerRollSummary(power.rule || {}),
+            getPowerDifficultySummary(power.rule || {})
+        ].filter(Boolean).join(' ')).join(' '), weight: 5 },
+        { text: stringifySearchValue(data), weight: 2 }
+    ];
+}
+
+function scoreDisciplineSearch(name, search) {
+    return scoreSmartSearchFields(search, getDisciplineSearchFields(name));
+}
+
+function getRankedDisciplineNames(names, search) {
+    return names
+        .map(name => ({ name, score: scoreDisciplineSearch(name, search) }))
+        .filter(item => !search || item.score > 0)
+        .sort((a, b) => b.score - a.score || a.name.localeCompare(b.name, 'ru'))
+        .map(item => item.name);
+}
+
+function scorePowerSearch(disciplineName, powerName, power, level, search) {
+    return scoreSmartSearchFields(search, [
+        { text: `${powerName} ${disciplineName}`, weight: 22 },
+        { text: tf('Уровень {level}', { level }), weight: 8 },
+        { text: [power.description, power.effect, power.cost, power.duration].filter(Boolean).join(' '), weight: 7 },
+        { text: [getPowerRollSummary(power), getPowerDifficultySummary(power)].filter(Boolean).join(' '), weight: 5 },
+        { text: stringifySearchValue(power), weight: 2 }
+    ]);
 }
 
 function scoreClanSearch(clan, search) {
@@ -4299,14 +4491,8 @@ async function showSingleClan(clan) {
 // ==================== ГАЛЕРЕЯ СТИЛЕЙ ОХОТЫ ====================
 
 
-// Открытие галереи стилей охоты
-function openPredatorGallery() {
-    if (startingSheetFixed && !expShopMode) return;
-    const modal = document.getElementById('predator-modal');
-    const gallery = document.getElementById('predator-gallery');
-    gallery.innerHTML = '';
-
-    currentPredatorData = [
+function getPredatorGallerySeedData() {
+    return [
         { name: "Бестия",       desc: t("Насильственный стиль. Быстрое и грубое нападение."), image: "/static/predator_gallery/Бестия.png" },
         { name: "Джентльмен",   desc: t("Изысканный и расчётливый подход к охоте."), image: "/static/predator_gallery/Джентльмен.png" },
         { name: "Идол",         desc: t("Питание через поклонение и обожание."), image: "/static/predator_gallery/Идол.png" },
@@ -4318,21 +4504,137 @@ function openPredatorGallery() {
         { name: "Тусовщик",     desc: t("Охота на вечеринках и в тусовках."), image: "/static/predator_gallery/Тусовщик.png" },
         { name: "Фермер",       desc: t("Содержание «фермы» из смертных доноров."), image: "/static/predator_gallery/Фермер.png" }
     ];
+}
+
+function getPredatorRuleData(name) {
+    return RULES.predator_types?.[vtmName(name)] || RULES.predator_types?.[name] || {};
+}
+
+function getPredatorGallerySearchParts(predator) {
+    const data = getPredatorRuleData(predator.name);
+    return [
+        predator.name,
+        vtmName(predator.name),
+        vtmCanonicalName(predator.name),
+        predator.desc,
+        data.description,
+        ...(data.specialty?.options || []),
+        ...(data.disciplines?.increase?.options || []),
+        ...(data.advantages || []).map(item => formatPredatorTraitLine(item, true)),
+        ...(data.disadvantages || []).map(item => formatPredatorTraitLine(item, false)),
+        stringifySearchValue(data)
+    ];
+}
+
+function buildPredatorGalleryData() {
+    return getPredatorGallerySeedData().map(predator => ({
+        ...predator,
+        searchText: normalizeSmartSearch(getPredatorGallerySearchParts(predator).join(' '))
+    }));
+}
+
+function scorePredatorSearch(predator, search) {
+    const data = getPredatorRuleData(predator.name);
+    return scoreSmartSearchFields(search, [
+        { text: `${predator.name} ${vtmName(predator.name)} ${vtmCanonicalName(predator.name)}`, weight: 24 },
+        { text: [predator.desc, data.description].filter(Boolean).join(' '), weight: 8 },
+        { text: [...(data.specialty?.options || []), ...(data.disciplines?.increase?.options || [])].join(' '), weight: 7 },
+        { text: predator.searchText || getPredatorGallerySearchParts(predator).join(' '), weight: 2 }
+    ]);
+}
+
+function renderPredatorGalleryList() {
+    const results = document.getElementById('predator-gallery-results');
+    if (!results) return;
+
+    const search = currentPredatorGallerySearch;
+    const ranked = currentPredatorGalleryBaseData
+        .map(predator => ({ predator, score: scorePredatorSearch(predator, search) }))
+        .filter(item => !search || item.score > 0)
+        .sort((a, b) => b.score - a.score || a.predator.name.localeCompare(b.predator.name, 'ru'));
+
+    currentPredatorData = ranked.map(item => item.predator);
+    currentPredatorIndex = Math.min(currentPredatorIndex, Math.max(0, currentPredatorData.length - 1));
+    results.innerHTML = '';
+
+    const count = document.getElementById('predator-gallery-count');
+    if (count) count.textContent = tf('Найдено: {count}', { count: currentPredatorData.length });
+
+    if (!currentPredatorData.length) {
+        results.innerHTML = `<p class="large-list-empty">${t('Ничего не найдено. Попробуй другое ключевое слово.')}</p>`;
+        return;
+    }
 
     currentPredatorData.forEach((p, index) => {
-        const div = document.createElement('div');
-        div.style.cursor = 'pointer';
+        const data = getPredatorRuleData(p.name);
+        const disciplines = data.disciplines?.increase?.options?.length
+            ? `<span>${t('Дисциплины:')} ${escapeHTML(data.disciplines.increase.options.join(' / '))}</span>`
+            : '';
+        const specialty = data.specialty?.options?.length
+            ? `<span>${t('Специализация:')} ${escapeHTML(data.specialty.options.slice(0, 3).join(' / '))}</span>`
+            : '';
+        const div = document.createElement('button');
+        div.type = 'button';
+        div.className = 'large-list-card predator-gallery-card';
         div.innerHTML = `
-            <img src="${p.image}" style="width:100%; max-height:60vh; object-fit:contain; border-radius:8px; border:2px solid #550000;">
-            <h3 style="color:#ff3131; margin:12px 0 6px; text-align:center;">${t(p.name)}</h3>
-            <p style="color:#ddd; font-size:14px; padding:0 10px;">${p.desc}</p>
+            <img src="${p.image}" alt="${escapeHTML(t(p.name))}">
+            <span class="large-list-card-body">
+                <strong>${t(p.name)}</strong>
+                <small>${escapeHTML(p.desc)}</small>
+                ${disciplines || specialty ? `<em>${disciplines}${specialty}</em>` : ''}
+            </span>
         `;
         div.onclick = () => {
             currentPredatorIndex = index;
             showSinglePredator(p);
         };
-        gallery.appendChild(div);
+        results.appendChild(div);
     });
+}
+
+function renderPredatorGalleryShell() {
+    const gallery = document.getElementById('predator-gallery');
+    if (!gallery) return;
+
+    gallery.innerHTML = `
+        <div class="large-list-search-panel">
+            <label>
+                <span>${t('Поиск по типам охоты')}</span>
+                <input id="predator-gallery-search" type="search" value="${escapeHTML(currentPredatorGallerySearch)}"
+                    placeholder="${t('Например: кровь, семья, сон, вечеринка, скрытность...')}">
+            </label>
+            <div id="predator-gallery-count" class="large-list-count"></div>
+        </div>
+        <div id="predator-gallery-results" class="large-list-scroll-grid"></div>
+    `;
+
+    const search = document.getElementById('predator-gallery-search');
+    if (search) {
+        search.addEventListener('input', () => {
+            currentPredatorGallerySearch = search.value;
+            renderPredatorGalleryList();
+        });
+    }
+
+    renderPredatorGalleryList();
+    search?.focus();
+}
+
+function returnToPredatorGalleryList() {
+    renderPredatorGalleryShell();
+}
+
+// Открытие галереи стилей охоты
+function openPredatorGallery(options = {}) {
+    if (startingSheetFixed && !expShopMode) return;
+    const modal = document.getElementById('predator-modal');
+    const gallery = document.getElementById('predator-gallery');
+    if (!modal || !gallery) return;
+
+    currentPredatorGalleryBaseData = buildPredatorGalleryData();
+    currentPredatorGallerySearch = typeof options === 'object' && options ? options.search || '' : '';
+    currentPredatorIndex = 0;
+    renderPredatorGalleryShell();
 
     modal.style.display = 'block';
 }
@@ -4392,7 +4694,7 @@ async function showSinglePredator(pred) {
                         style="background:#ff3131;color:black;border:none;padding:16px 40px;font-size:18px;border-radius:6px;cursor:pointer;">
                     ${t('Выбрать этот стиль охоты')}
                 </button>
-                <button onclick="openPredatorGallery()"
+                <button onclick="returnToPredatorGalleryList()"
                         style="background:transparent;color:#ff3131;border:2px solid #ff3131;padding:16px 40px;font-size:18px;border-radius:6px;cursor:pointer;">
                     ← ${t('Назад к списку')}
                 </button>
