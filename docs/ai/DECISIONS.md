@@ -6,6 +6,27 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-02 — Target architecture is Hub + Game System Cores + Pluggable Modules
+
+**Area:** Architecture / migration
+**Decision:** The project migrates toward a Hub + Game System Cores + Pluggable
+Modules architecture. Next.js routes and global providers form the Hub;
+framework-independent VTM rules remain the first game-system core; table,
+character sheet, music, media, journal and reference become modules with explicit
+contracts.
+**Reason:** The app already has a load-bearing legacy sheet and a large React
+table orchestrator. A modular target keeps refactoring incremental while making
+future game-system and feature boundaries explicit.
+**Consequences:** Refactors should first extract pure core logic and stable
+module contracts, then API/hooks, then UI folders. `GameTable.tsx` and legacy
+files must shrink through small verified steps, not rewrites. See
+`docs/architecture.md`.
+**Affected files:** `docs/architecture.md`, future `lib/vtm/*` / `core/vtm/*`,
+`components/table/*`, `lib/table/*`, future `modules/*`
+**Status:** active
+
+---
+
 ## 2026-07-01 — Legacy character sheet stays behind the iframe
 
 **Area:** Character sheet / bridge
