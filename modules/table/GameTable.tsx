@@ -10,6 +10,7 @@ import dynamic from 'next/dynamic'
 import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkillValue, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import MusicPlayer from '@/modules/music/components/MusicPlayer'
+import MusicTopbarControl from '@/modules/music/components/MusicTopbarControl'
 import type { DiceOverlayRoll } from '@/modules/rolls/components/DiceRollOverlay'
 import GameTableStyles from './components/GameTableStyles'
 import LayerManager from './components/layers/LayerManager'
@@ -1620,7 +1621,9 @@ export default function VampireTable() {
           <p className="table-kicker">{t('Игровой стол')} · V5 · {tf('комната {room}', { room })}</p>
           <h1>{activeScene?.name || room}</h1>
         </div>
-        <div className="table-actions">
+        <div className="table-topbar-right">
+          <MusicTopbarControl room={room} />
+          <div className="table-actions">
           <a href="/" title={t('Вернуться на главную страницу')}>{t('Главная')}</a>
           <MasterRoleTopbar
             tableRole={tableRole}
@@ -1635,6 +1638,7 @@ export default function VampireTable() {
           <input ref={folderInputRef} type="file" multiple onChange={handleFolderUpload} />
           <input ref={backgroundFileInputRef} type="file" accept="image/*" multiple onChange={handleBackgroundUpload} />
           <input ref={sceneMusicFileInputRef} type="file" accept="audio/*" multiple onChange={handleSceneMusicUpload} />
+          </div>
         </div>
       </section>
 

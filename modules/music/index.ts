@@ -1,4 +1,5 @@
 export { GlobalMusicEngineMount } from './components/GlobalMusicEngineMount'
+export { default as MusicTopbarControl } from './components/MusicTopbarControl'
 export { default as MusicPlayer } from './components/MusicPlayer'
 export { default as MusicPanel } from './components/MusicPlayer'
 export { MusicSyncEngine } from './MusicSyncEngine'

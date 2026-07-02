@@ -752,6 +752,8 @@ export const dictionary: Record<string, string> = {
 
   // modules/music: MusicPlayer, adapters, MusicSyncEngine
   'Музыка не выбрана': 'No music selected',
+  'Громкость музыки — только у тебя': 'Music volume — only for you',
+  'Выключить музыку': 'Mute music',
   'Играет синхронно': 'Playing in sync',
   'Пауза': 'Paused',
   'Музыка выключена': 'Music is off',

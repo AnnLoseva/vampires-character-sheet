@@ -121,6 +121,94 @@ export default function GameTableStyles() {
           min-width: 0;
         }
 
+        .table-topbar-right {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-shrink: 0;
+        }
+
+        .tbl-music {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid var(--vtm-line);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-1);
+          padding: 6px 10px;
+        }
+
+        .tbl-music-note {
+          width: 24px;
+          height: 24px;
+          display: grid;
+          place-items: center;
+          border: 1px solid var(--vtm-line-strong);
+          border-radius: 50%;
+          background: var(--vtm-void);
+          color: var(--vtm-blood);
+          font-size: 13px;
+          cursor: pointer;
+          transition: all var(--dur-fast) var(--ease);
+          padding: 0;
+          font-family: var(--font-mono);
+        }
+
+        .tbl-music-note:hover {
+          border-color: var(--vtm-blood);
+        }
+
+        .tbl-music-note.muted {
+          color: var(--vtm-ink-faint);
+        }
+
+        .tbl-music-body {
+          display: grid;
+          gap: 3px;
+          min-width: 0;
+        }
+
+        .tbl-music-track {
+          font-size: var(--fs-10);
+          color: var(--vtm-ink-muted);
+          letter-spacing: 0.06em;
+          max-width: 150px;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tbl-music input[type="range"] {
+          width: 110px;
+          height: 3px;
+          appearance: none;
+          background: linear-gradient(90deg, var(--vtm-blood-deep) var(--vol, 60%), var(--vtm-surface-4) var(--vol, 60%));
+          border-radius: 2px;
+          outline: none;
+          cursor: pointer;
+        }
+
+        .tbl-music input[type="range"]::-webkit-slider-thumb {
+          appearance: none;
+          width: 11px;
+          height: 11px;
+          border-radius: 50%;
+          background: var(--vtm-surface-2);
+          border: 1px solid var(--vtm-blood);
+        }
+
+        .tbl-music input[type="range"]:disabled {
+          opacity: 0.35;
+          cursor: default;
+        }
+
+        .tbl-music-val {
+          font-size: var(--fs-10);
+          color: var(--vtm-ink-faint);
+          min-width: 26px;
+          text-align: right;
+        }
+
         .table-kicker {
           margin: 0 0 3px;
           color: var(--vtm-blood);
@@ -5098,6 +5186,12 @@ export default function GameTableStyles() {
           .table-topbar {
             display: grid;
           }
+
+          .table-topbar-right {
+            grid-column: 1 / -1;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+          }
         }
 
         @media (max-width: 720px) {
@@ -5181,6 +5275,20 @@ export default function GameTableStyles() {
           .table-topbar {
             gap: 10px;
             margin-bottom: 8px;
+          }
+
+          .table-topbar-right {
+            width: 100%;
+            justify-content: space-between;
+            gap: 8px;
+          }
+
+          .tbl-music-track {
+            display: none;
+          }
+
+          .tbl-music input[type="range"] {
+            width: 80px;
           }
 
           .table-page-shell h1 {
