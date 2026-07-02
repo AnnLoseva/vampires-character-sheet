@@ -4,64 +4,18 @@ import type { ReactNode } from 'react'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import type { DisciplineCost } from '@/core/systems/vtm5/rules/disciplines/costs'
 import type { DisciplinePowerInputField } from '@/core/systems/vtm5/rules/disciplines/schema'
-
-type DisciplinePowerRule = {
-  description?: string
-  pool?: string
-  roll?: string
-  extra_roll?: string
-  control_roll?: string
-  resistance?: string
-  difficulty?: string | number
-  difficulty_for_victim?: string | number
-  soak_difficulty?: string | number
-  cost?: string
-  effect?: string
-  duration?: string
-}
-
-type DisciplineRule = {
-  description?: string
-  system?: Record<string, unknown>
-}
-
-type DisciplinePowerEntry = {
-  level: number
-  name: string
-  path?: string
-  rule: DisciplinePowerRule
-}
-
-type PowerPoolChoice = {
-  source: string
-  options: string[]
-}
+import {
+  type DisciplinePowerEntry,
+  type DisciplineRule,
+  type PowerPoolChoice,
+  getDisciplinePowerEntryKey,
+} from '../utils/discipline-ui'
+import { formatRuleValue, getDotDisplay } from '../utils/display'
 
 type DisciplineManualPrompt = {
   label: string
   description: string
   message: string
-}
-
-function getDisciplinePowerEntryKey(power: Pick<DisciplinePowerEntry, 'name' | 'path'>) {
-  return power.path ? `${power.path} / ${power.name}` : power.name
-}
-
-function getDotDisplay(value: number) {
-  const dots = Math.max(0, Math.min(5, Math.floor(Number(value) || 0)))
-  return `${'●'.repeat(dots)}${'○'.repeat(5 - dots)}`
-}
-
-function formatRuleValue(value: unknown): string {
-  if (value === null || value === undefined) return '—'
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value)
-  if (Array.isArray(value)) return value.map(formatRuleValue).join(' · ')
-  if (typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([key, nestedValue]) => `${key.replaceAll('_', ' ')}: ${formatRuleValue(nestedValue)}`)
-      .join(' · ')
-  }
-  return String(value)
 }
 
 export type DisciplinePowerPanelProps = {

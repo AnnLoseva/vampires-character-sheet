@@ -24,3 +24,5 @@ export {
 } from './system-runtime'
 export { default as TableRoute } from './TableRoute'
 export { default as GameTable } from './GameTable'
+export { createCharacterActions } from './services/character-actions'
+export type { CharacterActionsDeps } from './services/character-actions'

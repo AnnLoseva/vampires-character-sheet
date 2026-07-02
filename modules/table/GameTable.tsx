@@ -60,7 +60,6 @@ import {
   safeStorageName,
 } from '@/modules/table/utils/media-utils'
 import {
-  applyWillpowerStressValue,
   getCharacterBloodPotency,
   getCharacterDamageProfile,
   getCharacterHealth,
@@ -70,7 +69,6 @@ import {
   getWillpowerImpairmentPenalty,
   getWillpowerMetaState,
   getWillpowerRecoveryPool,
-  recoverWillpowerStressValue,
 } from '@/modules/table/utils/character-state'
 import {
   createEditorState,
@@ -123,9 +121,40 @@ import {
   MasterRoleTopbar,
   OpposedRollModal,
   RollModifierControls,
+  SmartContextMenu,
   WillpowerRerollControls,
   summarizeRollModifier,
 } from '@/modules/table/components'
+import {
+  type DisciplinePowerEntry,
+  type DisciplineRule,
+  getActiveEffectDescription,
+  getActiveEffectTitle,
+  getCharacterPoolPartDots,
+  getDefaultDisciplineRules,
+  getDisciplineCostLabel,
+  getDisciplineManualPrompts,
+  getDisciplinePowerDots,
+  getDisciplinePowerEntries,
+  getDisciplinePowerEntryKey,
+  getDisciplinePowerInputFields,
+  getPowerDifficultySummary,
+  getPowerRollFormula,
+  getPowerRollSummary,
+  getSelectedDisciplinePowerLabels,
+  getSelectedPathPowerNames,
+  getSkillDotValue,
+  getStandaloneSelectedPowerNames,
+  hasSelectedPathPowers,
+  isPowerEntrySelected,
+  parsePowerPool,
+  resolvePowerPool,
+} from '@/modules/table/utils/discipline-ui'
+import { formatRuleValue, formatTime, getDotDisplay } from '@/modules/table/utils/display'
+import {
+  getJournalReferencedMediaUrls,
+  isMediaUrlReferencedInJournal,
+} from '@/modules/table/utils/journal-media'
 import { getDieImage } from '@/modules/table/utils/dice-display'
 import {
   getExtraTraitNames,
@@ -134,6 +163,7 @@ import {
   isWillpowerRerollExcluded,
 } from '@/modules/table/utils/roll-utils'
 import {
+  useCharacterActions,
   useRoomSession,
   useTableLayers,
   useTableRealtime,
@@ -151,9 +181,6 @@ import { createQuickRollFactory } from '@/modules/rolls/hooks'
 import {
   applyWillpowerRerollToDice,
   buildAnsweredOpposedRoll,
-  buildRemorseCheckRoll,
-  buildRouseCheckRoll,
-  computeRemorseCheckOutcome,
   getActivePenaltyDelta,
   getActiveRollModifierWarnings,
   getBloodSurgeBonus,
@@ -172,16 +199,10 @@ import type {
 } from '@/core/systems/vtm5/rules/disciplines/effects'
 import type {
   DisciplineCost,
-  DisciplineCostMechanics,
   DisciplineCostPayment,
 } from '@/core/systems/vtm5/rules/disciplines/costs'
-import type {
-  ActiveEffect,
-  DisciplinePowerInputField,
-  DisciplinePowerMechanics,
-} from '@/core/systems/vtm5/rules/disciplines/schema'
+import type { ActiveEffect } from '@/core/systems/vtm5/rules/disciplines/schema'
 import type { DamageSeverity, HealthDamageOptions } from '@/core/systems/vtm5/rules/health'
-import type { HumanityState, HumanityStainSource } from '@/core/systems/vtm5/rules/humanity'
 import type {
   ActiveParticipant,
   BlendMode,
@@ -202,7 +223,6 @@ import type {
   MasterReveal,
   MasterWhisper,
   NormalizedHealth,
-  NormalizedWillpower,
   MediaTab,
   OpposedRollProposal,
   OpposedRollResult,
@@ -227,498 +247,7 @@ import type {
 
 const DiceRollOverlay = dynamic(() => import('@/modules/rolls/components/DiceRollOverlay'), { ssr: false })
 
-type DisciplinePowerRule = {
-  description?: string
-  pool?: string
-  roll?: string
-  extra_roll?: string
-  control_roll?: string
-  resistance?: string
-  difficulty?: string | number
-  difficulty_for_victim?: string | number
-  soak_difficulty?: string | number
-  cost?: string
-  mechanics?: DisciplinePowerMechanics & DisciplineCostMechanics & {
-    humanity?: {
-      risk?: boolean
-      suggestedStains?: number
-      requiresStorytellerConfirm?: boolean
-      reason?: string
-    }
-  }
-  effect?: string
-  duration?: string
-}
-
-type DisciplineRule = {
-  description?: string
-  system?: Record<string, unknown>
-  powers?: Record<string, Record<string, DisciplinePowerRule>>
-  paths?: Record<string, {
-    description?: string
-    powers?: Record<string, Record<string, DisciplinePowerRule>>
-  }>
-}
-
-const defaultDisciplineRules = (
-  defaultRules as unknown as { disciplines?: Record<string, DisciplineRule> }
-).disciplines || {}
-
-type DisciplinePowerEntry = {
-  level: number
-  name: string
-  path?: string
-  rule: DisciplinePowerRule
-}
-
-function getDisciplineCostLabel(
-  cost: DisciplineCost,
-  legacyCost?: string,
-  t: (ru: string) => string = ru => ru,
-  tf: (ru: string, vars: Record<string, string | number>) => string = (ru, vars) =>
-    Object.entries(vars).reduce((acc, [key, value]) => acc.replace(`{${key}}`, String(value)), ru),
-) {
-  if (legacyCost?.trim()) return legacyCost
-  const parts = [
-    cost.rouseChecks > 0
-      ? tf('{n} испытание Крови', { n: cost.rouseChecks })
-      : '',
-    cost.bloodPoints > 0
-      ? tf('{n} пункт крови', { n: cost.bloodPoints })
-      : '',
-    cost.willpowerSpend > 0
-      ? tf('{n} пункт Воли', { n: cost.willpowerSpend })
-      : '',
-  ].filter(Boolean)
-  return parts.join(' + ') || t('нет')
-}
-
-type PowerPoolChoice = {
-  source: string
-  options: string[]
-}
-
-const ATTRIBUTE_NAMES = ATTRIBUTE_GROUPS.flatMap(group => [...group.traits])
-const SKILL_NAMES = SKILL_GROUPS.flatMap(group => [...group.traits])
-
-function getSkillDotValue(value: unknown) {
-  if (typeof value === 'number') return value
-  if (!value || typeof value !== 'object') return 0
-  return Number((value as { dots?: number }).dots || 0)
-}
-
-function getCharacterPoolPartDots(character: CharacterOption, name: string) {
-  const attributeName = findCrossLanguageName(name, Object.keys(character.attributes))
-  if (attributeName) return getAttributeDots(character.attributes, attributeName)
-  const skillName = findCrossLanguageName(name, Object.keys(character.skills))
-  if (skillName) return getSkillDotValue(character.skills[skillName])
-  const disciplineName = findCrossLanguageName(name, Object.keys(character.disciplines))
-  if (disciplineName) return Object.values(character.disciplines[disciplineName] || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
-  return 0
-}
-
-function getDisciplinePowerEntries(rule?: DisciplineRule): DisciplinePowerEntry[] {
-  if (!rule) return []
-  const directPowers: DisciplinePowerEntry[] = Object.entries(rule.powers || {})
-    .flatMap(([level, powers]) => Object.entries(powers || {}).map(([name, powerRule]) => ({
-      level: Number(level) || 0,
-      name,
-      path: undefined,
-      rule: powerRule,
-    })))
-  const pathPowers: DisciplinePowerEntry[] = Object.entries(rule.paths || {})
-    .flatMap(([pathName, path]) => Object.entries(path.powers || {})
-      .flatMap(([level, powers]) => Object.entries(powers || {}).map(([name, powerRule]) => ({
-        level: Number(level) || 0,
-        name,
-        path: pathName,
-        rule: powerRule,
-      }))))
-  return [...directPowers, ...pathPowers]
-    .sort((a, b) =>
-      a.level - b.level
-      || (a.path || '').localeCompare(b.path || '', 'ru')
-      || a.name.localeCompare(b.name, 'ru'))
-}
-
-function getDisciplinePowerEntryKey(power: Pick<DisciplinePowerEntry, 'name' | 'path'>) {
-  return power.path ? `${power.path} / ${power.name}` : power.name
-}
-
-// rules.json pool text uses "как <power name>" (Russian); rules_eng.json uses
-// "as <power name>" (English) — matches whichever language is currently loaded.
-function resolvePowerPool(pool: string, rules: Record<string, DisciplineRule>) {
-  const trimmed = pool.trim()
-  const reference = trimmed.match(/^(?:как|as)\s+(.+)$/i)?.[1]?.trim()
-  const normalizedReference = reference?.toLocaleLowerCase('ru')
-  if (!reference || normalizedReference === 'применяемая сила' || normalizedReference === 'the power being applied') return trimmed
-  for (const discipline of Object.values(rules)) {
-    const referencedPower = getDisciplinePowerEntries(discipline).find(power => power.name.toLocaleLowerCase('ru') === reference.toLocaleLowerCase('ru'))
-    if (referencedPower?.rule.pool) return referencedPower.rule.pool
-  }
-  return trimmed
-}
-
-function getMechanicsRollRecord(rule?: DisciplinePowerRule | null) {
-  const roll = rule?.mechanics?.roll
-  return roll && typeof roll === 'object' && !Array.isArray(roll)
-    ? roll as Record<string, unknown>
-    : null
-}
-
-function formatMechanicsPool(value: unknown) {
-  if (Array.isArray(value)) return value.filter(Boolean).join(' + ')
-  return typeof value === 'string' ? value : ''
-}
-
-function getPowerRollFormula(rule?: DisciplinePowerRule | null) {
-  const mechanicsRoll = getMechanicsRollRecord(rule)
-  return rule?.pool
-    || rule?.roll
-    || formatMechanicsPool(mechanicsRoll?.actorPool)
-    || ''
-}
-
-function getPowerRollSummary(rule: DisciplinePowerRule | null | undefined, tf: (ru: string, vars: Record<string, string | number>) => string) {
-  const rows = [
-    getPowerRollFormula(rule),
-    rule?.extra_roll ? tf('Дополнительно: {value}', { value: rule.extra_roll }) : '',
-    rule?.control_roll ? tf('Контроль: {value}', { value: rule.control_roll }) : '',
-    rule?.resistance ? tf('Сопротивление: {value}', { value: rule.resistance }) : '',
-  ].filter(Boolean)
-  return rows.join(' · ')
-}
-
-function getPowerDifficultySummary(rule: DisciplinePowerRule | null | undefined, tf: (ru: string, vars: Record<string, string | number>) => string) {
-  const mechanicsRoll = getMechanicsRollRecord(rule)
-  const rows = [
-    rule?.difficulty ? formatRuleValue(rule.difficulty) : '',
-    !rule?.difficulty && mechanicsRoll?.difficulty
-      ? formatRuleValue(mechanicsRoll.difficulty)
-      : '',
-    rule?.difficulty_for_victim ? tf('для цели: {value}', { value: formatRuleValue(rule.difficulty_for_victim) }) : '',
-    rule?.soak_difficulty ? tf('прочность: {value}', { value: formatRuleValue(rule.soak_difficulty) }) : '',
-  ].filter(Boolean)
-  return rows.join(' · ')
-}
-
-function makeDieId() {
-  return `${Date.now()}-${Math.random().toString(16).slice(2)}`
-}
-
-function parsePowerPool(pool: string, disciplineNames: string[]) {
-  const normalizedPool = pool.trim()
-  if (!normalizedPool || normalizedPool === '—' || /^(зависит|как применяемая|depends|as\s)/i.test(normalizedPool)) return []
-  // pool text uses "vs." in English (rules_eng.json) and "против" (no period) in Russian.
-  const playerSide = normalizedPool.split(/\s+(?:vs\.?|против)\s+/i)[0].split(';')[0].replace(/\s*\([^)]*\)\s*/g, '').trim()
-  if (!playerSide) return []
-  const knownNames = [...ATTRIBUTE_NAMES, ...SKILL_NAMES, ...disciplineNames]
-
-  const choices = playerSide.split(/\s*\+\s*/).map(source => {
-    const options = source
-      .split(/\s+(?:или|or)\s+|\//i)
-      .map(option => findCrossLanguageName(option, knownNames))
-      .filter(Boolean)
-    return { source: source.trim(), options } as PowerPoolChoice
-  })
-  return choices.every(choice => choice.options.length > 0) ? choices : []
-}
-
-function getSelectedPowerNames(value: unknown) {
-  if (!Array.isArray(value)) return []
-  return value
-    .map(power => {
-      if (typeof power === 'string') return power
-      if (!power || typeof power !== 'object') return ''
-      const record = power as Record<string, unknown>
-      return String(record.name || record['название'] || '')
-    })
-    .filter(Boolean)
-}
-
-function getSelectedPathPowerNames(value: unknown) {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return {}
-  return Object.fromEntries(
-    Object.entries(value as Record<string, unknown>).flatMap(([pathName, powers]) => {
-      const names = getSelectedPowerNames(powers)
-      return names.length ? [[pathName, names]] : []
-    }),
-  ) as Record<string, string[]>
-}
-
-function getSelectedPathPowerLabels(value: unknown) {
-  return Object.entries(getSelectedPathPowerNames(value))
-    .flatMap(([pathName, powers]) => powers.map(power => `${pathName} / ${power}`))
-}
-
-function getPathPowerNameSet(value: unknown) {
-  return new Set(
-    Object.values(getSelectedPathPowerNames(value)).flat(),
-  )
-}
-
-function getStandaloneSelectedPowerNames(
-  selectedPowers: unknown,
-  selectedPathPowers: unknown,
-) {
-  const pathPowerNames = getPathPowerNameSet(selectedPathPowers)
-  return getSelectedPowerNames(selectedPowers)
-    .filter(name => !pathPowerNames.has(name))
-}
-
-function getSelectedDisciplinePowerLabels(
-  selectedPowers: unknown,
-  selectedPathPowers: unknown,
-) {
-  return [
-    ...getStandaloneSelectedPowerNames(selectedPowers, selectedPathPowers),
-    ...getSelectedPathPowerLabels(selectedPathPowers),
-  ]
-}
-
-function hasSelectedPathPowers(value: unknown) {
-  return getSelectedPathPowerLabels(value).length > 0
-}
-
-function isPowerEntrySelected(
-  power: DisciplinePowerEntry,
-  selectedPowerNames: string[],
-  selectedPathPowers: Record<string, string[]>,
-) {
-  if (selectedPowerNames.includes(power.name)) return true
-  return Boolean(power.path && selectedPathPowers[power.path]?.includes(power.name))
-}
-
-function getDisciplinePowerDots(
-  character: CharacterOption,
-  disciplineName: string,
-  pathName?: string,
-) {
-  const sources = character.disciplines[disciplineName] || {}
-  if (pathName && Number(sources[pathName]) > 0) {
-    return Number(sources[pathName]) || 0
-  }
-  return Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
-}
-
-function getActiveEffectTitle(
-  activeEffect: CharacterOption['activeEffects'][number],
-) {
-  return activeEffect.effect.label
-    || activeEffect.source.power
-    || activeEffect.effect.type
-}
-
-function getPayloadValueLabel(key: string, value: unknown) {
-  if (value === null || value === undefined || value === '') return ''
-  const payloadLabels: Record<string, string> = {
-    commandText: 'команда',
-    memoryGap: 'провал',
-    falseMemory: 'ложная память',
-    triggerText: 'триггер',
-    groupTarget: 'группа',
-    disguiseText: 'маскировка',
-    objectText: 'объект',
-    senseTarget: 'цель',
-    questionText: 'вопрос',
-    telepathyMessage: 'мысль',
-    possessionTarget: 'носитель',
-    areaText: 'место',
-    famulusName: 'фамулус',
-    animalSpecies: 'вид',
-    animalCommand: 'приказ',
-    swarmTarget: 'цель роя',
-    frenzyTarget: 'цель ярости',
-    feedingSource: 'питание',
-    targetName: 'цель',
-    bloodSample: 'образец крови',
-    weaponName: 'оружие',
-    deliveryMethod: 'способ',
-    ritualTarget: 'цель ритуала',
-    ritualComponents: 'компоненты',
-    alchemyMethod: 'метод',
-    alchemyFormula: 'формула',
-    formulaTarget: 'цель формулы',
-    alchemyResonance: 'резонанс',
-    alchemyIngredients: 'ингредиенты',
-    imitatedDiscipline: 'дисциплина',
-    imitatedPower: 'сила',
-  }
-  const label = payloadLabels[key] || key
-  return `${label}: ${String(value)}`
-}
-
-function getActiveEffectPayloadDescription(
-  activeEffect: CharacterOption['activeEffects'][number],
-) {
-  const payload = activeEffect.effect.payload
-  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
-    return ''
-  }
-
-  return Object.entries(payload)
-    .map(([key, value]) => getPayloadValueLabel(key, value))
-    .filter(Boolean)
-    .join(' · ')
-}
-
-function getActiveEffectDescription(
-  activeEffect: CharacterOption['activeEffects'][number],
-  t: (ru: string) => string,
-  tf: (ru: string, vars: Record<string, string | number>) => string,
-) {
-  return [
-    activeEffect.effect.description,
-    getActiveEffectPayloadDescription(activeEffect),
-    activeEffect.source.path,
-    activeEffect.source.level
-      ? tf('уровень {level}', { level: activeEffect.source.level })
-      : '',
-    tableDisciplines().getDisciplineDurationLabel(activeEffect.duration, t, tf),
-  ].filter(Boolean).join(' · ')
-}
-
-function getDotDisplay(value: number) {
-  const dots = Math.max(0, Math.min(5, Math.floor(Number(value) || 0)))
-  return `${'●'.repeat(dots)}${'○'.repeat(5 - dots)}`
-}
-
-function formatRuleValue(value: unknown): string {
-  if (value === null || value === undefined) return '—'
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value)
-  if (Array.isArray(value)) return value.map(formatRuleValue).join(' · ')
-  if (typeof value === 'object') {
-    return Object.entries(value as Record<string, unknown>)
-      .map(([key, nestedValue]) => `${key.replaceAll('_', ' ')}: ${formatRuleValue(nestedValue)}`)
-      .join(' · ')
-  }
-  return String(value)
-}
-
-function getDisciplinePowerInputFields(
-  mechanics: DisciplinePowerRule['mechanics'] | undefined,
-): DisciplinePowerInputField[] {
-  const fields = mechanics?.input?.fields
-  if (!Array.isArray(fields)) return []
-
-  return fields.flatMap(field => {
-    if (!field || typeof field !== 'object' || typeof field.id !== 'string' || !field.id.trim()) {
-      return []
-    }
-    return [{
-      ...field,
-      id: field.id.trim(),
-      type: field.type || 'text',
-    }]
-  })
-}
-
-function getDisciplineManualPrompts(
-  mechanics: DisciplinePowerRule['mechanics'] | undefined,
-) {
-  const effects = mechanics?.effects
-  if (!Array.isArray(effects)) return []
-
-  return effects.flatMap(effect => {
-    if (!effect || typeof effect !== 'object') return []
-    const record = effect as Record<string, unknown>
-    if (record.type !== 'manual_prompt') return []
-    const label = typeof record.label === 'string' ? record.label : ''
-    const description = typeof record.description === 'string' ? record.description : ''
-    const message = typeof record.message === 'string' ? record.message : ''
-    if (!label && !description && !message) return []
-    return [{ label, description, message }]
-  })
-}
-
-function formatTime(value: string) {
-  return new Intl.DateTimeFormat('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  }).format(new Date(value))
-}
-
-function getJournalReferencedMediaUrls(currentEntries: JournalEntry[]) {
-  if (typeof window === 'undefined') return new Set<string>()
-  const entries = [...currentEntries]
-
-  try {
-    for (let index = 0; index < window.localStorage.length; index += 1) {
-      const key = window.localStorage.key(index)
-      if (!key?.startsWith('vtm-journal:')) continue
-      const parsed = JSON.parse(window.localStorage.getItem(key) || '[]')
-      if (Array.isArray(parsed)) entries.push(...parsed)
-    }
-  } catch (error) {
-    console.warn('Не удалось проверить ссылки дневника перед удалением медиа:', error)
-  }
-
-  const urls = new Set<string>()
-  entries.forEach(entry => {
-    extractImageUrlsFromHtml(entry.text || '').forEach(url => urls.add(url))
-    entry.attachments?.forEach(attachment => {
-      if (attachment.kind === 'image' && attachment.url) urls.add(attachment.url)
-    })
-  })
-  return urls
-}
-
-function isMediaUrlReferencedInJournal(url: string, journalUrls: Set<string>) {
-  if (!url) return false
-  if (journalUrls.has(url)) return true
-  const storagePath = getStoragePathFromPublicUrl(url)
-  if (!storagePath) return false
-  for (const journalUrl of journalUrls) {
-    if (getStoragePathFromPublicUrl(journalUrl) === storagePath) return true
-  }
-  return false
-}
-
-// ─── Self-measuring context menu positioner ────────────────────────────────
-// Renders initially hidden, measures its real size, then snaps to the best
-// position near the cursor so it never clips off the screen edges.
-
-function SmartContextMenu({
-  x,
-  y,
-  children,
-  onClick,
-}: {
-  x: number
-  y: number
-  children: React.ReactNode
-  onClick?: (e: React.MouseEvent<HTMLDivElement>) => void
-}) {
-  const ref = useRef<HTMLDivElement>(null)
-  const [pos, setPos] = useState<{ left: number; top: number } | null>(null)
-
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const { width, height } = el.getBoundingClientRect()
-    const margin = 8
-    const vw = window.innerWidth
-    const vh = window.innerHeight
-    const left = x + width + margin > vw ? Math.max(margin, x - width - margin) : x + margin
-    const top  = y + height + margin > vh ? Math.max(margin, vh - height - margin) : y
-    setPos({ left, top })
-  }, [x, y])
-
-  return (
-    <div
-      ref={ref}
-      className="layer-context-menu"
-      style={pos
-        ? { left: pos.left, top: pos.top }
-        : { left: x, top: y, visibility: 'hidden' }
-      }
-      onClick={onClick}
-    >
-      {children}
-    </div>
-  )
-}
+const defaultDisciplineRules = getDefaultDisciplineRules(defaultRules)
 
 export default function VampireTable() {
   const { t, tf, lang } = useLang()
@@ -863,6 +392,14 @@ export default function VampireTable() {
   const panRef = useRef(pan)
   const chatUserRef = useRef<ChatUser | null>(null)
   const chatCharactersRef = useRef<CharacterOption[]>([])
+  const publishRollRef = useRef<(roll: RollMessage) => Promise<void>>(async () => {})
+  const rollQuickDiceRef = useRef<(
+    diceCount?: number,
+    poolName?: string,
+    characterOverride?: CharacterOption,
+    poolType?: string,
+    options?: QuickRollOptions,
+  ) => Promise<void>>(async () => {})
   const selectedChatCharacterIdRef = useRef('')
   const journalEntriesRef = useRef<JournalEntry[]>([])
   const voiceEnabledRef = useRef(false)
@@ -1105,6 +642,45 @@ export default function VampireTable() {
     ensureDefaultScene,
     onRollRef: triggerDiceOverlayRef,
     onVoiceSignalRef: handleVoiceSignalRef,
+  })
+
+  const {
+    updateCharacterHunger,
+    updateCharacterHumanity,
+    updateCharacterWillpower,
+    updateCharacterHealth,
+    syncHealthCharacter,
+    applyCharacterHealthDamage,
+    recoverCharacterHealth,
+    addHumanityStains,
+    performRemorseCheck,
+    spendWillpower,
+    recoverWillpower,
+    adjustWillpowerStress,
+    rollWillpowerCheck,
+    performRouseCheck,
+    rollRouseCheck,
+    quenchHunger,
+    mendVampireSuperficial,
+    mendVampireAggravated,
+    recoverMortalHealth,
+    treatMortalHealth,
+    getRollCharacter,
+  } = useCharacterActions({
+    room,
+    t,
+    tf,
+    disciplineRules,
+    defaultDisciplineRules,
+    chatUser,
+    selectedActiveCharacterId: selectedChatCharacterId,
+    setChatCharacters,
+    setPreviewCharacter,
+    setConnectionText,
+    broadcast,
+    getChatCharacters: () => chatCharactersRef.current,
+    publishRollRef,
+    rollQuickDiceRef,
   })
 
   const createScene = async () => {
@@ -1971,629 +1547,7 @@ export default function VampireTable() {
     if (error) setConnectionText('Бросок отправлен онлайн, но не сохранился')
     else setConnectionText('Онлайн')
   }
-
-  const updateCharacterHunger = async (characterId: string, nextHunger: number, reason = 'Голод обновлён') => {
-    const safeHunger = Math.max(0, Math.min(5, Math.floor(Number(nextHunger) || 0)))
-    const { row: data, error } = await fetchCharacterById(characterId)
-
-    if (error || !data?.data) {
-      console.error('Не удалось прочитать персонажа для обновления Голода:', error)
-      setConnectionText('Голод не сохранился')
-      return null
-    }
-
-    const characterData = data.data as NonNullable<CharacterRow['data']>
-    const nextData = {
-      ...characterData,
-      bloodPotency: Number(characterData.bloodPotency ?? characterData.blood?.potency ?? 0) || 0,
-      vitalTrackers: {
-        ...(characterData.vitalTrackers || {}),
-        hunger: safeHunger,
-      },
-      timestamp: new Date().toISOString(),
-    }
-    const { error: updateError } = await updateCharacterData(characterId, nextData)
-
-    if (updateError) {
-      console.error('Не удалось сохранить Голод персонажа:', updateError)
-      setConnectionText('Голод не сохранился')
-      return null
-    }
-
-    const updatedCharacter = mapCharacterRow({ ...(data as CharacterRow), data: nextData })
-    setChatCharacters(current => current.map(character => (
-      character.id === characterId ? { ...updatedCharacter, username: character.username } : character
-    )))
-    setPreviewCharacter(current => current?.id === characterId ? { ...updatedCharacter, username: current.username } : current)
-
-    if (chatUser && selectedActiveCharacter?.id === characterId) {
-      const participant: ActiveParticipant = {
-        userId: chatUser.id,
-        username: chatUser.username,
-        characterId,
-        characterName: updatedCharacter.name || 'без персонажа',
-        characterClan: updatedCharacter.clan || null,
-        characterImage: updatedCharacter.image || '',
-        updatedAt: new Date().toISOString(),
-      }
-      broadcast('active-character', { room, participant })
-    }
-
-    setConnectionText(reason)
-    return updatedCharacter
-  }
-
-  const updateCharacterHumanity = async (
-    characterId: string,
-    nextHumanity: HumanityState,
-    reason = 'Человечность сохранена',
-  ) => {
-    const { row: data, error } = await fetchCharacterById(characterId)
-
-    if (error || !data?.data) {
-      console.error('Не удалось прочитать персонажа для обновления Человечности:', error)
-      setConnectionText('Человечность не сохранилась')
-      return null
-    }
-
-    const characterData = data.data as NonNullable<CharacterRow['data']>
-    const normalized = tableHumanity().getHumanityState({ humanity: nextHumanity })
-    const previousHumanity = characterData.humanity && typeof characterData.humanity === 'object'
-      ? characterData.humanity
-      : {}
-    const nextData: NonNullable<CharacterRow['data']> = {
-      ...characterData,
-      humanity: {
-        ...previousHumanity,
-        ...normalized,
-      },
-      vitalTrackers: {
-        ...(characterData.vitalTrackers || {}),
-        humanity: normalized.value,
-      },
-      status: {
-        ...(characterData.status || {}),
-        humanityState: normalized.value <= 0 ? 'lost_to_beast' : undefined,
-      },
-    }
-
-    const { error: updateError } = await updateCharacterData(characterId, {
-      ...nextData,
-      timestamp: new Date().toISOString(),
-    })
-
-    if (updateError) {
-      console.error('Не удалось сохранить Человечность персонажа:', updateError)
-      setConnectionText('Человечность не сохранилась')
-      return null
-    }
-
-    const updatedCharacter = mapCharacterRow({ ...(data as CharacterRow), data: nextData })
-    setChatCharacters(current => current.map(character => (
-      character.id === characterId ? { ...updatedCharacter, username: character.username } : character
-    )))
-    setPreviewCharacter(current => current?.id === characterId ? { ...updatedCharacter, username: current.username } : current)
-    setConnectionText(reason)
-    return updatedCharacter
-  }
-
-  const addHumanityStains = async (
-    character: CharacterOption,
-    amount: number,
-    reason = 'ручное решение',
-    options: {
-      source?: HumanityStainSource
-      reasonText?: string
-    } = {},
-  ) => {
-    const result = tableHumanity().addHumanityStains(
-      { humanity: character.humanity || { value: 7, stains: 0 } },
-      amount,
-      reason,
-      {
-        source: options.source || 'manual',
-        reasonText: options.reasonText,
-      },
-    )
-    const updated = await updateCharacterHumanity(character.id, result.humanity, 'Сомнения сохранены')
-    if (!updated) return null
-
-    const state = updated.humanity || {
-      ...result.humanity,
-      freeBoxes: Math.max(0, 10 - result.humanity.value - result.humanity.stains),
-      status: tableHumanity().getHumanityStatus(result.humanity),
-    }
-    await publishRoll({
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      room,
-      characterName: character.name,
-      poolName: tf('{name} получает {applied} Сомнение: {sourceText}. Человечность: {value}, Сомнения: {stains}/{remaining}.', {
-        name: character.name, applied: result.applied, sourceText: options.reasonText || t(reason),
-        value: state.value, stains: state.stains, remaining: 10 - state.value
-      }),
-      poolType: 'humanity-event',
-      diceCount: 0,
-      dice: [],
-      successes: 0,
-      createdAt: new Date().toISOString(),
-      meta: {
-        source: 'humanity',
-        rollKind: 'humanity_check',
-        hungerDice: 0,
-        humanityBefore: result.before.value,
-        humanityAfter: state.value,
-        stainsBefore: result.before.stains,
-        stainsAfter: state.stains,
-        stainEvents: [result.event],
-        warnings: result.warning ? [result.warning] : [],
-      },
-    })
-    setConnectionText(result.warning || 'Сомнения сохранены')
-    return updated
-  }
-
-  const performRemorseCheck = async (character: CharacterOption) => {
-    const before = tableHumanity().getHumanityState({ humanity: character.humanity || { value: 7, stains: 0 } })
-    if (before.stains <= 0) {
-      setConnectionText('Нет Сомнений для проверки')
-      return null
-    }
-
-    const remorseDice = tableHumanity().getRemorseDice(before)
-    const outcome = computeRemorseCheckOutcome({
-      before,
-      remorseDice,
-      rollsDice: rollsDice(),
-      tf,
-      t,
-    })
-    const updated = await updateCharacterHumanity(character.id, outcome.nextState, 'Проверка мук совести сохранена')
-    if (!updated) return null
-
-    await publishRoll(buildRemorseCheckRoll(character.name, room, outcome))
-    return updated
-  }
-
-  const updateCharacterWillpower = async (
-    characterId: string,
-    nextTracker: { superficial: number; aggravated: number },
-    reason = 'Воля обновлена',
-  ) => {
-    const { row: data, error } = await fetchCharacterById(characterId)
-
-    if (error || !data?.data) {
-      console.error('Не удалось прочитать персонажа для обновления Воли:', error)
-      setConnectionText('Воля не сохранилась')
-      return null
-    }
-
-    const characterData = data.data as NonNullable<CharacterRow['data']>
-    const willpowerMax = mapCharacterRow(data as CharacterRow)
-      .derivedStats.willpower.totalMax
-    const normalized = normalizeWillpowerTracker(nextTracker, willpowerMax)
-    const nextData = {
-      ...characterData,
-      vitalTrackers: {
-        ...(characterData.vitalTrackers || {}),
-        willpower: {
-          superficial: normalized.superficial,
-          aggravated: normalized.aggravated,
-        },
-      },
-      timestamp: new Date().toISOString(),
-    }
-    const { error: updateError } = await updateCharacterData(characterId, nextData)
-
-    if (updateError) {
-      console.error('Не удалось сохранить Волю персонажа:', updateError)
-      setConnectionText('Воля не сохранилась')
-      return null
-    }
-
-    const updatedCharacter = mapCharacterRow({ ...(data as CharacterRow), data: nextData })
-    setChatCharacters(current => current.map(character => (
-      character.id === characterId ? { ...updatedCharacter, username: character.username } : character
-    )))
-    setPreviewCharacter(current => current?.id === characterId ? { ...updatedCharacter, username: current.username } : current)
-
-    setConnectionText(reason)
-    return updatedCharacter
-  }
-
-  const syncHealthCharacter = (characterId: string, updatedCharacter: CharacterOption) => {
-    setChatCharacters(current => current.map(character => (
-      character.id === characterId ? { ...updatedCharacter, username: character.username } : character
-    )))
-    setPreviewCharacter(current => current?.id === characterId ? { ...updatedCharacter, username: current.username } : current)
-  }
-
-  const updateCharacterHealth = async (
-    characterId: string,
-    nextTracker: NormalizedHealth,
-    reason = 'Здоровье сохранено',
-    options: {
-      lastAggravatedMendAt?: string
-    } = {},
-  ) => {
-    const { row: data, error } = await fetchCharacterById(characterId)
-
-    if (error || !data?.data) {
-      console.error('Не удалось прочитать персонажа для обновления Здоровья:', error)
-      setConnectionText('Здоровье не сохранилось')
-      return null
-    }
-
-    const characterData = data.data as NonNullable<CharacterRow['data']>
-    const characterType = getCharacterType(characterData)
-    const profile = tableHealth().normalizeDamageProfile(
-      characterData.damageProfile || getDefaultDamageProfile(characterType),
-    )
-    const stamina = getAttributeDots(characterData.attributes, 'Выносливость')
-      + mapCharacterRow(data as CharacterRow)
-        .derivedStats.health.passiveBonus
-    const normalized = tableHealth().normalizeHealthTracker(tableHealth().toHealthTracker(nextTracker), stamina, profile)
-    const nextData = {
-      ...characterData,
-      characterType,
-      damageProfile: profile,
-      vitalTrackers: {
-        ...(characterData.vitalTrackers || {}),
-        health: tableHealth().toHealthTracker(normalized),
-      },
-      status: {
-        ...(characterData.status || {}),
-        physicalState: normalized.physicalState,
-      },
-      healthState: {
-        ...(characterData.healthState || {}),
-        ...(options.lastAggravatedMendAt ? { lastAggravatedMendAt: options.lastAggravatedMendAt } : {}),
-      },
-      timestamp: new Date().toISOString(),
-    }
-    const { error: updateError } = await updateCharacterData(characterId, nextData)
-
-    if (updateError) {
-      console.error('Не удалось сохранить Здоровье персонажа:', updateError)
-      setConnectionText('Здоровье не сохранилось')
-      return null
-    }
-
-    const updatedCharacter = mapCharacterRow({ ...(data as CharacterRow), data: nextData })
-    syncHealthCharacter(characterId, updatedCharacter)
-    setConnectionText(reason)
-    return updatedCharacter
-  }
-
-  const publishHealthEvent = async (
-    character: CharacterOption,
-    reason: string,
-    before: NormalizedHealth,
-    after: NormalizedHealth,
-    meta: Partial<RollMeta> = {},
-  ) => {
-    const roll: RollMessage = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      room,
-      characterName: character.name,
-      poolName: reason,
-      poolType: 'health',
-      diceCount: 0,
-      dice: [],
-      successes: 0,
-      createdAt: new Date().toISOString(),
-      meta: {
-        source: 'health',
-        characterId: character.id,
-        healthBefore: tableHealth().getHealthMetaState(before),
-        healthAfter: tableHealth().getHealthMetaState(after),
-        healthImpaired: after.impaired,
-        physicalState: after.physicalState,
-        ...meta,
-      },
-    }
-    await publishRoll(roll)
-  }
-
-  const applyCharacterHealthDamage = async (
-    character: CharacterOption,
-    amount: number,
-    severity: DamageSeverity,
-    options: HealthDamageOptions = {},
-  ) => {
-    const before = getCharacterHealth(character)
-    const profile = getCharacterDamageProfile(character)
-    const damageEffectResult = tableDisciplines().applyDisciplineEffectsToDamage({
-      targetCharacterData: character,
-      sourceCharacterData: options.sourceCharacterData,
-      rulesJson: disciplineRules || defaultDisciplineRules,
-      baseAmount: amount,
-      severity,
-      target: 'health',
-      source: options.source,
-      attackType: options.attackType || options.source,
-      attackTypes: [options.attackType, options.source].filter((value): value is string => typeof value === 'string'),
-      weaponTags: options.weaponTags,
-      creatureType: character.characterType,
-      armor: options.armor,
-      halveSuperficial: severity === 'superficial'
-        && options.halveSuperficial !== false
-        && !options.ignoreHalving,
-    }, character.derivedStats)
-    const result = tableHealth().applyHealthDamage(
-      before,
-      damageEffectResult.finalAmount,
-      damageEffectResult.severity,
-      {
-        ...options,
-        halveSuperficial: false,
-        ignoreHalving: true,
-      },
-      profile,
-      t,
-      tf,
-    )
-    const updatedCharacter = await updateCharacterHealth(character.id, result.tracker, 'Здоровье сохранено')
-    if (!updatedCharacter) return null
-    const after = getCharacterHealth(updatedCharacter)
-    await publishHealthEvent(updatedCharacter, 'Урон здоровью', before, after, {
-      damage: {
-        source: options.source || 'manual',
-        originalAmount: damageEffectResult.originalAmount,
-        finalAmount: damageEffectResult.finalAmount,
-        severity: damageEffectResult.severity,
-        halved: damageEffectResult.halved,
-        amountBeforeHalving: damageEffectResult.amountBeforeHalving,
-        originalSeverity: damageEffectResult.originalSeverity,
-        prevented: damageEffectResult.prevented,
-        armorIgnored: damageEffectResult.armorIgnored,
-        armorValue: damageEffectResult.armorValue,
-        modifiers: damageEffectResult.modifiers.filter(modifier => modifier.active),
-        chain: damageEffectResult.chain,
-        weaponModifier: options.weaponModifier,
-        margin: options.margin,
-        targetCharacterId: updatedCharacter.id,
-        targetCharacterName: updatedCharacter.name,
-      },
-      warnings: result.warnings,
-    })
-    return { character: updatedCharacter, before, after, ...result }
-  }
-
-  const recoverCharacterHealth = async (
-    character: CharacterOption,
-    amount: number,
-    severity: DamageSeverity,
-    reason: string,
-    healingType: NonNullable<RollMeta['healing']>['type'] = 'manual',
-  ) => {
-    const before = getCharacterHealth(character)
-    const result = tableHealth().recoverHealthDamage(before, amount, severity, getCharacterDamageProfile(character))
-    if (result.recovered < 1) return null
-    const updatedCharacter = await updateCharacterHealth(character.id, result.tracker, 'Здоровье сохранено')
-    if (!updatedCharacter) return null
-    const after = getCharacterHealth(updatedCharacter)
-    await publishHealthEvent(updatedCharacter, reason, before, after, {
-      healing: {
-        type: healingType,
-        amountSuperficial: severity === 'superficial' ? result.recovered : 0,
-        amountAggravated: severity === 'aggravated' ? result.recovered : 0,
-      },
-    })
-    return updatedCharacter
-  }
-
-  const mendVampireSuperficial = async (character: CharacterOption) => {
-    const before = getCharacterHealth(character)
-    if (before.superficial < 1) return
-    const result = await performRouseCheck(character, 'Заживление лёгких повреждений')
-    const mendAmount = tableHealth().getSuperficialMendAmount(getCharacterBloodPotency(character))
-    const recovered = tableHealth().recoverHealthDamage(before, mendAmount, 'superficial', getCharacterDamageProfile(character))
-    const updatedCharacter = await updateCharacterHealth(character.id, recovered.tracker, 'Здоровье и Голод сохранены')
-    if (!updatedCharacter) return
-    const after = getCharacterHealth(updatedCharacter)
-    await publishHealthEvent(updatedCharacter, 'Заживление лёгких повреждений', before, after, {
-      hungerBefore: result.hungerBefore,
-      hungerAfter: result.hungerAfter,
-      rouseChecks: [result],
-      healing: {
-        type: 'vampire_superficial',
-        amountSuperficial: recovered.recovered,
-        rouseChecks: [result],
-      },
-      warnings: [getRouseWarning(result)].filter(Boolean),
-    })
-  }
-
-  const mendVampireAggravated = async (character: CharacterOption) => {
-    const before = getCharacterHealth(character)
-    if (before.aggravated < 1) return
-    if (!window.confirm(t('По правилам это можно делать не чаще одного раза за ночь и требует 3 Испытания Крови. Продолжить?'))) return
-    const lastMendDate = character.lastAggravatedMendAt ? new Date(character.lastAggravatedMendAt) : null
-    const mendedTonight = Boolean(
-      lastMendDate
-      && !Number.isNaN(lastMendDate.getTime())
-      && lastMendDate.toDateString() === new Date().toDateString(),
-    )
-    if (mendedTonight && !window.confirm(t('Тяжёлый урон уже лечили этой ночью. Применить мастерский override?'))) return
-    const checks: RouseCheckResult[] = []
-    let hunger = getCharacterHunger(character)
-    for (let index = 0; index < 3; index += 1) {
-      const result = await performRouseCheck(character, tf('Заживление тяжёлого повреждения {n}/3', { n: index + 1 }), hunger)
-      checks.push(result)
-      hunger = result.hungerAfter
-    }
-    const recovered = tableHealth().recoverHealthDamage(before, 1, 'aggravated', getCharacterDamageProfile(character))
-    const updatedCharacter = await updateCharacterHealth(character.id, recovered.tracker, 'Здоровье и Голод сохранены', {
-      lastAggravatedMendAt: new Date().toISOString(),
-    })
-    if (!updatedCharacter) return
-    const after = getCharacterHealth(updatedCharacter)
-    await publishHealthEvent(updatedCharacter, 'Заживление тяжёлого повреждения', before, after, {
-      hungerBefore: checks[0]?.hungerBefore,
-      hungerAfter: checks[checks.length - 1]?.hungerAfter,
-      rouseChecks: checks,
-      healing: {
-        type: 'vampire_aggravated',
-        amountAggravated: recovered.recovered,
-        rouseChecks: checks,
-      },
-      warnings: checks.map(getRouseWarning).filter(Boolean),
-    })
-  }
-
-  const recoverMortalHealth = async (character: CharacterOption) => {
-    const amount = getAttributeDots(character.attributes, 'Выносливость')
-    await recoverCharacterHealth(character, amount, 'superficial', 'Восстановление смертного', 'mortal_superficial')
-  }
-
-  const treatMortalHealth = async (character: CharacterOption) => {
-    const medicine = Number(window.prompt(t('Медицина лекаря:'), '1') || 0)
-    if (medicine < 1) return
-    const success = window.confirm(tf('Проверка Интеллект + Медицина успешна? Сложность: {difficulty}.', { difficulty: getCharacterHealth(character).aggravated }))
-    const before = getCharacterHealth(character)
-    const converted = success ? Math.min(before.aggravated, Math.ceil(medicine / 2)) : 0
-    const next = tableHealth().normalizeHealthTracker({
-      ...tableHealth().toHealthTracker(before),
-      aggravated: before.aggravated - converted,
-      superficial: before.superficial + converted,
-    }, getCharacterHealthStamina(character), getCharacterDamageProfile(character))
-    const updatedCharacter = await updateCharacterHealth(character.id, next, 'Лечение смертного сохранено')
-    if (!updatedCharacter) return
-    await publishHealthEvent(updatedCharacter, 'Лечение смертного', before, getCharacterHealth(updatedCharacter), {
-      healing: { type: 'mortal_aggravated_medicine', amountAggravated: converted },
-      warnings: success
-        ? ['Тяжёлые повреждения превращены в лёгкие. Восстановление занимает ночь.']
-        : ['Проверка лечения провалена: здоровье не изменилось.'],
-    })
-  }
-
-  const publishWillpowerEvent = async (
-    character: CharacterOption,
-    reason: string,
-    before: NormalizedWillpower,
-    after: NormalizedWillpower,
-    meta: Partial<RollMeta> = {},
-  ) => {
-    const roll: RollMessage = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      room,
-      characterName: character.name,
-      poolName: reason,
-      poolType: 'willpower',
-      diceCount: 0,
-      dice: [],
-      successes: 0,
-      createdAt: new Date().toISOString(),
-      meta: {
-        source: 'willpower',
-        characterId: character.id,
-        willpowerBefore: getWillpowerMetaState(before),
-        willpowerAfter: getWillpowerMetaState(after),
-        willpowerImpaired: after.impaired,
-        ...meta,
-      },
-    }
-    await publishRoll(roll)
-  }
-
-  const spendWillpower = async (character: CharacterOption, amount = 1, reason = 'Воля: трата') => {
-    const before = getCharacterWillpower(character)
-    const result = applyWillpowerStressValue(before, amount)
-    if (result.applied < amount) {
-      window.alert(result.warnings[0] ? t(result.warnings[0]) : t('Волю сейчас потратить нельзя.'))
-      return null
-    }
-    const updatedCharacter = await updateCharacterWillpower(character.id, result.tracker, 'Воля сохранена')
-    if (!updatedCharacter) return null
-    const after = getCharacterWillpower(updatedCharacter)
-    await publishWillpowerEvent(updatedCharacter, reason, before, after, {
-      spentWillpower: result.applied,
-      warnings: result.warnings,
-    })
-    return { character: updatedCharacter, before, after, spent: result.applied, warnings: result.warnings }
-  }
-
-  const recoverWillpower = async (
-    character: CharacterOption,
-    amount: number,
-    severity: 'superficial' | 'aggravated',
-    reason: string,
-  ) => {
-    const before = getCharacterWillpower(character)
-    const result = recoverWillpowerStressValue(before, amount, severity)
-    if (result.recovered < 1) return null
-    const updatedCharacter = await updateCharacterWillpower(character.id, result.tracker, 'Воля сохранена')
-    if (!updatedCharacter) return null
-    const after = getCharacterWillpower(updatedCharacter)
-    await publishWillpowerEvent(updatedCharacter, reason, before, after, {
-      recoveredWillpower: result.recovered,
-    })
-    return { character: updatedCharacter, before, after, recovered: result.recovered }
-  }
-
-  const adjustWillpowerStress = async (character: CharacterOption, severity: 'superficial' | 'aggravated', delta: number) => {
-    const before = getCharacterWillpower(character)
-    const next = { superficial: before.superficial, aggravated: before.aggravated }
-    if (severity === 'aggravated') {
-      next.aggravated = Math.max(0, Math.min(before.max, next.aggravated + delta))
-      if (next.superficial + next.aggravated > before.max) next.superficial = Math.max(0, before.max - next.aggravated)
-    } else {
-      next.superficial = Math.max(0, Math.min(Math.max(0, before.max - next.aggravated), next.superficial + delta))
-    }
-    await updateCharacterWillpower(character.id, next, 'Воля сохранена')
-  }
-
-  const rollWillpowerCheck = async (character: CharacterOption) => {
-    const willpower = getCharacterWillpower(character)
-    if (willpower.current < 1) {
-      window.alert(t('Доступной Воли нет: проверку Воли бросить нельзя.'))
-      return
-    }
-    await rollQuickDice(willpower.current, 'Проверка Воли', character, 'willpower-check', {
-      skipHungerDice: true,
-      source: 'willpower',
-      warnings: ['Проверка Воли бросает текущую доступную Волю и не использует кубики Голода.'],
-    })
-  }
-
-  const performRouseCheck = async (
-    character: CharacterOption,
-    reason: string,
-    hungerBefore = getCharacterHunger(character),
-  ): Promise<RouseCheckResult> => {
-    const safeBefore = Math.max(0, Math.min(5, Math.floor(Number(hungerBefore) || 0)))
-    const value = Math.floor(Math.random() * 10) + 1
-    const success = value >= 6
-    const hungerAfter = success ? safeBefore : Math.max(0, Math.min(5, safeBefore + 1))
-    const result: RouseCheckResult = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      reason,
-      value,
-      success,
-      hungerBefore: safeBefore,
-      hungerAfter,
-      maxHungerWarning: !success && safeBefore >= 5,
-    }
-
-    if (hungerAfter !== safeBefore) {
-      await updateCharacterHunger(character.id, hungerAfter, 'Голод сохранён')
-    }
-
-    return result
-  }
-
-  const rollRouseCheck = async (character: CharacterOption, reason = 'Испытание Крови / Проверка Голода') => {
-    const result = await performRouseCheck(character, reason)
-    await publishRoll(buildRouseCheckRoll(character, room, result, reason, rollsDice(), getCharacterBloodPotency))
-  }
-
-  const quenchHunger = async (character: CharacterOption, amount: number = 1) => {
-    const current = getCharacterHunger(character)
-    const delta = Math.max(1, Math.floor(Number(amount) || 1))
-    const next = Math.max(0, Math.min(5, current - delta))
-    if (next === current) return
-    await updateCharacterHunger(character.id, next, 'Голод утолён')
-  }
+  publishRollRef.current = publishRoll
 
   const publishOpposedRoll = async (roll: RollMessage, opposed: OpposedRollResult) => {
     setRolls(prev => mergeRoll(prev, roll))
@@ -2691,6 +1645,7 @@ export default function VampireTable() {
     const roll = await createQuickRoll(diceCount, poolName, character, poolType, options)
     await publishRoll(roll)
   }
+  rollQuickDiceRef.current = rollQuickDice
 
   const sendContestedRollRequest = async (
     diceCount: number,
@@ -2773,11 +1728,6 @@ export default function VampireTable() {
     setConnectionText(`Встречный бросок запрошен: ${opponent.label}`)
   }
 
-  const getRollCharacter = (roll: RollMessage) => {
-    const characterId = roll.meta?.characterId
-    if (characterId) return chatCharacters.find(character => character.id === characterId) || null
-    return chatCharacters.find(character => character.name === roll.characterName) || null
-  }
 
   const applyRollDamage = async (roll: RollMessage) => {
     if (!chatCharacters.length) {
