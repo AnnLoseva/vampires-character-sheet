@@ -48,15 +48,7 @@ import {
   getDroppedMediaUrls,
   getEmbeddableVideoUrl,
   getFileLayerMeta,
-  getFileText,
-  getImageNameFromUrl,
-  getMediaSize,
   getMediaUrlsFromText,
-  getStoragePathFromPublicUrl,
-  getTextLayerData,
-  isReadableTextFile,
-  isWordLikeFile,
-  safeStorageName,
 } from '@/modules/table/utils/media-utils'
 import {
   getCharacterBloodPotency,
@@ -70,7 +62,6 @@ import {
   getWillpowerRecoveryPool,
 } from '@/modules/table/utils/character-state'
 import {
-  createEditorState,
   getEditorImageStyle,
   buildLayerTree,
   getAncestorIds,
@@ -98,10 +89,7 @@ import {
   updateSceneMusicRecord,
   updateSceneRecord,
 } from '@/modules/table/api/scene-api'
-import {
-  updateLayerRecords,
-  uploadTableImageFile,
-} from '@/modules/table/api/layer-api'
+
 import {
   fetchCharacterById,
   updateCharacterData,
@@ -164,9 +152,12 @@ import {
   useCharacterActions,
   useDisciplineActions,
   useInventoryActions,
+  useImageEditorActions,
   useLayerActions,
+  useMediaUploadActions,
   usePoolRollActions,
   useRoomSession,
+  useTableCanvas,
   useTableVoice,
   useTableLayers,
   useTableRealtime,
@@ -212,7 +203,6 @@ import type {
   CharacterOption,
   CharacterRow,
   Die,
-  DragState,
   ImageEditorDraft,
   ImageEditorState,
   InventoryItem,
@@ -241,8 +231,6 @@ import type {
   TableLayer,
   TableRole,
   TableScene,
-  TouchGestureState,
-
   WillpowerRerollDraft,
 } from '@/modules/table/types'
 
@@ -378,13 +366,7 @@ export default function VampireTable() {
   const sceneRef = useRef<HTMLDivElement>(null)
   const triggerDiceOverlayRef = useRef<((roll: RollMessage) => void) | null>(null)
   const broadcastRef = useRef<(event: string, payload: unknown) => void>(() => {})
-  const dragRef = useRef<DragState | null>(null)
-  const dragAnimationFrameRef = useRef<number | null>(null)
-  const pendingDragPointerRef = useRef<{ clientX: number; clientY: number } | null>(null)
-  const dragLayerElementsRef = useRef<Map<string, HTMLElement>>(new Map())
-  const dragPreviewPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
-  const dragPreviewBoundsRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
-  const touchGestureRef = useRef<TouchGestureState | null>(null)
+  const imageEditorRef = useRef<ImageEditorDraft | null>(null)
   const panRef = useRef(pan)
   const chatUserRef = useRef<ChatUser | null>(null)
   const chatCharactersRef = useRef<CharacterOption[]>([])
@@ -533,9 +515,9 @@ export default function VampireTable() {
     sendChatMessage,
   } = useChat({ chronicleId: room })
 
-  useEffect(() => () => {
-    if (dragAnimationFrameRef.current !== null) cancelAnimationFrame(dragAnimationFrameRef.current)
-  }, [])
+  useEffect(() => {
+    imageEditorRef.current = imageEditor
+  }, [imageEditor])
 
   useEffect(() => {
     panRef.current = pan
@@ -724,6 +706,51 @@ export default function VampireTable() {
     broadcast: (event, payload) => broadcastRef.current(event, payload),
     journalEntriesRef,
     getLayerContext: () => layerContextRef.current,
+  })
+
+  const {
+    uploadFiles,
+    addRemoteMediaUrls,
+    handleImageUpload,
+    handleFolderUpload,
+    handleBackgroundUpload,
+    handleMediaUrlSubmit,
+    createTextMaterial,
+    handleSceneMediaDrop,
+  } = useMediaUploadActions({
+    room,
+    t,
+    isMaster,
+    chatUser,
+    mediaTab,
+    mediaUrlDraft,
+    textMaterialDraft,
+    textMaterialNameDraft,
+    layersRef,
+    setIsUploading,
+    setTableStatus,
+    setRightRailTab,
+    setMediaUrlDraft,
+    setTextMaterialDraft,
+    setTextMaterialNameDraft,
+    addMediaLayer,
+    createFolder,
+  })
+
+  const {
+    openImageEditor,
+    updateImageEditor,
+    undoImageEditor,
+    redoImageEditor,
+    applyImageEditor,
+  } = useImageEditorActions({
+    setImageEditor,
+    setLayerContextMenu,
+    getImageEditor: () => imageEditorRef.current,
+    getLayerById: id => layersRef.current.find(item => item.id === id),
+    canEditLayer,
+    patchLayer,
+    addMediaLayer,
   })
 
   const {
@@ -2172,6 +2199,48 @@ export default function VampireTable() {
     return buildLayerTree(libraryLayers)
   }, [libraryLayers])
 
+  const {
+    previewLayerOpacity,
+    commitLayerOpacity,
+    getScenePointFromClient,
+    startLayerDrag,
+    startPan,
+    updateLayerDrag,
+    finishLayerDrag,
+    handleWheel,
+    startSceneTouch,
+    updateSceneTouch,
+    finishSceneTouch,
+    handleDrop,
+  } = useTableCanvas({
+    room,
+    zoom,
+    pan,
+    isMaster,
+    selectedLayerIds,
+    visibleLayers,
+    sceneRef,
+    panRef,
+    layersRef,
+    suppressNextContextMenuRef,
+    setZoom,
+    setPan,
+    setLayers,
+    setTableStatus,
+    setSelectionRect,
+    setSelectedLayerIds,
+    setSelectedLayerId,
+    setIsDraggingOver,
+    broadcast,
+    canEditLayer,
+    patchLayer,
+    setLayerSelection,
+    placeLayerOnTable,
+    uploadFiles,
+    addRemoteMediaUrls,
+    getDroppedMediaUrls,
+  })
+
   const sendMasterWhisper = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const text = masterChatDraft.trim()
@@ -2201,292 +2270,6 @@ export default function VampireTable() {
     logoutChat()
   }
 
-  const previewLayerOpacity = (id: string, opacity: number) => {
-    const element = Array.from(sceneRef.current?.querySelectorAll<HTMLElement>('.scene-layer[data-layer-id]') || [])
-      .find(item => item.dataset.layerId === id)
-    if (element) element.style.opacity = String(opacity)
-  }
-
-  const commitLayerOpacity = (id: string, input: HTMLInputElement) => {
-    const opacity = Number(input.value)
-    if (!Number.isFinite(opacity) || input.dataset.committedValue === String(opacity)) return
-    input.dataset.committedValue = String(opacity)
-    void patchLayer(id, { opacity })
-  }
-
-  const uploadFiles = async (
-    files: FileList | File[],
-    onTable = true,
-    options: { asBackground?: boolean; point?: { x: number; y: number }; preserveFolders?: boolean } = {}
-  ) => {
-    const uploadItems = Array.from(files).map(file => ({
-      file,
-      relativePath: options.preserveFolders ? file.webkitRelativePath || file.name : file.name,
-    }))
-    if (uploadItems.length === 0) return
-    if (!isMaster && !chatUser) {
-      window.alert(t('Сначала войди в аккаунт игрока, чтобы добавлять медиа в комнату.'))
-      setRightRailTab('chat')
-      return
-    }
-
-    setIsUploading(true)
-
-    try {
-      const folderIds = new Map<string, string | null>()
-
-      const ensureFolder = async (folderPath: string, onTableForFolder: boolean) => {
-        const parts = folderPath.split('/').map(part => part.trim()).filter(Boolean)
-        if (parts.length === 0) return null
-
-        let parentId: string | null = null
-        let pathKey = ''
-
-        for (const part of parts) {
-          pathKey = pathKey ? `${pathKey}/${part}` : part
-          if (folderIds.has(pathKey)) {
-            parentId = folderIds.get(pathKey) ?? null
-            continue
-          }
-
-          const existing = layersRef.current.find(layer =>
-            layer.layerType === 'folder' &&
-            layer.parentId === parentId &&
-            layer.name === part &&
-            layer.onTable === onTableForFolder
-          )
-          const folderId = existing?.id || await createFolder(parentId, part, false, onTableForFolder)
-          folderIds.set(pathKey, folderId)
-          if (folderId) parentId = folderId
-        }
-
-        return parentId
-      }
-
-      for (const [index, item] of uploadItems.entries()) {
-        const file = item.file
-        const relativeParts = item.relativePath.split('/').filter(Boolean)
-        const parentFolderPath = relativeParts.length > 1 ? relativeParts.slice(0, -1).join('/') : ''
-        const parentId = options.preserveFolders && parentFolderPath
-          ? await ensureFolder(parentFolderPath, onTable)
-          : undefined
-        const layerType: 'image' | 'video' | 'text' | 'file' = file.type.startsWith('image/')
-          ? 'image'
-          : file.type.startsWith('video/')
-            ? 'video'
-            : isReadableTextFile(file)
-              ? 'text'
-              : 'file'
-        const objectUrl = URL.createObjectURL(file)
-        const natural = layerType === 'image' || layerType === 'video'
-          ? await getMediaSize(objectUrl, layerType)
-          : isWordLikeFile(file)
-            ? { width: 460, height: 320 }
-            : { width: 440, height: 300 }
-        URL.revokeObjectURL(objectUrl)
-
-        const storageFolderPath = options.preserveFolders
-          ? relativeParts.slice(0, -1).map(part => safeStorageName(part)).filter(Boolean).join('/')
-          : ''
-        const { error: uploadError, publicUrl } = await uploadTableImageFile(room, file, { storageFolderPath })
-
-        if (uploadError || !publicUrl) {
-          console.error('Не удалось загрузить файл в Storage:', uploadError)
-          window.alert(t('Файл не загрузился в Supabase Storage. Примени обновлённый SQL для bucket table-images.'))
-          continue
-        }
-
-        const layerData = layerType === 'text'
-          ? getTextLayerData(file, await getFileText(file))
-          : layerType === 'file'
-            ? JSON.stringify({
-              url: publicUrl,
-              type: file.type || 'application/octet-stream',
-              wordLike: isWordLikeFile(file),
-              pdf: /\.pdf$/i.test(file.name) || /pdf/i.test(file.type),
-              name: file.name,
-            })
-            : publicUrl
-        await addMediaLayer(
-          layerData,
-          options.asBackground ? `Фон — ${file.name}` : file.name,
-          natural,
-          layerType,
-          index,
-          options.asBackground ? { x: 0, y: 0 } : options.point,
-          onTable,
-          {
-            ...(options.asBackground
-              ? {
-              zIndex: -1000 + index,
-              locked: true,
-              parentId: null,
-              width: Math.max(1600, natural.width),
-              height: Math.max(900, Math.round((Math.max(1600, natural.width) / Math.max(1, natural.width)) * Math.max(1, natural.height))),
-              }
-              : {}),
-            ...(parentId !== undefined ? { parentId } : {}),
-          }
-        )
-      }
-
-      setTableStatus('Сцена онлайн')
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const addRemoteMediaUrls = async (items: Array<{ url: string; layerType: 'image' | 'video' }>, point?: { x: number; y: number }, onTable = true) => {
-    if (items.length === 0) return false
-    setIsUploading(true)
-
-    try {
-      for (const [index, item] of items.entries()) {
-        const natural = await getMediaSize(item.url, item.layerType)
-        await addMediaLayer(
-          item.url,
-          getImageNameFromUrl(item.url),
-          natural,
-          item.layerType,
-          index,
-          point ? { x: point.x + index * 28, y: point.y + index * 24 } : undefined,
-          onTable
-        )
-      }
-      setTableStatus('Сцена онлайн')
-      return true
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleImageUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      await uploadFiles(event.target.files, mediaTab !== 'library')
-      event.target.value = ''
-    }
-  }
-
-  const handleFolderUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      await uploadFiles(event.target.files, mediaTab !== 'library', { preserveFolders: true })
-      event.target.value = ''
-    }
-  }
-
-  const handleBackgroundUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      const imageFiles = Array.from(event.target.files).filter(file => file.type.startsWith('image/'))
-      if (imageFiles.length === 0) window.alert(t('Для фона выбери картинку.'))
-      else await uploadFiles(imageFiles, true, { asBackground: true })
-      event.target.value = ''
-    }
-  }
-
-  const handleMediaUrlSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const items = getMediaUrlsFromText(mediaUrlDraft)
-    if (items.length === 0) {
-      window.alert(t('Вставь ссылку на YouTube или прямую ссылку на файл: jpg, png, webp, gif, svg, mp4, webm, mov, m4v, ogg.'))
-      return
-    }
-
-    const added = await addRemoteMediaUrls(items)
-    if (added) setMediaUrlDraft('')
-  }
-
-  const createTextMaterial = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const text = textMaterialDraft.trim()
-    if (!text) return
-    await addMediaLayer(
-      text,
-      textMaterialNameDraft.trim() || t('Текст мастера'),
-      { width: 420, height: 260 },
-      'text',
-      0,
-      undefined,
-      false
-    )
-    setTextMaterialDraft('')
-    setTextMaterialNameDraft('')
-  }
-
-  const openImageEditor = (layer: TableLayer) => {
-    if (!canEditLayer(layer) || !['image', 'video'].includes(layer.layerType)) return
-    setImageEditor({
-      layerId: layer.id,
-      state: createEditorState(layer),
-      history: [],
-      future: [],
-      aspectLocked: false,
-      drag: null,
-    })
-    setLayerContextMenu(null)
-  }
-
-  const updateImageEditor = (updater: (state: ImageEditorState) => ImageEditorState, commit = true) => {
-    setImageEditor(editor => {
-      if (!editor) return editor
-      const nextState = updater(editor.state)
-      return {
-        ...editor,
-        state: nextState,
-        history: commit ? [...editor.history, editor.state].slice(-40) : editor.history,
-        future: commit ? [] : editor.future,
-      }
-    })
-  }
-
-  const undoImageEditor = () => {
-    setImageEditor(editor => {
-      if (!editor || editor.history.length === 0) return editor
-      const previous = editor.history[editor.history.length - 1]
-      return {
-        ...editor,
-        state: previous,
-        history: editor.history.slice(0, -1),
-        future: [editor.state, ...editor.future].slice(0, 40),
-      }
-    })
-  }
-
-  const redoImageEditor = () => {
-    setImageEditor(editor => {
-      if (!editor || editor.future.length === 0) return editor
-      const next = editor.future[0]
-      return {
-        ...editor,
-        state: next,
-        history: [...editor.history, editor.state].slice(-40),
-        future: editor.future.slice(1),
-      }
-    })
-  }
-
-  const applyImageEditor = async (saveAsNew = false) => {
-    if (!imageEditor) return
-    const layer = layersRef.current.find(item => item.id === imageEditor.layerId)
-    if (!layer) return
-    const patch: LayerPatch = {
-      cropX: imageEditor.state.cropX,
-      cropY: imageEditor.state.cropY,
-      cropWidth: imageEditor.state.cropWidth,
-      cropHeight: imageEditor.state.cropHeight,
-      rotation: imageEditor.state.rotation,
-      flipX: imageEditor.state.flipX,
-      flipY: imageEditor.state.flipY,
-      brightness: imageEditor.state.brightness,
-      contrast: imageEditor.state.contrast,
-      saturation: imageEditor.state.saturation,
-    }
-    if (saveAsNew) {
-      await addMediaLayer(layer.imageData, `${layer.name} copy`, { width: layer.width, height: layer.height }, layer.layerType === 'video' ? 'video' : 'image', 0, { x: layer.x + 32, y: layer.y + 32 }, layer.onTable, patch)
-    } else {
-      await patchLayer(layer.id, patch)
-    }
-    setImageEditor(null)
-  }
 
   const getContextLayerIds = (layerId: string | null) => {
     if (layerId && selectedLayerIds.has(layerId) && selectedLayerIds.size > 1) return [...selectedLayerIds]
@@ -2729,421 +2512,6 @@ export default function VampireTable() {
   const handleLayerDragEnd = () => {
     setDraggingLayerId(null)
     setLayerDropTarget(null)
-  }
-
-  const getScenePointFromClient = (clientX: number, clientY: number) => {
-    const rect = sceneRef.current?.getBoundingClientRect()
-    if (!rect) return { x: 0, y: 0 }
-    return {
-      x: (clientX - rect.left - panRef.current.x) / zoom,
-      y: (clientY - rect.top - panRef.current.y) / zoom,
-    }
-  }
-
-  const getScenePoint = (event: React.PointerEvent<HTMLElement>) => getScenePointFromClient(event.clientX, event.clientY)
-
-  const prepareLayerDragPreview = (ids: Set<string>, mode: 'move' | 'resize') => {
-    const elements = new Map<string, HTMLElement>()
-    sceneRef.current?.querySelectorAll<HTMLElement>('.scene-layer[data-layer-id]').forEach(element => {
-      const id = element.dataset.layerId
-      if (!id || !ids.has(id)) return
-      element.style.willChange = mode === 'move' ? 'transform' : 'left, top, width, height'
-      elements.set(id, element)
-    })
-    dragLayerElementsRef.current = elements
-    dragPreviewPositionsRef.current = new Map()
-    dragPreviewBoundsRef.current = null
-    pendingDragPointerRef.current = null
-  }
-
-  const applyLayerMovePreview = (drag: DragState, clientX: number, clientY: number) => {
-    const sceneDx = (clientX - drag.startClientX) / zoom
-    const sceneDy = (clientY - drag.startClientY) / zoom
-    const positions = new Map<string, { x: number; y: number }>()
-    positions.set(drag.id, {
-      x: Math.round(drag.startX + sceneDx),
-      y: Math.round(drag.startY + sceneDy),
-    })
-    drag.childStartPositions.forEach(child => {
-      positions.set(child.id, {
-        x: Math.round(child.x + sceneDx),
-        y: Math.round(child.y + sceneDy),
-      })
-    })
-    dragPreviewPositionsRef.current = positions
-
-    dragLayerElementsRef.current.forEach(element => {
-      element.style.transform = `translate3d(${sceneDx}px, ${sceneDy}px, 0)`
-    })
-  }
-
-  const applyLayerResizePreview = (drag: DragState, clientX: number, clientY: number) => {
-    const sceneDx = (clientX - drag.startClientX) / zoom
-    const sceneDy = (clientY - drag.startClientY) / zoom
-    const horizontal = drag.corner?.includes('w') ? -sceneDx : sceneDx
-    const vertical = drag.corner?.includes('n') ? -sceneDy : sceneDy
-    const widthFromX = drag.startWidth + horizontal
-    const widthFromY = (drag.startHeight + vertical) * drag.aspectRatio
-    const width = Math.max(60, Math.round(Math.abs(horizontal) > Math.abs(vertical) ? widthFromX : widthFromY))
-    const height = Math.max(60, Math.round(width / drag.aspectRatio))
-    const x = drag.corner?.includes('w') ? Math.round(drag.startX + drag.startWidth - width) : drag.startX
-    const y = drag.corner?.includes('n') ? Math.round(drag.startY + drag.startHeight - height) : drag.startY
-    dragPreviewBoundsRef.current = { x, y, width, height }
-
-    const element = dragLayerElementsRef.current.get(drag.id)
-    if (!element) return
-    element.style.left = `${x}px`
-    element.style.top = `${y}px`
-    element.style.width = `${width}px`
-    element.style.height = `${height}px`
-  }
-
-  const startLayerDrag = (event: React.PointerEvent<HTMLElement>, layer: TableLayer, mode: 'move' | 'resize', corner: DragState['corner'] = 'se') => {
-    if (event.button !== 0) return
-    if (!canEditLayer(layer)) return
-    if (layer.locked) return
-    const target = event.target as HTMLElement
-    if (layer.layerType === 'text' && target.closest('.scene-text-material')) {
-      setLayerSelection([layer.id], layer.id)
-      return
-    }
-    if (mode === 'move' && layer.layerType === 'video' && target instanceof HTMLVideoElement) {
-      const rect = target.getBoundingClientRect()
-      const controlHeight = Math.min(56, Math.max(36, rect.height * 0.3))
-      if (event.clientY >= rect.bottom - controlHeight) {
-        setLayerSelection([layer.id], layer.id)
-        return
-      }
-    }
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    const nextSelection = selectedLayerIds.has(layer.id) ? selectedLayerIds : new Set([layer.id])
-    setSelectedLayerIds(nextSelection)
-    setSelectedLayerId(layer.id)
-    const moveIds = new Set<string>()
-    if (mode === 'move') {
-      nextSelection.forEach(id => {
-        moveIds.add(id)
-        getDescendantIds(layersRef.current, id).forEach(childId => moveIds.add(childId))
-      })
-      moveIds.delete(layer.id)
-    }
-    dragRef.current = {
-      id: layer.id,
-      mode,
-      corner,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: layer.x,
-      startY: layer.y,
-      startWidth: layer.width,
-      startHeight: layer.height,
-      startPanX: panRef.current.x,
-      startPanY: panRef.current.y,
-      aspectRatio: Math.max(0.01, layer.width / layer.height),
-      childStartPositions: layersRef.current
-        .filter(item => moveIds.has(item.id))
-        .map(item => ({ id: item.id, x: item.x, y: item.y })),
-    }
-    prepareLayerDragPreview(new Set([layer.id, ...moveIds]), mode)
-  }
-
-  const startPan = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (event.button !== 2 && event.button !== 0) return
-    const target = event.target as HTMLElement
-    const emptySceneTarget = target.classList.contains('scene') || target.classList.contains('scene-world')
-    if (event.button === 0 && !emptySceneTarget) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    suppressNextContextMenuRef.current = false
-    if (event.button === 0) {
-      const point = getScenePoint(event)
-      setLayerSelection([])
-      setSelectionRect({ x: point.x, y: point.y, width: 0, height: 0 })
-      dragRef.current = {
-        id: '',
-        mode: 'select',
-        startClientX: event.clientX,
-        startClientY: event.clientY,
-        startX: point.x,
-        startY: point.y,
-        startWidth: 0,
-        startHeight: 0,
-        startPanX: panRef.current.x,
-        startPanY: panRef.current.y,
-        aspectRatio: 1,
-        childStartPositions: [],
-      }
-      return
-    }
-    dragRef.current = {
-      id: '',
-      mode: 'pan',
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: 0,
-      startY: 0,
-      startWidth: 0,
-      startHeight: 0,
-      startPanX: panRef.current.x,
-      startPanY: panRef.current.y,
-      aspectRatio: 1,
-      childStartPositions: [],
-    }
-  }
-
-  const updateLayerDrag = (event: React.PointerEvent<HTMLDivElement>) => {
-    const drag = dragRef.current
-    if (!drag) return
-
-    const dx = event.clientX - drag.startClientX
-    const dy = event.clientY - drag.startClientY
-
-    if (drag.mode === 'pan') {
-      if (Math.abs(dx) + Math.abs(dy) > 6) suppressNextContextMenuRef.current = true
-      setPan({ x: drag.startPanX + dx, y: drag.startPanY + dy })
-      return
-    }
-
-    if (drag.mode === 'select') {
-      const point = getScenePoint(event)
-      const x = Math.min(drag.startX, point.x)
-      const y = Math.min(drag.startY, point.y)
-      const width = Math.abs(point.x - drag.startX)
-      const height = Math.abs(point.y - drag.startY)
-      const rect = { x, y, width, height }
-      setSelectionRect(rect)
-      const selected = visibleLayers
-        .filter(layer => (
-          layer.x < x + width &&
-          layer.x + layer.width > x &&
-          layer.y < y + height &&
-          layer.y + layer.height > y
-        ))
-        .map(layer => layer.id)
-      setLayerSelection(selected)
-      return
-    }
-
-    if (drag.mode === 'move' || drag.mode === 'resize') {
-      pendingDragPointerRef.current = { clientX: event.clientX, clientY: event.clientY }
-      if (dragAnimationFrameRef.current === null) {
-        dragAnimationFrameRef.current = requestAnimationFrame(() => {
-          dragAnimationFrameRef.current = null
-          const pending = pendingDragPointerRef.current
-          const activeDrag = dragRef.current
-          if (!pending || !activeDrag) return
-          if (activeDrag.mode === 'move') applyLayerMovePreview(activeDrag, pending.clientX, pending.clientY)
-          if (activeDrag.mode === 'resize') applyLayerResizePreview(activeDrag, pending.clientX, pending.clientY)
-        })
-      }
-      return
-    }
-  }
-
-  const finishLayerDrag = async () => {
-    const drag = dragRef.current
-    if (!drag) return
-
-    if ((drag.mode === 'move' || drag.mode === 'resize') && pendingDragPointerRef.current) {
-      if (dragAnimationFrameRef.current !== null) cancelAnimationFrame(dragAnimationFrameRef.current)
-      dragAnimationFrameRef.current = null
-      if (drag.mode === 'move') applyLayerMovePreview(drag, pendingDragPointerRef.current.clientX, pendingDragPointerRef.current.clientY)
-      if (drag.mode === 'resize') applyLayerResizePreview(drag, pendingDragPointerRef.current.clientX, pendingDragPointerRef.current.clientY)
-    }
-    dragRef.current = null
-    pendingDragPointerRef.current = null
-    if (drag.mode === 'select') {
-      setSelectionRect(null)
-      return
-    }
-    if (drag.mode === 'pan') return
-    if (drag.mode === 'move') {
-      const positions = dragPreviewPositionsRef.current
-      dragPreviewPositionsRef.current = new Map()
-      if (positions.size === 0) {
-        dragLayerElementsRef.current.forEach(element => {
-          element.style.transform = ''
-          element.style.willChange = ''
-        })
-        dragLayerElementsRef.current = new Map()
-        return
-      }
-
-      const nextLayers = layersRef.current.map(layer => {
-        const position = positions.get(layer.id)
-        return position ? { ...layer, ...position } : layer
-      })
-      layersRef.current = nextLayers
-      dragLayerElementsRef.current.forEach((element, id) => {
-        const position = positions.get(id)
-        if (position) {
-          element.style.left = `${position.x}px`
-          element.style.top = `${position.y}px`
-        }
-        element.style.transform = ''
-        element.style.willChange = ''
-      })
-      dragLayerElementsRef.current = new Map()
-      setLayers(nextLayers)
-
-      const updates = Array.from(positions, ([id, position]) => ({ id, ...position }))
-      broadcast('layer-move', { room, updates })
-      const results = await updateLayerRecords(
-        updates.map(update => ({ id: update.id, patch: { x: update.x, y: update.y } })),
-      )
-      if (results.some(result => result.error)) {
-        console.error('Не удалось сохранить перемещение слоёв:', results.filter(result => result.error).map(result => result.error))
-        setTableStatus('Позиция слоя не сохранилась')
-      }
-      return
-    }
-    const bounds = dragPreviewBoundsRef.current
-    dragPreviewBoundsRef.current = null
-    dragLayerElementsRef.current.forEach(element => {
-      element.style.willChange = ''
-    })
-    dragLayerElementsRef.current = new Map()
-    if (bounds) await patchLayer(drag.id, bounds)
-  }
-
-  const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    const rect = event.currentTarget.getBoundingClientRect()
-    const nextZoom = Math.min(5, Math.max(0.2, zoom * (event.deltaY > 0 ? 0.9 : 1.1)))
-    const cursorX = event.clientX - rect.left
-    const cursorY = event.clientY - rect.top
-    const worldX = (cursorX - pan.x) / zoom
-    const worldY = (cursorY - pan.y) / zoom
-    setPan({
-      x: Math.round(cursorX - worldX * nextZoom),
-      y: Math.round(cursorY - worldY * nextZoom),
-    })
-    setZoom(nextZoom)
-  }
-
-  const getTouchCenter = (touches: React.TouchList | TouchList) => {
-    const first = touches[0]
-    const second = touches[1] || touches[0]
-    return {
-      x: (first.clientX + second.clientX) / 2,
-      y: (first.clientY + second.clientY) / 2,
-    }
-  }
-
-  const getTouchDistance = (touches: React.TouchList | TouchList) => {
-    if (touches.length < 2) return 1
-    const dx = touches[0].clientX - touches[1].clientX
-    const dy = touches[0].clientY - touches[1].clientY
-    return Math.max(1, Math.hypot(dx, dy))
-  }
-
-  const startSceneTouch = (event: React.TouchEvent<HTMLDivElement>) => {
-    const rect = sceneRef.current?.getBoundingClientRect()
-    if (!rect) return
-
-    if (event.touches.length >= 2) {
-      event.preventDefault()
-      dragRef.current = null
-      setSelectionRect(null)
-      const center = getTouchCenter(event.touches)
-      touchGestureRef.current = {
-        mode: 'pinch',
-        startClientX: center.x,
-        startClientY: center.y,
-        startPanX: panRef.current.x,
-        startPanY: panRef.current.y,
-        startDistance: getTouchDistance(event.touches),
-        startZoom: zoom,
-        worldCenterX: (center.x - rect.left - panRef.current.x) / zoom,
-        worldCenterY: (center.y - rect.top - panRef.current.y) / zoom,
-      }
-      return
-    }
-
-    const target = event.target as HTMLElement
-    const emptySceneTarget = target.classList.contains('scene') || target.classList.contains('scene-world')
-    if (!emptySceneTarget) return
-
-    event.preventDefault()
-    const touch = event.touches[0]
-    touchGestureRef.current = {
-      mode: 'pan',
-      startClientX: touch.clientX,
-      startClientY: touch.clientY,
-      startPanX: panRef.current.x,
-      startPanY: panRef.current.y,
-      startDistance: 1,
-      startZoom: zoom,
-      worldCenterX: 0,
-      worldCenterY: 0,
-    }
-  }
-
-  const updateSceneTouch = (event: React.TouchEvent<HTMLDivElement>) => {
-    const gesture = touchGestureRef.current
-    const rect = sceneRef.current?.getBoundingClientRect()
-    if (!gesture || !rect) return
-
-    event.preventDefault()
-    if (gesture.mode === 'pinch' && event.touches.length >= 2) {
-      const center = getTouchCenter(event.touches)
-      const nextZoom = Math.min(5, Math.max(0.2, gesture.startZoom * (getTouchDistance(event.touches) / gesture.startDistance)))
-      setZoom(nextZoom)
-      setPan({
-        x: Math.round(center.x - rect.left - gesture.worldCenterX * nextZoom),
-        y: Math.round(center.y - rect.top - gesture.worldCenterY * nextZoom),
-      })
-      return
-    }
-
-    if (gesture.mode === 'pan' && event.touches.length === 1) {
-      const touch = event.touches[0]
-      setPan({
-        x: Math.round(gesture.startPanX + touch.clientX - gesture.startClientX),
-        y: Math.round(gesture.startPanY + touch.clientY - gesture.startClientY),
-      })
-    }
-  }
-
-  const finishSceneTouch = (event: React.TouchEvent<HTMLDivElement>) => {
-    if (event.touches.length === 0) touchGestureRef.current = null
-  }
-
-  const handleDrop = async (event: React.DragEvent<HTMLDivElement>) => {
-    event.preventDefault()
-    setIsDraggingOver(false)
-    const libraryLayerId = event.dataTransfer.getData('application/x-vtm-library-layer')
-    if (libraryLayerId) {
-      await placeLayerOnTable(libraryLayerId, getScenePointFromClient(event.clientX, event.clientY))
-      return
-    }
-    const droppedFiles = Array.from(event.dataTransfer.files || [])
-    if (droppedFiles.some(file => file.type.startsWith('image/') || file.type.startsWith('video/'))) {
-      await uploadFiles(droppedFiles, true, { point: getScenePointFromClient(event.clientX, event.clientY), preserveFolders: true })
-      return
-    }
-
-    const mediaUrls = getDroppedMediaUrls(event.dataTransfer)
-    if (mediaUrls.length > 0) {
-      await addRemoteMediaUrls(mediaUrls, getScenePointFromClient(event.clientX, event.clientY))
-      return
-    }
-
-    if (droppedFiles.length > 0) await uploadFiles(droppedFiles, true, { point: getScenePointFromClient(event.clientX, event.clientY), preserveFolders: true })
-  }
-
-  const handleSceneMediaDrop = async (event: React.DragEvent<HTMLElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    const droppedFiles = Array.from(event.dataTransfer.files || [])
-    if (droppedFiles.length > 0) {
-      await uploadFiles(droppedFiles, false, { preserveFolders: true })
-      return
-    }
-
-    const mediaUrls = getDroppedMediaUrls(event.dataTransfer)
-    if (mediaUrls.length > 0) await addRemoteMediaUrls(mediaUrls, undefined, false)
   }
 
   const handleSceneMusicDrop = async (event: React.DragEvent<HTMLElement>) => {
