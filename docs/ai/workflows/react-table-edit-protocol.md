@@ -1,7 +1,7 @@
 # React Table Edit Protocol
 
 Applies to: `components/table/*` (especially `GameTable.tsx`),
-`modules/chat/*`, `modules/music/*`, and the table libs `lib/table/*`.
+`modules/chat/*`, `modules/music/*`, `modules/table/*`, and `lib/table/*` utils.
 
 Read `../subsystems/game-table.md` first (and `music-and-media.md` /
 `dice-and-rolls.md` if relevant).
@@ -10,20 +10,20 @@ Read `../subsystems/game-table.md` first (and `music-and-media.md` /
 1. **Do not grow `GameTable.tsx`.** It is already ~9k lines. New sizeable behavior
    goes into a child component, a hook, or a lib module — not inline.
 2. **Where things belong:**
-   - UI → a component in `components/table/*`, `modules/chat/components/*`, or
-     `modules/music/components/*`.
-   - Shared/domain logic → `lib/table/*`.
+   - UI → a component in `components/table/*`, `modules/chat/components/*`,
+     `modules/music/components/*`, or (future) `modules/table/components/*`.
+   - Table types/constants/mappers → `modules/table/*` (canonical).
+   - Table utils (media/layer/scene) → `lib/table/*` until moved to
+     `modules/table/utils/*`.
    - VTM rules → `core/systems/vtm5/rules/*` (pure).
-   - Constants (table/bucket names, keys) → `lib/table/constants.ts`.
-   - Types → `lib/table/types.ts`.
 3. **Never hardcode Supabase table/bucket names.** Import from
-   `lib/table/constants.ts`. Changing a name is a schema change — see
-   `supabase-edit-protocol.md`.
+   `modules/table/constants.ts` (or `@/lib/table/constants` shim). Changing a
+   name is a schema change — see `supabase-edit-protocol.md`.
 4. **Respect the room/role model.** Keep master-only actions gated; keep state
    keyed by `room`; don't leak master controls to players.
 5. **Keep realtime consistent.** Subscriptions/state must stay coherent per room;
    avoid duplicate handlers and update loops.
-6. **Map through `lib/table/mappers.ts`** for Supabase row ↔ app conversions;
+6. **Map through `modules/table/mappers.ts`** for Supabase row ↔ app conversions;
    don't inline ad-hoc mapping.
 
 ## After the change — verify
@@ -37,5 +37,5 @@ Read `../subsystems/game-table.md` first (and `music-and-media.md` /
 
 ## Update docs?
 Only per `../UPDATE-RULES.md` — e.g. a changed table data model
-(`lib/table/types.ts`) or a new subsystem-level behavior warrants a subsystem
+(`modules/table/types.ts`) or a new subsystem-level behavior warrants a subsystem
 doc update (and possibly a `../DECISIONS.md` entry).

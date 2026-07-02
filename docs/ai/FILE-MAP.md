@@ -23,7 +23,7 @@ opening code**. Risk levels drive how careful you must be.
 ## Game table (React)
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
-| `components/table/GameTable.tsx` | room orchestrator (~9k lines) | **critical** | react-table-edit-protocol | Do not grow it; extract instead |
+| `components/table/GameTable.tsx` | room orchestrator (~7.4k lines) | **critical** | react-table-edit-protocol | Do not grow it; extract to `modules/table` |
 | `components/table/TableCanvas.tsx` | tldraw canvas | high | react-table-edit-protocol | Media/layer rendering |
 | `components/table/{TableLeftPanel,TableRightPanel,MasterPanel}.tsx` | panels | medium | react-table-edit-protocol | UI shells |
 | `components/table/{SceneManager,LayerManager,MediaLibrary}.tsx` | scenes/layers/media UI | high | react-table-edit-protocol | Uses `lib/table/*` utils |
@@ -31,6 +31,19 @@ opening code**. Risk levels drive how careful you must be.
 | `components/table/JournalPanel.tsx` | in-table journal | medium | react-table-edit-protocol | |
 | `components/table/GameTableStyles.tsx` | global table styles | medium | react-table-edit-protocol | Large style block |
 | `components/table/VampireTable.tsx`, `components/VampireTable.tsx`, `components/CharacterSheet.tsx` | React sheet/table variants | high | react-table-edit-protocol | Confirm which is live before editing |
+
+## Table module (`modules/table/*`)
+| Path | Role | Risk | Edit protocol | Notes |
+|---|---|---|---|---|
+| `modules/table/types.ts` | table data model (canonical) | high | react-table-edit-protocol | Chat types re-exported from `modules/chat/types` |
+| `modules/table/constants.ts` | table/bucket names, keys (canonical) | **critical** | supabase-edit-protocol | Includes `constants/roll-traits.ts` |
+| `modules/table/mappers.ts` | DB ↔ app mapping (canonical) | high | supabase-edit-protocol | |
+| `modules/table/utils/*` | scene/layer/media/roll helpers (canonical) | medium | react-table-edit-protocol | `lib/table/*-utils.ts` shims |
+| `modules/table/api/*` | Supabase API (scene/layer/roll/character) | high | supabase-edit-protocol | Wired from `GameTable.tsx` |
+| `modules/table/hooks/*` | room/rolls/scenes/layers/realtime | high | react-table-edit-protocol | Wired in `GameTable.tsx` |
+| `modules/table/components/*` | modals + roll UI slices | medium | react-table-edit-protocol | See `components/README.md` |
+| `modules/table/index.ts` | public module barrel | low | before-any-change | |
+| `lib/table/{types,constants,mappers,*-utils}.ts` | compatibility shims | low | before-any-change | Re-export `@/modules/table/*` |
 
 ## Chat, music, journal, reference
 | Path | Role | Risk | Edit protocol | Notes |
@@ -54,15 +67,16 @@ opening code**. Risk levels drive how careful you must be.
 | `core/systems/vtm5/rules/derived-stats/index.ts` | derived stats | high | vtm-mechanics-edit-protocol | |
 | `core/systems/vtm5/rules/disciplines/*` | discipline engine | high | vtm-mechanics-edit-protocol | Run discipline scripts after edits |
 
-## Table libs (`lib/table/*`)
+## Table libs (`lib/table/*` — utils + shims)
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
-| `lib/table/constants.ts` | table/bucket names, keys | **critical** | supabase-edit-protocol | Changing names = schema drift |
-| `lib/table/types.ts` | table data model | high | react-table-edit-protocol | Shared contracts |
-| `lib/table/mappers.ts` | DB ↔ app mapping | high | supabase-edit-protocol | |
-| `lib/table/media-utils.ts` | media helpers | medium | react-table-edit-protocol | |
-| `lib/table/layer-utils.ts` | layer helpers | medium | react-table-edit-protocol | |
-| `lib/table/scene-utils.ts` | scene helpers | medium | react-table-edit-protocol | |
+| `lib/table/constants.ts` | shim → `modules/table/constants` | low | before-any-change | Prefer `@/modules/table` |
+| `lib/table/types.ts` | shim → `modules/table/types` | low | before-any-change | Prefer `@/modules/table` |
+| `lib/table/mappers.ts` | shim → `modules/table/mappers` | low | before-any-change | Prefer `@/modules/table` |
+| `lib/table/media-utils.ts` | shim → `modules/table/utils/media-utils` | low | before-any-change | |
+| `lib/table/layer-utils.ts` | shim → `modules/table/utils/layer-utils` | low | before-any-change | |
+| `lib/table/scene-utils.ts` | shim → `modules/table/utils/scene-utils` | low | before-any-change | |
+| `lib/table/{roll-utils,dice-display}.ts` | shim → `modules/table/utils/*` | low | before-any-change | |
 
 ## i18n & Supabase client
 | Path | Role | Risk | Edit protocol | Notes |

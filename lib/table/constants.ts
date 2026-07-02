@@ -1,9 +1,2 @@
-export const TABLE_ROLLS = 'table_rolls'
-export const TABLE_CHAT_MESSAGES = 'table_chat_messages'
-export const TABLE_IMAGES = 'table_images'
-export const TABLE_SCENES = 'table_scenes'
-export const TABLE_SCENE_MUSIC = 'table_scene_music'
-export const TABLE_IMAGE_BUCKET = 'table-images'
-export const ROOT_LAYER_DROP_ID = '__root__'
-export const MASTER_PASSWORD_KEY = 'vtm-table-master-password'
-export const DEFAULT_SCENE_NAME = 'Основная сцена'
+/** @deprecated Import from `@/modules/table/constants` instead. Compatibility shim. */
+export * from '@/modules/table/constants'

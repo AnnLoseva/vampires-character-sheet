@@ -4,8 +4,10 @@
 > Delete stale lines. Long-term decisions go to `DECISIONS.md`, not here.
 
 ## Current development focus
+- `modules/table/` decomposition largely done — APIs, hooks, utils, and major
+  modals extracted from `GameTable.tsx` (~7.4k lines, was ~9k). Remaining:
+  voice WebRTC, roll-rail cards, layer-drag orchestration.
 - Establishing this AI context layer (`docs/ai/*`) so agents work safely.
-- Documenting the legacy ↔ React boundary; no behavior changes.
 - Validating VTM mechanics (disciplines, health, humanity) rather than adding new
   ones.
 
@@ -17,6 +19,8 @@
 - `modules/chat/*` owns text chat auth, message history, realtime delivery and UI.
 - `modules/music/*` owns shared room music playback, adapters and the persistent
   root engine mount.
+- `modules/table/*` owns table data layer, APIs, hooks, utils, modals
+  (`lib/table/*` shims for backward compat).
 
 ## What is fragile
 - `public/main.js` (~11k lines) — legacy sheet logic monolith.
@@ -48,4 +52,4 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-02 — Chat runtime moved to `modules/chat/*`.
+2026-07-02 — `modules/table/` phase complete: APIs, hooks, utils, components wired.

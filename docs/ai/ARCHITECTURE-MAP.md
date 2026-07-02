@@ -38,7 +38,8 @@ persist to the same Supabase project.
  → components/table/*                (Canvas, panels, dice, scenes, media, journal)
  → modules/chat/*                    (chat UI, auth, history, realtime)
  → modules/music/*                   (music UI, playback adapters, global engine)
- → lib/table/*                       (types, constants, mappers, media/layer/scene utils)
+ → modules/table/*                   (types, constants, mappers; api scaffolds)
+ → lib/table/*                       (media/layer/scene utils; shims for moved files)
  → core/systems/vtm5/rules/*        (pure rules: health, humanity, damage, disciplines)
  → Supabase tables + storage buckets (realtime room sync)
 ```

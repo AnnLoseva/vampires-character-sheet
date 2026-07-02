@@ -6,6 +6,42 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-02 — Table module decomposition (`modules/table`)
+
+**Area:** Game table / module migration
+**Decision:** `modules/table/` is the canonical home for table types, constants,
+mappers, utils, Supabase APIs, hooks, and extracted UI modals. `GameTable.tsx`
+consumes the module via hooks and components; it still owns orchestration for
+rolls, health/willpower, voice WebRTC, and canvas/layer drag.
+**Reason:** Gradual decomposition of the ~9k-line monolith following
+`modules/chat` and `modules/music` patterns.
+**Consequences:** New code imports from `@/modules/table`. `lib/table/*` shims
+remain for backward compat. Do not grow `GameTable.tsx` — extend the module.
+**Affected files:** `modules/table/*`, `components/table/GameTable.tsx`,
+`lib/table/*`, `docs/ai/*`
+**Status:** active
+
+---
+
+## 2026-07-02 — Table data layer moved into `modules/table` (superseded)
+
+**Area:** Game table / module migration
+**Decision:** Canonical table types, constants and Supabase row mappers now live
+in `modules/table/{types,constants,mappers}.ts`. `lib/table/{types,constants,mappers}.ts`
+are compatibility shims that re-export from the module. API scaffolds
+(`modules/table/api/*`), hooks and component extraction plans are documented but
+not yet implemented — `GameTable.tsx` still owns Supabase I/O.
+**Reason:** Prepare gradual decomposition of the ~9k-line `GameTable.tsx`
+monolith following the same pattern as `modules/chat` and `modules/music`.
+**Consequences:** New code should import from `@/modules/table`. `@/lib/table/*`
+still works via shims. Utils (`scene-utils`, `layer-utils`, `media-utils`) remain
+in `lib/table/` until the next phase.
+**Affected files:** `modules/table/*`, `lib/table/{types,constants,mappers}.ts`,
+`docs/ai/*`
+**Status:** superseded → see “Table module decomposition” above
+
+---
+
 ## 2026-07-02 — Text chat runtime moved into `modules/chat`
 
 **Area:** Chat / module migration

@@ -34,15 +34,17 @@ real time through Supabase and keyed by `room`.
 - Music: `modules/music/*` (see `music-and-media.md`).
 
 ## Table data model
-Types and helpers live in `lib/table/*` plus extracted modules:
+Canonical types/constants/mappers live in `modules/table/*`:
 - `types.ts` — shared table types (rolls, scenes, layers, media…); chat types
-  are re-exported from `modules/chat/types.ts`.
+  re-exported from `modules/chat/types.ts`.
 - `constants.ts` — table/bucket names + keys (see below).
 - `mappers.ts` — map Supabase rows ↔ app objects.
-- `media-utils.ts`, `layer-utils.ts`, `scene-utils.ts` — domain helpers.
+- `api/*` — Supabase API scaffolds (stubs; I/O still in `GameTable.tsx`).
+- `lib/table/{types,constants,mappers}.ts` — compatibility shims.
+- `lib/table/{media,layer,scene}-utils.ts` — domain helpers (next migration phase).
 
 ## Supabase dependencies
-Table names come from `lib/table/constants.ts` (and a couple defined near their
+Table names come from `modules/table/constants.ts` (and a couple defined near their
 use): `table_rolls`, `table_chat_messages`, `table_images`, `table_scenes`,
 `table_scene_music`, `table_music`, `table_music_library`; plus `characters` for
 loading player sheets. Buckets: `table-images` and a music bucket. Realtime is a
@@ -68,9 +70,10 @@ signals). See `dice-and-rolls.md`.
 
 ## Safe edit protocol
 1. Read `../workflows/react-table-edit-protocol.md`.
-2. Put UI in a component, shared logic in `lib/table/*`, rules in `core/systems/vtm5/rules/*`,
-   constants in `lib/table/constants.ts`, types in `lib/table/types.ts`.
-3. Keep Supabase table/bucket names in `constants.ts` — never hardcode new ones.
+2. Put UI in a component, table data in `modules/table/*`, utils in `lib/table/*`,
+   rules in `core/systems/vtm5/rules/*`.
+3. Keep Supabase table/bucket names in `modules/table/constants.ts` — never
+   hardcode new ones.
 4. Verify: `/table?room=campaign-666&role=master` and `&role=player` — room/role
    persistence, a dice roll, scene/layer visibility, chat, and the music panel.
 

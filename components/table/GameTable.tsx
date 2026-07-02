@@ -1,7 +1,7 @@
 'use client'
 
 import { ChangeEvent, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
-import type { Dispatch, SetStateAction } from 'react'
+import type { SetStateAction } from 'react'
 import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkillValue, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
@@ -33,25 +33,19 @@ import {
 } from '@/modules/music/utils'
 import {
   DEFAULT_SCENE_NAME,
-  MASTER_PASSWORD_KEY,
   ROOT_LAYER_DROP_ID,
-  TABLE_IMAGE_BUCKET,
-  TABLE_IMAGES,
-  TABLE_ROLLS,
-  TABLE_SCENE_MUSIC,
-  TABLE_SCENES,
 } from '@/lib/table/constants'
 import {
+  ATTRIBUTE_GROUPS,
+  SKILL_GROUPS,
+  type InventoryCategory,
+} from '@/modules/table/constants'
+import {
   mapCharacterRow,
-  mapLayerRow,
-  mapRollRow,
-  mapSceneMusicRow,
-  mapSceneRow,
   getCharacterType,
   getDefaultDamageProfile,
   normalizeWillpowerTracker,
   normalizeInventory,
-  toDbPatch,
 } from '@/lib/table/mappers'
 import {
   extractImageUrlsFromHtml,
@@ -80,7 +74,60 @@ import {
   sortLayers,
   upsertLayer,
 } from '@/lib/table/layer-utils'
-import { sortSceneMusic, sortScenes, upsertScene } from '@/lib/table/scene-utils'
+import { sortSceneMusic, upsertScene } from '@/lib/table/scene-utils'
+import {
+  activateSceneRecord,
+  clearSceneMusicDefaults,
+  createTableId,
+  deactivateOtherScenes,
+  deleteSceneMusicRecord,
+  deleteSceneWithAssets,
+  fetchSceneMusic,
+  insertScene,
+  insertSceneMusic,
+  updateSceneMusicRecord,
+  updateSceneRecord,
+} from '@/modules/table/api/scene-api'
+import {
+  deleteLayerRecords,
+  insertLayer,
+  removeStorageObject,
+  updateLayerRecord,
+  updateLayerRecords,
+  uploadTableImageFile,
+} from '@/modules/table/api/layer-api'
+import {
+  fetchCharacterById,
+  updateCharacterData,
+} from '@/modules/table/api/character-api'
+import {
+  insertRollRecord,
+  updateRollRecord,
+} from '@/modules/table/api/roll-api'
+import {
+  CharacterPreviewModal,
+  DisciplinePowerPanel,
+  MasterPasswordGate,
+  MasterRoleTopbar,
+  OpposedRollModal,
+  RollModifierControls,
+  WillpowerRerollControls,
+  summarizeRollModifier,
+} from '@/modules/table/components'
+import { getDieImage } from '@/modules/table/utils/dice-display'
+import {
+  getExtraTraitNames,
+  getRollDieId,
+  getWillpowerRerollEligibleDieIds,
+  isWillpowerRerollExcluded,
+} from '@/modules/table/utils/roll-utils'
+import {
+  useRoomSession,
+  useTableLayers,
+  useTableRealtime,
+  useTableRolls,
+  useTableScenes,
+} from '@/modules/table/hooks'
 import {
   applyHealthDamage,
   calculateConflictDamage,
@@ -98,7 +145,6 @@ import { removeActiveEffect as removeActiveEffectFromData } from '@/core/systems
 import {
   applyDisciplineEffectsToDamage,
   applyDisciplineEffectsToRoll,
-  type AppliedDisciplineRollModifier,
   type DisciplineRollEffectResult,
   type DisciplineRollPenalty,
 } from '@/core/systems/vtm5/rules/disciplines/effects'
@@ -152,45 +198,30 @@ import type {
   NormalizedHealth,
   NormalizedWillpower,
   MediaTab,
+  OpposedRollProposal,
   OpposedRollResult,
   OpposedRollSide,
   RollMeta,
+  RollPoolBuilder,
   RollMode,
   RightRailTab,
   RollMessage,
-  RollRow,
   RouseCheckResult,
-  SceneMusicRow,
   SceneMusicTrack,
   SelectionRect,
   TableLayer,
-  TableLayerRow,
   TableRole,
   TableScene,
-  TableSceneRow,
   TouchGestureState,
   VoiceParticipant,
   VoiceQuality,
   VoiceSignal,
+  WillpowerRerollDraft,
 } from '@/lib/table/types'
 
 const DiceRollOverlay = dynamic(() => import('./DiceRollOverlay'), { ssr: false })
 
 let supportsExtendedTableMusicSchema = true
-
-const ATTRIBUTE_GROUPS = [
-  { name: 'Физические', traits: ['Сила', 'Ловкость', 'Выносливость'] },
-  { name: 'Социальные', traits: ['Обаяние', 'Манипуляция', 'Самообладание'] },
-  { name: 'Ментальные', traits: ['Интеллект', 'Смекалка', 'Упорство'] },
-] as const
-
-const SKILL_GROUPS = [
-  { name: 'Физические', traits: ['Атлетика', 'Вождение', 'Воровство', 'Выживание', 'Драка', 'Ремесло', 'Скрытность', 'Стрельба', 'Фехтование'] },
-  { name: 'Социальные', traits: ['Запугивание', 'Исполнение', 'Лидерство', 'Обращение с животными', 'Проницательность', 'Убеждение', 'Уличное чутьё', 'Хитрость', 'Этикет'] },
-  { name: 'Ментальные', traits: ['Гуманитарные науки', 'Естественные науки', 'Медицина', 'Наблюдательность', 'Оккультизм', 'Политика', 'Расследование', 'Техника', 'Финансы'] },
-] as const
-
-const INVENTORY_CATEGORIES = ['Оружие', 'Одежда', 'Документы', 'Деньги', 'Артефакты', 'Расходники', 'Другое'] as const
 
 type DisciplinePowerRule = {
   description?: string
@@ -286,22 +317,9 @@ type QuickRollOptions = {
   disabledRollModifierIds?: string[]
 }
 
-type WillpowerRerollDraft = {
-  rollId: string
-  selectedDieIds: string[]
-}
-
 type PowerPoolChoice = {
   source: string
   options: string[]
-}
-
-type RollPoolBuilder = {
-  attribute: string
-  attributeTwo: string
-  skill: string
-  discipline: string
-  modifier: number
 }
 
 type ContestedOpponentOption = {
@@ -312,33 +330,12 @@ type ContestedOpponentOption = {
   userId?: string
 }
 
-type OpposedRollProposal = {
-  id: string
-  room: string
-  fromUserId: string
-  fromUsername: string
-  toUserId: string
-  createdAt: string
-  initiator: OpposedRollSide
-}
-
 const DEFAULT_OPPOSED_RESPONSE: RollPoolBuilder = {
   attribute: '',
   attributeTwo: '',
   skill: '',
   discipline: '',
   modifier: 0,
-}
-
-const DIE_IMAGES: Record<Die['kind'], { src: string; label: string }> = {
-  fail: { src: '/static/dice/fail.png', label: 'провал' },
-  success: { src: '/static/dice/success.png', label: 'успех' },
-  critical: { src: '/static/dice/critical-success.png', label: 'критический успех' },
-  botch: { src: '/static/dice/fail.png', label: 'провал' },
-  'hunger-fail': { src: '/static/dice/hunger-fail.png', label: 'провал Голода' },
-  'hunger-success': { src: '/static/dice/hunger-success.png', label: 'успех Голода' },
-  'hunger-critical-success': { src: '/static/dice/hunger-critical-success.png', label: 'критический успех Голода' },
-  'hunger-critical-fail': { src: '/static/dice/hunger-critical-fail.png', label: 'критический провал Голода' },
 }
 
 const ATTRIBUTE_NAMES = ATTRIBUTE_GROUPS.flatMap(group => [...group.traits])
@@ -614,18 +611,6 @@ function getWillpowerImpairmentPenalty(parts: string[], character?: CharacterOpt
   return parts.some(part => WILLPOWER_IMPAIRED_ATTRIBUTES.includes(part)) ? -2 : 0
 }
 
-function isWillpowerRerollExcluded(roll: RollMessage) {
-  const text = `${roll.poolType} ${roll.poolName}`.toLocaleLowerCase('ru')
-  return roll.poolType === 'rouse-check'
-    || roll.poolType === 'willpower'
-    || roll.poolType === 'willpower-check'
-    || roll.poolType === 'humanity-check'
-    || roll.poolType === 'remorse-check'
-    || roll.meta?.rollKind === 'humanity_check'
-    || roll.meta?.rollKind === 'remorse_check'
-    || /проверка воли|вол[яи]|человеч|willpower|humanity/.test(text)
-}
-
 function getBloodSurgeBonus(bloodPotency: number) {
   const potency = Math.max(0, Math.min(10, Math.floor(Number(bloodPotency) || 0)))
   if (potency <= 0) return 1
@@ -639,10 +624,6 @@ function getBloodSurgeBonus(bloodPotency: number) {
 function getRouseWarning(result: RouseCheckResult) {
   if (!result.maxHungerWarning) return ''
   return 'Голод уже 5. Неудачное Испытание Крови на максимальном Голоде: нужна реакция Рассказчика / риск голодной ярости.'
-}
-
-function getDieImage(die: Die) {
-  return DIE_IMAGES[die.kind] || DIE_IMAGES.fail
 }
 
 function parsePowerPool(pool: string, disciplineNames: string[]) {
@@ -817,13 +798,6 @@ function getActiveEffectDescription(
   ].filter(Boolean).join(' · ')
 }
 
-function getExtraTraitNames(values: Record<string, unknown>, groups: ReadonlyArray<{ traits: readonly string[] }>) {
-  // groups list Russian trait names only; include each one's English spelling too so
-  // characters whose data was saved in English mode aren't all misfiled as "extra".
-  const known = new Set(groups.flatMap(group => group.traits.flatMap(name => [name, ATTRIBUTE_NAME_EN[name] || SKILL_NAME_EN[name] || name])))
-  return Object.keys(values).filter(name => !known.has(name)).sort((a, b) => a.localeCompare(b, 'ru'))
-}
-
 function getDotDisplay(value: number) {
   const dots = Math.max(0, Math.min(5, Math.floor(Number(value) || 0)))
   return `${'●'.repeat(dots)}${'○'.repeat(5 - dots)}`
@@ -875,17 +849,6 @@ function getDisciplineManualPrompts(
     if (!label && !description && !message) return []
     return [{ label, description, message }]
   })
-}
-
-function getRoomFromLocation() {
-  if (typeof window === 'undefined') return 'campaign-666'
-  return new URLSearchParams(window.location.search).get('room') || window.localStorage.getItem('vtm-table-room') || 'campaign-666'
-}
-
-function getRoleFromLocation() {
-  if (typeof window === 'undefined') return null
-  const role = new URLSearchParams(window.location.search).get('role')
-  return role === 'master' || role === 'player' ? role : null
 }
 
 function formatTime(value: string) {
@@ -980,9 +943,50 @@ function SmartContextMenu({
 export default function VampireTable() {
   const { t, tf, lang } = useLang()
   const d10 = (n: number) => lang === 'en' ? `${n}d10` : `${n}к10`
-  const [room, setRoom] = useState('campaign-666')
-  const [tableRole, setTableRole] = useState<TableRole | null>(null)
-  const [rolls, setRolls] = useState<RollMessage[]>([])
+  const {
+    room,
+    roomRef,
+    tableRole,
+    isMaster,
+    masterPasswordDraft,
+    setMasterPasswordDraft,
+    masterPasswordEdit,
+    setMasterPasswordEdit,
+    enterAsMaster,
+    saveMasterPassword,
+    resetTableRole,
+    chooseTableRole,
+  } = useRoomSession({ t })
+  const { rolls, setRolls, rollsStatus } = useTableRolls(room)
+  const {
+    scenes,
+    setScenes,
+    activeSceneId,
+    setActiveSceneId,
+    selectedSceneId,
+    setSelectedSceneId,
+    sceneMusic,
+    setSceneMusic,
+    sceneMusicDraft,
+    setSceneMusicDraft,
+    sceneStatus,
+    setSceneStatus,
+    scenesRef,
+    activeSceneIdRef,
+    sceneMusicRef,
+    loadSceneMusic,
+    ensureDefaultScene,
+  } = useTableScenes(room, t(DEFAULT_SCENE_NAME))
+  const {
+    layers,
+    setLayers,
+    layersRef,
+    selectedLayerId,
+    setSelectedLayerId,
+    selectedLayerIds,
+    setSelectedLayerIds,
+    loadLayersForScene: loadLayersForSceneCore,
+  } = useTableLayers()
   const [diceOverlayQueue, setDiceOverlayQueue] = useState<DiceOverlayRoll[]>([])
   const shownDiceOverlayIdsRef = useRef<Set<string>>(new Set())
   const [roomParticipants, setRoomParticipants] = useState<ActiveParticipant[]>([])
@@ -1020,7 +1024,7 @@ export default function VampireTable() {
   const [masterUseBloodSurge, setMasterUseBloodSurge] = useState(false)
   const [willpowerRerollDraft, setWillpowerRerollDraft] = useState<WillpowerRerollDraft | null>(null)
   const [quickInventoryName, setQuickInventoryName] = useState('')
-  const [quickInventoryCategory, setQuickInventoryCategory] = useState<(typeof INVENTORY_CATEGORIES)[number]>('Другое')
+  const [quickInventoryCategory, setQuickInventoryCategory] = useState<InventoryCategory>('Другое')
   const [quickInventoryQuantity, setQuickInventoryQuantity] = useState(1)
   const [quickInventoryStatus, setQuickInventoryStatus] = useState('')
   const [isQuickInventoryBusy, setIsQuickInventoryBusy] = useState(false)
@@ -1038,15 +1042,6 @@ export default function VampireTable() {
   const [voiceMasterVolume, setVoiceMasterVolume] = useState(1)
   const [voiceQuality, setVoiceQuality] = useState<VoiceQuality>('clear')
   const [voiceParticipants, setVoiceParticipants] = useState<VoiceParticipant[]>([])
-  const [scenes, setScenes] = useState<TableScene[]>([])
-  const [activeSceneId, setActiveSceneId] = useState<string | null>(null)
-  const [selectedSceneId, setSelectedSceneId] = useState<string | null>(null)
-  const [sceneMusic, setSceneMusic] = useState<SceneMusicTrack[]>([])
-  const [sceneMusicDraft, setSceneMusicDraft] = useState('')
-  const [sceneStatus, setSceneStatus] = useState('Сцены загружаются...')
-  const [layers, setLayers] = useState<TableLayer[]>([])
-  const [selectedLayerId, setSelectedLayerId] = useState<string | null>(null)
-  const [selectedLayerIds, setSelectedLayerIds] = useState<Set<string>>(new Set())
   const [previewLayerId, setPreviewLayerId] = useState<string | null>(null)
   const [connectionText, setConnectionText] = useState('Подключение...')
   const [tableStatus, setTableStatus] = useState('Загрузка стола...')
@@ -1059,8 +1054,6 @@ export default function VampireTable() {
   const [mediaSearchDraft, setMediaSearchDraft] = useState('')
   const [textMaterialDraft, setTextMaterialDraft] = useState('')
   const [textMaterialNameDraft, setTextMaterialNameDraft] = useState('')
-  const [masterPasswordDraft, setMasterPasswordDraft] = useState('')
-  const [masterPasswordEdit, setMasterPasswordEdit] = useState('1234')
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const [layerContextMenu, setLayerContextMenu] = useState<LayerContextMenu>(null)
   const [imageEditor, setImageEditor] = useState<ImageEditorDraft | null>(null)
@@ -1078,7 +1071,8 @@ export default function VampireTable() {
   const backgroundFileInputRef = useRef<HTMLInputElement>(null)
   const sceneMusicFileInputRef = useRef<HTMLInputElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
-  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
+  const triggerDiceOverlayRef = useRef<((roll: RollMessage) => void) | null>(null)
+  const handleVoiceSignalRef = useRef<((signal: VoiceSignal) => void | Promise<void>) | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const dragAnimationFrameRef = useRef<number | null>(null)
   const pendingDragPointerRef = useRef<{ clientX: number; clientY: number } | null>(null)
@@ -1086,12 +1080,7 @@ export default function VampireTable() {
   const dragPreviewPositionsRef = useRef<Map<string, { x: number; y: number }>>(new Map())
   const dragPreviewBoundsRef = useRef<{ x: number; y: number; width: number; height: number } | null>(null)
   const touchGestureRef = useRef<TouchGestureState | null>(null)
-  const layersRef = useRef<TableLayer[]>([])
-  const scenesRef = useRef<TableScene[]>([])
-  const activeSceneIdRef = useRef<string | null>(null)
-  const sceneMusicRef = useRef<SceneMusicTrack[]>([])
   const panRef = useRef(pan)
-  const roomRef = useRef(room)
   const chatUserRef = useRef<ChatUser | null>(null)
   const chatCharactersRef = useRef<CharacterOption[]>([])
   const selectedChatCharacterIdRef = useRef('')
@@ -1168,7 +1157,6 @@ export default function VampireTable() {
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map())
   const voiceAudioRefs = useRef<Map<string, HTMLAudioElement>>(new Map())
   const suppressNextContextMenuRef = useRef(false)
-  const isMaster = tableRole === 'master'
   const {
     chatMessages,
     chatStatus,
@@ -1193,33 +1181,18 @@ export default function VampireTable() {
     sendChatMessage,
   } = useChat({ chronicleId: room })
 
-  useEffect(() => {
-    layersRef.current = layers
-  }, [layers])
-
   useEffect(() => () => {
     if (dragAnimationFrameRef.current !== null) cancelAnimationFrame(dragAnimationFrameRef.current)
   }, [])
-
-  useEffect(() => {
-    scenesRef.current = scenes
-  }, [scenes])
-
-  useEffect(() => {
-    activeSceneIdRef.current = activeSceneId
-  }, [activeSceneId])
-
-  useEffect(() => {
-    sceneMusicRef.current = sceneMusic
-  }, [sceneMusic])
 
   useEffect(() => {
     panRef.current = pan
   }, [pan])
 
   useEffect(() => {
-    roomRef.current = room
-  }, [room])
+    if (rollsStatus === 'error') setConnectionText('Нет общей истории')
+    else if (rollsStatus === 'ok') setConnectionText('Онлайн')
+  }, [rollsStatus])
 
   useEffect(() => {
     chatUserRef.current = chatUser
@@ -1256,20 +1229,6 @@ export default function VampireTable() {
       if (audio) audio.volume = Math.max(0, Math.min(1, participant.volume * voiceMasterVolume))
     })
   }, [voiceParticipants, voiceMasterVolume])
-
-  useEffect(() => {
-    const savedMasterPassword = window.localStorage.getItem(MASTER_PASSWORD_KEY) || '1234'
-    setMasterPasswordEdit(savedMasterPassword)
-    const savedRole = window.localStorage.getItem('vtm-table-role')
-    const urlRole = getRoleFromLocation()
-    if (urlRole === 'player') {
-      window.localStorage.setItem('vtm-table-role', urlRole)
-      setTableRole(urlRole)
-    } else if (urlRole === 'master') {
-      window.localStorage.removeItem('vtm-table-role')
-    } else if (savedRole === 'master' || savedRole === 'player') setTableRole(savedRole)
-
-  }, [])
 
   useEffect(() => {
     if (!chatUser) {
@@ -1330,133 +1289,43 @@ export default function VampireTable() {
     return () => window.removeEventListener('keydown', handleHotkeys)
   }, [])
 
-  const chooseTableRole = (role: TableRole) => {
-    window.localStorage.setItem('vtm-table-role', role)
-    setTableRole(role)
-  }
-
-  const enterAsMaster = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const currentPassword = window.localStorage.getItem(MASTER_PASSWORD_KEY) || '1234'
-    if (masterPasswordDraft !== currentPassword) {
-      window.alert(t('Пароль мастера не подошёл.'))
-      return
-    }
-    setMasterPasswordDraft('')
-    chooseTableRole('master')
-  }
-
-  const saveMasterPassword = () => {
-    window.localStorage.setItem(MASTER_PASSWORD_KEY, masterPasswordEdit)
-    window.alert(t('Пароль мастера обновлён.'))
-  }
-
-  const resetTableRole = () => {
-    window.localStorage.removeItem('vtm-table-role')
-    setTableRole(null)
-  }
-
   const getSelectedSceneId = () => selectedSceneId || activeSceneId || scenes[0]?.id || null
 
   const loadLayersForScene = async (targetRoom: string, sceneId: string) => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from(TABLE_IMAGES)
-      .select('id, room, scene_id, layer_type, owner_role, owner_id, parent_id, name, image_data, x, y, width, height, crop_x, crop_y, crop_width, crop_height, z_index, visible, locked, opacity, blend_mode, rotation, flip_x, flip_y, brightness, contrast, saturation, on_table, created_at')
-      .eq('room', targetRoom)
-      .eq('scene_id', sceneId)
-      .order('z_index', { ascending: true })
-      .limit(160)
-
-    if (error) {
-      console.error('Не удалось загрузить слои сцены:', error)
-      setTableStatus('Слои сцены не загрузились')
-      return
-    }
-
-    const next = sortLayers((data || []).map(row => mapLayerRow(row as TableLayerRow)))
-    layersRef.current = next
-    setLayers(next)
-    setSelectedLayerId(null)
-    setSelectedLayerIds(new Set())
-    setTableStatus(next.length ? 'Сцена онлайн' : 'Пустая сцена')
+    const result = await loadLayersForSceneCore(targetRoom, sceneId)
+    setTableStatus(result.status)
   }
 
-  const loadSceneMusic = async (targetRoom: string, sceneId: string) => {
-    const { data, error } = await createClient()
-      .from(TABLE_SCENE_MUSIC)
-      .select('id, room, scene_id, title, url, source_type, order_index, is_default, autoplay, created_at, updated_at')
-      .eq('room', targetRoom)
-      .eq('scene_id', sceneId)
-      .order('order_index', { ascending: true })
-
-    if (error) {
-      console.error('Не удалось загрузить музыку сцены:', error)
-      setSceneMusic([])
-      sceneMusicRef.current = []
-      return
-    }
-    const loadedTracks = sortSceneMusic((data || []).map(row => mapSceneMusicRow(row as SceneMusicRow)))
-    sceneMusicRef.current = loadedTracks
-    setSceneMusic(loadedTracks)
-  }
-
-  const ensureDefaultScene = async (targetRoom: string) => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from(TABLE_SCENES)
-      .select('id, room, name, thumbnail_url, is_active, created_by, created_at, updated_at')
-      .eq('room', targetRoom)
-      .order('created_at', { ascending: true })
-
-    if (error) {
-      console.error('Не удалось загрузить сцены:', error)
-      setSceneStatus('Нужно применить SQL для сцен')
-      return null
-    }
-
-    let nextScenes = sortScenes((data || []).map(row => mapSceneRow(row as TableSceneRow)))
-
-    if (nextScenes.length === 0) {
-      const now = new Date().toISOString()
-      const scene: TableScene = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        room: targetRoom,
-        name: t(DEFAULT_SCENE_NAME),
-        thumbnailUrl: '',
-        isActive: true,
-        createdBy: 'master',
-        createdAt: now,
-        updatedAt: now,
-      }
-      const { error: insertError } = await supabase.from(TABLE_SCENES).insert({
-        id: scene.id,
-        room: scene.room,
-        name: scene.name,
-        thumbnail_url: scene.thumbnailUrl,
-        is_active: scene.isActive,
-        created_by: scene.createdBy,
-        created_at: scene.createdAt,
-        updated_at: scene.updatedAt,
-      })
-      if (insertError) {
-        console.error('Не удалось создать дефолтную сцену:', insertError)
-        setSceneStatus('Дефолтная сцена не создана')
-        return null
-      }
-      nextScenes = [scene]
-      await supabase.from(TABLE_IMAGES).update({ scene_id: scene.id }).eq('room', targetRoom).is('scene_id', null)
-    }
-
-    const active = nextScenes.find(scene => scene.isActive) || nextScenes[0]
-    await supabase.from(TABLE_IMAGES).update({ scene_id: active.id }).eq('room', targetRoom).is('scene_id', null)
-    setScenes(nextScenes.map(scene => ({ ...scene, isActive: scene.id === active.id })))
-    setActiveSceneId(active.id)
-    activeSceneIdRef.current = active.id
-    setSelectedSceneId(prev => (prev && nextScenes.some(scene => scene.id === prev) ? prev : active.id))
-    setSceneStatus('Сцены онлайн')
-    return active.id
-  }
+  const { channelRef, broadcast } = useTableRealtime({
+    room,
+    tf,
+    chatUserRef,
+    activeSceneIdRef,
+    layersRef,
+    setRolls,
+    setLayers,
+    setScenes,
+    setSceneMusic,
+    setActiveSceneId,
+    setSelectedSceneId,
+    setSelectedLayerId,
+    setSelectedLayerIds,
+    setConnectionText,
+    setTableStatus,
+    setHandNotice,
+    setIncomingOpposedProposal,
+    setRightRailTab,
+    setRoomParticipants,
+    setMasterReveals,
+    setMasterWhispers,
+    setZoom,
+    setPan,
+    loadLayersForScene,
+    loadSceneMusic,
+    ensureDefaultScene,
+    onRollRef: triggerDiceOverlayRef,
+    onVoiceSignalRef: handleVoiceSignalRef,
+  })
 
   const createScene = async () => {
     if (!isMaster) return
@@ -1464,7 +1333,7 @@ export default function VampireTable() {
     if (!name) return
     const now = new Date().toISOString()
     const scene: TableScene = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      id: createTableId(),
       room,
       name,
       thumbnailUrl: '',
@@ -1473,16 +1342,7 @@ export default function VampireTable() {
       createdAt: now,
       updatedAt: now,
     }
-    const { error } = await createClient().from(TABLE_SCENES).insert({
-      id: scene.id,
-      room: scene.room,
-      name: scene.name,
-      thumbnail_url: scene.thumbnailUrl,
-      is_active: scene.isActive,
-      created_by: scene.createdBy,
-      created_at: scene.createdAt,
-      updated_at: scene.updatedAt,
-    })
+    const { error } = await insertScene(scene)
     if (error) {
       console.error('Не удалось создать сцену:', error)
       setSceneStatus('Сцена не создана')
@@ -1500,7 +1360,7 @@ export default function VampireTable() {
     const updatedAt = new Date().toISOString()
     const next = { ...selectedScene, name, updatedAt }
     setScenes(prev => upsertScene(prev, next))
-    const { error } = await createClient().from(TABLE_SCENES).update({ name, updated_at: updatedAt }).eq('id', selectedScene.id)
+    const { error } = await updateSceneRecord(selectedScene.id, { name, updated_at: updatedAt })
     if (error) {
       console.error('Не удалось переименовать сцену:', error)
       setSceneStatus('Название сцены не сохранилось')
@@ -1559,12 +1419,7 @@ export default function VampireTable() {
   const playSceneAutoplayMusic = async (sceneId: string) => {
     const tracks = sceneId === activeSceneIdRef.current
       ? sceneMusicRef.current
-      : await createClient()
-        .from(TABLE_SCENE_MUSIC)
-        .select('id, room, scene_id, title, url, source_type, order_index, is_default, autoplay, created_at, updated_at')
-        .eq('room', roomRef.current)
-        .eq('scene_id', sceneId)
-        .then(({ data }) => (data || []).map(row => mapSceneMusicRow(row as SceneMusicRow)))
+      : (await fetchSceneMusic(roomRef.current, sceneId)).tracks
     const track = sortSceneMusic(tracks).find(item => item.autoplay && item.isDefault) || sortSceneMusic(tracks).find(item => item.autoplay)
     if (!track?.url) return
     await publishSceneTrack(track, { play: true })
@@ -1574,9 +1429,8 @@ export default function VampireTable() {
     if (!isMaster) return
     const scene = scenesRef.current.find(item => item.id === sceneId)
     if (!scene) return
-    const supabase = createClient()
-    await supabase.from(TABLE_SCENES).update({ is_active: false, updated_at: new Date().toISOString() }).eq('room', room).neq('id', sceneId)
-    const { error } = await supabase.from(TABLE_SCENES).update({ is_active: true, updated_at: new Date().toISOString() }).eq('id', sceneId)
+    await deactivateOtherScenes(room, sceneId)
+    const { error } = await activateSceneRecord(sceneId)
     if (error) {
       console.error('Не удалось переключить сцену:', error)
       setSceneStatus('Сцена не переключилась')
@@ -1601,10 +1455,7 @@ export default function VampireTable() {
     const ok = window.confirm(tf('Удалить сцену "{name}" вместе с её слоями, медиа и музыкой?', { name: selectedScene.name }))
     if (!ok) return
     const nextActive = selectedScene.isActive ? scenes.find(scene => scene.id !== selectedScene.id) : activeScene
-    const supabase = createClient()
-    await supabase.from(TABLE_SCENE_MUSIC).delete().eq('scene_id', selectedScene.id)
-    await supabase.from(TABLE_IMAGES).delete().eq('scene_id', selectedScene.id)
-    const { error } = await supabase.from(TABLE_SCENES).delete().eq('id', selectedScene.id)
+    const { error } = await deleteSceneWithAssets(selectedScene.id)
     if (error) {
       console.error('Не удалось удалить сцену:', error)
       setSceneStatus('Сцена не удалена')
@@ -1626,7 +1477,7 @@ export default function VampireTable() {
     const updatedAt = new Date().toISOString()
     const next = { ...selectedScene, thumbnailUrl: layer.imageData, updatedAt }
     setScenes(prev => upsertScene(prev, next))
-    await createClient().from(TABLE_SCENES).update({ thumbnail_url: layer.imageData, updated_at: updatedAt }).eq('id', selectedScene.id)
+    await updateSceneRecord(selectedScene.id, { thumbnail_url: layer.imageData, updated_at: updatedAt })
     broadcast('scene', next)
   }
 
@@ -1672,7 +1523,6 @@ export default function VampireTable() {
     if (!isMaster || !selectedScene) return
     const urls = sceneMusicDraft.split(/\s+/).map(item => item.trim()).filter(Boolean)
     if (urls.length === 0) return
-    const supabase = createClient()
     const baseOrder = selectedSceneMusic.reduce((max, track) => Math.max(max, track.orderIndex), -1)
     for (const [index, url] of urls.entries()) {
       const now = new Date().toISOString()
@@ -1680,7 +1530,7 @@ export default function VampireTable() {
       const defaultTitle = tf('Трек {n}', { n: baseOrder + index + 2 })
       const youtubeTitle = provider === 'youtube' ? await fetchYouTubeTitle(url) : null
       const track: SceneMusicTrack = {
-        id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+        id: createTableId(),
         room,
         sceneId: selectedScene.id,
         title: youtubeTitle || defaultTitle,
@@ -1692,19 +1542,7 @@ export default function VampireTable() {
         createdAt: now,
         updatedAt: now,
       }
-      const { error } = await supabase.from(TABLE_SCENE_MUSIC).insert({
-        id: track.id,
-        room: track.room,
-        scene_id: track.sceneId,
-        title: track.title,
-        url: track.url,
-        source_type: track.sourceType,
-        order_index: track.orderIndex,
-        is_default: track.isDefault,
-        autoplay: track.autoplay,
-        created_at: track.createdAt,
-        updated_at: track.updatedAt,
-      })
+      const { error } = await insertSceneMusic(track)
       if (!error) {
         setSceneMusic(prev => sortSceneMusic([...prev, track]))
         broadcast('scene-music', track)
@@ -1720,10 +1558,10 @@ export default function VampireTable() {
     let nextTracks = sceneMusicRef.current.map(item => (item.id === track.id ? next : item))
     if (patch.isDefault) {
       nextTracks = nextTracks.map(item => item.sceneId === track.sceneId ? { ...item, isDefault: item.id === track.id } : item)
-      await createClient().from(TABLE_SCENE_MUSIC).update({ is_default: false }).eq('scene_id', track.sceneId).neq('id', track.id)
+      await clearSceneMusicDefaults(track.sceneId, track.id)
     }
     setSceneMusic(sortSceneMusic(nextTracks))
-    const { error } = await createClient().from(TABLE_SCENE_MUSIC).update({
+    const { error } = await updateSceneMusicRecord(track.id, {
       title: next.title,
       url: next.url,
       source_type: next.sourceType,
@@ -1731,7 +1569,7 @@ export default function VampireTable() {
       is_default: next.isDefault,
       autoplay: next.autoplay,
       updated_at: updatedAt,
-    }).eq('id', track.id)
+    })
     if (error) console.error('Не удалось обновить музыку сцены:', error)
     broadcast('scene-music', next)
   }
@@ -1745,7 +1583,7 @@ export default function VampireTable() {
   const deleteSceneMusic = async (track: SceneMusicTrack) => {
     if (!isMaster) return
     setSceneMusic(prev => prev.filter(item => item.id !== track.id))
-    await createClient().from(TABLE_SCENE_MUSIC).delete().eq('id', track.id)
+    await deleteSceneMusicRecord(track.id)
     broadcast('scene-music-delete', { room, sceneId: track.sceneId, id: track.id })
   }
 
@@ -1792,19 +1630,7 @@ export default function VampireTable() {
           updatedAt: now,
         }
 
-        const { error } = await supabase.from(TABLE_SCENE_MUSIC).insert({
-          id: track.id,
-          room: track.room,
-          scene_id: track.sceneId,
-          title: track.title,
-          url: track.url,
-          source_type: track.sourceType,
-          order_index: track.orderIndex,
-          is_default: track.isDefault,
-          autoplay: track.autoplay,
-          created_at: track.createdAt,
-          updated_at: track.updatedAt,
-        })
+        const { error } = await insertSceneMusic(track)
 
         if (!error) {
           setSceneMusic(prev => sortSceneMusic([...prev, track]))
@@ -1832,318 +1658,6 @@ export default function VampireTable() {
     await patchSceneMusic(track, { orderIndex: swap.orderIndex })
     await patchSceneMusic(swap, { orderIndex: track.orderIndex })
   }
-
-  useEffect(() => {
-    const currentRoom = getRoomFromLocation()
-    const supabase = createClient()
-    let cancelled = false
-
-    setRoom(currentRoom)
-    window.localStorage.setItem('vtm-table-room', currentRoom)
-
-    const loadRollHistory = async () => {
-      const initialResult = await supabase
-        .from(TABLE_ROLLS)
-        .select('id, room, character_name, pool_name, pool_type, dice_count, dice, successes, meta, created_at')
-        .eq('room', currentRoom)
-        .order('created_at', { ascending: false })
-        .limit(80)
-      let rollRows: unknown[] | null = initialResult.data
-      let error = initialResult.error
-
-      if (error && /meta/i.test(error.message || '')) {
-        const fallback = await supabase
-          .from(TABLE_ROLLS)
-          .select('id, room, character_name, pool_name, pool_type, dice_count, dice, successes, created_at')
-          .eq('room', currentRoom)
-          .order('created_at', { ascending: false })
-          .limit(80)
-        rollRows = fallback.data
-        error = fallback.error
-      }
-
-      if (cancelled) return
-      if (error) {
-        console.error('Не удалось загрузить историю бросков:', error)
-        setConnectionText('Нет общей истории')
-        return
-      }
-
-      setRolls((rollRows || []).map(row => mapRollRow(row as RollRow)))
-      setConnectionText('Онлайн')
-    }
-
-    void loadRollHistory()
-
-    ensureDefaultScene(currentRoom).then(sceneId => {
-      if (cancelled || !sceneId) return
-      void loadLayersForScene(currentRoom, sceneId)
-      void loadSceneMusic(currentRoom, sceneId)
-    })
-
-    const channel = supabase
-      .channel(`table-room:${currentRoom}`)
-      .on('broadcast', { event: 'roll' }, payload => {
-        const roll = payload.payload as RollMessage
-        if (!roll || roll.room !== currentRoom) return
-        setRolls(prev => mergeRoll(prev, roll))
-        triggerDiceOverlay(roll)
-        setConnectionText('Онлайн')
-      })
-      .on('broadcast', { event: 'opposed-roll-proposal' }, payload => {
-        const proposal = payload.payload as OpposedRollProposal
-        const currentUser = chatUserRef.current
-        if (!proposal || proposal.room !== currentRoom || !currentUser) return
-        if (proposal.toUserId !== currentUser.id || proposal.fromUserId === currentUser.id) return
-        setIncomingOpposedProposal(proposal)
-        setRightRailTab('rolls')
-      })
-      .on('broadcast', { event: 'layer' }, payload => {
-        const layer = payload.payload as TableLayer
-        if (!layer || layer.room !== currentRoom || layer.sceneId !== activeSceneIdRef.current) return
-        setLayers(prev => {
-          const next = upsertLayer(prev, layer)
-          layersRef.current = next
-          return next
-        })
-        setTableStatus('Сцена онлайн')
-      })
-      .on('broadcast', { event: 'layer-update' }, payload => {
-        const update = payload.payload as { id?: string; room?: string; patch?: LayerPatch }
-        if (!update.id || update.room !== currentRoom || !update.patch) return
-        if (update.patch.sceneId && update.patch.sceneId !== activeSceneIdRef.current) return
-        const patch = update.patch
-        setLayers(prev => {
-          const patched = prev.map(layer => (layer.id === update.id ? { ...layer, ...patch } : layer))
-          const next = patch.zIndex !== undefined || patch.parentId !== undefined ? sortLayers(patched) : patched
-          layersRef.current = next
-          return next
-        })
-      })
-      .on('broadcast', { event: 'layer-move' }, payload => {
-        const update = payload.payload as { room?: string; updates?: Array<{ id: string; x: number; y: number }> }
-        if (update.room !== currentRoom || !Array.isArray(update.updates) || update.updates.length === 0) return
-        const positions = new Map(update.updates.map(item => [item.id, item]))
-        setLayers(prev => {
-          const next = prev.map(layer => {
-            const position = positions.get(layer.id)
-            return position ? { ...layer, x: position.x, y: position.y } : layer
-          })
-          layersRef.current = next
-          return next
-        })
-      })
-      .on('broadcast', { event: 'layer-delete' }, payload => {
-        const id = String((payload.payload as { id?: string })?.id || '')
-        if (!id) return
-        setLayers(prev => {
-          const next = prev.filter(layer => layer.id !== id)
-          layersRef.current = next
-          return next
-        })
-        setSelectedLayerId(prev => (prev === id ? null : prev))
-        setSelectedLayerIds(prev => {
-          const next = new Set(prev)
-          next.delete(id)
-          return next
-        })
-      })
-      .on('broadcast', { event: 'scene-active' }, payload => {
-        const scene = payload.payload as { room?: string; sceneId?: string }
-        if (scene.room !== currentRoom || !scene.sceneId) return
-        setActiveSceneId(scene.sceneId)
-        setSelectedSceneId(scene.sceneId)
-        setScenes(prev => prev.map(item => ({ ...item, isActive: item.id === scene.sceneId })))
-        void loadLayersForScene(currentRoom, scene.sceneId)
-        void loadSceneMusic(currentRoom, scene.sceneId)
-      })
-      .on('broadcast', { event: 'scene' }, payload => {
-        const scene = payload.payload as TableScene
-        if (!scene || scene.room !== currentRoom) return
-        setScenes(prev => upsertScene(prev, scene))
-      })
-      .on('broadcast', { event: 'scene-delete' }, payload => {
-        const deleted = payload.payload as { room?: string; id?: string; nextActiveSceneId?: string }
-        if (deleted.room !== currentRoom || !deleted.id) return
-        setScenes(prev => prev.filter(scene => scene.id !== deleted.id))
-        if (deleted.nextActiveSceneId) {
-          setActiveSceneId(deleted.nextActiveSceneId)
-          setSelectedSceneId(deleted.nextActiveSceneId)
-          void loadLayersForScene(currentRoom, deleted.nextActiveSceneId)
-          void loadSceneMusic(currentRoom, deleted.nextActiveSceneId)
-        }
-      })
-      .on('broadcast', { event: 'scene-music' }, payload => {
-        const track = payload.payload as SceneMusicTrack
-        if (!track || track.room !== currentRoom || track.sceneId !== activeSceneIdRef.current) return
-        setSceneMusic(prev => sortSceneMusic([...prev.filter(item => item.id !== track.id), track]))
-      })
-      .on('broadcast', { event: 'scene-music-delete' }, payload => {
-        const deleted = payload.payload as { room?: string; sceneId?: string; id?: string }
-        if (deleted.room !== currentRoom || deleted.sceneId !== activeSceneIdRef.current || !deleted.id) return
-        setSceneMusic(prev => prev.filter(track => track.id !== deleted.id))
-      })
-      .on('broadcast', { event: 'hand-raise' }, payload => {
-        const notice = payload.payload as { room?: string; name?: string; at?: string }
-        if (notice.room !== currentRoom || !notice.name) return
-        setHandNotice(tf('{name} поднял руку', { name: notice.name }))
-        window.setTimeout(() => setHandNotice(''), 5200)
-      })
-      .on('broadcast', { event: 'active-character' }, payload => {
-        const update = payload.payload as { room?: string; participant?: ActiveParticipant }
-        if (update.room !== currentRoom || !update.participant?.userId) return
-        setRoomParticipants(prev => {
-          const participant = update.participant as ActiveParticipant
-          const exists = prev.some(item => item.userId === participant.userId)
-          return exists
-            ? prev.map(item => item.userId === participant.userId ? participant : item)
-            : [...prev, participant]
-        })
-      })
-      .on('broadcast', { event: 'master-reveal' }, payload => {
-        const reveal = payload.payload as MasterReveal
-        if (!reveal || reveal.room !== currentRoom) return
-        setMasterReveals(prev => [{ ...reveal, id: reveal.id || `${Date.now()}-${Math.random().toString(16).slice(2)}` }, ...prev].slice(0, 40))
-      })
-      .on('broadcast', { event: 'master-whisper' }, payload => {
-        const message = payload.payload as MasterWhisper
-        if (!message || message.room !== currentRoom) return
-        setMasterWhispers(prev => [...prev.filter(item => item.id !== message.id), message].sort((a, b) => a.createdAt.localeCompare(b.createdAt)).slice(-160))
-      })
-      .on('broadcast', { event: 'voice-signal' }, payload => {
-        handleVoiceSignal(payload.payload as VoiceSignal)
-      })
-
-
-
-      .on('broadcast', { event: 'viewport-focus' }, payload => {
-        const focus = payload.payload as { room?: string; pan?: { x: number; y: number }; zoom?: number }
-        if (focus.room !== currentRoom || !focus.pan || typeof focus.zoom !== 'number') return
-        setZoom(focus.zoom)
-        setPan(focus.pan)
-      })
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: TABLE_ROLLS,
-          filter: `room=eq.${currentRoom}`,
-        },
-        payload => {
-          const roll = mapRollRow(payload.new as RollRow)
-          setRolls(prev => mergeRoll(prev, roll))
-          triggerDiceOverlay(roll)
-          setConnectionText('Онлайн')
-        }
-      )
-
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: TABLE_IMAGES,
-          filter: `room=eq.${currentRoom}`,
-        },
-        payload => {
-          const layer = mapLayerRow(payload.new as TableLayerRow)
-          if (layer.sceneId !== activeSceneIdRef.current) return
-          setLayers(prev => {
-            const next = upsertLayer(prev, layer)
-            layersRef.current = next
-            return next
-          })
-          setTableStatus('Сцена онлайн')
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'UPDATE',
-          schema: 'public',
-          table: TABLE_IMAGES,
-          filter: `room=eq.${currentRoom}`,
-        },
-        payload => {
-          const layer = mapLayerRow(payload.new as TableLayerRow)
-          if (layer.sceneId !== activeSceneIdRef.current) return
-          setLayers(prev => {
-            const next = upsertLayer(prev, layer)
-            layersRef.current = next
-            return next
-          })
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: TABLE_SCENES, filter: `room=eq.${currentRoom}` },
-        payload => {
-          if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as { id?: string }
-            if (!deleted.id) return
-            setScenes(prev => prev.filter(scene => scene.id !== deleted.id))
-            return
-          }
-          const scene = mapSceneRow(payload.new as TableSceneRow)
-          setScenes(prev => upsertScene(prev, scene).map(item => ({ ...item, isActive: item.id === scene.id ? scene.isActive : scene.isActive ? false : item.isActive })))
-          if (scene.isActive && scene.id !== activeSceneIdRef.current) {
-            setActiveSceneId(scene.id)
-            setSelectedSceneId(scene.id)
-            void loadLayersForScene(currentRoom, scene.id)
-            void loadSceneMusic(currentRoom, scene.id)
-          }
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: TABLE_SCENE_MUSIC, filter: `room=eq.${currentRoom}` },
-        payload => {
-          if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as { id?: string; scene_id?: string }
-            if (!deleted.id || deleted.scene_id !== activeSceneIdRef.current) return
-            setSceneMusic(prev => prev.filter(track => track.id !== deleted.id))
-            return
-          }
-          const track = mapSceneMusicRow(payload.new as SceneMusicRow)
-          if (track.sceneId !== activeSceneIdRef.current) return
-          setSceneMusic(prev => sortSceneMusic([...prev.filter(item => item.id !== track.id), track]))
-        }
-      )
-      .on(
-        'postgres_changes',
-        {
-          event: 'DELETE',
-          schema: 'public',
-          table: TABLE_IMAGES,
-          filter: `room=eq.${currentRoom}`,
-        },
-        payload => {
-          const deleted = payload.old as { id?: string }
-          if (deleted.id) {
-            setLayers(prev => {
-              const next = prev.filter(layer => layer.id !== deleted.id)
-              layersRef.current = next
-              return next
-            })
-            setSelectedLayerId(prev => (prev === deleted.id ? null : prev))
-          }
-        }
-      )
-      .subscribe(status => {
-        if (status === 'SUBSCRIBED') setConnectionText('Онлайн')
-        if (status === 'CHANNEL_ERROR') setConnectionText('Realtime недоступен')
-        if (status === 'TIMED_OUT') setConnectionText('Повтор подключения')
-      })
-
-    channelRef.current = channel
-
-    return () => {
-      cancelled = true
-      channelRef.current = null
-      supabase.removeChannel(channel)
-    }
-  }, [])
 
   const selectedActiveCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId) || null
   const selectedMasterRollCharacter = chatCharacters.find(item => item.id === selectedMasterRollCharacterId) || selectedActiveCharacter
@@ -2541,13 +2055,9 @@ export default function VampireTable() {
   const openCharacterPreview = async (character: CharacterOption, username?: string) => {
     setPreviewCharacter({ ...character, username: username || character.username })
     if (!character.id) return
-    const { data, error } = await createClient()
-      .from('characters')
-      .select('id, user_id, name, clan, data')
-      .eq('id', character.id)
-      .single()
-    if (error || !data) return
-    const fresh = { ...mapCharacterRow(data as CharacterRow), username: username || character.username }
+    const { row, error } = await fetchCharacterById(character.id)
+    if (error || !row) return
+    const fresh = { ...mapCharacterRow(row), username: username || character.username }
     setPreviewCharacter(fresh)
     setChatCharacters(current => current.map(item => item.id === fresh.id ? { ...fresh, username: item.username || fresh.username } : item))
   }
@@ -2577,12 +2087,8 @@ export default function VampireTable() {
       })
       return
     }
-    const { data, error } = await createClient()
-      .from('characters')
-      .select('id, user_id, name, clan, data')
-      .eq('id', participant.characterId)
-      .single()
-    if (error || !data) {
+    const { row, error } = await fetchCharacterById(participant.characterId)
+    if (error || !row) {
       setPreviewCharacter({
         id: participant.characterId,
         name: participant.characterName === 'без персонажа' ? t('без персонажа') : participant.characterName,
@@ -2601,7 +2107,7 @@ export default function VampireTable() {
       })
       return
     }
-    setPreviewCharacter({ ...mapCharacterRow(data as CharacterRow), username: participant.username })
+    setPreviewCharacter({ ...mapCharacterRow(row), username: participant.username })
   }
 
   const updateOpposedResponseSide = (patch: Partial<RollPoolBuilder>) => {
@@ -2706,6 +2212,7 @@ export default function VampireTable() {
       summaryTone: summary.tone,
     })
   }
+  triggerDiceOverlayRef.current = triggerDiceOverlay
 
   const publishRoll = async (roll: RollMessage) => {
     setRolls(prev => mergeRoll(prev, roll))
@@ -2716,25 +2223,7 @@ export default function VampireTable() {
     }
 
     broadcast('roll', roll)
-    const payload = {
-      id: roll.id,
-      room: roll.room,
-      character_name: roll.characterName,
-      pool_name: roll.poolName,
-      pool_type: roll.poolType,
-      dice_count: roll.diceCount,
-      dice: roll.dice,
-      successes: roll.successes,
-      meta: roll.meta || {},
-      created_at: roll.createdAt,
-    }
-
-    let { error } = await createClient().from(TABLE_ROLLS).insert(payload)
-    if (error && /meta/i.test(error.message || '')) {
-      const { meta, ...legacyPayload } = payload
-      const fallback = await createClient().from(TABLE_ROLLS).insert(legacyPayload)
-      error = fallback.error
-    }
+    const { error } = await insertRollRecord(roll)
 
     if (error) setConnectionText('Бросок отправлен онлайн, но не сохранился')
     else setConnectionText('Онлайн')
@@ -2742,12 +2231,7 @@ export default function VampireTable() {
 
   const updateCharacterHunger = async (characterId: string, nextHunger: number, reason = 'Голод обновлён') => {
     const safeHunger = Math.max(0, Math.min(5, Math.floor(Number(nextHunger) || 0)))
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('characters')
-      .select('id, user_id, name, clan, data')
-      .eq('id', characterId)
-      .single()
+    const { row: data, error } = await fetchCharacterById(characterId)
 
     if (error || !data?.data) {
       console.error('Не удалось прочитать персонажа для обновления Голода:', error)
@@ -2765,10 +2249,7 @@ export default function VampireTable() {
       },
       timestamp: new Date().toISOString(),
     }
-    const { error: updateError } = await supabase
-      .from('characters')
-      .update({ data: nextData })
-      .eq('id', characterId)
+    const { error: updateError } = await updateCharacterData(characterId, nextData)
 
     if (updateError) {
       console.error('Не удалось сохранить Голод персонажа:', updateError)
@@ -2804,12 +2285,7 @@ export default function VampireTable() {
     nextHumanity: HumanityState,
     reason = 'Человечность сохранена',
   ) => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('characters')
-      .select('id, user_id, name, clan, data')
-      .eq('id', characterId)
-      .single()
+    const { row: data, error } = await fetchCharacterById(characterId)
 
     if (error || !data?.data) {
       console.error('Не удалось прочитать персонажа для обновления Человечности:', error)
@@ -2838,10 +2314,10 @@ export default function VampireTable() {
       },
     }
 
-    const { error: updateError } = await supabase
-      .from('characters')
-      .update({ data: { ...nextData, timestamp: new Date().toISOString() } })
-      .eq('id', characterId)
+    const { error: updateError } = await updateCharacterData(characterId, {
+      ...nextData,
+      timestamp: new Date().toISOString(),
+    })
 
     if (updateError) {
       console.error('Не удалось сохранить Человечность персонажа:', updateError)
@@ -2979,12 +2455,7 @@ export default function VampireTable() {
     nextTracker: { superficial: number; aggravated: number },
     reason = 'Воля обновлена',
   ) => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('characters')
-      .select('id, user_id, name, clan, data')
-      .eq('id', characterId)
-      .single()
+    const { row: data, error } = await fetchCharacterById(characterId)
 
     if (error || !data?.data) {
       console.error('Не удалось прочитать персонажа для обновления Воли:', error)
@@ -3007,10 +2478,7 @@ export default function VampireTable() {
       },
       timestamp: new Date().toISOString(),
     }
-    const { error: updateError } = await supabase
-      .from('characters')
-      .update({ data: nextData })
-      .eq('id', characterId)
+    const { error: updateError } = await updateCharacterData(characterId, nextData)
 
     if (updateError) {
       console.error('Не удалось сохранить Волю персонажа:', updateError)
@@ -3043,12 +2511,7 @@ export default function VampireTable() {
       lastAggravatedMendAt?: string
     } = {},
   ) => {
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('characters')
-      .select('id, user_id, name, clan, data')
-      .eq('id', characterId)
-      .single()
+    const { row: data, error } = await fetchCharacterById(characterId)
 
     if (error || !data?.data) {
       console.error('Не удалось прочитать персонажа для обновления Здоровья:', error)
@@ -3083,10 +2546,7 @@ export default function VampireTable() {
       },
       timestamp: new Date().toISOString(),
     }
-    const { error: updateError } = await supabase
-      .from('characters')
-      .update({ data: nextData })
-      .eq('id', characterId)
+    const { error: updateError } = await updateCharacterData(characterId, nextData)
 
     if (updateError) {
       console.error('Не удалось сохранить Здоровье персонажа:', updateError)
@@ -3456,24 +2916,7 @@ export default function VampireTable() {
     setRolls(prev => mergeRoll(prev, roll))
     triggerDiceOverlay(roll)
     broadcast('roll', roll)
-    const payload = {
-      id: roll.id,
-      room: roll.room,
-      character_name: roll.characterName,
-      pool_name: roll.poolName,
-      pool_type: roll.poolType,
-      dice_count: roll.diceCount,
-      dice: opposed,
-      successes: roll.successes,
-      meta: roll.meta || {},
-      created_at: roll.createdAt,
-    }
-    let { error } = await createClient().from(TABLE_ROLLS).insert(payload)
-    if (error && /meta/i.test(error.message || '')) {
-      const { meta, ...legacyPayload } = payload
-      const fallback = await createClient().from(TABLE_ROLLS).insert(legacyPayload)
-      error = fallback.error
-    }
+    const { error } = await insertRollRecord(roll, opposed)
     if (error) setConnectionText('Встречная проверка отправлена онлайн, но не сохранилась')
     else setConnectionText('Онлайн')
   }
@@ -3772,8 +3215,6 @@ export default function VampireTable() {
     setConnectionText(`Встречный бросок запрошен: ${opponent.label}`)
   }
 
-  const getRollDieId = (roll: RollMessage, index: number) => roll.dice[index]?.id || `${roll.id}:${index}`
-
   const getRollCharacter = (roll: RollMessage) => {
     const characterId = roll.meta?.characterId
     if (characterId) return chatCharacters.find(character => character.id === characterId) || null
@@ -3836,11 +3277,6 @@ export default function VampireTable() {
     })
   }
 
-  const getWillpowerRerollEligibleDieIds = (roll: RollMessage) => roll.dice
-    .map((die, index) => ({ die, id: getRollDieId(roll, index) }))
-    .filter(({ die }) => !String(die.kind).startsWith('hunger'))
-    .map(({ id }) => id)
-
   const canUseWillpowerReroll = (roll: RollMessage) => {
     if (roll.opposed || (roll.hidden && !isMaster) || roll.meta?.willpowerReroll?.used || isWillpowerRerollExcluded(roll)) return false
     if (!getWillpowerRerollEligibleDieIds(roll).length) return false
@@ -3865,27 +3301,7 @@ export default function VampireTable() {
   const publishRollReplacement = async (roll: RollMessage) => {
     setRolls(prev => mergeRoll(prev, roll))
     broadcast('roll', roll)
-    const payload = {
-      pool_name: roll.poolName,
-      pool_type: roll.poolType,
-      dice_count: roll.diceCount,
-      dice: roll.dice,
-      successes: roll.successes,
-      meta: roll.meta || {},
-    }
-    let { error } = await createClient()
-      .from(TABLE_ROLLS)
-      .update(payload)
-      .eq('id', roll.id)
-
-    if (error && /meta/i.test(error.message || '')) {
-      const { meta, ...legacyPayload } = payload
-      const fallback = await createClient()
-        .from(TABLE_ROLLS)
-        .update(legacyPayload)
-        .eq('id', roll.id)
-      error = fallback.error
-    }
+    const { error } = await updateRollRecord(roll.id, roll)
 
     if (error) setConnectionText('Переброс отправлен онлайн, но не сохранился')
     else setConnectionText('Онлайн')
@@ -4086,6 +3502,36 @@ export default function VampireTable() {
     setPreviewPowerName('')
   }
 
+  const clearPreviewHealth = () => {
+    if (!previewCharacter) return
+    if (window.confirm(t('Полностью очистить шкалу здоровья?'))) {
+      void updateCharacterHealth(previewCharacter.id, normalizeHealthTracker({
+        ...toHealthTracker(previewHealth),
+        superficial: 0,
+        aggravated: 0,
+      }, getCharacterHealthStamina(previewCharacter), previewDamageProfile), 'Здоровье очищено')
+    }
+  }
+
+  const markPreviewTorporOrComa = () => {
+    if (!previewCharacter) return
+    const stateName = previewDamageProfile === 'vampire' ? 'торпор' : 'кому/смерть'
+    if (window.confirm(tf('Отметить {state} и заполнить шкалу тяжёлыми повреждениями?', { state: t(stateName) }))) {
+      void updateCharacterHealth(previewCharacter.id, normalizeHealthTracker({
+        ...toHealthTracker(previewHealth),
+        superficial: 0,
+        aggravated: previewHealth.max,
+      }, getCharacterHealthStamina(previewCharacter), previewDamageProfile), stateName)
+    }
+  }
+
+  const confirmRecoverPreviewAggravatedWillpower = () => {
+    if (!previewCharacter) return
+    if (window.confirm(t('Снять один тяжёлый стресс Воли?'))) {
+      void recoverWillpower(previewCharacter, 1, 'aggravated', 'Воля: восстановление тяжёлого стресса')
+    }
+  }
+
   const payActivateAndSaveDisciplinePower = async (
     character: CharacterOption,
     power: DisciplinePowerEntry,
@@ -4105,12 +3551,7 @@ export default function VampireTable() {
       )
     }
 
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('characters')
-      .select('id, user_id, name, clan, data')
-      .eq('id', character.id)
-      .single()
+    const { row: data, error } = await fetchCharacterById(character.id)
 
     if (error || !data?.data) {
       console.error('Не удалось прочитать персонажа для оплаты силы:', error)
@@ -4198,10 +3639,7 @@ export default function VampireTable() {
       ...(nextActiveEffects ? { activeEffects: nextActiveEffects } : {}),
       timestamp: new Date().toISOString(),
     }
-    const { error: updateError } = await supabase
-      .from('characters')
-      .update({ data: nextData })
-      .eq('id', character.id)
+    const { error: updateError } = await updateCharacterData(character.id, nextData)
 
     if (updateError) {
       console.error('Не удалось сохранить оплату силы:', updateError)
@@ -4288,12 +3726,7 @@ export default function VampireTable() {
       || !canRollPreview
     ) return
 
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('characters')
-      .select('id, user_id, name, clan, data')
-      .eq('id', previewCharacter.id)
-      .single()
+    const { row: data, error } = await fetchCharacterById(previewCharacter.id)
 
     if (error || !data?.data) {
       console.error('Не удалось прочитать персонажа для отключения силы:', error)
@@ -4323,10 +3756,7 @@ export default function VampireTable() {
       activeEffects: deactivation.activeEffects,
       timestamp: new Date().toISOString(),
     }
-    const { error: updateError } = await supabase
-      .from('characters')
-      .update({ data: nextData })
-      .eq('id', previewCharacter.id)
+    const { error: updateError } = await updateCharacterData(previewCharacter.id, nextData)
 
     if (updateError) {
       console.error('Не удалось сохранить отключение силы:', updateError)
@@ -4469,22 +3899,19 @@ export default function VampireTable() {
     }
 
     try {
-      const supabase = createClient()
-      const { data, error } = await supabase
-        .from('characters')
-        .select('data')
-        .eq('id', previewCharacter.id)
-        .eq('user_id', chatUser.id)
-        .single()
+      const { row: data, error } = await fetchCharacterById(previewCharacter.id, {
+        userId: chatUser.id,
+        select: 'data',
+      })
       if (error || !data?.data) throw error || new Error('Данные персонажа не найдены')
 
       const characterData = data.data as Record<string, unknown>
       const nextInventory = [item, ...normalizeInventory(characterData.inventory)]
-      const { error: updateError } = await supabase
-        .from('characters')
-        .update({ data: { ...characterData, inventory: nextInventory, timestamp: now } })
-        .eq('id', previewCharacter.id)
-        .eq('user_id', chatUser.id)
+      const { error: updateError } = await updateCharacterData(
+        previewCharacter.id,
+        { ...characterData, inventory: nextInventory, timestamp: now },
+        { userId: chatUser.id },
+      )
       if (updateError) throw updateError
 
       setPreviewCharacter(current => current ? { ...current, inventory: nextInventory } : current)
@@ -4508,13 +3935,7 @@ export default function VampireTable() {
     ) return
 
     setConnectionText('Удаляю эффект...')
-    const supabase = createClient()
-    const { data, error } = await supabase
-      .from('characters')
-      .select('id, user_id, name, clan, data')
-      .eq('id', previewCharacter.id)
-      .eq('user_id', chatUser.id)
-      .single()
+    const { row: data, error } = await fetchCharacterById(previewCharacter.id, { userId: chatUser.id })
 
     if (error || !data?.data) {
       console.error('Не удалось прочитать активные эффекты персонажа:', error)
@@ -4549,11 +3970,9 @@ export default function VampireTable() {
       ...withoutEffect,
       timestamp: new Date().toISOString(),
     }
-    const { error: updateError } = await supabase
-      .from('characters')
-      .update({ data: nextData })
-      .eq('id', previewCharacter.id)
-      .eq('user_id', chatUser.id)
+    const { error: updateError } = await updateCharacterData(previewCharacter.id, nextData, {
+      userId: chatUser.id,
+    })
 
     if (updateError) {
       console.error('Не удалось удалить активный эффект:', updateError)
@@ -4613,12 +4032,10 @@ export default function VampireTable() {
     if (!chatUser || !previewCharacter?.id || previewCharacter.id !== selectedActiveCharacter?.id) return
     const amount = Number(window.prompt(t('Сколько опыта добавить?'), '1'))
     if (!Number.isFinite(amount) || amount <= 0) return
-    const { data, error } = await createClient()
-      .from('characters')
-      .select('data')
-      .eq('id', previewCharacter.id)
-      .eq('user_id', chatUser.id)
-      .single()
+    const { row: data, error } = await fetchCharacterById(previewCharacter.id, {
+      userId: chatUser.id,
+      select: 'data',
+    })
     if (error || !data?.data) {
       window.alert(t('Не удалось загрузить персонажа для добавления опыта.'))
       return
@@ -4630,11 +4047,9 @@ export default function VampireTable() {
       freeExp: current + amount,
       timestamp: new Date().toISOString(),
     }
-    const { error: updateError } = await createClient()
-      .from('characters')
-      .update({ data: nextData })
-      .eq('id', previewCharacter.id)
-      .eq('user_id', chatUser.id)
+    const { error: updateError } = await updateCharacterData(previewCharacter.id, nextData, {
+      userId: chatUser.id,
+    })
     if (updateError) {
       window.alert(t('Опыт не сохранился.'))
       return
@@ -4779,9 +4194,6 @@ export default function VampireTable() {
   const libraryTree = useMemo<LayerTreeNode[]>(() => {
     return buildLayerTree(libraryLayers)
   }, [libraryLayers])
-  const broadcast = (event: string, payload: unknown) => {
-    broadcastMusicChannel(channelRef.current, event, payload)
-  }
 
   const sendMasterWhisper = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -5041,6 +4453,7 @@ export default function VampireTable() {
       setVoiceStatus('Голос не смог соединиться')
     }
   }
+  handleVoiceSignalRef.current = handleVoiceSignal
 
   const stopVoice = () => {
     const wasEnabled = voiceEnabledRef.current
@@ -5115,7 +4528,7 @@ export default function VampireTable() {
     setLayers(nextLayers)
     broadcast('layer-update', { id, room, patch })
 
-    const { error } = await createClient().from(TABLE_IMAGES).update(toDbPatch(patch)).eq('id', id)
+    const { error } = await updateLayerRecord(id, patch)
     if (error) {
       console.error('Не удалось обновить слой:', error)
       setTableStatus('Слой не сохранился')
@@ -5160,7 +4573,7 @@ export default function VampireTable() {
     const ownerRole = tableRole ?? 'player'
     const activeFolder = selectedLayer?.layerType === 'folder' && canEditLayer(selectedLayer) ? selectedLayer : null
     const layer: TableLayer = {
-      id: `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`,
+      id: createTableId(),
       room,
       sceneId: currentSceneId,
       layerType,
@@ -5193,38 +4606,7 @@ export default function VampireTable() {
     }
     Object.assign(layer, overrides)
 
-    const { error } = await createClient().from(TABLE_IMAGES).insert({
-      id: layer.id,
-      room: layer.room,
-      scene_id: layer.sceneId,
-      layer_type: layer.layerType,
-      owner_role: layer.ownerRole,
-      owner_id: layer.ownerId,
-      parent_id: layer.parentId,
-      name: layer.name,
-      image_data: layer.imageData,
-      x: layer.x,
-      y: layer.y,
-      width: layer.width,
-      height: layer.height,
-      crop_x: layer.cropX,
-      crop_y: layer.cropY,
-      crop_width: layer.cropWidth,
-      crop_height: layer.cropHeight,
-      z_index: layer.zIndex,
-      visible: layer.visible,
-      locked: layer.locked,
-      opacity: layer.opacity,
-      blend_mode: layer.blendMode,
-      rotation: layer.rotation,
-      flip_x: layer.flipX,
-      flip_y: layer.flipY,
-      brightness: layer.brightness,
-      contrast: layer.contrast,
-      saturation: layer.saturation,
-      on_table: layer.onTable,
-      created_at: layer.createdAt,
-    })
+    const { error } = await insertLayer(layer)
 
     layersRef.current = upsertLayer(layersRef.current, layer)
     setLayers(layersRef.current)
@@ -5259,7 +4641,6 @@ export default function VampireTable() {
     setIsUploading(true)
 
     try {
-      const supabase = createClient()
       const folderIds = new Map<string, string | null>()
 
       const ensureFolder = async (folderPath: string, onTableForFolder: boolean) => {
@@ -5304,7 +4685,6 @@ export default function VampireTable() {
             : isReadableTextFile(file)
               ? 'text'
               : 'file'
-        const id = `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`
         const objectUrl = URL.createObjectURL(file)
         const natural = layerType === 'image' || layerType === 'video'
           ? await getMediaSize(objectUrl, layerType)
@@ -5316,35 +4696,25 @@ export default function VampireTable() {
         const storageFolderPath = options.preserveFolders
           ? relativeParts.slice(0, -1).map(part => safeStorageName(part)).filter(Boolean).join('/')
           : ''
-        const storagePath = storageFolderPath
-          ? `${room}/${storageFolderPath}/${id}-${safeStorageName(file.name)}`
-          : `${room}/${id}-${safeStorageName(file.name)}`
-        const { error: uploadError } = await supabase.storage
-          .from(TABLE_IMAGE_BUCKET)
-          .upload(storagePath, file, {
-            cacheControl: '3600',
-            upsert: false,
-            contentType: file.type || 'application/octet-stream',
-          })
+        const { error: uploadError, publicUrl } = await uploadTableImageFile(room, file, { storageFolderPath })
 
-        if (uploadError) {
+        if (uploadError || !publicUrl) {
           console.error('Не удалось загрузить файл в Storage:', uploadError)
           window.alert(t('Файл не загрузился в Supabase Storage. Примени обновлённый SQL для bucket table-images.'))
           continue
         }
 
-        const { data: publicUrlData } = supabase.storage.from(TABLE_IMAGE_BUCKET).getPublicUrl(storagePath)
         const layerData = layerType === 'text'
           ? getTextLayerData(file, await getFileText(file))
           : layerType === 'file'
             ? JSON.stringify({
-              url: publicUrlData.publicUrl,
+              url: publicUrl,
               type: file.type || 'application/octet-stream',
               wordLike: isWordLikeFile(file),
               pdf: /\.pdf$/i.test(file.name) || /pdf/i.test(file.type),
               name: file.name,
             })
-            : publicUrlData.publicUrl
+            : publicUrl
         await addMediaLayer(
           layerData,
           options.asBackground ? `Фон — ${file.name}` : file.name,
@@ -5523,8 +4893,7 @@ export default function VampireTable() {
     setSelectedLayerId(prev => (prev && deleteIds.has(prev) ? null : prev))
     setSelectedLayerIds(prev => new Set([...prev].filter(id => !deleteIds.has(id))))
     deleteIds.forEach(id => broadcast('layer-delete', { id, room }))
-    const supabase = createClient()
-    await supabase.from(TABLE_IMAGES).delete().in('id', [...deleteIds])
+    await deleteLayerRecords([...deleteIds])
 
     const journalUrls = getJournalReferencedMediaUrls(journalEntriesRef.current)
     await Promise.all(deletedLayers.map(async deletedLayer => {
@@ -5537,7 +4906,7 @@ export default function VampireTable() {
       if (isMediaUrlReferencedInJournal(fileUrl, journalUrls)) return
       const storagePath = getStoragePathFromPublicUrl(fileUrl)
       if (storagePath) {
-        const { error } = await supabase.storage.from(TABLE_IMAGE_BUCKET).remove([storagePath])
+        const { error } = await removeStorageObject(storagePath)
         if (error) console.error('Не удалось удалить файл слоя из Storage:', error)
       }
     }))
@@ -5557,7 +4926,7 @@ export default function VampireTable() {
     const siblingCount = layersRef.current.filter(layer => layer.layerType === 'folder' && layer.parentId === parentId).length
     const parentFolder = parentId ? layersRef.current.find(layer => layer.id === parentId) : null
     const folder: TableLayer = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      id: createTableId(),
       room,
       sceneId: currentSceneId,
       layerType: 'folder',
@@ -5589,38 +4958,7 @@ export default function VampireTable() {
       createdAt: new Date().toISOString(),
     }
 
-    const { error } = await createClient().from(TABLE_IMAGES).insert({
-      id: folder.id,
-      room: folder.room,
-      scene_id: folder.sceneId,
-      layer_type: folder.layerType,
-      owner_role: folder.ownerRole,
-      owner_id: folder.ownerId,
-      parent_id: folder.parentId,
-      name: folder.name,
-      image_data: folder.imageData,
-      x: folder.x,
-      y: folder.y,
-      width: folder.width,
-      height: folder.height,
-      crop_x: folder.cropX,
-      crop_y: folder.cropY,
-      crop_width: folder.cropWidth,
-      crop_height: folder.cropHeight,
-      z_index: folder.zIndex,
-      visible: folder.visible,
-      locked: folder.locked,
-      opacity: folder.opacity,
-      blend_mode: folder.blendMode,
-      rotation: folder.rotation,
-      flip_x: folder.flipX,
-      flip_y: folder.flipY,
-      brightness: folder.brightness,
-      contrast: folder.contrast,
-      saturation: folder.saturation,
-      on_table: folder.onTable,
-      created_at: folder.createdAt,
-    })
+    const { error } = await insertLayer(folder)
 
     layersRef.current = upsertLayer(layersRef.current, folder)
     setLayers(layersRef.current)
@@ -5647,10 +4985,7 @@ export default function VampireTable() {
     setLayers(nextLayers)
     patches.forEach(item => broadcast('layer-update', { id: item.id, room, patch: item.patch }))
 
-    const supabase = createClient()
-    const results = await Promise.all(
-      patches.map(item => supabase.from(TABLE_IMAGES).update(toDbPatch(item.patch)).eq('id', item.id))
-    )
+    const results = await updateLayerRecords(patches)
     if (results.some(result => result.error)) {
       console.error('Не удалось обновить порядок слоёв:', results.find(result => result.error)?.error)
       setTableStatus('Порядок слоёв не сохранился')
@@ -6397,10 +5732,9 @@ export default function VampireTable() {
 
       const updates = Array.from(positions, ([id, position]) => ({ id, ...position }))
       broadcast('layer-move', { room, updates })
-      const supabase = createClient()
-      const results = await Promise.all(updates.map(update => (
-        supabase.from(TABLE_IMAGES).update(toDbPatch({ x: update.x, y: update.y })).eq('id', update.id)
-      )))
+      const results = await updateLayerRecords(
+        updates.map(update => ({ id: update.id, patch: { x: update.x, y: update.y } })),
+      )
       if (results.some(result => result.error)) {
         console.error('Не удалось сохранить перемещение слоёв:', results.filter(result => result.error).map(result => result.error))
         setTableStatus('Позиция слоя не сохранилась')
@@ -6637,77 +5971,6 @@ export default function VampireTable() {
     return `/character-sheet?${params.toString()}`
   }
 
-  const getRollModifierSummary = (modifier: AppliedDisciplineRollModifier) => {
-    if (modifier.operation === 'ignore_penalty') {
-      return tf('игнорирует штраф · от {source}', { source: modifier.sourceLabel })
-    }
-    if (modifier.operation === 'auto_success') {
-      return tf('бросок не нужен · от {source}', { source: modifier.sourceLabel })
-    }
-    if (modifier.difficultyDelta) {
-      return tf('Сложность {delta} · от {source}', {
-        delta: `${modifier.difficultyDelta > 0 ? '+' : ''}${modifier.difficultyDelta}`,
-        source: modifier.sourceLabel,
-      })
-    }
-    if (modifier.diceDelta) {
-      return tf('{delta} от {source}', {
-        delta: `${modifier.diceDelta > 0 ? '+' : ''}${d10(Math.abs(modifier.diceDelta))}`,
-        source: modifier.sourceLabel,
-      })
-    }
-    return modifier.sourceLabel
-  }
-
-  const toggleDisabledRollModifier = (
-    modifierId: string,
-    setDisabledIds: Dispatch<SetStateAction<string[]>>,
-  ) => {
-    setDisabledIds(current => current.includes(modifierId)
-      ? current.filter(id => id !== modifierId)
-      : [...current, modifierId])
-  }
-
-  const renderRollModifierControls = (
-    result: DisciplineRollEffectResult | null | undefined,
-    setDisabledIds?: Dispatch<SetStateAction<string[]>>,
-  ) => {
-    const visibleModifiers = (result?.modifiers || []).filter(modifier => (
-      (modifier.sourceKind !== 'penalty' || modifier.active)
-      && (
-        modifier.diceDelta !== 0
-        || modifier.difficultyDelta !== 0
-        || modifier.operation === 'ignore_penalty'
-        || modifier.operation === 'auto_success'
-      )
-    ))
-    if (!visibleModifiers.length) return null
-
-    return (
-      <div className="preview-roll-modifier-list">
-        <strong>{t('Модификаторы')}:</strong>
-        {visibleModifiers.map(modifier => {
-          const summary = getRollModifierSummary(modifier)
-          const canToggle = isMaster && modifier.canDisable && setDisabledIds
-          return canToggle ? (
-            <label key={modifier.id} className="preview-blood-surge-toggle">
-              <span>{modifier.active ? summary : `${t('отключено')}: ${summary}`}</span>
-              <input
-                type="checkbox"
-                checked={modifier.active}
-                onChange={() => toggleDisabledRollModifier(modifier.id, setDisabledIds)}
-              />
-            </label>
-          ) : (
-            <span className="preview-roll-notice" key={modifier.id}>
-              {modifier.active ? summary : `${t('отключено')}: ${summary}`}
-            </span>
-          )
-        })}
-      </div>
-    )
-  }
-
   const renderRollMeta = (roll: RollMessage) => {
     const meta = roll.meta
     if (!meta) return null
@@ -6766,7 +6029,7 @@ export default function VampireTable() {
         {meta.healthImpairmentPenaltyApplied ? <span className="roll-note">{tf('Изнурение по здоровью: {n}к10', { n: meta.healthImpairmentPenaltyApplied })}</span> : null}
         {rollModifiers.length ? (
           <span className="roll-note">
-            {t('Модификаторы')}: {rollModifiers.map(getRollModifierSummary).join(' · ')}
+            {t('Модификаторы')}: {rollModifiers.map(modifier => summarizeRollModifier(modifier, tf, d10)).join(' · ')}
           </span>
         ) : null}
         {meta.damage ? (
@@ -6812,106 +6075,6 @@ export default function VampireTable() {
     )
   }
 
-  const renderOpposedResponseControls = () => {
-    const character = selectedActiveCharacter
-    const pool = getOpposedCharacterPool(character, opposedResponseSide)
-
-    return (
-      <section className="opposed-side-builder opposed-response-builder">
-        <div className="opposed-side-heading">
-          <span>{t('Твой ответ')}</span>
-          <strong>{d10(pool.diceCount || 0)}</strong>
-        </div>
-
-        {!character ? (
-          <p className="opposed-side-status">{t('Выбери активного персонажа.')}</p>
-        ) : (
-          <div className="opposed-trait-controls">
-            <label>
-              <span>{t('Характеристика 1')}</span>
-              <select
-                value={opposedResponseSide.attribute}
-                onChange={event => updateOpposedResponseSide({ attribute: event.target.value })}
-              >
-                <option value="">{t('Без характеристики')}</option>
-                {ATTRIBUTE_GROUPS.map(group => (
-                  <optgroup key={group.name} label={t(group.name)}>
-                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{t(name)} · {getAttributeDots(character.attributes, name)}</option>)}
-                  </optgroup>
-                ))}
-                {pool.extraAttributes.length ? (
-                  <optgroup label={t('Другие')}>
-                    {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attributeTwo === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
-                  </optgroup>
-                ) : null}
-              </select>
-            </label>
-            <label>
-              <span>{t('Характеристика 2')}</span>
-              <select
-                value={opposedResponseSide.attributeTwo}
-                onChange={event => updateOpposedResponseSide({ attributeTwo: event.target.value })}
-              >
-                <option value="">{t('Без второй характеристики')}</option>
-                {ATTRIBUTE_GROUPS.map(group => (
-                  <optgroup key={group.name} label={t(group.name)}>
-                    {group.traits.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{t(name)} · {getAttributeDots(character.attributes, name)}</option>)}
-                  </optgroup>
-                ))}
-                {pool.extraAttributes.length ? (
-                  <optgroup label={t('Другие')}>
-                    {pool.extraAttributes.map(name => <option key={name} value={name} disabled={opposedResponseSide.attribute === name}>{name} · {getAttributeDots(character.attributes, name)}</option>)}
-                  </optgroup>
-                ) : null}
-              </select>
-            </label>
-            <label>
-              <span>{t('Навык')}</span>
-              <select
-                value={opposedResponseSide.skill}
-                onChange={event => updateOpposedResponseSide({ skill: event.target.value })}
-              >
-                <option value="">{t('Без навыка')}</option>
-                {SKILL_GROUPS.map(group => (
-                  <optgroup key={group.name} label={t(group.name)}>
-                    {group.traits.map(name => <option key={name} value={name}>{t(name)} · {getSkillDots(resolveSkillValue(character.skills, name))}</option>)}
-                  </optgroup>
-                ))}
-                {pool.extraSkills.length ? (
-                  <optgroup label={t('Другие')}>
-                    {pool.extraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(character.skills, name))}</option>)}
-                  </optgroup>
-                ) : null}
-              </select>
-            </label>
-            <label>
-              <span>{t('Дисциплина')}</span>
-              <select
-                value={opposedResponseSide.discipline}
-                onChange={event => updateOpposedResponseSide({ discipline: event.target.value })}
-              >
-                <option value="">{t('Без дисциплины')}</option>
-                {pool.disciplineNames.map(name => (
-                  <option key={name} value={name}>{name} · {getDisciplineDots(character.disciplines[name] || {})}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <span>{t('Модификатор')}</span>
-              <input
-                type="number"
-                min="-20"
-                max="20"
-                value={opposedResponseSide.modifier}
-                onChange={event => updateOpposedResponseSide({ modifier: Math.max(-20, Math.min(20, Number(event.target.value) || 0)) })}
-              />
-            </label>
-          </div>
-        )}
-      </section>
-    )
-  }
-
   const opposedResponsePool = getOpposedCharacterPool(selectedActiveCharacter, opposedResponseSide)
   const canAnswerOpposedProposal = Boolean(incomingOpposedProposal && selectedActiveCharacter && opposedResponsePool.diceCount > 0)
 
@@ -6924,20 +6087,14 @@ export default function VampireTable() {
         </div>
         <div className="table-actions">
           <a href="/" title={t('Вернуться на главную страницу')}>{t('Главная')}</a>
-          <button type="button" className="role-pill" onClick={resetTableRole}>
-            {isMaster ? t('Мастер') : tableRole === 'player' ? t('Игрок') : t('Выбрать роль')}
-          </button>
-          {isMaster ? (
-            <label className="master-password-control">
-              <span>{t('Пароль мастера')}</span>
-              <input
-                value={masterPasswordEdit}
-                onChange={event => setMasterPasswordEdit(event.target.value)}
-                aria-label={t('Пароль мастера')}
-              />
-              <button type="button" onClick={saveMasterPassword}>{t('Сменить')}</button>
-            </label>
-          ) : null}
+          <MasterRoleTopbar
+            tableRole={tableRole}
+            isMaster={isMaster}
+            masterPasswordEdit={masterPasswordEdit}
+            onMasterPasswordEditChange={setMasterPasswordEdit}
+            onResetTableRole={resetTableRole}
+            onSaveMasterPassword={saveMasterPassword}
+          />
           <a href={getCharacterSheetHref(selectedActiveCharacter?.id)} title={t('Открыть лист персонажа')}>{t('Лист')}</a>
           <input ref={fileInputRef} type="file" multiple onChange={handleImageUpload} />
           <input ref={folderInputRef} type="file" multiple onChange={handleFolderUpload} />
@@ -7433,50 +6590,15 @@ export default function VampireTable() {
                       </div>
                     ) : (
                       <>
-                        <div className="dice-row" aria-label={tf('Результаты кубиков: {values}', { values: roll.dice.map(die => die.value).join(', ') })}>
-                          {roll.dice.map((die, index) => {
-                            const dieImage = getDieImage(die)
-                            const dieLabel = t(dieImage.label)
-                            const dieId = getRollDieId(roll, index)
-                            const rerollSelectable = canRerollWithWillpower && !String(die.kind).startsWith('hunger')
-                            const rerollSelected = Boolean(rerollDraftForRoll?.selectedDieIds.includes(dieId))
-                            return (
-                              <span
-                                className={`die die-${die.kind}${die.rerolled ? ' die-rerolled' : ''}${rerollSelectable ? ' reroll-selectable' : ''}${rerollSelected ? ' reroll-selected' : ''}`}
-                                key={`${roll.id}-${index}`}
-                                aria-label={`${dieLabel}: ${die.value}`}
-                                title={rerollSelectable ? tf('{value} - {label}. Выбрать для переброса Воли', { value: die.value, label: dieLabel }) : `${die.value} - ${dieLabel}`}
-                                onClick={rerollSelectable ? () => toggleWillpowerRerollDie(roll, dieId) : undefined}
-                              >
-                                <img src={dieImage.src} alt="" draggable={false} />
-                              </span>
-                            )
-                          })}
-                        </div>
-
-                        <footer>
-                          <span>{d10(roll.diceCount)}</span>
-                          <strong>{roll.successes}</strong>
-                        </footer>
-                        {canRerollWithWillpower ? (
-                          <div className="roll-reroll-actions">
-                            {rerollDraftForRoll ? (
-                              <>
-                                <button type="button" onClick={() => setWillpowerRerollDraft(null)}>
-                                  {t('Отмена')}
-                                </button>
-                                <span>{tf('Выбрано {n} / 3', { n: rerollDraftForRoll.selectedDieIds.length })}</span>
-                                <button type="button" onClick={() => confirmWillpowerReroll(roll)} disabled={rerollDraftForRoll.selectedDieIds.length < 1}>
-                                  {t('Перебросить за Волю')}
-                                </button>
-                              </>
-                            ) : (
-                              <button type="button" onClick={() => setWillpowerRerollDraft({ rollId: roll.id, selectedDieIds: [] })}>
-                                {t('Переброс Воли')}
-                              </button>
-                            )}
-                          </div>
-                        ) : null}
+                        <WillpowerRerollControls
+                          roll={roll}
+                          canReroll={canRerollWithWillpower}
+                          draft={rerollDraftForRoll}
+                          onToggleDie={dieId => toggleWillpowerRerollDie(roll, dieId)}
+                          onStartReroll={() => setWillpowerRerollDraft({ rollId: roll.id, selectedDieIds: [] })}
+                          onCancelReroll={() => setWillpowerRerollDraft(null)}
+                          onConfirmReroll={() => confirmWillpowerReroll(roll)}
+                        />
                         {!['health', 'rouse-check', 'remorse-check', 'humanity-event'].includes(roll.poolType) && !contestedRequest && chatCharacters.length ? (
                           <div className="roll-health-actions">
                             <button type="button" onClick={() => applyRollDamage(roll)}>
@@ -7752,7 +6874,7 @@ export default function VampireTable() {
                           </button>
                         </div>
 
-                        {renderRollModifierControls(masterRollEffectResult, setDisabledMasterRollModifierIds)}
+                        <RollModifierControls result={masterRollEffectResult} isMaster={isMaster} setDisabledIds={setDisabledMasterRollModifierIds} />
 
                         <div className="quick-roll-grid master-quick-rolls" aria-label={t('Быстрые броски мастера')}>
                           {[1, 3, 5, 7, 10].map(count => (
@@ -7832,957 +6954,175 @@ export default function VampireTable() {
         </TableRightPanel>
       </section>
 
-      {incomingOpposedProposal ? (
-        <div className="opposed-proposal-backdrop" role="dialog" aria-modal="true" aria-label={t('Встречная проверка')}>
-          <section className="opposed-proposal-modal">
-            <header>
-              <div>
-                <span>{t('Встречная проверка')}</span>
-                <strong>{incomingOpposedProposal.fromUsername || t('Игрок')}</strong>
-              </div>
-              <button type="button" onClick={dismissOpposedProposal} aria-label={t('Закрыть предложение')}>×</button>
-            </header>
-
-            <div className="opposed-proposal-body">
-              <section className="opposed-proposal-summary">
-                <div>
-                  <span>{t('Заявленный бросок')}</span>
-                  <strong>{incomingOpposedProposal.initiator.actorName}</strong>
-                </div>
-                <p>{t(incomingOpposedProposal.initiator.poolName)}</p>
-                <b>{d10(incomingOpposedProposal.initiator.diceCount)}</b>
-              </section>
-
-              <section className="opposed-proposal-active">
-                <span>{t('Отвечает')}</span>
-                <strong>{selectedActiveCharacter?.name || t('Активный персонаж не выбран')}</strong>
-              </section>
-
-              {renderOpposedResponseControls()}
-            </div>
-
-            <footer className="opposed-proposal-actions">
-              <button type="button" onClick={dismissOpposedProposal}>{t('Отклонить')}</button>
-              <button type="button" className="primary" onClick={answerOpposedProposal} disabled={!canAnswerOpposedProposal}>
-                {tf('Бросить ответ {count}к10', { count: opposedResponsePool.diceCount || 0 })}
-              </button>
-            </footer>
-          </section>
-        </div>
-      ) : null}
+      <OpposedRollModal
+        open={Boolean(incomingOpposedProposal)}
+        proposal={incomingOpposedProposal}
+        activeCharacter={selectedActiveCharacter}
+        responseSide={opposedResponseSide}
+        responsePool={{
+          diceCount: opposedResponsePool.diceCount,
+          extraAttributes: opposedResponsePool.extraAttributes,
+          extraSkills: opposedResponsePool.extraSkills,
+          disciplineNames: opposedResponsePool.disciplineNames,
+        }}
+        canAnswer={canAnswerOpposedProposal}
+        onDismiss={dismissOpposedProposal}
+        onAnswer={answerOpposedProposal}
+        onResponseSideChange={updateOpposedResponseSide}
+      />
 
       {previewCharacter ? (
-        <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label={t('Быстрый просмотр персонажа')} onMouseDown={() => setPreviewCharacter(null)}>
-          <section className="character-preview-modal" onMouseDown={event => event.stopPropagation()}>
-            <header>
-              <div className="character-preview-identity">
-                <div className="chat-avatar large" aria-hidden="true">
-                  {previewCharacter.image ? <img src={previewCharacter.image} alt="" /> : <span>{previewCharacter.name.slice(0, 1).toUpperCase()}</span>}
-                </div>
-                <div>
-                  <span>{previewCharacter.username || chatUser?.username || t('Игрок')}</span>
-                  <strong>{previewCharacter.name}</strong>
-                  <small>{previewCharacter.clan || t('Клан не указан')}</small>
-                </div>
-              </div>
-              <button type="button" onClick={() => setPreviewCharacter(null)} aria-label={t('Закрыть предпросмотр')}>×</button>
-            </header>
-            <nav className="character-preview-tabs" aria-label={t('Разделы краткого листа')}>
-              <button
-                type="button"
-                className={previewCharacterTab === 'mechanics' ? 'active' : ''}
-                onClick={() => setPreviewCharacterTab('mechanics')}
-              >
-                {t('Броски / механика')}
-              </button>
-              <button
-                type="button"
-                className={previewCharacterTab === 'inventory' ? 'active' : ''}
-                onClick={() => setPreviewCharacterTab('inventory')}
-              >
-                {t('Инвентарь')} <span>{previewCharacter.inventory.length}</span>
-              </button>
-            </nav>
-            <div className="character-preview-body">
-              <dl className="character-preview-summary">
-                <div><dt>{t('Клан')}</dt><dd>{previewCharacter.clan || '—'}</dd></div>
-                <div><dt>{t('Поколение')}</dt><dd>{previewCharacter.generation || '—'}</dd></div>
-                <div><dt>{t('Тип')}</dt><dd>{previewCharacter.type || '—'}</dd></div>
-                <div><dt>{t('Стиль охоты')}</dt><dd>{previewCharacter.predator || '—'}</dd></div>
-                {previewUsesVampireResources ? <div><dt>{t('Голод')}</dt><dd>{previewHunger} / 5</dd></div> : null}
-                <div><dt>{t('Здоровье')}</dt><dd>{previewHealth.current} / {previewHealth.max}</dd></div>
-                <div><dt>{t('Воля')}</dt><dd>{previewWillpower.current} / {previewWillpower.max}</dd></div>
-                {previewUsesVampireResources ? <div><dt>{t('Человечность')}</dt><dd>{tf('{value} · Сомнения {stains}', { value: previewHumanity.value, stains: previewHumanity.stains })}</dd></div> : null}
-                {previewUsesVampireResources ? <div><dt>{t('Сила Крови')}</dt><dd>{previewBloodPotency}</dd></div> : null}
-                <div><dt>{t('Свободный опыт')}</dt><dd>{previewCharacter.freeExp ?? 0}</dd></div>
-              </dl>
-
-              {previewCharacterTab === 'mechanics' ? (
-                <div className="character-mechanics-sheet">
-                  {previewSheetFixed ? (
-                    <>
-                    {previewUsesVampireResources ? <section className="preview-blood-panel">
-                    <div className="preview-section-heading">
-                      <div>
-                        <span>{t('Голод и кровь')}</span>
-                        <h3>{t('Состояние')}</h3>
-                      </div>
-                      <strong>{previewHunger} / 5</strong>
-                    </div>
-                    <div className="preview-blood-grid">
-                      <div>
-                        <span>{t('Голод')}</span>
-                        <b>{'●'.repeat(previewHunger)}{'○'.repeat(5 - previewHunger)}</b>
-                      </div>
-                      <div>
-                        <span>{t('Сила Крови')}</span>
-                        <b>{previewBloodPotency}</b>
-                      </div>
-                    </div>
-                    {previewSheetFixed && previewUsesVampireResources ? (
-                      <div className="preview-blood-actions" style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginTop: '8px' }}>
-                        <button type="button" onClick={() => rollRouseCheck(previewCharacter)} disabled={!canRollPreview}>
-                          {t('Проверить Голод')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => quenchHunger(previewCharacter, 1)}
-                          disabled={!canRollPreview || previewHunger <= 0}
-                        >
-                          {t('Утолить голод')}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => quenchHunger(previewCharacter, 5)}
-                          disabled={!canRollPreview || previewHunger <= 0}
-                        >
-                          {t('Насытиться')}
-                        </button>
-                      </div>
-                    ) : null}
-                    </section> : null}
-                  {previewUsesVampireResources ? (
-                    <section className="preview-humanity-panel">
-                      <div className="preview-section-heading">
-                        <div>
-                          <span>{t('Человечность')}</span>
-                          <h3>{t('Сомнения и муки совести')}</h3>
-                        </div>
-                        <strong>{previewHumanity.value} / 10</strong>
-                      </div>
-                      <div className="preview-humanity-track" aria-label={tf('Человечность {value}, Сомнения {stains}', { value: previewHumanity.value, stains: previewHumanity.stains })}>
-                        {Array.from({ length: 10 }, (_, index) => {
-                          const cell = index + 1
-                          const status = cell <= previewHumanity.value
-                            ? 'humanity-filled'
-                            : cell <= previewHumanity.value + previewHumanity.stains
-                              ? 'stain'
-                              : 'empty'
-                          return <span className={`preview-humanity-cell ${status}`} key={`preview-humanity-${cell}`} />
-                        })}
-                      </div>
-                      <p className="preview-humanity-caption">
-                        {tf('Сомнения {stains} / {remaining} · свободно {free}', { stains: previewHumanity.stains, remaining: 10 - previewHumanity.value, free: previewHumanity.freeBoxes })}
-                      </p>
-                      {previewHumanity.status === 'at_risk' ? (
-                        <p className="preview-roll-notice warning">{t('Шкала Сомнений заполнена. Следующая проверка почти наверняка приведёт к потере Человечности.')}</p>
-                      ) : null}
-                      {previewHumanity.status === 'lost_to_beast' ? (
-                        <p className="preview-roll-notice danger">{t('Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.')}</p>
-                      ) : null}
-                      {previewSheetFixed ? (
-                        <div className="preview-humanity-actions">
-                          <button type="button" onClick={() => addHumanityStains(previewCharacter, 1)} disabled={!canRollPreview}>
-                            + {t('Сомнение')}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => performRemorseCheck(previewCharacter)}
-                            disabled={!canRollPreview || previewHumanity.stains <= 0}
-                            title={previewHumanity.stains <= 0 ? t('Нет Сомнений для проверки.') : tf('Пул: {dice}к10', { dice: getRemorseDice(previewHumanity) })}
-                          >
-                            {t('Проверка мук совести')}
-                          </button>
-                        </div>
-                      ) : null}
-                    </section>
-                  ) : null}
-                  <section className="preview-willpower-panel">
-                    <div className="preview-section-heading">
-                      <div>
-                        <span>{t('Здоровье')}</span>
-                        <h3>{t('Повреждения')}</h3>
-                      </div>
-                      <strong>{previewHealth.current} / {previewHealth.max}</strong>
-                    </div>
-                    {previewHealthDerived ? (
-                      <p className="preview-humanity-caption">
-                        {t('Здоровье')}: {previewHealthDerived.baseMax}
-                        {previewHealthDerived.legacyBonus > 0 ? ` + ${previewHealthDerived.legacyBonus}` : ''}
-                        {previewHealthDerived.passiveBonus > 0
-                          ? ` + ${previewHealthDerived.passiveBonus} ${t('от Стойкости')}`
-                          : ''}
-                        {' = '}{previewHealthDerived.totalMax}
-                      </p>
-                    ) : null}
-                    <div className="preview-willpower-track" aria-label={t('Трек Здоровья')}>
-                      {Array.from({ length: previewHealth.max }, (_, index) => {
-                        const cell = index + 1
-                        const status = cell <= previewHealth.aggravated
-                          ? 'aggravated'
-                          : cell <= previewHealth.aggravated + previewHealth.superficial
-                            ? 'superficial'
-                            : 'empty'
-                        return (
-                          <span className={`preview-willpower-cell ${status}`} key={`preview-health-${cell}`}>
-                            {status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : ''}
-                          </span>
-                        )
-                      })}
-                    </div>
-                    {previewHealth.impaired ? <p className="preview-roll-notice">{getHealthWarning(previewHealth, previewDamageProfile, t)}</p> : null}
-                    {previewSheetFixed ? <div className="preview-willpower-actions preview-health-actions">
-                      <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'superficial', { source: 'manual', ignoreHalving: true })} disabled={!canRollPreview}>+ {t('лёгкий')}</button>
-                      <button type="button" onClick={() => applyCharacterHealthDamage(previewCharacter, 1, 'aggravated', { source: 'manual' })} disabled={!canRollPreview}>+ {t('тяжёлый')}</button>
-                      <button type="button" onClick={() => promptCharacterHealthDamage(previewCharacter)} disabled={!canRollPreview}>{t('+N урона')}</button>
-                      <button type="button" onClick={() => recoverCharacterHealth(previewCharacter, 1, 'superficial', 'Ручное лечение', 'manual')} disabled={!canRollPreview || previewHealth.superficial < 1}>- {t('лёгкий')}</button>
-                      <button type="button" onClick={() => recoverCharacterHealth(previewCharacter, 1, 'aggravated', 'Ручное лечение', 'manual')} disabled={!canRollPreview || previewHealth.aggravated < 1}>- {t('тяжёлый')}</button>
-                      <button type="button" onClick={() => mendVampireSuperficial(previewCharacter)} disabled={!canRollPreview || previewHealth.superficial < 1 || !['vampire', 'thinblood'].includes(previewDamageProfile)}>
-                        {t('Заживить лёгкий')}
-                      </button>
-                      <button type="button" onClick={() => mendVampireAggravated(previewCharacter)} disabled={!canRollPreview || previewHealth.aggravated < 1 || !['vampire', 'thinblood'].includes(previewDamageProfile)}>
-                        {t('Заживить тяжёлый')}
-                      </button>
-                      <button type="button" onClick={() => recoverMortalHealth(previewCharacter)} disabled={!canRollPreview || previewHealth.superficial < 1 || !['mortal', 'ghoul', 'custom'].includes(previewDamageProfile)}>
-                        {t('Восстановление смертного')}
-                      </button>
-                      <button type="button" onClick={() => treatMortalHealth(previewCharacter)} disabled={!canRollPreview || previewHealth.aggravated < 1 || !['mortal', 'ghoul', 'custom'].includes(previewDamageProfile)}>
-                        {t('Лечение смертного')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(t('Полностью очистить шкалу здоровья?'))) {
-                            void updateCharacterHealth(previewCharacter.id, normalizeHealthTracker({
-                              ...toHealthTracker(previewHealth),
-                              superficial: 0,
-                              aggravated: 0,
-                            }, getCharacterHealthStamina(previewCharacter), previewDamageProfile), 'Здоровье очищено')
-                          }
-                        }}
-                        disabled={!canRollPreview || (!previewHealth.superficial && !previewHealth.aggravated)}
-                      >
-                        {t('Очистить')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const stateName = previewDamageProfile === 'vampire' ? 'торпор' : 'кому/смерть'
-                          if (window.confirm(tf('Отметить {state} и заполнить шкалу тяжёлыми повреждениями?', { state: t(stateName) }))) {
-                            void updateCharacterHealth(previewCharacter.id, normalizeHealthTracker({
-                              ...toHealthTracker(previewHealth),
-                              superficial: 0,
-                              aggravated: previewHealth.max,
-                            }, getCharacterHealthStamina(previewCharacter), previewDamageProfile), stateName)
-                          }
-                        }}
-                        disabled={!canRollPreview}
-                      >
-                        {t('Торпор/кома')}
-                      </button>
-                    </div> : null}
-                    {previewDamageProfile === 'thinblood' ? <p className="preview-roll-notice">{t('Слабокровные получают часть урона ближе к смертным.')}</p> : null}
-                    {previewUsesVampireResources ? <p className="preview-roll-notice">{tf('Сила Крови {potency}: за Испытание Крови лечит {amount} лёгк.', { potency: previewBloodPotency, amount: getSuperficialMendAmount(previewBloodPotency) })}</p> : null}
-                  </section>
-                  <section className="preview-willpower-panel">
-                    <div className="preview-section-heading">
-                      <div>
-                        <span>{t('Воля')}</span>
-                        <h3>{t('Стресс')}</h3>
-                      </div>
-                      <strong>{previewWillpower.current} / {previewWillpower.max}</strong>
-                    </div>
-                    {previewWillpowerDerived ? (
-                      <p className="preview-humanity-caption">
-                        {t('Воля')}: {previewWillpowerDerived.baseMax}
-                        {previewWillpowerDerived.legacyBonus > 0 ? ` + ${previewWillpowerDerived.legacyBonus}` : ''}
-                        {previewWillpowerDerived.passiveBonus > 0
-                          ? ` + ${previewWillpowerDerived.passiveBonus} ${t('от дисциплин')}`
-                          : ''}
-                        {' = '}{previewWillpowerDerived.totalMax}
-                      </p>
-                    ) : null}
-                    <div className="preview-willpower-track" aria-label={t('Трек Воли')}>
-                      {Array.from({ length: previewWillpower.max }, (_, index) => {
-                        const cell = index + 1
-                        const status = cell <= previewWillpower.aggravated
-                          ? 'aggravated'
-                          : cell <= previewWillpower.aggravated + previewWillpower.superficial
-                            ? 'superficial'
-                            : 'empty'
-                        return (
-                          <span className={`preview-willpower-cell ${status}`} key={`preview-wp-${cell}`}>
-                            {status === 'aggravated' ? 'X' : status === 'superficial' ? '/' : ''}
-                          </span>
-                        )
-                      })}
-                    </div>
-                    {previewWillpower.impaired ? <p className="preview-roll-notice">{t('Трек заполнен: ментальные и социальные проверки получают -2к10.')}</p> : null}
-                    {previewSheetFixed ? <div className="preview-willpower-actions">
-                      <button type="button" onClick={() => spendWillpower(previewCharacter, 1, 'Воля: трата')} disabled={!canRollPreview || previewWillpower.aggravated >= previewWillpower.max}>
-                        {t('Потратить')}
-                      </button>
-                      <button type="button" onClick={() => rollWillpowerCheck(previewCharacter)} disabled={!canRollPreview || previewWillpower.current < 1}>
-                        {t('Проверка Воли')}
-                      </button>
-                      <button type="button" onClick={() => recoverWillpower(previewCharacter, getWillpowerRecoveryPool(previewCharacter), 'superficial', 'Воля: начало встречи')} disabled={!canRollPreview || previewWillpower.superficial < 1}>
-                        {t('Встреча')}
-                      </button>
-                      <button type="button" onClick={() => recoverWillpower(previewCharacter, 1, 'superficial', 'Воля: Прихоть')} disabled={!canRollPreview || previewWillpower.superficial < 1}>
-                        {t('Прихоть +1')}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (window.confirm(t('Снять один тяжёлый стресс Воли?'))) void recoverWillpower(previewCharacter, 1, 'aggravated', 'Воля: восстановление тяжёлого стресса')
-                        }}
-                        disabled={!canRollPreview || previewWillpower.aggravated < 1}
-                      >
-                        {t('Снять X')}
-                      </button>
-                      <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'superficial', 1)} disabled={!canRollPreview}>+ /</button>
-                      <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'superficial', -1)} disabled={!canRollPreview}>- /</button>
-                      <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'aggravated', 1)} disabled={!canRollPreview}>+ X</button>
-                      <button type="button" onClick={() => adjustWillpowerStress(previewCharacter, 'aggravated', -1)} disabled={!canRollPreview}>- X</button>
-                    </div> : null}
-                  </section>
-                  <section className="preview-willpower-panel">
-                    <div className="preview-section-heading">
-                      <div>
-                        <span>{t('Состояние персонажа')}</span>
-                        <h3>{t('Активные эффекты')}</h3>
-                      </div>
-                      <strong>{previewCharacter.activeEffects.length}</strong>
-                    </div>
-                    {previewCharacter.activeEffects.length === 0 ? (
-                      <p className="character-preview-empty">{t('Активных эффектов нет.')}</p>
-                    ) : (
-                      <div className="preview-inventory-list">
-                        {previewCharacter.activeEffects.map(activeEffect => (
-                          <article key={activeEffect.id}>
-                            <header>
-                              <div>
-                                <strong>{getActiveEffectTitle(activeEffect)}</strong>
-                                <span>{activeEffect.source.discipline || t('Ручной эффект')}</span>
-                              </div>
-                              <b>{activeEffect.active ? t('активен') : t('выкл.')}</b>
-                            </header>
-                            {getActiveEffectDescription(activeEffect, t, tf) ? (
-                              <p>{getActiveEffectDescription(activeEffect, t, tf)}</p>
-                            ) : null}
-                            <footer>
-                              <button
-                                type="button"
-                                onClick={() => removePreviewActiveEffect(activeEffect.id)}
-                                disabled={!canEditPreviewActiveEffects}
-                              >
-                                {t('Отключить')}
-                              </button>
-                            </footer>
-                          </article>
-                        ))}
-                      </div>
-                    )}
-                    <p className="preview-roll-notice">{t('Активные roll modifiers применяются к броскам; урон пока не автоматизируется.')}</p>
-                  </section>
-                    </>
-                  ) : (
-                    <section className="preview-creation-vitals">
-                      <div>
-                        <span>{t('Лист ещё не зафиксирован')}</span>
-                        <strong>{t('Стартовые значения')}</strong>
-                      </div>
-                      <dl>
-                        <div><dt>{t('Здоровье')}</dt><dd>{previewHealth.max}</dd></div>
-                        <div><dt>{t('Воля')}</dt><dd>{previewWillpower.max}</dd></div>
-                        {previewUsesVampireResources ? <div><dt>{t('Человечность')}</dt><dd>{previewHumanity.value}</dd></div> : null}
-                        {previewUsesVampireResources ? <div><dt>{t('Голод')}</dt><dd>{previewHunger}</dd></div> : null}
-                        {previewUsesVampireResources ? <div><dt>{t('Сила Крови')}</dt><dd>{previewBloodPotency}</dd></div> : null}
-                      </dl>
-                    </section>
-                  )}
-                  <section className="preview-roll-builder">
-                    <div className="preview-section-heading">
-                      <div>
-                        <span>{t('Пул костей')}</span>
-                        <h3>{t('Собрать бросок')}</h3>
-                      </div>
-                      <strong>{d10(previewDiceCount)}</strong>
-                    </div>
-                    <div className="preview-roll-controls">
-                      <label>
-                        <span>{t('Характеристика 1')}</span>
-                        <select value={previewRollAttribute} onChange={event => setPreviewRollAttribute(event.target.value)}>
-                          <option value="">{t('Без характеристики')}</option>
-                          {ATTRIBUTE_GROUPS.map(group => (
-                            <optgroup key={group.name} label={t(group.name)}>
-                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{t(name)} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
-                            </optgroup>
-                          ))}
-                          {previewExtraAttributes.length ? (
-                            <optgroup label={t('Другие')}>
-                              {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttributeTwo === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
-                            </optgroup>
-                          ) : null}
-                        </select>
-                      </label>
-                      <label>
-                        <span>{t('Характеристика 2')}</span>
-                        <select value={previewRollAttributeTwo} onChange={event => setPreviewRollAttributeTwo(event.target.value)}>
-                          <option value="">{t('Без второй характеристики')}</option>
-                          {ATTRIBUTE_GROUPS.map(group => (
-                            <optgroup key={group.name} label={t(group.name)}>
-                              {group.traits.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{t(name)} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
-                            </optgroup>
-                          ))}
-                          {previewExtraAttributes.length ? (
-                            <optgroup label={t('Другие')}>
-                              {previewExtraAttributes.map(name => <option key={name} value={name} disabled={previewRollAttribute === name}>{name} · {getAttributeDots(previewCharacter.attributes, name)}</option>)}
-                            </optgroup>
-                          ) : null}
-                        </select>
-                      </label>
-                      <label>
-                        <span>{t('Навык')}</span>
-                        <select value={previewRollSkill} onChange={event => setPreviewRollSkill(event.target.value)}>
-                          <option value="">{t('Без навыка')}</option>
-                          {SKILL_GROUPS.map(group => (
-                            <optgroup key={group.name} label={t(group.name)}>
-                              {group.traits.map(name => <option key={name} value={name}>{t(name)} · {getSkillDots(resolveSkillValue(previewCharacter.skills, name))}</option>)}
-                            </optgroup>
-                          ))}
-                          {previewExtraSkills.length ? (
-                            <optgroup label={t('Другие')}>
-                              {previewExtraSkills.map(name => <option key={name} value={name}>{name} · {getSkillDots(resolveSkillValue(previewCharacter.skills, name))}</option>)}
-                            </optgroup>
-                          ) : null}
-                        </select>
-                      </label>
-                      <label>
-                        <span>{t('Дисциплина')}</span>
-                        <select value={previewRollDiscipline} onChange={event => setPreviewRollDiscipline(event.target.value)}>
-                          <option value="">{t('Без дисциплины')}</option>
-                          {previewDisciplineNames.map(name => (
-                            <option key={name} value={name}>{name} · {getDisciplineDots(previewCharacter.disciplines[name] || {})}</option>
-                          ))}
-                        </select>
-                      </label>
-                      <label className="preview-modifier-field">
-                        <span>{t('Модификатор')}</span>
-                        <input
-                          type="number"
-                          min="-20"
-                          max="20"
-                          value={previewRollModifier}
-                          onChange={event => setPreviewRollModifier(Math.max(-20, Math.min(20, Number(event.target.value) || 0)))}
-                        />
-                      </label>
-                      {previewUsesVampireResources ? <label className="preview-blood-surge-toggle">
-                        <span>{tf('Прилив Крови +{bonus}к10', { bonus: previewBloodSurgeBonus })}</span>
-                        <input
-                          type="checkbox"
-                          checked={previewBloodSurgeEnabled}
-                          onChange={event => setPreviewUseBloodSurge(event.target.checked)}
-                        />
-                      </label> : null}
-                      <label className="roll-mode-field">
-                        <span>{t('Тип броска')}</span>
-                        <select
-                          value={previewRollMode}
-                          onChange={event => {
-                            const nextMode = event.target.value as RollMode
-                            setPreviewRollMode(nextMode)
-                            if (nextMode === 'normal') setPreviewContestedOpponentId('')
-                          }}
-                        >
-                          <option value="normal">{t('Обычный бросок')}</option>
-                          <option value="contested">{t('Встречный бросок')}</option>
-                        </select>
-                      </label>
-                      {previewRollMode === 'contested' ? (
-                        <label className="contested-opponent-field">
-                          <span>{t('Оппонент')}</span>
-                          <select
-                            value={previewContestedOpponentId}
-                            onChange={event => setPreviewContestedOpponentId(event.target.value)}
-                            disabled={previewContestedOpponentOptions.length === 0}
-                          >
-                            <option value="">{previewContestedOpponentOptions.length ? t('Выбрать оппонента') : t('Нет доступных оппонентов')}</option>
-                            {previewContestedOpponentOptions.map(option => (
-                              <option key={option.id} value={option.id}>{option.label}</option>
-                            ))}
-                          </select>
-                        </label>
-                      ) : null}
-                      <button
-                        type="button"
-                        className="preview-roll-submit"
-                        onClick={rollPreviewPool}
-                        disabled={!canRollPreview || previewDiceCount < 1 || (previewRollMode === 'contested' && !selectedPreviewContestedOpponent)}
-                      >
-                        {previewRollMode === 'contested' ? t('Запросить встречный') : t('Бросить')} {Math.min(20, previewDiceCount + (previewBloodSurgeEnabled ? previewBloodSurgeBonus : 0)) || 0}к10
-                      </button>
-                    </div>
-                    {renderRollModifierControls(previewRollEffectResult, setDisabledPreviewRollModifierIds)}
-                    <div className="quick-roll-grid" aria-label={t('Быстрые броски')}>
-                      {[1, 3, 5, 7].map(count => (
-                        <button
-                          type="button"
-                          key={count}
-                          disabled={!canRollPreview}
-                          onClick={() => rollQuickDice(count, d10(count), previewCharacter, 'quick', {
-                            useBloodSurge: previewBloodSurgeEnabled,
-                            source: previewBloodSurgeEnabled ? 'blood_surge' : 'manual',
-                          })}
-                        >
-                          {d10(count)}
-                        </button>
-                      ))}
-                    </div>
-                    {!canRollPreview ? <p className="preview-roll-notice">{t('Бросать может мастер или владелец активного персонажа.')}</p> : null}
-                    {previewPoolBeforeLimit > 20 ? <p className="preview-roll-notice">{t('Пул ограничен двадцатью костями.')}</p> : null}
-                    {getActivePenaltyDelta(previewRollEffectResult, 'willpower_impairment') ? <p className="preview-roll-notice">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
-                    {getActivePenaltyDelta(previewRollEffectResult, 'health_impairment') ? <p className="preview-roll-notice">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
-                  </section>
-
-                  <section className="preview-trait-section">
-                    <div className="preview-section-heading"><h3>{t('Характеристики')}</h3><span>{t('Можно выбрать две характеристики')}</span></div>
-                    <div className="preview-trait-columns">
-                      {ATTRIBUTE_GROUPS.map(group => (
-                        <div className="preview-trait-group" key={group.name}>
-                          <h4>{t(group.name)}</h4>
-                          {group.traits.map(name => {
-                            const dots = getAttributeDots(previewCharacter.attributes, name)
-                            return (
-                              <button
-                                type="button"
-                                key={name}
-                                className={previewRollAttribute === name || previewRollAttributeTwo === name ? 'active' : ''}
-                                onClick={() => togglePreviewAttribute(name)}
-                              >
-                                <span>{t(name)}</span><i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      ))}
-                      {previewExtraAttributes.length ? (
-                        <div className="preview-trait-group">
-                          <h4>{t('Другие')}</h4>
-                          {previewExtraAttributes.map(name => {
-                            const dots = getAttributeDots(previewCharacter.attributes, name)
-                            return (
-                              <button type="button" key={name} className={previewRollAttribute === name || previewRollAttributeTwo === name ? 'active' : ''} onClick={() => togglePreviewAttribute(name)}>
-                                <span>{name}</span><i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  </section>
-
-                  <section className="preview-trait-section">
-                    <div className="preview-section-heading"><h3>{t('Навыки')}</h3><span>{t('Специализации указаны под навыком')}</span></div>
-                    <div className="preview-trait-columns skills">
-                      {SKILL_GROUPS.map(group => (
-                        <div className="preview-trait-group" key={group.name}>
-                          <h4>{t(group.name)}</h4>
-                          {group.traits.map(name => {
-                            const value = resolveSkillValue(previewCharacter.skills, name)
-                            const dots = getSkillDots(value)
-                            const specs = getSkillSpecs(value)
-                            return (
-                              <button
-                                type="button"
-                                key={name}
-                                className={previewRollSkill === name ? 'active' : ''}
-                                onClick={() => setPreviewRollSkill(current => current === name ? '' : name)}
-                              >
-                                <span>{t(name)}{specs.length ? <small>{specs.join(', ')}</small> : null}</span>
-                                <i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      ))}
-                      {previewExtraSkills.length ? (
-                        <div className="preview-trait-group">
-                          <h4>{t('Другие')}</h4>
-                          {previewExtraSkills.map(name => {
-                            const value = resolveSkillValue(previewCharacter.skills, name)
-                            const dots = getSkillDots(value)
-                            const specs = getSkillSpecs(value)
-                            return (
-                              <button type="button" key={name} className={previewRollSkill === name ? 'active' : ''} onClick={() => setPreviewRollSkill(current => current === name ? '' : name)}>
-                                <span>{name}{specs.length ? <small>{specs.join(', ')}</small> : null}</span>
-                                <i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i>
-                              </button>
-                            )
-                          })}
-                        </div>
-                      ) : null}
-                    </div>
-                  </section>
-
-                  <section className="preview-trait-section">
-                    <div className="preview-section-heading"><h3>{t('Дисциплины и способности')}</h3><span>{t('Нажми дисциплину, чтобы открыть силы')}</span></div>
-                    {previewDisciplineNames.length === 0 ? (
-                      <p className="character-preview-empty">{t('Дисциплины не сохранены.')}</p>
-                    ) : (
-                      <div className="preview-discipline-list">
-                        {previewDisciplineNames.map(name => {
-                          const dots = getDisciplineDots(previewCharacter.disciplines[name] || {})
-                          const powerLabels = getSelectedDisciplinePowerLabels(
-                            previewCharacter.selectedPowers[name],
-                            previewCharacter.selectedPathPowers[name],
-                          )
-                          return (
-                            <button type="button" className="preview-discipline-card" key={name} onClick={() => openPreviewDiscipline(name)}>
-                              <span><strong>{name}</strong><i aria-label={tf('{dots} из 5', { dots })}>{getDotDisplay(dots)}</i></span>
-                              {powerLabels.length ? <p>{powerLabels.join(' · ')}</p> : <p>{t('Открыть описание и доступные силы')}</p>}
-                            </button>
-                          )
-                        })}
-                      </div>
-                    )}
-                  </section>
-                </div>
-              ) : (
-                <div className="character-inventory-sheet">
-                  <div className="preview-section-heading">
-                    <div><span>{t('Снаряжение персонажа')}</span><h3>{t('Инвентарь')}</h3></div>
-                    <strong>{previewCharacter.inventory.length}</strong>
-                  </div>
-                  {canEditPreviewInventory ? (
-                    <form className="quick-inventory-form" onSubmit={addQuickInventoryItem}>
-                      <label className="quick-inventory-name">
-                        <span>{t('Новый предмет')}</span>
-                        <input
-                          value={quickInventoryName}
-                          onChange={event => setQuickInventoryName(event.target.value)}
-                          placeholder={t('Название')}
-                          maxLength={120}
-                        />
-                      </label>
-                      <label>
-                        <span>{t('Категория')}</span>
-                        <select value={quickInventoryCategory} onChange={event => setQuickInventoryCategory(event.target.value as (typeof INVENTORY_CATEGORIES)[number])}>
-                          {INVENTORY_CATEGORIES.map(category => <option value={category} key={category}>{t(category)}</option>)}
-                        </select>
-                      </label>
-                      <label className="quick-inventory-quantity">
-                        <span>{t('Количество')}</span>
-                        <input
-                          type="number"
-                          min="0"
-                          max="999"
-                          value={quickInventoryQuantity}
-                          onChange={event => setQuickInventoryQuantity(Math.max(0, Math.min(999, Number(event.target.value) || 0)))}
-                        />
-                      </label>
-                      <button type="submit" disabled={!quickInventoryName.trim() || isQuickInventoryBusy}>
-                        {isQuickInventoryBusy ? t('Сохраняю...') : t('Добавить')}
-                      </button>
-                    </form>
-                  ) : (
-                    <p className="quick-inventory-readonly">{t('Добавлять предметы может владелец активного персонажа.')}</p>
-                  )}
-                  {quickInventoryStatus ? <p className="quick-inventory-status" role="status">{t(quickInventoryStatus)}</p> : null}
-                  {previewCharacter.inventory.length === 0 ? (
-                    <p className="character-preview-empty">{t('Инвентарь пуст.')}</p>
-                  ) : (
-                    <div className="preview-inventory-list">
-                      {previewCharacter.inventory.map(item => (
-                        <article key={item.id}>
-                          <header>
-                            <div><strong>{item.name || t('Без названия')}</strong><span>{t(item.category) || t('Без категории')}</span></div>
-                            <b aria-label={tf('Количество: {quantity}', { quantity: item.quantity ?? 1 })}>×{item.quantity ?? 1}</b>
-                          </header>
-                          {item.description ? <p>{item.description}</p> : null}
-                          {item.note ? <aside><span>{t('Заметка')}</span>{item.note}</aside> : null}
-                          {canEditPreviewInventory && !isMaster ? (
-                            <footer>
-                              <button type="button" onClick={() => showInventoryItemToMaster(item)}>{t('Показать мастеру')}</button>
-                            </footer>
-                          ) : null}
-                        </article>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-            <footer className="character-preview-actions">
-              <button type="button" className="secondary-left" onClick={() => setPreviewCharacter(null)}>{t('Закрыть')}</button>
-              {previewCharacter.id && previewCharacter.id === selectedActiveCharacter?.id ? (
-                <button type="button" onClick={addExperienceToActiveCharacter}>{t('Добавить опыт')}</button>
-              ) : null}
-              <a href={getCharacterSheetHref(previewCharacter.id)}>{t('Открыть полный лист')}</a>
-            </footer>
-          </section>
-        </div>
+        <CharacterPreviewModal
+          character={previewCharacter}
+          state={{
+            tab: previewCharacterTab,
+            roll: {
+              attribute: previewRollAttribute,
+              attributeTwo: previewRollAttributeTwo,
+              skill: previewRollSkill,
+              discipline: previewRollDiscipline,
+              modifier: previewRollModifier,
+              mode: previewRollMode,
+              contestedOpponentId: previewContestedOpponentId,
+              useBloodSurge: previewUseBloodSurge,
+            },
+            inventory: {
+              name: quickInventoryName,
+              category: quickInventoryCategory,
+              quantity: quickInventoryQuantity,
+              status: quickInventoryStatus,
+              isBusy: isQuickInventoryBusy,
+            },
+          }}
+          computed={{
+            usesVampireResources: previewUsesVampireResources,
+            hunger: previewHunger,
+            health: previewHealth,
+            willpower: previewWillpower,
+            humanity: previewHumanity,
+            bloodPotency: previewBloodPotency,
+            sheetFixed: previewSheetFixed,
+            damageProfile: previewDamageProfile,
+            healthDerived: previewHealthDerived,
+            willpowerDerived: previewWillpowerDerived,
+            canRoll: canRollPreview,
+            canEditInventory: canEditPreviewInventory,
+            canEditActiveEffects: canEditPreviewActiveEffects,
+            extraAttributes: previewExtraAttributes,
+            extraSkills: previewExtraSkills,
+            disciplineNames: previewDisciplineNames,
+            diceCount: previewDiceCount,
+            poolBeforeLimit: previewPoolBeforeLimit,
+            bloodSurgeBonus: previewBloodSurgeBonus,
+            bloodSurgeEnabled: previewBloodSurgeEnabled,
+            rollEffectResult: previewRollEffectResult,
+            contestedOpponentOptions: previewContestedOpponentOptions,
+            selectedContestedOpponent: selectedPreviewContestedOpponent,
+            willpowerRecoveryPool: getWillpowerRecoveryPool(previewCharacter),
+            playerLabel: previewCharacter.username || chatUser?.username || t('Игрок'),
+          }}
+          actions={{
+            onTabChange: setPreviewCharacterTab,
+            onClose: () => setPreviewCharacter(null),
+            setRollAttribute: setPreviewRollAttribute,
+            setRollAttributeTwo: setPreviewRollAttributeTwo,
+            setRollSkill: setPreviewRollSkill,
+            setRollDiscipline: setPreviewRollDiscipline,
+            setRollModifier: setPreviewRollModifier,
+            setRollMode: setPreviewRollMode,
+            setContestedOpponentId: setPreviewContestedOpponentId,
+            setUseBloodSurge: setPreviewUseBloodSurge,
+            toggleRollAttribute: togglePreviewAttribute,
+            rollPool: rollPreviewPool,
+            rollQuickDice: (count, label) => rollQuickDice(count, label, previewCharacter, 'quick', {
+              useBloodSurge: previewBloodSurgeEnabled,
+              source: previewBloodSurgeEnabled ? 'blood_surge' : 'manual',
+            }),
+            openDiscipline: openPreviewDiscipline,
+            rollRouseCheck: () => rollRouseCheck(previewCharacter),
+            quenchHunger: amount => quenchHunger(previewCharacter, amount),
+            addHumanityStains: amount => addHumanityStains(previewCharacter, amount),
+            performRemorseCheck: () => performRemorseCheck(previewCharacter),
+            applyHealthDamage: (amount, severity, options) => applyCharacterHealthDamage(previewCharacter, amount, severity, options),
+            promptHealthDamage: () => promptCharacterHealthDamage(previewCharacter),
+            recoverHealth: (amount, severity, reason, source) => recoverCharacterHealth(previewCharacter, amount, severity, reason, source),
+            mendSuperficial: () => mendVampireSuperficial(previewCharacter),
+            mendAggravated: () => mendVampireAggravated(previewCharacter),
+            recoverMortalHealth: () => recoverMortalHealth(previewCharacter),
+            treatMortalHealth: () => treatMortalHealth(previewCharacter),
+            clearHealth: clearPreviewHealth,
+            markTorporOrComa: markPreviewTorporOrComa,
+            spendWillpower: (amount, reason) => spendWillpower(previewCharacter, amount, reason),
+            rollWillpowerCheck: () => rollWillpowerCheck(previewCharacter),
+            recoverWillpower: (amount, severity, reason) => recoverWillpower(previewCharacter, amount, severity, reason),
+            confirmRecoverAggravatedWillpower: confirmRecoverPreviewAggravatedWillpower,
+            adjustWillpowerStress: (severity, delta) => adjustWillpowerStress(previewCharacter, severity, delta),
+            removeActiveEffect: removePreviewActiveEffect,
+            setQuickInventoryName: setQuickInventoryName,
+            setQuickInventoryCategory: setQuickInventoryCategory,
+            setQuickInventoryQuantity: setQuickInventoryQuantity,
+            addQuickInventoryItem,
+            showInventoryItemToMaster,
+            onAddExperience: addExperienceToActiveCharacter,
+            renderRollModifierControls: result => (
+              <RollModifierControls result={result} isMaster={isMaster} setDisabledIds={setDisabledPreviewRollModifierIds} />
+            ),
+          }}
+          isMaster={isMaster}
+          isActiveCharacter={previewCharacter.id === selectedActiveCharacter?.id}
+          characterSheetHref={getCharacterSheetHref(previewCharacter.id)}
+        />
       ) : null}
 
-      {previewCharacter && previewDisciplineName ? (
-        <div className="discipline-detail-backdrop" role="dialog" aria-modal="true" aria-label={tf('Дисциплина {name}', { name: previewDisciplineName })} onMouseDown={() => setPreviewDisciplineName('')}>
-          <section className="discipline-detail-modal" onMouseDown={event => event.stopPropagation()}>
-            <header>
-              <div>
-                <span>{tf('Дисциплина · {dots} точек', { dots: previewOpenedDisciplineDots })}</span>
-                <strong>{previewDisciplineName}</strong>
-              </div>
-              <button type="button" onClick={() => setPreviewDisciplineName('')} aria-label={t('Закрыть описание дисциплины')}>×</button>
-            </header>
 
-            {disciplineRulesStatus ? (
-              <div className="discipline-detail-status">{t(disciplineRulesStatus)}</div>
-            ) : !previewDisciplineRule ? (
-              <div className="discipline-detail-status">{t('Описание этой дисциплины не найдено в правилах.')}</div>
-            ) : (
-              <div className="discipline-detail-layout">
-                <aside className="discipline-detail-sidebar">
-                  <div className="discipline-description">
-                    <p>{previewDisciplineRule.description || t('Описание отсутствует.')}</p>
-                    {previewDisciplineRule.system ? (
-                      <dl>
-                        {Object.entries(previewDisciplineRule.system).map(([key, value]) => (
-                          <div key={key}>
-                            <dt>{key === 'type' ? t('Тип') : key === 'masquerade' ? t('Маскарад') : key === 'resonance' ? t('Резонанс') : key === 'limitations' ? t('Ограничения') : key}</dt>
-                            <dd>{formatRuleValue(value)}</dd>
-                          </div>
-                        ))}
-                      </dl>
-                    ) : null}
-                  </div>
-                  <nav className="discipline-power-list" aria-label={t('Силы дисциплины')}>
-                    {previewDisciplinePowers.length ? previewDisciplinePowers.map(power => (
-                      <button
-                        type="button"
-                        key={`${power.path || 'direct'}-${power.level}-${power.name}`}
-                        className={previewPowerName === getDisciplinePowerEntryKey(power) ? 'active' : ''}
-                        onClick={() => setPreviewPowerName(getDisciplinePowerEntryKey(power))}
-                      >
-                        <span>{power.path ? `${power.path} · ${tf('Уровень {level}', { level: power.level })}` : tf('Уровень {level}', { level: power.level })}</span>
-                        <strong>{power.name}</strong>
-                      </button>
-                    )) : (
-                      <p>{t('Для текущего уровня нет выбранных сил.')}</p>
-                    )}
-                  </nav>
-                </aside>
-
-                <main className="discipline-power-detail">
-                  {selectedPreviewPower ? (
-                    <>
-                      <div className="discipline-power-title">
-                        <div><span>{selectedPreviewPower.path ? `${selectedPreviewPower.path} · ${tf('Уровень {level}', { level: selectedPreviewPower.level })}` : tf('Уровень {level}', { level: selectedPreviewPower.level })}</span><h3>{selectedPreviewPower.name}</h3></div>
-                        <i>{getDotDisplay(selectedPreviewPower.level)}</i>
-                      </div>
-                      <p className="discipline-power-description">{selectedPreviewPower.rule.description || t('Описание отсутствует.')}</p>
-                      <dl className="discipline-power-facts">
-                        <div><dt>{t('Бросок')}</dt><dd>{selectedPreviewPowerRollSummary || '—'}</dd></div>
-                        <div><dt>{t('Сложность')}</dt><dd>{selectedPreviewPowerDifficultySummary || '—'}</dd></div>
-                        <div><dt>{t('Стоимость')}</dt><dd>{selectedPreviewPowerCostLabel}</dd></div>
-                        {selectedPreviewPowerCost.willpowerSpend || selectedPreviewPowerCost.willpowerRatingReduction || selectedPreviewPowerCost.manualWillpower ? (
-                          <div>
-                            <dt>{t('Воля')}</dt>
-                            <dd>
-                              {selectedPreviewPowerCost.willpowerRatingReduction
-                                ? tf('проверь снижение рейтинга: {rating}', { rating: selectedPreviewPowerCost.willpowerRatingReduction })
-                                : selectedPreviewPowerCost.manualWillpower
-                                  ? t('добровольная трата')
-                                  : tf('{n} пункт', { n: selectedPreviewPowerCost.willpowerSpend })}
-                            </dd>
-                          </div>
-                        ) : null}
-                        {selectedPreviewPowerCost.bloodPoints || selectedPreviewPowerCost.manualBlood ? (
-                          <div>
-                            <dt>{t('Кровь')}</dt>
-                            <dd>
-                              {selectedPreviewPowerCost.variableBloodPoints
-                                ? tf('до {n} пункт', { n: selectedPreviewPowerCost.bloodPoints || 1 })
-                                : selectedPreviewPowerCost.bloodPoints
-                                  ? tf('{n} пункт', { n: selectedPreviewPowerCost.bloodPoints })
-                                  : t('ручная стоимость')}
-                            </dd>
-                          </div>
-                        ) : null}
-                        <div><dt>{t('Длительность')}</dt><dd>{selectedPreviewPower.rule.duration || '—'}</dd></div>
-                      </dl>
-                      {selectedPreviewPower.rule.effect ? (
-                        <section className="discipline-power-effect">
-                          <h4>{t('Эффект')}</h4>
-                          <p>{selectedPreviewPower.rule.effect}</p>
-                        </section>
-                      ) : null}
-                      {selectedPreviewPowerManualPrompts.length ? (
-                        <section className="discipline-power-effect">
-                          <h4>{t('Подсказка')}</h4>
-                          {selectedPreviewPowerManualPrompts.map((prompt, index) => (
-                            <p key={`${prompt.label || 'manual-prompt'}-${index}`}>
-                              {prompt.label ? <strong>{t(prompt.label)}. </strong> : null}
-                              {t(prompt.description || prompt.message)}
-                            </p>
-                          ))}
-                        </section>
-                      ) : null}
-                      {selectedPreviewPowerInputFields.length ? (
-                        <section className="discipline-power-inputs">
-                          <h4>{t('Данные для эффекта')}</h4>
-                          {selectedPreviewPowerInputFields.map(field => (
-                            <label key={field.id}>
-                              <span>
-                                {field.label ? t(field.label) : field.id}
-                                {field.required ? ' *' : ''}
-                              </span>
-                              {field.type === 'select' ? (
-                                <select
-                                  value={previewPowerInputValues[field.id] || ''}
-                                  onChange={event => setPreviewPowerInputValues(current => ({
-                                    ...current,
-                                    [field.id]: event.target.value,
-                                  }))}
-                                >
-                                  <option value="">{field.placeholder ? t(field.placeholder) : t('Выбери значение')}</option>
-                                  {(field.options || []).map(option => (
-                                    <option key={option.value} value={option.value}>
-                                      {t(option.label)}
-                                    </option>
-                                  ))}
-                                </select>
-                              ) : field.type === 'textarea' ? (
-                                <textarea
-                                  value={previewPowerInputValues[field.id] || ''}
-                                  placeholder={field.placeholder ? t(field.placeholder) : undefined}
-                                  onChange={event => setPreviewPowerInputValues(current => ({
-                                    ...current,
-                                    [field.id]: event.target.value,
-                                  }))}
-                                />
-                              ) : (
-                                <input
-                                  type={field.type === 'number' ? 'number' : 'text'}
-                                  value={previewPowerInputValues[field.id] || ''}
-                                  placeholder={field.placeholder ? t(field.placeholder) : undefined}
-                                  onChange={event => setPreviewPowerInputValues(current => ({
-                                    ...current,
-                                    [field.id]: event.target.value,
-                                  }))}
-                                />
-                              )}
-                              {field.description ? <em>{t(field.description)}</em> : null}
-                            </label>
-                          ))}
-                          {hasMissingPreviewPowerInput ? (
-                            <p>{t('Заполни обязательные поля перед активацией силы.')}</p>
-                          ) : null}
-                        </section>
-                      ) : null}
-
-                      <section className="discipline-power-roll">
-                        <div className="preview-section-heading">
-                          <div><span>{t('По формуле силы')}</span><h3>{t('Бросок')}</h3></div>
-                          <strong>{d10(previewPowerDiceCount)}</strong>
-                        </div>
-                        {previewPowerPoolChoices.length ? (
-                          <>
-                            <div className="discipline-power-roll-controls">
-                              {previewPowerPoolChoices.map((choice, index) => (
-                                <label key={`${choice.source}-${index}`}>
-                                  <span>{tf('Часть пула {n}', { n: index + 1 })}</span>
-                                  <select
-                                    value={previewPowerPoolSelections[index] || ''}
-                                    onChange={event => setPreviewPowerPoolSelections(current => current.map((value, currentIndex) => currentIndex === index ? event.target.value : value))}
-                                  >
-                                    {choice.options.map(option => (
-                                      <option key={option} value={option}>{option} · {getCharacterPoolPartDots(previewCharacter, option)}</option>
-                                    ))}
-                                  </select>
-                                </label>
-                              ))}
-                              <label>
-                                <span>{t('Модификатор')}</span>
-                                <input
-                                  type="number"
-                                  min="-20"
-                                  max="20"
-                                  value={previewPowerModifier}
-                                  onChange={event => setPreviewPowerModifier(Math.max(-20, Math.min(20, Number(event.target.value) || 0)))}
-                                />
-                              </label>
-                              <button
-                                type="button"
-                                onClick={selectedPreviewPowerIsActive
-                                  ? deactivatePreviewDisciplinePower
-                                  : rollPreviewPower}
-                                disabled={!canRollPreview || (
-                                  !selectedPreviewPowerIsActive
-                                  && previewPowerDiceCount < 1
-                                ) || (!selectedPreviewPowerIsActive && hasMissingPreviewPowerInput)}
-                              >
-                                {selectedPreviewPowerIsActive
-                                  ? t('Отключить')
-                                  : selectedPreviewPowerIsActiveKind
-                                    ? t('Активировать')
-                                    : tf('Бросить {count}к10', { count: previewPowerDiceCount })}
-                              </button>
-                            </div>
-                            {renderRollModifierControls(previewPowerRollEffectResult, setDisabledPreviewPowerModifierIds)}
-                            {previewPowerOpposition ? <p className="discipline-roll-opposition">{tf('Сопротивление цели: {value}', { value: previewPowerOpposition })}</p> : null}
-                            {selectedPreviewPowerRollFormula !== resolvedPreviewPowerPool ? <p className="discipline-roll-opposition">{tf('Используется формула силы «{formula}».', { formula: selectedPreviewPowerRollFormula.replace(/^как\s+/i, '') })}</p> : null}
-                            {getActivePenaltyDelta(previewPowerRollEffectResult, 'willpower_impairment') ? <p className="discipline-roll-opposition">{t('Истощение Воли: -2к10 к этому пулу.')}</p> : null}
-                            {getActivePenaltyDelta(previewPowerRollEffectResult, 'health_impairment') ? <p className="discipline-roll-opposition">{t('Изнурение по здоровью: -2к10 к этому пулу.')}</p> : null}
-                            {selectedPreviewPowerCost.warnings.map((warning, index) => <p className="discipline-roll-opposition" key={`wp-cost-warning-${index}`}>{t(warning)}</p>)}
-                          </>
-                        ) : (
-                          selectedPreviewPowerIsActiveKind
-                          || selectedPreviewPowerCost.rouseChecks > 0
-                          || (selectedPreviewPowerCost.willpowerSpend > 0 && !selectedPreviewPowerCost.manualWillpower) ? (
-                            <div className="discipline-activation-only">
-                              <button
-                                type="button"
-                                onClick={selectedPreviewPowerIsActive
-                                  ? deactivatePreviewDisciplinePower
-                                  : rollPreviewPower}
-                                disabled={!canRollPreview || (!selectedPreviewPowerIsActive && hasMissingPreviewPowerInput)}
-                              >
-                                {selectedPreviewPowerIsActive
-                                  ? t('Отключить')
-                                  : t('Активировать')}
-                              </button>
-                              <p className="discipline-no-roll">
-                                {selectedPreviewPowerIsActive
-                                  ? t('Сила активна и сохранена в эффектах персонажа.')
-                                  : tf('У силы нет автоматического пула, но есть цена: {cost}.', { cost: selectedPreviewPowerCostLabel })}
-                              </p>
-                            </div>
-                          ) : (
-                            <p className="discipline-no-roll">{t('Для этой силы отдельный автоматический бросок не требуется или его пул зависит от ситуации. При необходимости используй конструктор броска в кратком листе.')}</p>
-                          )
-                        )}
-                        {!canRollPreview ? <p className="discipline-roll-opposition">{t('Бросать может мастер или владелец активного персонажа.')}</p> : null}
-                      </section>
-                    </>
-                  ) : (
-                    <div className="discipline-detail-status">{t('Выбери силу слева.')}</div>
-                  )}
-                </main>
-              </div>
-            )}
-          </section>
-        </div>
-      ) : null}
+      <DisciplinePowerPanel
+        open={Boolean(previewCharacter && previewDisciplineName)}
+        disciplineName={previewDisciplineName}
+        openedDisciplineDots={previewOpenedDisciplineDots}
+        disciplineRulesStatus={disciplineRulesStatus}
+        disciplineRule={previewDisciplineRule}
+        disciplinePowers={previewDisciplinePowers}
+        selectedPowerName={previewPowerName}
+        onSelectPower={setPreviewPowerName}
+        selectedPower={selectedPreviewPower}
+        selectedPowerRollSummary={selectedPreviewPowerRollSummary}
+        selectedPowerDifficultySummary={selectedPreviewPowerDifficultySummary}
+        selectedPowerCost={selectedPreviewPowerCost}
+        selectedPowerCostLabel={selectedPreviewPowerCostLabel}
+        selectedPowerManualPrompts={selectedPreviewPowerManualPrompts}
+        selectedPowerInputFields={selectedPreviewPowerInputFields}
+        powerInputValues={previewPowerInputValues}
+        onPowerInputChange={(fieldId, value) => setPreviewPowerInputValues(current => ({
+          ...current,
+          [fieldId]: value,
+        }))}
+        hasMissingPowerInput={hasMissingPreviewPowerInput}
+        powerDiceCount={previewPowerDiceCount}
+        powerPoolChoices={previewPowerPoolChoices}
+        powerPoolSelections={previewPowerPoolSelections}
+        onPowerPoolSelectionChange={(index, value) => setPreviewPowerPoolSelections(current => current.map((poolValue, currentIndex) => currentIndex === index ? value : poolValue))}
+        powerModifier={previewPowerModifier}
+        onPowerModifierChange={setPreviewPowerModifier}
+        selectedPowerIsActive={selectedPreviewPowerIsActive}
+        selectedPowerIsActiveKind={selectedPreviewPowerIsActiveKind}
+        onDeactivatePower={deactivatePreviewDisciplinePower}
+        onRollPower={rollPreviewPower}
+        canRoll={canRollPreview}
+        rollModifierControls={(
+          <RollModifierControls
+            result={previewPowerRollEffectResult}
+            isMaster={isMaster}
+            setDisabledIds={setDisabledPreviewPowerModifierIds}
+          />
+        )}
+        powerOpposition={previewPowerOpposition}
+        selectedPowerRollFormula={selectedPreviewPowerRollFormula}
+        resolvedPowerPool={resolvedPreviewPowerPool}
+        hasWillpowerImpairmentPenalty={Boolean(getActivePenaltyDelta(previewPowerRollEffectResult, 'willpower_impairment'))}
+        hasHealthImpairmentPenalty={Boolean(getActivePenaltyDelta(previewPowerRollEffectResult, 'health_impairment'))}
+        getPoolPartDots={name => previewCharacter ? getCharacterPoolPartDots(previewCharacter, name) : 0}
+        onClose={() => setPreviewDisciplineName('')}
+      />
 
       {previewLayer ? (
         <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label={t('Предпросмотр медиа')} onMouseDown={() => setPreviewLayerId(null)}>
@@ -9001,28 +7341,13 @@ export default function VampireTable() {
         )
       })() : null}
 
-      {!tableRole ? (
-        <div className="role-gate" role="dialog" aria-modal="true" aria-label={t('Выбор роли')}>
-          <section>
-            <span>{t('Вход на стол')}</span>
-            <h2>{t('Кто ты в этой сцене?')}</h2>
-            <form className="master-login-form" onSubmit={enterAsMaster}>
-              <input
-                value={masterPasswordDraft}
-                onChange={event => setMasterPasswordDraft(event.target.value)}
-                placeholder={t('Пароль мастера')}
-                type="password"
-              />
-              <button type="submit">{t('Мастер')}</button>
-            </form>
-            <div>
-              <button type="button" onClick={() => chooseTableRole('player')}>
-                {t('Игрок')}
-              </button>
-            </div>
-          </section>
-        </div>
-      ) : null}
+      <MasterPasswordGate
+        open={!tableRole}
+        masterPasswordDraft={masterPasswordDraft}
+        onMasterPasswordDraftChange={setMasterPasswordDraft}
+        onEnterAsMaster={enterAsMaster}
+        onChoosePlayer={() => chooseTableRole('player')}
+      />
 
       {diceOverlayQueue[0] ? (
         <DiceRollOverlay
