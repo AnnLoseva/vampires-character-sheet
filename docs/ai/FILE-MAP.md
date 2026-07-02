@@ -42,14 +42,14 @@ opening code**. Risk levels drive how careful you must be.
 | `components/journal/*` | TipTap journal | medium | before-any-change | |
 | `components/reference/*` | markdown reference | low | before-any-change | |
 
-## VTM mechanics (`lib/vtm/*`)
+## VTM mechanics (`core/systems/vtm5/rules/*`)
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
-| `lib/vtm/health.ts` | health/damage tracker | **critical** | vtm-mechanics-edit-protocol | Legacy dup: `public/vtm-health.js` |
-| `lib/vtm/humanity.ts` | humanity/stains/remorse | **critical** | vtm-mechanics-edit-protocol | Legacy dup: `public/vtm-humanity.js` |
-| `lib/vtm/damage.ts` | damage helpers | high | vtm-mechanics-edit-protocol | |
-| `lib/vtm/derived-stats.ts` | derived stats | high | vtm-mechanics-edit-protocol | |
-| `lib/vtm/disciplines/*` | discipline engine | high | vtm-mechanics-edit-protocol | Run discipline scripts after edits |
+| `core/systems/vtm5/rules/health/index.ts` | health/damage tracker | **critical** | vtm-mechanics-edit-protocol | Legacy dup: `public/vtm-health.js` |
+| `core/systems/vtm5/rules/humanity/index.ts` | humanity/stains/remorse | **critical** | vtm-mechanics-edit-protocol | Legacy dup: `public/vtm-humanity.js` |
+| `core/systems/vtm5/rules/damage/index.ts` | damage helpers | high | vtm-mechanics-edit-protocol | |
+| `core/systems/vtm5/rules/derived-stats/index.ts` | derived stats | high | vtm-mechanics-edit-protocol | |
+| `core/systems/vtm5/rules/disciplines/*` | discipline engine | high | vtm-mechanics-edit-protocol | Run discipline scripts after edits |
 
 ## Table libs (`lib/table/*`)
 | Path | Role | Risk | Edit protocol | Notes |
@@ -75,8 +75,8 @@ opening code**. Risk levels drive how careful you must be.
 | `public/old-sheet.html` | legacy sheet markup/styles (~5k) | **critical** | legacy-edit-protocol | |
 | `public/main.js` | legacy sheet logic (~11k) | **critical** | legacy-edit-protocol | Watch global vars |
 | `public/supabase.js` | legacy Supabase + character CRUD | **critical** | supabase-edit-protocol | `characters` table |
-| `public/vtm-health.js` | legacy health | **critical** | vtm-mechanics-edit-protocol | Sync with `lib/vtm/health.ts` |
-| `public/vtm-humanity.js` | legacy humanity | **critical** | vtm-mechanics-edit-protocol | Sync with `lib/vtm/humanity.ts` |
+| `public/vtm-health.js` | legacy health | **critical** | vtm-mechanics-edit-protocol | Sync with `core/systems/vtm5/rules/health/index.ts` |
+| `public/vtm-humanity.js` | legacy humanity | **critical** | vtm-mechanics-edit-protocol | Sync with `core/systems/vtm5/rules/humanity/index.ts` |
 | `public/creation-wizard.js` | character creation | high | legacy-edit-protocol | |
 | `public/i18n-runtime.js` | legacy i18n runtime | high | legacy-edit-protocol | |
 | `public/i18n-dictionary.js` | legacy i18n strings | medium | legacy-edit-protocol | |

@@ -12,7 +12,7 @@ Read `../subsystems/game-table.md` first (and `music-and-media.md` /
 2. **Where things belong:**
    - UI → a component in `components/table/*` (or `components/music/*`).
    - Shared/domain logic → `lib/table/*`.
-   - VTM rules → `lib/vtm/*` (pure).
+   - VTM rules → `core/systems/vtm5/rules/*` (pure).
    - Constants (table/bucket names, keys) → `lib/table/constants.ts`.
    - Types → `lib/table/types.ts`.
 3. **Never hardcode Supabase table/bucket names.** Import from

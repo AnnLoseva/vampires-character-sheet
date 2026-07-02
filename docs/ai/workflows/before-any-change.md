@@ -29,6 +29,6 @@ file.
 |---|---|
 | `public/*.js`, `old-sheet.html`, the bridge | `legacy-edit-protocol.md` |
 | `components/table/*`, `lib/table/*` | `react-table-edit-protocol.md` |
-| `lib/vtm/*`, disciplines, rolls logic | `vtm-mechanics-edit-protocol.md` |
+| `core/systems/vtm5/rules/*`, disciplines, rolls logic | `vtm-mechanics-edit-protocol.md` |
 | Supabase tables/buckets/saved shape | `supabase-edit-protocol.md` |
 | Verifying anything | `verification-checklist.md` |

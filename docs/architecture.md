@@ -26,8 +26,8 @@ legacy-iframe или сохранённые данные.
   персонажа. Он работает как статическое приложение без сборки и открывается
   внутри iframe.
 - `app/`, `components/table/`, `components/music/`, `components/journal/`,
-  `components/reference/`, `lib/table/`, `lib/vtm/` - современная React/TypeScript
-  зона.
+  `components/reference/`, `lib/table/`, `core/systems/vtm5/` - современная
+  React/TypeScript зона.
 
 Важные текущие факты:
 
@@ -44,8 +44,9 @@ legacy-iframe или сохранённые данные.
   hooks/services/context, а не только разнос JSX по файлам.
 - `lib/table/` уже хранит типы, константы, мапперы и часть чистых утилит стола.
   Supabase-запросы пока в основном остаются в `GameTable.tsx` и music-компонентах.
-- `lib/vtm/` уже является ядром правил: health, humanity, damage, derived stats,
-  disciplines. Этот слой должен оставаться без React, DOM и Supabase.
+- `core/systems/vtm5/rules/` является ядром правил: health, humanity, damage,
+  derived stats, disciplines. Этот слой должен оставаться без React, DOM и
+  Supabase.
 - Часть VTM-логики ещё живёт внутри `GameTable.tsx`: базовые d10-броски,
   hunger/rouse, willpower helpers, blood surge, сборка пулов, contested rolls.
   Это кандидаты на перенос в VTM core.
@@ -77,8 +78,7 @@ Hub не должен:
 ### 2. Game System Cores
 
 Game System Core - чистый TypeScript-слой конкретной системы правил. Текущий
-runtime core VTM V5 живёт в `lib/vtm/`; целевая папка нового ядра -
-`core/systems/vtm5/` с временными re-export shims на переходе.
+runtime core VTM V5 живёт в `core/systems/vtm5/rules/`.
 
 Правила core:
 
@@ -97,6 +97,25 @@ runtime core VTM V5 живёт в `lib/vtm/`; целевая папка ново
 - disciplines: schema, costs, durations, effects, active effects, rules loader;
 - derived stats;
 - character normalization helpers, если они не завязаны на Supabase/UI.
+
+## VTM5 Core
+
+`core/systems/vtm5/` - фактический дом VTM5 core после переноса из `lib/vtm/`.
+Публичная точка входа системы: `core/systems/vtm5/index.ts`, barrel правил:
+`core/systems/vtm5/rules/index.ts`.
+
+Структура:
+
+- `rules/health/`, `rules/humanity/`, `rules/damage/`,
+  `rules/derived-stats/` - правила трекеров, урона и производных статов;
+- `rules/disciplines/*` - schema, loader, engine, costs, durations, effects,
+  active effects and legacy cost parsing;
+- `adapters/` - будущие адаптеры между чистыми правилами и table/sheet flows;
+- `adapters/rolls.ts` - первая заглушка под будущий адаптер бросков.
+
+Правило зависимости: `core/systems/vtm5/rules/*` может импортировать только
+чистые helpers, типы и rules data adapters. UI, Supabase, React и browser APIs
+должны оставаться вне core.
 
 ### 3. Pluggable Modules
 
@@ -169,7 +188,8 @@ Legacy-лист остаётся load-bearing частью проекта:
 - не ломать query params: `room`, `role`, `characterId`, `new`;
 - не менять `vtm-character-saved` postMessage без отдельного решения;
 - не менять `characters` row shape без миграции;
-- legacy-дубликаты VTM-механик держать в синхроне с `lib/vtm/*`.
+- legacy-дубликаты VTM-механик держать в синхроне с
+  `core/systems/vtm5/rules/*`.
 
 ## Миграционный план
 
@@ -192,10 +212,10 @@ Legacy-лист остаётся load-bearing частью проекта:
 Кандидаты:
 
 - `rollD10Pool`, `countD10Successes`, `getRollOutcomeMeta`, die kind helpers из
-  `GameTable.tsx` -> `lib/vtm/rolls.ts`;
-- hunger/rouse/blood surge helpers -> `lib/vtm/hunger.ts` и
-  `lib/vtm/blood-potency.ts`;
-- willpower tracker helpers -> `lib/vtm/willpower.ts`;
+  `GameTable.tsx` -> `core/systems/vtm5/rules/rolls/`;
+- hunger/rouse/blood surge helpers -> `core/systems/vtm5/rules/hunger/` и
+  `core/systems/vtm5/rules/blood/`;
+- willpower tracker helpers -> `core/systems/vtm5/rules/willpower/`;
 - pure table helpers для layer tree, selection, ordering -> `lib/table/*`;
 - room/role URL/localStorage helpers -> `lib/table/session.ts` или
   `lib/hub/session.ts`, но только если bridge-контракт остаётся прежним;
@@ -311,8 +331,9 @@ modules/character-sheet/
 
 ### Фаза 6. Core relocation
 
-Цель: когда `lib/vtm/*` стабилен, перенести его в финальный core без массовой
-поломки imports.
+Статус: базовый перенос `lib/vtm/*` в `core/systems/vtm5/rules/*` выполнен.
+Дальнейшие шаги должны только уточнять внутреннюю структуру core и добавлять
+адаптеры без изменения поведения правил.
 
 Вариант перехода:
 
@@ -329,11 +350,12 @@ core/systems/vtm5/
   adapters/
 
 lib/vtm/*
-  // временные re-export shims на core/systems/vtm5/*
+  // больше не используется как runtime location
 ```
 
-Эту фазу делать только после того, как VTM helpers из `GameTable.tsx` уже вынесены
-и покрыты проверками. Перенос core без поведения - отдельный PR.
+После этой фазы следующий безопасный шаг - перенос оставшихся pure helpers из
+`GameTable.tsx` в `core/systems/vtm5/rules/*` или adapters с отдельной проверкой
+поведения.
 
 ## Финальная структура папок
 
@@ -475,8 +497,8 @@ public/
 
 Самые безопасные первые модули:
 
-- чистые dice helpers из `GameTable.tsx` в `lib/vtm/rolls.ts`;
-- willpower/hunger/blood surge helpers в `lib/vtm/*`;
+- чистые dice helpers из `GameTable.tsx` в `core/systems/vtm5/rules/rolls/`;
+- willpower/hunger/blood surge helpers в `core/systems/vtm5/rules/*`;
 - дополнительные pure layer/scene/media helpers в `lib/table/*`;
 - table/music constants в общий contracts-слой без изменения значений;
 - Supabase read-only loaders в `lib/table/api/*`;
@@ -501,7 +523,8 @@ public/
 - замена legacy-листа React-листом;
 - перенос `public/rules.json` / `rules_eng.json` schema;
 - дробление `GameTableStyles.tsx`;
-- физический перенос `lib/vtm` в `core/systems/vtm5`.
+- дальнейшая внутренняя реорганизация `core/systems/vtm5/rules/*` без изменения
+  поведения.
 
 ## Правила дальнейших изменений
 

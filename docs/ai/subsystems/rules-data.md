@@ -10,7 +10,7 @@ belongs here (see the `DECISIONS.md` entry).
 - `public/rules_eng.json` — English rules data (~8.8k lines).
 
 Both are static files loaded directly by the legacy sheet and by
-`lib/vtm/disciplines/rules-loader.ts`.
+`core/systems/vtm5/rules/disciplines/rules-loader/index.ts`.
 
 ## Language issues
 - RU and EN files must stay **structurally parallel**; an entry present in one
@@ -22,7 +22,8 @@ Both are static files loaded directly by the legacy sheet and by
 
 ## Consumers
 - Legacy sheet: `public/main.js` reads rules for rendering and mechanics.
-- `lib/vtm/disciplines/rules-loader.ts` → `schema.ts` / `engine.ts` for the
+- `core/systems/vtm5/rules/disciplines/rules-loader/index.ts` →
+  `schema/index.ts` / `engine/index.ts` for the
   discipline engine.
 - `lib/i18n/ruleNames.ts` for display-name ↔ id mapping.
 - Audit/validate scripts (`audit:disciplines`, `validate:disciplines`).

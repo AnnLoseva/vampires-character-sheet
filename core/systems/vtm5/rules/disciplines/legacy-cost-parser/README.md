@@ -1,4 +1,4 @@
 # Legacy Cost Parser
 
-Target home for legacy discipline cost parsing currently implemented in
-`lib/vtm/disciplines/legacy-cost-parser.ts`.
+Runtime home for legacy discipline cost parsing implemented in
+`core/systems/vtm5/rules/disciplines/legacy-cost-parser/index.ts`.

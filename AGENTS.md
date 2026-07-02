@@ -42,13 +42,15 @@ the files that subsystem names.
    refactors without an explicit task for it.
 5. **The game table is an orchestrator, not a dumping ground.**
    `components/table/GameTable.tsx` (~9k lines) must not grow. Extract UI into
-   components, shared logic into `lib/table/*`, rules into `lib/vtm/*`. See
+   components, shared logic into `lib/table/*`, rules into
+   `core/systems/vtm5/rules/*`. See
    `docs/ai/workflows/react-table-edit-protocol.md`.
-6. **VTM mechanics stay pure.** Logic in `lib/vtm/*` must be
+6. **VTM mechanics stay pure.** Logic in `core/systems/vtm5/rules/*` must be
    framework-independent and testable. See
    `docs/ai/workflows/vtm-mechanics-edit-protocol.md`. If you change
-   `lib/vtm/health.ts` or `humanity.ts`, check whether the legacy duplicate
-   (`public/vtm-health.js`, `public/vtm-humanity.js`) needs the same change.
+   `core/systems/vtm5/rules/health/index.ts` or `humanity/index.ts`, check
+   whether the legacy duplicate (`public/vtm-health.js`,
+   `public/vtm-humanity.js`) needs the same change.
 7. **Supabase contracts are shared state.** Never rename tables/buckets or change
    the shape of saved data casually. Follow
    `docs/ai/workflows/supabase-edit-protocol.md` and record schema changes in

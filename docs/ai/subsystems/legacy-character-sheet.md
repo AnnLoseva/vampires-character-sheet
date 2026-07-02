@@ -14,9 +14,9 @@ bundler — files load directly in the browser.
   `characters` table (create/update/load/list, with a `charactersListCache`).
 - `public/creation-wizard.js` (~1.4k lines) — guided character creation.
 - `public/vtm-health.js` — legacy health/damage tracker (duplicate of
-  `lib/vtm/health.ts`).
+  `core/systems/vtm5/rules/health/index.ts`).
 - `public/vtm-humanity.js` — legacy humanity/stains/remorse (duplicate of
-  `lib/vtm/humanity.ts`).
+  `core/systems/vtm5/rules/humanity/index.ts`).
 - `public/i18n-runtime.js` — legacy translation runtime.
 - `public/i18n-dictionary.js` — legacy translation strings.
 - Reads `public/rules.json` / `public/rules_eng.json` for rules data.
@@ -59,8 +59,8 @@ import-tracked.
    confirm `characterId` appears in the URL (postMessage worked), reload.
 
 ## What should eventually move to TypeScript
-- Health and humanity mechanics → already mirrored in `lib/vtm/*`; converge there.
-- Discipline cost/effect parsing → `lib/vtm/disciplines/*`.
+- Health and humanity mechanics → already mirrored in `core/systems/vtm5/rules/*`; converge there.
+- Discipline cost/effect parsing → `core/systems/vtm5/rules/disciplines/*`.
 - Character data typing and Supabase access → shared with `lib/*`.
 These moves require **explicit tasks** and `DECISIONS.md` entries — not drive-by
 refactors.

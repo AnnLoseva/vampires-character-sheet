@@ -65,5 +65,5 @@ sheet and table**, carrying `room`, `role`, `characterId`.
 
 ## Design direction
 Dark, blood-red VTM aesthetic. Keep the current UI stable. Evolve gradually from
-the legacy monolith toward modular React + `lib/vtm/*` rules, in small safe steps
+the legacy monolith toward modular React + `core/systems/vtm5/rules/*` rules, in small safe steps
 — without abrupt rewrites or UI regressions.

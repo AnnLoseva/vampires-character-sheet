@@ -5,23 +5,25 @@ Pure, framework-independent VTM V5 rules logic. These modules take data and
 return data — no React, no DOM, no Supabase. They are the intended single source
 of truth as logic migrates out of the legacy sheet.
 
-## Modules (`lib/vtm/*`)
-- `health.ts` — health/damage tracker (superficial/aggravated, max, impaired,
-  physical state for vampire/mortal/ghoul/thinblood/custom).
-- `humanity.ts` — humanity, stains, remorse.
-- `damage.ts` — damage helpers/utilities.
-- `derived-stats.ts` — derived statistics from attributes/skills.
+## Modules (`core/systems/vtm5/rules/*`)
+- `health/index.ts` — health/damage tracker (superficial/aggravated, max,
+  impaired, physical state for vampire/mortal/ghoul/thinblood/custom).
+- `humanity/index.ts` — humanity, stains, remorse.
+- `damage/index.ts` — damage helpers/utilities.
+- `derived-stats/index.ts` — derived statistics from attributes/skills.
 - `disciplines/` — the discipline engine and supporting data:
-  - `engine.ts` — evaluates disciplines/powers.
-  - `schema.ts` — discipline data schema.
-  - `rules-loader.ts` — loads disciplines from `rules.json` / `rules_eng.json`.
-  - `costs.ts`, `durations.ts`, `effects.ts` — mechanics of powers.
-  - `character-disciplines.ts` — a character's disciplines.
-  - `active-effects.ts` — currently active effects.
-  - `legacy-cost-parser.ts` — parses legacy cost strings (bridge from old data).
+  - `engine/index.ts` — evaluates disciplines/powers.
+  - `schema/index.ts` — discipline data schema.
+  - `rules-loader/index.ts` — loads disciplines from `rules.json` /
+    `rules_eng.json`.
+  - `costs/index.ts`, `durations/index.ts`, `effects/index.ts` — mechanics of
+    powers.
+  - `character-disciplines/index.ts` — a character's disciplines.
+  - `active-effects/index.ts` — currently active effects.
+  - `legacy-cost-parser/index.ts` — parses legacy cost strings.
 
 ## Health
-`health.ts` exposes typed trackers (`HealthTracker`, `NormalizedHealth`) and
+`health/index.ts` exposes typed trackers (`HealthTracker`, `NormalizedHealth`) and
 damage application. Damage has severity (superficial/aggravated), a target
 (health/willpower), and options (source, weapon tags, armor, halving, margin…).
 Physical states include healthy/impaired/torpor/dead. **Legacy duplicate:**
@@ -29,27 +31,27 @@ Physical states include healthy/impaired/torpor/dead. **Legacy duplicate:**
 
 ## Willpower
 Willpower damage is modeled via the same damage/target machinery (`target:
-'willpower'`) rather than a separate module. Check `health.ts`/`damage.ts` before
-adding a parallel implementation.
+'willpower'`) rather than a separate module. Check `health/index.ts` and
+`damage/index.ts` before adding a parallel implementation.
 
 ## Humanity / stains / remorse
-`humanity.ts` handles the humanity track, stains, and remorse rolls/flow.
+`humanity/index.ts` handles the humanity track, stains, and remorse rolls/flow.
 **Legacy duplicate:** `public/vtm-humanity.js`. The end-to-end
 stains→remorse→humanity UX is a roadmap item.
 
 ## Derived stats
-`derived-stats.ts` computes values derived from core traits (e.g. health/willpower
-maxima, other derived numbers). Changing derivation affects the sheet and the
-table — verify both.
+`derived-stats/index.ts` computes values derived from core traits (e.g.
+health/willpower maxima, other derived numbers). Changing derivation affects the
+sheet and the table — verify both.
 
 ## Disciplines
 The discipline layer loads rules from the JSON data, validates them against
-`schema.ts`, and evaluates costs/durations/effects through `engine.ts`. This is
-the most test-covered area — use the scripts below.
+`schema/index.ts`, and evaluates costs/durations/effects through
+`engine/index.ts`. This is the most test-covered area — use the scripts below.
 
 ## Legacy duplication
-- `lib/vtm/health.ts` ↔ `public/vtm-health.js`
-- `lib/vtm/humanity.ts` ↔ `public/vtm-humanity.js`
+- `core/systems/vtm5/rules/health/index.ts` ↔ `public/vtm-health.js`
+- `core/systems/vtm5/rules/humanity/index.ts` ↔ `public/vtm-humanity.js`
 - discipline cost/effect parsing ↔ legacy parsing in `public/main.js`
   (`legacy-cost-parser.ts` exists to bridge old cost strings)
 

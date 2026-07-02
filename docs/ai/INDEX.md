@@ -41,7 +41,7 @@ This is the catalog of the project's AI context. Every agent starts here after
 - `subsystems/legacy-character-sheet.md` — the iframe sheet: `old-sheet.html`, `main.js`, `supabase.js`, wizard, health/humanity JS, i18n JS
 - `subsystems/character-sheet-bridge.md` — Next ↔ iframe bridge (`/character-sheet`)
 - `subsystems/game-table.md` — `GameTable.tsx` and `components/table/*`
-- `subsystems/vtm-mechanics.md` — `lib/vtm/*` (pure rules)
+- `subsystems/vtm-mechanics.md` — `core/systems/vtm5/rules/*` (pure rules)
 - `subsystems/rules-data.md` — `rules.json` / `rules_eng.json`
 - `subsystems/supabase-persistence.md` — DB tables, buckets, save/load
 - `subsystems/music-and-media.md` — `components/music/*`, table media/layers

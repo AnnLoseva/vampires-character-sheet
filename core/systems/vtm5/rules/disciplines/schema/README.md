@@ -1,4 +1,4 @@
 # Discipline Schema
 
-Target home for discipline schema types currently implemented in
-`lib/vtm/disciplines/schema.ts`.
+Runtime home for discipline schema types implemented in
+`core/systems/vtm5/rules/disciplines/schema/index.ts`.

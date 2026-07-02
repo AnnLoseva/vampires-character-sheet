@@ -1,4 +1,4 @@
 # Discipline Engine
 
-Target home for discipline activation and engine logic currently implemented in
-`lib/vtm/disciplines/engine.ts`.
+Runtime home for discipline activation and engine logic implemented in
+`core/systems/vtm5/rules/disciplines/engine/index.ts`.

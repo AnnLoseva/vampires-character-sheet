@@ -1,6 +1,7 @@
 # VTM5 Rules
 
-Target structure for pure VTM5 rules.
+Pure VTM5 rules. These modules must stay framework-independent: no React, DOM,
+Next.js route code, or Supabase imports.
 
-Current implementations remain in `lib/vtm/*` until a focused migration step
-moves them with tests and compatibility shims.
+The code was migrated from the former `lib/vtm/*` location without behavior
+changes.

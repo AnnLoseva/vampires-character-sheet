@@ -37,7 +37,7 @@ persist to the same Supabase project.
  → GameTable                         (orchestrator: room state + Supabase I/O)
  → components/table/*                (Canvas, panels, chat, dice, scenes, media, journal)
  → lib/table/*                       (types, constants, mappers, media/layer/scene utils)
- → lib/vtm/*                         (pure rules: health, humanity, damage, disciplines)
+ → core/systems/vtm5/rules/*        (pure rules: health, humanity, damage, disciplines)
  → Supabase tables + storage buckets (realtime room sync)
 ```
 
@@ -54,16 +54,18 @@ entry screens; `components/table/*` is the room; `components/music/*`,
 `components/journal/*`, `components/reference/*` are feature areas. Shared state
 and Supabase I/O for the table currently concentrate in `GameTable.tsx`.
 
-## VTM mechanics layer (`lib/vtm/*`)
-Pure, framework-independent rules: `health.ts`, `humanity.ts`, `damage.ts`,
-`derived-stats.ts`, and `disciplines/*` (engine, costs, durations, effects,
-schema, rules-loader, character-disciplines, active-effects, legacy-cost-parser).
-This is the target home for rules currently duplicated in legacy JS.
+## VTM mechanics layer (`core/systems/vtm5/rules/*`)
+Pure, framework-independent rules: `health/index.ts`, `humanity/index.ts`,
+`damage/index.ts`, `derived-stats/index.ts`, and `disciplines/*` (engine, costs,
+durations, effects, schema, rules-loader, character-disciplines, active-effects,
+legacy-cost-parser).
+This is the runtime home for TypeScript rules that may still have legacy JS
+duplicates.
 
 ## Data / rules layer
 `public/rules.json` (RU, ~34k lines) and `public/rules_eng.json` (EN) define
 clans, skills, disciplines, merits, flaws, predator types. Consumed by both the
-legacy sheet and `lib/vtm/disciplines/rules-loader.ts`. `lib/i18n/ruleNames.ts`
+legacy sheet and `core/systems/vtm5/rules/disciplines/rules-loader/index.ts`. `lib/i18n/ruleNames.ts`
 maps display names ↔ stable identifiers.
 
 ## Supabase layer
@@ -82,13 +84,13 @@ Images, video, files and layers on the table canvas (tldraw). Utilities in
 Music in `components/music/*` with local-audio and YouTube adapters.
 
 ## Known duplication
-- Health logic: `lib/vtm/health.ts` ↔ `public/vtm-health.js`.
-- Humanity logic: `lib/vtm/humanity.ts` ↔ `public/vtm-humanity.js`.
-- Discipline/cost parsing: `lib/vtm/disciplines/*` ↔ legacy parsing in `main.js`.
+- Health logic: `core/systems/vtm5/rules/health/index.ts` ↔ `public/vtm-health.js`.
+- Humanity logic: `core/systems/vtm5/rules/humanity/index.ts` ↔ `public/vtm-humanity.js`.
+- Discipline/cost parsing: `core/systems/vtm5/rules/disciplines/*` ↔ legacy parsing in `main.js`.
 - Supabase access exists in both `lib/supabase.ts` and `public/supabase.js`.
 - Rules names duplicated RU/EN across the two rules JSON files.
 
 ## Direction of future refactor
-Extract legacy logic into `lib/vtm/*` and `lib/table/*` in small, verified steps;
+Extract legacy logic into `core/systems/vtm5/rules/*` and `lib/table/*` in small, verified steps;
 keep the iframe until a dedicated migration task exists; never regress the UI or
 change VTM rules content during a refactor. See `ROADMAP.md` and `DECISIONS.md`.

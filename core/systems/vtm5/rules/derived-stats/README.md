@@ -1,4 +1,4 @@
 # Derived Stats Rules
 
-Target home for derived character statistics currently implemented in
-`lib/vtm/derived-stats.ts`.
+Runtime home for derived character statistics implemented in
+`core/systems/vtm5/rules/derived-stats/index.ts`.

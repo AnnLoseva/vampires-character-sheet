@@ -1,4 +1,4 @@
 # Discipline Effects
 
-Target home for discipline effect application currently implemented in
-`lib/vtm/disciplines/effects.ts`.
+Runtime home for discipline effect application implemented in
+`core/systems/vtm5/rules/disciplines/effects/index.ts`.

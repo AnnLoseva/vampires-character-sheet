@@ -6,6 +6,23 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-02 — VTM5 runtime rules moved into `core/systems/vtm5/rules`
+
+**Area:** VTM mechanics / core migration
+**Decision:** The TypeScript VTM mechanics runtime has moved from `lib/vtm/*` to
+`core/systems/vtm5/rules/*`. Project imports should use the new core path.
+**Reason:** This makes the VTM5 rules layer the first concrete Game System Core
+under the Hub + Game System Cores + Pluggable Modules architecture.
+**Consequences:** Keep `core/systems/vtm5/rules/*` pure and framework-independent.
+Legacy duplicates (`public/vtm-health.js`, `public/vtm-humanity.js`) still need
+alignment checks when behavior changes. `lib/vtm/*` is no longer the runtime
+location.
+**Affected files:** `core/systems/vtm5/rules/*`, `components/table/GameTable.tsx`,
+`lib/table/types.ts`, `lib/table/mappers.ts`, `scripts/test-discipline-engine.ts`
+**Status:** active
+
+---
+
 ## 2026-07-02 — Target architecture is Hub + Game System Cores + Pluggable Modules
 
 **Area:** Architecture / migration
@@ -21,7 +38,7 @@ future game-system and feature boundaries explicit.
 module contracts, then API/hooks, then UI folders. `GameTable.tsx` and legacy
 files must shrink through small verified steps, not rewrites. See
 `docs/architecture.md`.
-**Affected files:** `docs/architecture.md`, future `lib/vtm/*` /
+**Affected files:** `docs/architecture.md`, future `core/systems/vtm5/rules/*` /
 `core/systems/vtm5/*`, `components/table/*`, `lib/table/*`, future `modules/*`
 **Status:** active
 
@@ -50,7 +67,7 @@ Rewriting it inline with other work would be high-risk and out of scope.
 **Area:** Game table
 **Decision:** `components/table/GameTable.tsx` is treated as an orchestrator. New
 sizeable features go into child components (`components/table/*`), hooks, or
-`lib/table/*` / `lib/vtm/*` — not inline into `GameTable.tsx`.
+`lib/table/*` / `core/systems/vtm5/rules/*` — not inline into `GameTable.tsx`.
 **Reason:** The file is already ~9k lines and concentrates room state, Supabase
 I/O, rolls, chat, scenes, layers, media, and modals. Growth increases regression
 risk.
@@ -62,18 +79,18 @@ extraction is feasible. See `workflows/react-table-edit-protocol.md`.
 
 ---
 
-## 2026-07-01 — VTM mechanics live in `lib/vtm/*` as pure modules
+## 2026-07-01 — VTM mechanics live in `core/systems/vtm5/rules/*` as pure modules
 
 **Area:** VTM mechanics
 **Decision:** VTM rules logic (health, humanity, damage, derived stats,
-disciplines) is progressively moved into `lib/vtm/*` as pure,
+disciplines) is progressively moved into `core/systems/vtm5/rules/*` as pure,
 framework-independent, testable modules.
 **Reason:** Reuse across React and (eventually) the sheet; testability via the
 discipline scripts; a single source of truth over time.
 **Consequences:** Where a legacy duplicate exists (`public/vtm-health.js`,
 `public/vtm-humanity.js`, discipline parsing in `main.js`), changes must note and
 where needed sync the duplicate. See `workflows/vtm-mechanics-edit-protocol.md`.
-**Affected files:** `lib/vtm/*`, `public/vtm-health.js`, `public/vtm-humanity.js`
+**Affected files:** `core/systems/vtm5/rules/*`, `public/vtm-health.js`, `public/vtm-humanity.js`
 **Status:** active
 
 ---
@@ -85,12 +102,12 @@ where needed sync the duplicate. See `workflows/vtm-mechanics-edit-protocol.md`.
 data layer for clans, skills, disciplines, merits, flaws and predator types. No
 UI or behavior logic belongs in them.
 **Reason:** Separation of data from logic; both the legacy sheet and
-`lib/vtm/disciplines/rules-loader.ts` consume them.
+`core/systems/vtm5/rules/disciplines/rules-loader/index.ts` consume them.
 **Consequences:** RU and EN must stay structurally in sync; identity is by stable
 IDs, not display names (see `subsystems/i18n.md`). Discipline edits run
 `audit:disciplines`.
 **Affected files:** `public/rules.json`, `public/rules_eng.json`,
-`lib/vtm/disciplines/rules-loader.ts`, `lib/i18n/ruleNames.ts`
+`core/systems/vtm5/rules/disciplines/rules-loader/index.ts`, `lib/i18n/ruleNames.ts`
 **Status:** active
 
 ---

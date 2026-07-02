@@ -1,20 +1,21 @@
 # VTM Mechanics Edit Protocol
 
-Applies to: `lib/vtm/*` (`health.ts`, `humanity.ts`, `damage.ts`,
-`derived-stats.ts`, `disciplines/*`) and mechanics that feed rolls.
+Applies to: `core/systems/vtm5/rules/*` (`health/index.ts`,
+`humanity/index.ts`, `damage/index.ts`, `derived-stats/index.ts`,
+`disciplines/*`) and mechanics that feed rolls.
 
 Read `../subsystems/vtm-mechanics.md` first.
 
 ## Rules
 1. **Keep it pure and testable.** No React, no DOM, no Supabase imports in
-   `lib/vtm/*`. Input data → output data.
+   `core/systems/vtm5/rules/*`. Input data → output data.
 2. **Don't couple mechanics to UI.** The overlay/panels call the mechanics, not
    the other way around.
 3. **Check disciplines and derived stats** for knock-on effects when you change
    health/humanity/damage — they interrelate.
 4. **Mind the legacy duplicates.** If you change:
-   - `health.ts` → check `public/vtm-health.js`,
-   - `humanity.ts` → check `public/vtm-humanity.js`,
+   - `health/index.ts` → check `public/vtm-health.js`,
+   - `humanity/index.ts` → check `public/vtm-humanity.js`,
    - discipline cost/effect parsing → check legacy parsing in `public/main.js`
      (and `disciplines/legacy-cost-parser.ts`).
    Decide whether the duplicate must change too, and note divergence in
@@ -34,5 +35,5 @@ table rolls).
 
 ## Update docs?
 Per `../UPDATE-RULES.md`: a new mechanic or a changed public contract of a
-`lib/vtm/*` module updates `../subsystems/vtm-mechanics.md` (and likely
+`core/systems/vtm5/rules/*` module updates `../subsystems/vtm-mechanics.md` (and likely
 `../DECISIONS.md`).

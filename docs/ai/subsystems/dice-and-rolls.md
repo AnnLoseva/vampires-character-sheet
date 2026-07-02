@@ -10,8 +10,8 @@ character sheet or the table.
 - `components/table/DiceRollOverlay.tsx` — the roll UI / results overlay.
 - Roll state persistence: `table_rolls` (see `supabase-persistence.md`).
 - `GameTable.tsx` — wires rolls into room state and realtime.
-- Mechanics live in `lib/vtm/*` (successes, hunger, margins); disciplines can
-  trigger rolls/costs via `lib/vtm/disciplines/*`.
+- Mechanics live in `core/systems/vtm5/rules/*` (successes, hunger, margins); disciplines can
+  trigger rolls/costs via `core/systems/vtm5/rules/disciplines/*`.
 - Legacy sheet feeds rolls through the `vtm-table-rolls` / `vtm-table-last-roll`
   window signals (see `legacy-character-sheet.md`).
 
@@ -29,28 +29,29 @@ pool built (sheet or table)
 - **Rouse checks** — spend/burn blood; success/failure affects hunger.
 - **Contested / opposed rolls** — two pools compared; **planned** for the normal
   roll UI (roadmap item).
-- **Discipline-driven rolls** — costs/effects from `lib/vtm/disciplines/*`.
+- **Discipline-driven rolls** — costs/effects from `core/systems/vtm5/rules/disciplines/*`.
 
 ## Roll rows & overlay
 Each roll is a row (room, roller, pool, results, timestamp) surfaced in
-`DiceRollOverlay.tsx`. Keep result computation in pure helpers (`lib/vtm/*`), not
+`DiceRollOverlay.tsx`. Keep result computation in pure helpers (`core/systems/vtm5/rules/*`), not
 inline in the overlay or `GameTable.tsx`.
 
 ## Link to VTM mechanics & disciplines
-- Success/hunger/critical logic belongs in `lib/vtm/*` so it's testable.
+- Success/hunger/critical logic belongs in `core/systems/vtm5/rules/*` so it's testable.
 - Discipline activations that require rolls or costs go through
-  `lib/vtm/disciplines/{engine,costs}.ts`.
-- Damage resulting from rolls uses `lib/vtm/{health,damage}.ts`.
+  `core/systems/vtm5/rules/disciplines/{engine,costs}.ts`.
+- Damage resulting from rolls uses `core/systems/vtm5/rules/health/index.ts` and
+  `core/systems/vtm5/rules/damage/index.ts`.
 
 ## Known risks
-- Duplicated roll logic between legacy JS and `lib/vtm/*`.
+- Duplicated roll logic between legacy JS and `core/systems/vtm5/rules/*`.
 - Hunger dice / messy critical / bestial failure edge cases.
 - Realtime duplication or ordering of `table_rolls` rows.
 
 ## Safe edit protocol
 1. Read `../workflows/vtm-mechanics-edit-protocol.md` (logic) and
    `../workflows/react-table-edit-protocol.md` (UI/table wiring).
-2. Put resolution logic in `lib/vtm/*`; keep the overlay presentational.
+2. Put resolution logic in `core/systems/vtm5/rules/*`; keep the overlay presentational.
 3. Verify with a roll in `/table` for both master and player, and check the
    result matches VTM V5 rules.
 

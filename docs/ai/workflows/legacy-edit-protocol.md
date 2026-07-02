@@ -36,7 +36,8 @@ Read `../subsystems/legacy-character-sheet.md` and
 5. Navigate sheet → `/table` → room/role preserved.
 
 If you edited `vtm-health.js` / `vtm-humanity.js`, also check whether
-`lib/vtm/health.ts` / `humanity.ts` need the same change (see
+`core/systems/vtm5/rules/health/index.ts` /
+`core/systems/vtm5/rules/humanity/index.ts` need the same change (see
 `vtm-mechanics-edit-protocol.md`).
 
 ## Update docs?

@@ -717,7 +717,7 @@ export const dictionary: Record<string, string> = {
   'Сколько Испытаний Крови сделать для этой силы?': 'How many Rouse Checks should this power make?',
   'Файл не загрузился в Supabase Storage. Примени обновлённый SQL для bucket table-images.': 'The file failed to upload to Supabase Storage. Apply the updated SQL for the table-images bucket.',
 
-  // lib/vtm/health.ts: getHealthWarning / applyHealthDamage
+  // core/systems/vtm5/rules/health/index.ts: getHealthWarning / applyHealthDamage
   'Шкала здоровья полностью заполнена тяжёлыми повреждениями: вампир впадает в торпор.': 'The Health track is completely full of Aggravated damage: the vampire falls into torpor.',
   'Шкала здоровья полностью заполнена тяжёлыми повреждениями: смертный в коме или мёртв, решение Рассказчика.': "The Health track is completely full of Aggravated damage: the mortal is comatose or dead, Storyteller's call.",
   'Слабокровный: проверь профиль урона и решение Рассказчика.': "Thin-blood: check the damage profile and the Storyteller's call.",
@@ -725,7 +725,7 @@ export const dictionary: Record<string, string> = {
   'Шкала здоровья заполнена: физические проверки получают -2к10.': 'The Health track is full: physical checks take -2d10.',
   'Переполнение шкалы: {converted} лёгк. поврежд. превращено в тяжёлые.': 'Track overflow: {converted} Superficial damage converted to Aggravated.',
 
-  // lib/vtm/humanity.ts: addHumanityStains warning
+  // core/systems/vtm5/rules/humanity/index.ts: addHumanityStains warning
   'Шкала Сомнений заполнена. Следующая проверка мук совести почти наверняка приведёт к потере Человечности.':
     'The Stains track is full. The next Conscience check will almost certainly cause a loss of Humanity.',
 
@@ -781,7 +781,7 @@ export const dictionary: Record<string, string> = {
   'Играть': 'Play',
   'Стоп': 'Stop',
 
-  // lib/vtm/disciplines/costs.ts, legacy-cost-parser.ts: discipline cost warnings/reasons
+  // core/systems/vtm5/rules/disciplines/costs/index.ts, legacy-cost-parser.ts: discipline cost warnings/reasons
   'Стоимость похожа на снижение рейтинга или максимума Воли и требует ручного решения Рассказчика.':
     "The cost looks like a reduction of a rating or Willpower maximum and requires the Storyteller's manual ruling.",
   'Воля полностью заполнена тяжёлым стрессом: оплатить силу нельзя.': 'Willpower is completely full of Aggravated stress: the power cannot be paid for.',

@@ -1,6 +1,6 @@
 # VTM5 System Core
 
-Future home of framework-independent Vampire: The Masquerade V5 rules.
+Framework-independent Vampire: The Masquerade V5 rules and adapters.
 
-Current runtime code still lives in `lib/vtm/*`. This folder only establishes the
-target structure for later incremental migration.
+Runtime rules live in `core/systems/vtm5/rules/*`. Adapters translate those pure
+rules into feature-specific table, sheet, or legacy-facing flows.

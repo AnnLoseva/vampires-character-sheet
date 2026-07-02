@@ -1,4 +1,4 @@
 # Character Disciplines
 
-Target home for character discipline normalization currently implemented in
-`lib/vtm/disciplines/character-disciplines.ts`.
+Runtime home for character discipline normalization implemented in
+`core/systems/vtm5/rules/disciplines/character-disciplines/index.ts`.

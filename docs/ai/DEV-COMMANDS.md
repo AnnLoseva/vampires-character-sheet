@@ -20,14 +20,14 @@ From `package.json`. Run the relevant checks after edits (see
 - **When:** before considering a non-trivial change done.
 - **Failure means:** type error, invalid import, or a route that fails to compile.
 - **Usual culprits:** `lib/*`, `components/table/*`, type mismatches from
-  `lib/table/types.ts` or `lib/vtm/*`.
+  `lib/table/types.ts` or `core/systems/vtm5/rules/*`.
 
 ## `npm run lint`
 - **What:** `tsc --noEmit --incremental false` — a full TypeScript type check
   (this is the "lint" here; it is a type check, not ESLint).
 - **When:** after almost any TS/TSX edit.
 - **Failure means:** a type error somewhere in the graph.
-- **Usual culprits:** changed shapes in `lib/table/types.ts`, `lib/vtm/*`,
+- **Usual culprits:** changed shapes in `lib/table/types.ts`, `core/systems/vtm5/rules/*`,
   `lib/i18n/ruleNames.ts`, or component props.
 
 ## `npm run audit:structure`
@@ -41,23 +41,24 @@ From `package.json`. Run the relevant checks after edits (see
 ## `npm run audit:disciplines`
 - **What:** `scripts/audit-discipline-rules.ts` — audits discipline rules data.
 - **When:** after editing disciplines in `rules.json` / `rules_eng.json` or
-  `lib/vtm/disciplines/*`.
+  `core/systems/vtm5/rules/disciplines/*`.
 - **Failure means:** discipline rules data is inconsistent or incomplete.
 - **Usual culprits:** `public/rules.json`, `public/rules_eng.json`,
-  `lib/vtm/disciplines/rules-loader.ts`, `schema.ts`.
+  `core/systems/vtm5/rules/disciplines/rules-loader/index.ts`,
+  `core/systems/vtm5/rules/disciplines/schema/index.ts`.
 
 ## `npm run validate:disciplines`
 - **What:** `scripts/validate-discipline-mechanics.ts` — validates discipline
   mechanics.
 - **When:** after changing discipline costs/durations/effects logic.
 - **Failure means:** a mechanic doesn't validate against the schema/expectations.
-- **Usual culprits:** `lib/vtm/disciplines/{costs,durations,effects,engine}.ts`.
+- **Usual culprits:** `core/systems/vtm5/rules/disciplines/{costs,durations,effects,engine}/index.ts`.
 
 ## `npm run test:disciplines`
 - **What:** `scripts/test-discipline-engine.ts` — tests the discipline engine.
 - **When:** after any change to the discipline engine.
 - **Failure means:** engine behavior regressed.
-- **Usual culprits:** `lib/vtm/disciplines/engine.ts` and its inputs.
+- **Usual culprits:** `core/systems/vtm5/rules/disciplines/engine/index.ts` and its inputs.
 
 ## Recommended order after a change
 1. `npm run lint` (fast type check)

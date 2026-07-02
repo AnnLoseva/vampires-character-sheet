@@ -19,7 +19,7 @@ real time through Supabase and keyed by `room`.
 - Manage modals/overlays (e.g. dice roll overlay).
 
 > **Do not grow this file.** New sizeable behavior goes to child components,
-> hooks, or `lib/table/*` / `lib/vtm/*`. See
+> hooks, or `lib/table/*` / `core/systems/vtm5/rules/*`. See
 > `../workflows/react-table-edit-protocol.md` and the `DECISIONS.md` entry.
 
 ## Important child components (`components/table/*`)
@@ -66,7 +66,7 @@ signals). See `dice-and-rolls.md`.
 
 ## Safe edit protocol
 1. Read `../workflows/react-table-edit-protocol.md`.
-2. Put UI in a component, shared logic in `lib/table/*`, rules in `lib/vtm/*`,
+2. Put UI in a component, shared logic in `lib/table/*`, rules in `core/systems/vtm5/rules/*`,
    constants in `lib/table/constants.ts`, types in `lib/table/types.ts`.
 3. Keep Supabase table/bucket names in `constants.ts` — never hardcode new ones.
 4. Verify: `/table?room=campaign-666&role=master` and `&role=player` — room/role

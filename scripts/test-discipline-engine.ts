@@ -1,20 +1,20 @@
 import assert from 'node:assert/strict'
 import rules from '../public/rules.json'
 import { mapCharacterRowToOption } from '../lib/table/mappers'
-import { getDerivedStats } from '../lib/vtm/derived-stats'
+import { getDerivedStats } from '../core/systems/vtm5/rules/derived-stats'
 import {
   expireActiveEffects,
   getActiveEffects,
-} from '../lib/vtm/disciplines/active-effects'
-import { activateDisciplinePower } from '../lib/vtm/disciplines/engine'
+} from '../core/systems/vtm5/rules/disciplines/active-effects'
+import { activateDisciplinePower } from '../core/systems/vtm5/rules/disciplines/engine'
 import {
   applyDisciplineEffectsToDamage,
   applyDisciplineEffectsToRoll,
-} from '../lib/vtm/disciplines/effects'
+} from '../core/systems/vtm5/rules/disciplines/effects'
 import {
   loadDisciplineRules,
   type LoadedDisciplinePower,
-} from '../lib/vtm/disciplines/rules-loader'
+} from '../core/systems/vtm5/rules/disciplines/rules-loader'
 
 type JsonObject = Record<string, unknown>
 

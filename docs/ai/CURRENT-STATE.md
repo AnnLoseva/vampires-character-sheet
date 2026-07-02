@@ -13,14 +13,14 @@
 - Routes `/`, `/character-sheet`, `/table`, `/journal`, `/reference`.
 - The iframe character sheet loads, saves and loads characters.
 - The game table renders and syncs a room via Supabase.
-- `lib/vtm/*` pure modules (health, humanity, damage, derived stats, disciplines).
+- `core/systems/vtm5/rules/*` pure modules (health, humanity, damage, derived stats, disciplines).
 
 ## What is fragile
 - `public/main.js` (~11k lines) — legacy sheet logic monolith.
 - `public/old-sheet.html` (~5k lines) — legacy sheet markup/styles.
 - `components/table/GameTable.tsx` (~9k lines) — table orchestrator.
-- **Duplicated VTM logic**: `lib/vtm/health.ts` vs `public/vtm-health.js`,
-  `lib/vtm/humanity.ts` vs `public/vtm-humanity.js` can drift.
+- **Duplicated VTM logic**: `core/systems/vtm5/rules/health/index.ts` vs `public/vtm-health.js`,
+  `core/systems/vtm5/rules/humanity/index.ts` vs `public/vtm-humanity.js` can drift.
 - The **iframe bridge** between `/character-sheet` and `/old-sheet.html`
   (query params, localStorage, `vtm-character-saved` postMessage).
 - RU/EN trait & discipline names across `rules.json` / `rules_eng.json` / i18n.
@@ -45,4 +45,4 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-01 — initial AI context layer created.
+2026-07-02 — VTM TypeScript rules moved to `core/systems/vtm5/rules/*`.

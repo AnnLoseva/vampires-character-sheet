@@ -94,44 +94,44 @@ import {
   normalizeHealthTracker,
   recoverHealthDamage,
   toHealthTracker,
-} from '@/lib/vtm/health'
-import { getDerivedStats } from '@/lib/vtm/derived-stats'
-import { removeActiveEffect as removeActiveEffectFromData } from '@/lib/vtm/disciplines/active-effects'
+} from '@/core/systems/vtm5/rules/health'
+import { getDerivedStats } from '@/core/systems/vtm5/rules/derived-stats'
+import { removeActiveEffect as removeActiveEffectFromData } from '@/core/systems/vtm5/rules/disciplines/active-effects'
 import {
   applyDisciplineEffectsToDamage,
   applyDisciplineEffectsToRoll,
   type AppliedDisciplineRollModifier,
   type DisciplineRollEffectResult,
   type DisciplineRollPenalty,
-} from '@/lib/vtm/disciplines/effects'
+} from '@/core/systems/vtm5/rules/disciplines/effects'
 import {
   payDisciplineCost,
   resolveDisciplineCost,
-} from '@/lib/vtm/disciplines/costs'
+} from '@/core/systems/vtm5/rules/disciplines/costs'
 import type {
   DisciplineCost,
   DisciplineCostMechanics,
   DisciplineCostPayment,
-} from '@/lib/vtm/disciplines/costs'
+} from '@/core/systems/vtm5/rules/disciplines/costs'
 import {
   activateDisciplinePower,
   deactivateDisciplinePower,
   isDisciplinePowerActive,
-} from '@/lib/vtm/disciplines/engine'
-import { getDisciplineDurationLabel } from '@/lib/vtm/disciplines/durations'
+} from '@/core/systems/vtm5/rules/disciplines/engine'
+import { getDisciplineDurationLabel } from '@/core/systems/vtm5/rules/disciplines/durations'
 import type {
   ActiveEffect,
   DisciplinePowerInputField,
   DisciplinePowerMechanics,
-} from '@/lib/vtm/disciplines/schema'
-import type { DamageSeverity, HealthDamageOptions } from '@/lib/vtm/health'
+} from '@/core/systems/vtm5/rules/disciplines/schema'
+import type { DamageSeverity, HealthDamageOptions } from '@/core/systems/vtm5/rules/health'
 import {
   addHumanityStains as addHumanityStainsState,
   getHumanityState,
   getHumanityStatus,
   getRemorseDice,
-} from '@/lib/vtm/humanity'
-import type { HumanityState, HumanityStainSource } from '@/lib/vtm/humanity'
+} from '@/core/systems/vtm5/rules/humanity'
+import type { HumanityState, HumanityStainSource } from '@/core/systems/vtm5/rules/humanity'
 import type {
   ActiveParticipant,
   BlendMode,

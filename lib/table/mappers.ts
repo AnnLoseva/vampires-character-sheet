@@ -1,12 +1,12 @@
 import type { CharacterOption, CharacterRow, CharacterType, ChatMessage, ChatMessageRow, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
 import { getMusicProvider } from '@/components/music/utils'
-import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from '@/lib/vtm/health'
-import { getHumanityState, getHumanityStatus, normalizeMoralityState } from '@/lib/vtm/humanity'
-import type { HumanityStainEvent } from '@/lib/vtm/humanity'
+import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from '@/core/systems/vtm5/rules/health'
+import { getHumanityState, getHumanityStatus, normalizeMoralityState } from '@/core/systems/vtm5/rules/humanity'
+import type { HumanityStainEvent } from '@/core/systems/vtm5/rules/humanity'
 import { getAttributeDots } from '@/lib/i18n/ruleNames'
-import { normalizeCharacterDisciplines } from '@/lib/vtm/disciplines/character-disciplines'
-import { getDerivedStats } from '@/lib/vtm/derived-stats'
-import { getActiveEffects } from '@/lib/vtm/disciplines/active-effects'
+import { normalizeCharacterDisciplines } from '@/core/systems/vtm5/rules/disciplines/character-disciplines'
+import { getDerivedStats } from '@/core/systems/vtm5/rules/derived-stats'
+import { getActiveEffects } from '@/core/systems/vtm5/rules/disciplines/active-effects'
 import defaultRules from '@/public/rules.json'
 
 const DIE_KINDS = new Set<Die['kind']>([

@@ -1,3 +1,3 @@
 # Damage Rules
 
-Target home for damage helpers currently implemented in `lib/vtm/damage.ts`.
+Runtime home for damage helpers currently implemented in `core/systems/vtm5/rules/damage/index.ts`.

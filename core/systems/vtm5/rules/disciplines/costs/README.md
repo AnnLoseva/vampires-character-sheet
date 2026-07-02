@@ -1,4 +1,4 @@
 # Discipline Costs
 
-Target home for discipline cost resolution and payment currently implemented in
-`lib/vtm/disciplines/costs.ts`.
+Runtime home for discipline cost resolution and payment implemented in
+`core/systems/vtm5/rules/disciplines/costs/index.ts`.

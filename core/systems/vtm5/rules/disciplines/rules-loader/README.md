@@ -1,4 +1,4 @@
 # Rules Loader
 
-Target home for discipline rules loading currently implemented in
-`lib/vtm/disciplines/rules-loader.ts`.
+Runtime home for discipline rules loading implemented in
+`core/systems/vtm5/rules/disciplines/rules-loader/index.ts`.

@@ -1,4 +1,4 @@
 # Discipline Rules
 
-Target home for discipline schema, rules loading, costs, durations, effects, and
-engine code currently implemented in `lib/vtm/disciplines/*`.
+Runtime home for discipline schema, rules loading, costs, durations, effects, and
+engine code currently implemented in `core/systems/vtm5/rules/disciplines/*`.
