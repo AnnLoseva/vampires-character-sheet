@@ -64,12 +64,8 @@ import {
 import {
   getEditorImageStyle,
   buildLayerTree,
-  getAncestorIds,
-  getDescendantIds,
-  getLayerClipboardText,
   getLayerCrop,
   getLayerMediaStyle,
-  getLayerShareUrl,
   getSmartFloatingPosition,
   isLayerEffectivelyVisible,
   mergeRoll,
@@ -78,15 +74,11 @@ import {
 import { sortSceneMusic, upsertScene } from '@/modules/table/utils/scene-utils'
 import {
   activateSceneRecord,
-  clearSceneMusicDefaults,
   createTableId,
   deactivateOtherScenes,
-  deleteSceneMusicRecord,
   deleteSceneWithAssets,
   fetchSceneMusic,
   insertScene,
-  insertSceneMusic,
-  updateSceneMusicRecord,
   updateSceneRecord,
 } from '@/modules/table/api/scene-api'
 
@@ -99,7 +91,6 @@ import {
   updateRollRecord,
 } from '@/modules/table/api/roll-api'
 import {
-  uploadSceneMusicAudioFile,
   upsertTableMusicState,
 } from '@/modules/table/api/music-api'
 import {
@@ -111,7 +102,7 @@ import {
   RollModifierControls,
   SmartContextMenu,
   WillpowerRerollControls,
-  summarizeRollModifier,
+  RollMetaDetails,
 } from '@/modules/table/components'
 import {
   type DisciplinePowerEntry,
@@ -153,8 +144,12 @@ import {
   useDisciplineActions,
   useInventoryActions,
   useImageEditorActions,
+  useJournalActions,
   useLayerActions,
+  useLayerClipboardActions,
+  useLayerManagerDragActions,
   useMediaUploadActions,
+  useSceneMusicActions,
   usePoolRollActions,
   useRoomSession,
   useTableCanvas,
@@ -208,7 +203,6 @@ import type {
   InventoryItem,
   JournalEntry,
   LayerContextMenu,
-  LayerDropPlacement,
   LayerDropTarget,
   LayerPatch,
   LayerTreeNode,
@@ -709,6 +703,35 @@ export default function VampireTable() {
   })
 
   const {
+    toggleFolder,
+    revealLayerInTableManager,
+    handleManagerDoubleClick,
+    canMoveLayer,
+    handleLayerDragStart,
+    handleLayerDragOver,
+    handleLayerDrop,
+    handleLayerRootDragOver,
+    handleLayerRootDrop,
+    handleLayerDragEnd,
+  } = useLayerManagerDragActions({
+    isMaster,
+    layersRef,
+    draggingLayerId,
+    layerDropTarget,
+    setDraggingLayerId,
+    setLayerDropTarget,
+    setExpandedFolders,
+    setRightRailTab,
+    setMediaTab,
+    setLayerContextMenu,
+    setPreviewLayerId,
+    canEditLayer,
+    patchLayers,
+    setLayerSelection,
+    renameLayer,
+  })
+
+  const {
     uploadFiles,
     addRemoteMediaUrls,
     handleImageUpload,
@@ -717,6 +740,7 @@ export default function VampireTable() {
     handleMediaUrlSubmit,
     createTextMaterial,
     handleSceneMediaDrop,
+    handleTableLayerPanelDrop,
   } = useMediaUploadActions({
     room,
     t,
@@ -743,6 +767,9 @@ export default function VampireTable() {
     undoImageEditor,
     redoImageEditor,
     applyImageEditor,
+    startEditorCropDrag,
+    updateEditorCropDrag,
+    finishEditorCropDrag,
   } = useImageEditorActions({
     setImageEditor,
     setLayerContextMenu,
@@ -751,6 +778,38 @@ export default function VampireTable() {
     canEditLayer,
     patchLayer,
     addMediaLayer,
+  })
+
+  const {
+    addSceneMusic,
+    patchSceneMusic,
+    renameSceneMusic,
+    deleteSceneMusic,
+    handleSceneMusicUpload,
+    handleSceneMusicDrop,
+    reorderSceneMusic,
+  } = useSceneMusicActions({
+    room,
+    t,
+    tf,
+    isMaster,
+    sceneMusicDraft,
+    sceneMusicRef,
+    setSceneMusic,
+    setSceneMusicDraft,
+    setIsUploading,
+    getSelectedScene: () => {
+      const id = selectedSceneId || activeSceneId || scenesRef.current[0]?.id || null
+      const active = scenesRef.current.find(scene => scene.id === activeSceneId) || null
+      return scenesRef.current.find(scene => scene.id === id) || active
+    },
+    getSelectedSceneMusic: () => {
+      const id = selectedSceneId || activeSceneId || scenesRef.current[0]?.id || null
+      const active = scenesRef.current.find(scene => scene.id === activeSceneId) || null
+      const scene = scenesRef.current.find(item => item.id === id) || active
+      return sortSceneMusic(sceneMusicRef.current.filter(track => track.sceneId === scene?.id))
+    },
+    broadcast,
   })
 
   const {
@@ -1017,160 +1076,53 @@ export default function VampireTable() {
     setExpandedFolders(prev => new Set(prev).add(folderId))
   }
 
-  const fetchYouTubeTitle = async (url: string): Promise<string | null> => {
-    try {
-      const oembedUrl = `https://www.youtube.com/oembed?url=${encodeURIComponent(url)}&format=json`
-      const response = await fetch(oembedUrl)
-      if (!response.ok) return null
-      const data = await response.json() as { title?: string }
-      return data.title || null
-    } catch {
-      return null
-    }
-  }
-
-  const addSceneMusic = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    if (!isMaster || !selectedScene) return
-    const urls = sceneMusicDraft.split(/\s+/).map(item => item.trim()).filter(Boolean)
-    if (urls.length === 0) return
-    const baseOrder = selectedSceneMusic.reduce((max, track) => Math.max(max, track.orderIndex), -1)
-    for (const [index, url] of urls.entries()) {
-      const now = new Date().toISOString()
-      const provider = getMusicProvider(url)
-      const defaultTitle = tf('Трек {n}', { n: baseOrder + index + 2 })
-      const youtubeTitle = provider === 'youtube' ? await fetchYouTubeTitle(url) : null
-      const track: SceneMusicTrack = {
-        id: createTableId(),
-        room,
-        sceneId: selectedScene.id,
-        title: youtubeTitle || defaultTitle,
-        url,
-        sourceType: provider,
-        orderIndex: baseOrder + index + 1,
-        isDefault: selectedSceneMusic.length === 0 && index === 0,
-        autoplay: selectedSceneMusic.length === 0 && index === 0,
-        createdAt: now,
-        updatedAt: now,
-      }
-      const { error } = await insertSceneMusic(track)
-      if (!error) {
-        setSceneMusic(prev => sortSceneMusic([...prev, track]))
-        broadcast('scene-music', track)
-      }
-    }
-    setSceneMusicDraft('')
-  }
-
-  const patchSceneMusic = async (track: SceneMusicTrack, patch: Partial<SceneMusicTrack>) => {
-    if (!isMaster) return
-    const updatedAt = new Date().toISOString()
-    const next = { ...track, ...patch, updatedAt }
-    let nextTracks = sceneMusicRef.current.map(item => (item.id === track.id ? next : item))
-    if (patch.isDefault) {
-      nextTracks = nextTracks.map(item => item.sceneId === track.sceneId ? { ...item, isDefault: item.id === track.id } : item)
-      await clearSceneMusicDefaults(track.sceneId, track.id)
-    }
-    setSceneMusic(sortSceneMusic(nextTracks))
-    const { error } = await updateSceneMusicRecord(track.id, {
-      title: next.title,
-      url: next.url,
-      source_type: next.sourceType,
-      order_index: next.orderIndex,
-      is_default: next.isDefault,
-      autoplay: next.autoplay,
-      updated_at: updatedAt,
-    })
-    if (error) console.error('Не удалось обновить музыку сцены:', error)
-    broadcast('scene-music', next)
-  }
-
-  const renameSceneMusic = async (track: SceneMusicTrack) => {
-    const title = window.prompt(t('Название трека'), track.title)?.trim()
-    if (!title || title === track.title) return
-    await patchSceneMusic(track, { title })
-  }
-
-  const deleteSceneMusic = async (track: SceneMusicTrack) => {
-    if (!isMaster) return
-    setSceneMusic(prev => prev.filter(item => item.id !== track.id))
-    await deleteSceneMusicRecord(track.id)
-    broadcast('scene-music-delete', { room, sceneId: track.sceneId, id: track.id })
-  }
-
-  const uploadSceneMusicFiles = async (files: FileList | File[]) => {
-    if (!isMaster || !selectedScene) return
-    const audioFiles = Array.from(files).filter(file => file.type.startsWith('audio/'))
-    if (audioFiles.length === 0) {
-      window.alert(t('Для музыки сцены можно загрузить только аудиофайлы.'))
-      return
-    }
-
-    setIsUploading(true)
-    try {
-      const baseOrder = selectedSceneMusic.reduce((max, track) => Math.max(max, track.orderIndex), -1)
-      for (const [index, file] of audioFiles.entries()) {
-        const { error: uploadError, publicUrl, id } = await uploadSceneMusicAudioFile(
-          room,
-          selectedScene.id,
-          file,
-          index,
-        )
-
-        if (uploadError || !publicUrl || !id) {
-          console.error('Не удалось загрузить музыку сцены:', uploadError)
-          window.alert(t('Аудиофайл не загрузился. Проверь bucket table-music и policies из SQL.'))
-          continue
-        }
-
-        const now = new Date().toISOString()
-        const track: SceneMusicTrack = {
-          id,
-          room,
-          sceneId: selectedScene.id,
-          title: file.name,
-          url: publicUrl,
-          sourceType: 'file',
-          orderIndex: baseOrder + index + 1,
-          isDefault: selectedSceneMusic.length === 0 && index === 0,
-          autoplay: selectedSceneMusic.length === 0 && index === 0,
-          createdAt: now,
-          updatedAt: now,
-        }
-
-        const { error } = await insertSceneMusic(track)
-
-        if (!error) {
-          setSceneMusic(prev => sortSceneMusic([...prev, track]))
-          broadcast('scene-music', track)
-        }
-      }
-    } finally {
-      setIsUploading(false)
-    }
-  }
-
-  const handleSceneMusicUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.files) {
-      await uploadSceneMusicFiles(event.target.files)
-      event.target.value = ''
-    }
-  }
-
-  const reorderSceneMusic = async (track: SceneMusicTrack, direction: 'up' | 'down') => {
-    const tracks = sortSceneMusic(selectedSceneMusic)
-    const index = tracks.findIndex(item => item.id === track.id)
-    const swapIndex = direction === 'up' ? index - 1 : index + 1
-    const swap = tracks[swapIndex]
-    if (!swap) return
-    await patchSceneMusic(track, { orderIndex: swap.orderIndex })
-    await patchSceneMusic(swap, { orderIndex: track.orderIndex })
-  }
-
   const selectedActiveCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId) || null
   const selectedMasterRollCharacter = chatCharacters.find(item => item.id === selectedMasterRollCharacterId) || selectedActiveCharacter
   const journalStorageKey = chatUser ? `vtm-journal:${chatUser.id}:${room}` : ''
   const selectedJournalEntry = journalEntries.find(entry => entry.id === selectedJournalEntryId) || journalEntries[0] || null
+
+  const {
+    saveJournalEntries,
+    createJournalEntry,
+    updateJournalEntry,
+    persistCurrentJournal,
+    deleteJournalEntry,
+  } = useJournalActions({
+    t,
+    tf,
+    journalStorageKey,
+    journalEntries,
+    selectedJournalEntry,
+    setJournalEntries,
+    setSelectedJournalEntryId,
+    setJournalSaveStatus,
+  })
+
+  const {
+    getContextLayerIds,
+    copyLayerForDiary,
+    addLayerToJournal,
+    copyLayerUrl,
+    focusLayersForEveryone,
+  } = useLayerClipboardActions({
+    room,
+    t,
+    chatUser,
+    selectedLayerIds,
+    journalEntries,
+    selectedJournalEntry,
+    layersRef,
+    sceneRef,
+    setTableStatus,
+    setLayerContextMenu,
+    setRightRailTab,
+    setSelectedJournalEntryId,
+    setZoom,
+    setPan,
+    saveJournalEntries,
+    broadcast,
+  })
+
   const filteredJournalEntries = journalEntries.filter(entry => {
     const query = journalSearch.trim().toLowerCase()
     if (!query) return true
@@ -1507,47 +1459,6 @@ export default function VampireTable() {
     setMasterRollMode('normal')
     setMasterContestedOpponentId('')
   }, [selectedMasterRollCharacterId])
-
-  const saveJournalEntries = (entries: JournalEntry[], status = 'Сохранено') => {
-    setJournalEntries(entries)
-    if (journalStorageKey) window.localStorage.setItem(journalStorageKey, JSON.stringify(entries))
-    setJournalSaveStatus(status)
-  }
-
-  const createJournalEntry = () => {
-    const now = new Date().toISOString()
-    const entry: JournalEntry = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      title: t('Новая запись'),
-      text: '',
-      createdAt: now,
-      updatedAt: now,
-    }
-    saveJournalEntries([entry, ...journalEntries], 'Сохранено')
-    setSelectedJournalEntryId(entry.id)
-  }
-
-  const updateJournalEntry = (patch: Partial<Pick<JournalEntry, 'title' | 'text'>>) => {
-    if (!selectedJournalEntry) return
-    const now = new Date().toISOString()
-    const next = journalEntries.map(entry => entry.id === selectedJournalEntry.id ? { ...entry, ...patch, updatedAt: now } : entry)
-    setJournalEntries(next)
-    setJournalSaveStatus('Есть несохранённые изменения')
-  }
-
-  const persistCurrentJournal = () => {
-    if (!journalStorageKey) return
-    window.localStorage.setItem(journalStorageKey, JSON.stringify(journalEntries))
-    setJournalSaveStatus('Сохранено')
-  }
-
-  const deleteJournalEntry = () => {
-    if (!selectedJournalEntry) return
-    if (!window.confirm(tf('Удалить запись "{title}"?', { title: selectedJournalEntry.title || t('Без названия') }))) return
-    const next = journalEntries.filter(entry => entry.id !== selectedJournalEntry.id)
-    saveJournalEntries(next, 'Сохранено')
-    setSelectedJournalEntryId(next[0]?.id || '')
-  }
 
   const chooseMasterRollCharacter = (characterId: string) => {
     setSelectedMasterRollCharacterId(characterId)
@@ -2270,434 +2181,11 @@ export default function VampireTable() {
     logoutChat()
   }
 
-
-  const getContextLayerIds = (layerId: string | null) => {
-    if (layerId && selectedLayerIds.has(layerId) && selectedLayerIds.size > 1) return [...selectedLayerIds]
-    if (layerId) return [layerId]
-    return [...selectedLayerIds]
-  }
-
-  const copyTextToClipboard = async (text: string) => {
-    try {
-      await navigator.clipboard.writeText(text)
-      setTableStatus('Скопировано')
-    } catch {
-      const textarea = document.createElement('textarea')
-      textarea.value = text
-      textarea.style.position = 'fixed'
-      textarea.style.opacity = '0'
-      document.body.appendChild(textarea)
-      textarea.select()
-      document.execCommand('copy')
-      textarea.remove()
-      setTableStatus('Скопировано')
-    }
-  }
-
-  const copyLayerForDiary = async (layer: TableLayer) => {
-    await copyTextToClipboard(getLayerClipboardText(layer))
-    setLayerContextMenu(null)
-  }
-
-  const addLayerToJournal = (imageUrl: string, name: string) => {
-    if (!chatUser) return
-    const imgHtml = `<p><img src="${imageUrl}" alt="${name}"></p>`
-    if (selectedJournalEntry) {
-      const newText = (selectedJournalEntry.text || '') + imgHtml
-      const now = new Date().toISOString()
-      const next = journalEntries.map(entry =>
-        entry.id === selectedJournalEntry.id ? { ...entry, text: newText, updatedAt: now } : entry
-      )
-      saveJournalEntries(next, 'Есть несохранённые изменения')
-    } else {
-      const now = new Date().toISOString()
-      const entry: JournalEntry = {
-        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-        title: name || t('Изображение со стола'),
-        text: imgHtml,
-        createdAt: now,
-        updatedAt: now,
-      }
-      saveJournalEntries([entry, ...journalEntries], 'Сохранено')
-      setSelectedJournalEntryId(entry.id)
-    }
-    setRightRailTab('diary')
-    setLayerContextMenu(null)
-    setTableStatus('Добавлено в дневник')
-  }
-
-  const copyLayerUrl = async (layer: TableLayer) => {
-    const url = getLayerShareUrl(layer)
-    await copyTextToClipboard(url || getLayerClipboardText(layer))
-    setLayerContextMenu(null)
-  }
-
-  const focusLayersForEveryone = (ids: string[]) => {
-    const targets = ids
-      .map(id => layersRef.current.find(layer => layer.id === id))
-      .filter((layer): layer is TableLayer => Boolean(layer))
-    if (targets.length === 0 || !sceneRef.current) return
-
-    const minX = Math.min(...targets.map(layer => layer.x))
-    const minY = Math.min(...targets.map(layer => layer.y))
-    const maxX = Math.max(...targets.map(layer => layer.x + layer.width))
-    const maxY = Math.max(...targets.map(layer => layer.y + layer.height))
-    const rect = sceneRef.current.getBoundingClientRect()
-    const contentWidth = Math.max(1, maxX - minX)
-    const contentHeight = Math.max(1, maxY - minY)
-    const nextZoom = Math.min(5, Math.max(0.2, Math.min((rect.width - 80) / contentWidth, (rect.height - 80) / contentHeight)))
-    const nextPan = {
-      x: Math.round(rect.width / 2 - (minX + contentWidth / 2) * nextZoom),
-      y: Math.round(rect.height / 2 - (minY + contentHeight / 2) * nextZoom),
-    }
-
-    setZoom(nextZoom)
-    setPan(nextPan)
-    broadcast('viewport-focus', { room, pan: nextPan, zoom: nextZoom })
-  }
-
-  const toggleFolder = (folderId: string) => {
-    setExpandedFolders(prev => {
-      const next = new Set(prev)
-      if (next.has(folderId)) next.delete(folderId)
-      else next.add(folderId)
-      return next
-    })
-  }
-
-  const revealLayerInTableManager = (layer: TableLayer) => {
-    if (!layer.onTable || !canEditLayer(layer)) return
-    setRightRailTab('media')
-    setMediaTab('layers')
-    setExpandedFolders(prev => {
-      const next = new Set(prev)
-      getAncestorIds(layersRef.current, layer.id).forEach(id => next.add(id))
-      return next
-    })
-    setLayerSelection([layer.id], layer.id)
-  }
-
-  const handleManagerDoubleClick = (layer: TableLayer) => {
-    if (!layer.onTable && layer.layerType !== 'folder') {
-      setPreviewLayerId(layer.id)
-      return
-    }
-    if (layer.layerType === 'folder') {
-      toggleFolder(layer.id)
-      return
-    }
-    renameLayer(layer)
-  }
-
-  const canMoveLayer = (layer: TableLayer) => {
-    if (layer.locked) return false
-    return canEditLayer(layer)
-  }
-
-  const canDropLayerOn = (dragged: TableLayer, target: TableLayer, placement: LayerDropPlacement) => {
-    if (!canMoveLayer(dragged)) return false
-    if (dragged.id === target.id) return false
-    if (placement === 'inside' && target.layerType !== 'folder') return false
-    if (dragged.layerType === 'folder' && getDescendantIds(layersRef.current, dragged.id).has(target.id)) return false
-    return true
-  }
-
-  const handleLayerDragStart = (event: React.DragEvent<HTMLElement>, layerId: string) => {
-    const layer = layersRef.current.find(item => item.id === layerId)
-    if (!layer || !canMoveLayer(layer)) {
-      event.preventDefault()
-      return
-    }
-
-    const shareUrl = getLayerShareUrl(layer)
-    event.dataTransfer.effectAllowed = 'copyMove'
-    event.dataTransfer.setData('text/plain', layerId)
-    if (shareUrl) {
-      event.dataTransfer.setData('text/uri-list', shareUrl)
-      event.dataTransfer.setData('application/x-vtm-layer', JSON.stringify({
-        id: layer.id,
-        title: layer.name,
-        url: shareUrl,
-        layerType: layer.layerType,
-      }))
-    }
-    setDraggingLayerId(layerId)
-    setLayerContextMenu(null)
-  }
-
-  const handleLayerDragOver = (event: React.DragEvent<HTMLElement>, target: TableLayer) => {
-    const draggedId = draggingLayerId || event.dataTransfer.getData('text/plain')
-    if (!draggedId || draggedId === target.id) return
-    const dragged = layersRef.current.find(layer => layer.id === draggedId)
-    if (!dragged) return
-
-    const rect = event.currentTarget.getBoundingClientRect()
-    const y = event.clientY - rect.top
-    const ratio = y / Math.max(1, rect.height)
-    const placement: LayerDropPlacement =
-      target.layerType === 'folder' && ratio > 0.28 && ratio < 0.72 ? 'inside' : ratio < 0.5 ? 'before' : 'after'
-    if (!canDropLayerOn(dragged, target, placement)) return
-
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    setLayerDropTarget({ layerId: target.id, placement })
-  }
-
-  const handleLayerDrop = async (event: React.DragEvent<HTMLElement>, target: TableLayer) => {
-    event.preventDefault()
-    const draggedId = draggingLayerId || event.dataTransfer.getData('text/plain')
-    const dragged = layersRef.current.find(layer => layer.id === draggedId)
-    if (!dragged || dragged.id === target.id) return
-
-    const placement = layerDropTarget?.layerId === target.id ? layerDropTarget.placement : 'after'
-    if (!canDropLayerOn(dragged, target, placement)) return
-    const nextParentId = placement === 'inside' ? target.id : target.parentId
-    const draggableLayers = layersRef.current.filter(layer => isMaster || canEditLayer(layer))
-    const siblings = sortLayers(draggableLayers.filter(layer => layer.parentId === nextParentId && layer.id !== dragged.id)).reverse()
-    const targetIndex = siblings.findIndex(layer => layer.id === target.id)
-    const insertIndex = placement === 'inside' ? 0 : placement === 'before' ? Math.max(0, targetIndex) : Math.max(0, targetIndex + 1)
-    siblings.splice(insertIndex, 0, { ...dragged, parentId: nextParentId })
-
-    const highestZ = Math.max(1, ...layersRef.current.map(layer => layer.zIndex)) + siblings.length
-    const patches = siblings.map((layer, index) => ({
-      id: layer.id,
-      patch: {
-        parentId: layer.id === dragged.id ? nextParentId : layer.parentId,
-        zIndex: highestZ - index,
-      },
-    }))
-
-    if (nextParentId) setExpandedFolders(prev => new Set(prev).add(nextParentId))
-    setDraggingLayerId(null)
-    setLayerDropTarget(null)
-    await patchLayers(patches)
-  }
-
-  const handleLayerRootDragOver = (event: React.DragEvent<HTMLDivElement>) => {
-    const draggedId = draggingLayerId || event.dataTransfer.getData('text/plain')
-    const dragged = layersRef.current.find(layer => layer.id === draggedId)
-    if (!dragged || !canMoveLayer(dragged)) return
-
-    if (event.currentTarget !== event.target) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    setLayerDropTarget({ layerId: ROOT_LAYER_DROP_ID, placement: 'inside' })
-  }
-
-  const handleLayerRootDrop = async (event: React.DragEvent<HTMLDivElement>) => {
-    if (event.currentTarget !== event.target && layerDropTarget?.layerId !== ROOT_LAYER_DROP_ID) return
-    event.preventDefault()
-    const draggedId = draggingLayerId || event.dataTransfer.getData('text/plain')
-    const dragged = layersRef.current.find(layer => layer.id === draggedId)
-    if (!dragged || !canMoveLayer(dragged)) return
-
-    const draggableLayers = layersRef.current.filter(layer => isMaster || canEditLayer(layer))
-    const siblings = sortLayers(draggableLayers.filter(layer => layer.parentId === null && layer.id !== dragged.id)).reverse()
-    siblings.push({ ...dragged, parentId: null })
-
-    const highestZ = Math.max(1, ...layersRef.current.map(layer => layer.zIndex)) + siblings.length
-    const patches = siblings.map((layer, index) => ({
-      id: layer.id,
-      patch: {
-        parentId: layer.id === dragged.id ? null : layer.parentId,
-        zIndex: highestZ - index,
-      },
-    }))
-
-    setDraggingLayerId(null)
-    setLayerDropTarget(null)
-    await patchLayers(patches)
-  }
-
-  const handleLayerDragEnd = () => {
-    setDraggingLayerId(null)
-    setLayerDropTarget(null)
-  }
-
-  const handleSceneMusicDrop = async (event: React.DragEvent<HTMLElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    const droppedFiles = Array.from(event.dataTransfer.files || [])
-    if (droppedFiles.length > 0) await uploadSceneMusicFiles(droppedFiles)
-  }
-
-  const handleTableLayerPanelDrop = async (event: React.DragEvent<HTMLElement>) => {
-    event.preventDefault()
-    event.stopPropagation()
-    const droppedFiles = Array.from(event.dataTransfer.files || [])
-    if (droppedFiles.length > 0) {
-      await uploadFiles(droppedFiles, true, { preserveFolders: true })
-      return
-    }
-    const mediaUrls = getDroppedMediaUrls(event.dataTransfer)
-    if (mediaUrls.length > 0) await addRemoteMediaUrls(mediaUrls, undefined, true)
-  }
-
-  const startEditorCropDrag = (event: React.PointerEvent<HTMLElement>, handle: NonNullable<ImageEditorDraft['drag']>['handle']) => {
-    if (!imageEditor) return
-    event.preventDefault()
-    event.stopPropagation()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    setImageEditor({
-      ...imageEditor,
-      history: [...imageEditor.history, imageEditor.state].slice(-40),
-      future: [],
-      drag: {
-        handle,
-        startX: event.clientX,
-        startY: event.clientY,
-        initial: imageEditor.state,
-      },
-    })
-  }
-
-  const updateEditorCropDrag = (event: React.PointerEvent<HTMLElement>) => {
-    if (!imageEditor?.drag) return
-    const rect = event.currentTarget.getBoundingClientRect()
-    const dx = ((event.clientX - imageEditor.drag.startX) / Math.max(1, rect.width)) * 100
-    const dy = ((event.clientY - imageEditor.drag.startY) / Math.max(1, rect.height)) * 100
-    const initial = imageEditor.drag.initial
-    let cropX = initial.cropX
-    let cropY = initial.cropY
-    let cropWidth = initial.cropWidth
-    let cropHeight = initial.cropHeight
-
-    if (imageEditor.drag.handle === 'move') {
-      cropX = initial.cropX + dx
-      cropY = initial.cropY + dy
-    } else {
-      if (imageEditor.drag.handle.includes('w')) {
-        cropX = initial.cropX + dx
-        cropWidth = initial.cropWidth - dx
-      }
-      if (imageEditor.drag.handle.includes('e')) cropWidth = initial.cropWidth + dx
-      if (imageEditor.drag.handle.includes('n')) {
-        cropY = initial.cropY + dy
-        cropHeight = initial.cropHeight - dy
-      }
-      if (imageEditor.drag.handle.includes('s')) cropHeight = initial.cropHeight + dy
-    }
-
-    cropWidth = Math.max(8, Math.min(100, cropWidth))
-    cropHeight = Math.max(8, Math.min(100, cropHeight))
-    cropX = Math.max(0, Math.min(100 - cropWidth, cropX))
-    cropY = Math.max(0, Math.min(100 - cropHeight, cropY))
-    setImageEditor({ ...imageEditor, state: { ...imageEditor.state, cropX, cropY, cropWidth, cropHeight } })
-  }
-
-  const finishEditorCropDrag = () => {
-    setImageEditor(editor => (editor ? { ...editor, drag: null } : editor))
-  }
-
   const getCharacterSheetHref = (characterId?: string | null) => {
     const params = new URLSearchParams({ room })
     if (tableRole) params.set('role', tableRole)
     if (characterId) params.set('characterId', characterId)
     return `/character-sheet?${params.toString()}`
-  }
-
-  const renderRollMeta = (roll: RollMessage) => {
-    const meta = roll.meta
-    if (!meta) return null
-    const rouseChecks = meta.rouseChecks || []
-    const warnings = meta.warnings || []
-    const rollModifiers = meta.rollModifiers || []
-    const hungerChange = typeof meta.hungerBefore === 'number'
-      && typeof meta.hungerAfter === 'number'
-      && meta.hungerBefore !== meta.hungerAfter
-      ? { before: meta.hungerBefore, after: meta.hungerAfter }
-      : null
-    const hasHungerChange = hungerChange !== null
-    const hasWillpowerChange = Boolean(meta.willpowerBefore && meta.willpowerAfter && meta.willpowerBefore.current !== meta.willpowerAfter.current)
-    const hasWillpowerMeta = hasWillpowerChange
-      || Boolean(meta.spentWillpower)
-      || Boolean(meta.recoveredWillpower)
-      || Boolean(meta.willpowerReroll?.used)
-      || Boolean(meta.impairmentPenaltyApplied)
-    const hasHealthChange = Boolean(meta.healthBefore && meta.healthAfter)
-    const hasHealthMeta = hasHealthChange
-      || Boolean(meta.damage)
-      || Boolean(meta.healing)
-      || Boolean(meta.healthImpairmentPenaltyApplied)
-    const hasHumanityMeta = meta.rollKind === 'humanity_check'
-      || meta.rollKind === 'remorse_check'
-      || typeof meta.humanityBefore === 'number'
-      || typeof meta.stainsBefore === 'number'
-
-    if (!rouseChecks.length && !meta.bloodSurge?.enabled && !hasHungerChange && !hasWillpowerMeta && !hasHealthMeta && !hasHumanityMeta && !meta.messyCritical && !meta.bestialFailure && !warnings.length && !meta.discipline && !rollModifiers.length && !meta.rollDifficultyModifier) {
-      return null
-    }
-
-    return (
-      <div className="roll-v5-meta">
-        {meta.discipline ? (
-          <span className="roll-note">{tf('Дисциплина: {name} · {power}', { name: meta.discipline.name, power: meta.discipline.power })}{meta.discipline.cost && meta.discipline.cost !== '—' ? ` · ${t(meta.discipline.cost)}` : ''}</span>
-        ) : null}
-        {meta.bloodSurge?.enabled ? (
-          <span className="roll-note">{tf('Прилив Крови: +{bonus}к10', { bonus: meta.bloodSurge.bonusDice })}</span>
-        ) : null}
-        {rouseChecks.map(result => (
-          <span className="roll-note" key={result.id}>
-            {tf('{reason}: {value} · {outcome}', { reason: t(result.reason), value: result.value, outcome: result.success ? t('успех') : t('провал') })}
-          </span>
-        ))}
-        {hungerChange ? <span className="roll-note">{tf('Голод: {before} → {after}', hungerChange)}</span> : null}
-        {meta.spentWillpower ? <span className="roll-note">{tf('Воля потрачена: {n}', { n: meta.spentWillpower })}</span> : null}
-        {meta.recoveredWillpower ? <span className="roll-note">{tf('Воля восстановлена: {n}', { n: meta.recoveredWillpower })}</span> : null}
-        {hasWillpowerChange && meta.willpowerBefore && meta.willpowerAfter ? (
-          <span className="roll-note">{tf('Воля: {before} → {after} / {max}', { before: meta.willpowerBefore.current, after: meta.willpowerAfter.current, max: meta.willpowerAfter.max })}</span>
-        ) : null}
-        {meta.willpowerReroll?.used ? (
-          <span className="roll-note">{tf('Переброс Воли: {before} → {after}', { before: meta.willpowerReroll.oldDice.map(die => die.value).join(', '), after: meta.willpowerReroll.newDice.map(die => die.value).join(', ') })}</span>
-        ) : null}
-        {meta.impairmentPenaltyApplied ? <span className="roll-note">{tf('Истощение Воли: {n}к10', { n: meta.impairmentPenaltyApplied })}</span> : null}
-        {meta.healthImpairmentPenaltyApplied ? <span className="roll-note">{tf('Изнурение по здоровью: {n}к10', { n: meta.healthImpairmentPenaltyApplied })}</span> : null}
-        {rollModifiers.length ? (
-          <span className="roll-note">
-            {t('Модификаторы')}: {rollModifiers.map(modifier => summarizeRollModifier(modifier, tf, d10)).join(' · ')}
-          </span>
-        ) : null}
-        {meta.damage ? (
-          <span className="roll-note">
-            {tf('Урон: {amount} {severity}', { amount: meta.damage.originalAmount, severity: meta.damage.severity === 'aggravated' ? t('тяжёлых') : t('лёгких') })}
-            {meta.damage.halved ? tf(' → после деления {final}', { final: meta.damage.finalAmount }) : ''}
-            {meta.damage.targetCharacterName ? tf(' · цель: {name}', { name: meta.damage.targetCharacterName }) : ''}
-          </span>
-        ) : null}
-        {meta.damage?.chain?.map((line, index) => (
-          <span className="roll-note" key={`${roll.id}-damage-chain-${index}`}>
-            {line}
-          </span>
-        ))}
-        {meta.healthBefore && meta.healthAfter ? (
-          <span className="roll-note">
-            {tf('Здоровье: {before} → {after} / {max} · / {superficial} · X {aggravated}', {
-              before: meta.healthBefore.current, after: meta.healthAfter.current, max: meta.healthAfter.max,
-              superficial: meta.healthAfter.superficial, aggravated: meta.healthAfter.aggravated
-            })}
-          </span>
-        ) : null}
-        {meta.healing ? (
-          <span className="roll-note">
-            {tf('Лечение: / {superficial} · X {aggravated}', { superficial: meta.healing.amountSuperficial || 0, aggravated: meta.healing.amountAggravated || 0 })}
-          </span>
-        ) : null}
-        {meta.rollKind === 'remorse_check' ? (
-          <span className="roll-note">
-            {tf('Проверка мук совести: {result}', { result: meta.automaticFailure ? t('автоматический провал') : tf('{dice}к10 без кубиков Голода', { dice: meta.remorseDice || 0 }) })}
-          </span>
-        ) : null}
-        {typeof meta.humanityBefore === 'number' && typeof meta.humanityAfter === 'number' ? (
-          <span className="roll-note">{tf('Человечность: {before} → {after}', { before: meta.humanityBefore, after: meta.humanityAfter })}</span>
-        ) : null}
-        {typeof meta.stainsBefore === 'number' && typeof meta.stainsAfter === 'number' ? (
-          <span className="roll-note">{tf('Сомнения: {before} → {after}', { before: meta.stainsBefore, after: meta.stainsAfter })}</span>
-        ) : null}
-        {meta.messyCritical ? <strong className="roll-alert">{t('Кровавый триумф')}</strong> : null}
-        {meta.bestialFailure ? <strong className="roll-alert">{t('Кровавый провал')}</strong> : null}
-        {warnings.map((warning, index) => <span className="roll-warning" key={`${roll.id}-warning-${index}`}>{t(warning)}</span>)}
-      </div>
-    )
   }
 
   const opposedResponsePool = getOpposedCharacterPool(selectedActiveCharacter, opposedResponseSide)
@@ -3240,7 +2728,7 @@ export default function VampireTable() {
                         </button>
                       </div>
                     ) : null}
-                    {renderRollMeta(roll)}
+                    <RollMetaDetails roll={roll} />
                   </article>
                 )})
               )}

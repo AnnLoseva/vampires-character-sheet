@@ -264,6 +264,18 @@ export function createMediaUploadActions(deps: MediaUploadActionsDeps) {
     if (mediaUrls.length > 0) await addRemoteMediaUrls(mediaUrls, undefined, false)
   }
 
+  const handleTableLayerPanelDrop = async (event: React.DragEvent<HTMLElement>) => {
+    event.preventDefault()
+    event.stopPropagation()
+    const droppedFiles = Array.from(event.dataTransfer.files || [])
+    if (droppedFiles.length > 0) {
+      await uploadFiles(droppedFiles, true, { preserveFolders: true })
+      return
+    }
+    const mediaUrls = getDroppedMediaUrls(event.dataTransfer)
+    if (mediaUrls.length > 0) await addRemoteMediaUrls(mediaUrls, undefined, true)
+  }
+
   return {
     uploadFiles,
     addRemoteMediaUrls,
@@ -273,5 +285,6 @@ export function createMediaUploadActions(deps: MediaUploadActionsDeps) {
     handleMediaUrlSubmit,
     createTextMaterial,
     handleSceneMediaDrop,
+    handleTableLayerPanelDrop,
   }
 }

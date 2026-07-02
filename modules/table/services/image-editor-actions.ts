@@ -1,4 +1,4 @@
-import type { Dispatch, SetStateAction } from 'react'
+import type { Dispatch, PointerEvent, SetStateAction } from 'react'
 import { createEditorState } from '../utils/layer-utils'
 import type { ImageEditorDraft, ImageEditorState, LayerContextMenu, LayerPatch, TableLayer } from '../types'
 
@@ -108,11 +108,75 @@ export function createImageEditorActions(deps: ImageEditorActionsDeps) {
     deps.setImageEditor(null)
   }
 
+  const startEditorCropDrag = (
+    event: PointerEvent<HTMLElement>,
+    handle: NonNullable<ImageEditorDraft['drag']>['handle'],
+  ) => {
+    const imageEditor = deps.getImageEditor()
+    if (!imageEditor) return
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+    deps.setImageEditor({
+      ...imageEditor,
+      history: [...imageEditor.history, imageEditor.state].slice(-40),
+      future: [],
+      drag: {
+        handle,
+        startX: event.clientX,
+        startY: event.clientY,
+        initial: imageEditor.state,
+      },
+    })
+  }
+
+  const updateEditorCropDrag = (event: PointerEvent<HTMLElement>) => {
+    const imageEditor = deps.getImageEditor()
+    if (!imageEditor?.drag) return
+    const rect = event.currentTarget.getBoundingClientRect()
+    const dx = ((event.clientX - imageEditor.drag.startX) / Math.max(1, rect.width)) * 100
+    const dy = ((event.clientY - imageEditor.drag.startY) / Math.max(1, rect.height)) * 100
+    const initial = imageEditor.drag.initial
+    let cropX = initial.cropX
+    let cropY = initial.cropY
+    let cropWidth = initial.cropWidth
+    let cropHeight = initial.cropHeight
+
+    if (imageEditor.drag.handle === 'move') {
+      cropX = initial.cropX + dx
+      cropY = initial.cropY + dy
+    } else {
+      if (imageEditor.drag.handle.includes('w')) {
+        cropX = initial.cropX + dx
+        cropWidth = initial.cropWidth - dx
+      }
+      if (imageEditor.drag.handle.includes('e')) cropWidth = initial.cropWidth + dx
+      if (imageEditor.drag.handle.includes('n')) {
+        cropY = initial.cropY + dy
+        cropHeight = initial.cropHeight - dy
+      }
+      if (imageEditor.drag.handle.includes('s')) cropHeight = initial.cropHeight + dy
+    }
+
+    cropWidth = Math.max(8, Math.min(100, cropWidth))
+    cropHeight = Math.max(8, Math.min(100, cropHeight))
+    cropX = Math.max(0, Math.min(100 - cropWidth, cropX))
+    cropY = Math.max(0, Math.min(100 - cropHeight, cropY))
+    deps.setImageEditor({ ...imageEditor, state: { ...imageEditor.state, cropX, cropY, cropWidth, cropHeight } })
+  }
+
+  const finishEditorCropDrag = () => {
+    deps.setImageEditor(editor => (editor ? { ...editor, drag: null } : editor))
+  }
+
   return {
     openImageEditor,
     updateImageEditor,
     undoImageEditor,
     redoImageEditor,
     applyImageEditor,
+    startEditorCropDrag,
+    updateEditorCropDrag,
+    finishEditorCropDrag,
   }
 }
