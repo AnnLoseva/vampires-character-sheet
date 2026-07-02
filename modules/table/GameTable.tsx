@@ -10,7 +10,7 @@ import dynamic from 'next/dynamic'
 import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkillValue, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import MusicPlayer from '@/modules/music/components/MusicPlayer'
-import type { DiceOverlayGroup, DiceOverlayRoll } from '@/modules/rolls/components/DiceRollOverlay'
+import type { DiceOverlayRoll } from '@/modules/rolls/components/DiceRollOverlay'
 import GameTableStyles from './components/GameTableStyles'
 import LayerManager from './components/layers/LayerManager'
 import TableCanvas from './components/canvas/TableCanvas'
@@ -23,11 +23,7 @@ import type { ChatUser } from '@/modules/chat/types'
 import JournalPanel from '@/modules/journal/components/JournalPanel'
 import MasterPanel from './components/master/MasterPanel'
 import defaultRules from '@/public/rules.json'
-import {
-  broadcastMusicChannel,
-  getMusicProvider,
-  parseYouTubeUrl,
-} from '@/modules/music/utils'
+
 import {
   ATTRIBUTE_GROUPS,
   DEFAULT_SCENE_NAME,
@@ -36,7 +32,6 @@ import {
   type InventoryCategory,
 } from '@/modules/table/constants'
 import {
-  mapCharacterRow,
   getCharacterType,
   getDefaultDamageProfile,
   normalizeWillpowerTracker,
@@ -68,31 +63,12 @@ import {
   getLayerMediaStyle,
   getSmartFloatingPosition,
   isLayerEffectivelyVisible,
-  mergeRoll,
   sortLayers,
 } from '@/modules/table/utils/layer-utils'
-import { sortSceneMusic, upsertScene } from '@/modules/table/utils/scene-utils'
-import {
-  activateSceneRecord,
-  createTableId,
-  deactivateOtherScenes,
-  deleteSceneWithAssets,
-  fetchSceneMusic,
-  insertScene,
-  updateSceneRecord,
-} from '@/modules/table/api/scene-api'
+import { sortSceneMusic } from '@/modules/table/utils/scene-utils'
+import { getCharacterSheetHref } from '@/modules/table/utils/table-urls'
+import { getContestedOpponentOptions, getOpposedCharacterPool } from '@/modules/table/utils/contested-roll-helpers'
 
-import {
-  fetchCharacterById,
-  updateCharacterData,
-} from '@/modules/table/api/character-api'
-import {
-  insertRollRecord,
-  updateRollRecord,
-} from '@/modules/table/api/roll-api'
-import {
-  upsertTableMusicState,
-} from '@/modules/table/api/music-api'
 import {
   CharacterPreviewModal,
   DisciplinePowerPanel,
@@ -141,6 +117,8 @@ import {
 } from '@/modules/table/utils/roll-utils'
 import {
   useCharacterActions,
+  useCharacterPreviewActions,
+  useDiceOverlayActions,
   useDisciplineActions,
   useInventoryActions,
   useImageEditorActions,
@@ -149,8 +127,11 @@ import {
   useLayerClipboardActions,
   useLayerManagerDragActions,
   useMediaUploadActions,
+  useSceneActions,
   useSceneMusicActions,
+  useTableSocialActions,
   usePoolRollActions,
+  useRollPublishActions,
   useRoomSession,
   useTableCanvas,
   useTableVoice,
@@ -169,16 +150,13 @@ import type {
 import { createQuickRollFactory } from '@/modules/rolls/hooks'
 import {
   applyWillpowerRerollToDice,
-  buildAnsweredOpposedRoll,
   getActivePenaltyDelta,
-  getActiveRollModifierWarnings,
   getBloodSurgeBonus,
   getRouseWarning,
 } from '@/modules/rolls/utils'
 import {
   tableApplyDisciplineEffectsToRoll,
   tableDisciplines,
-  tableGetDerivedStats,
   tableHealth,
   tableHumanity,
 } from '@/modules/table/system-runtime'
@@ -197,7 +175,6 @@ import type {
   BlendMode,
   CharacterOption,
   CharacterRow,
-  Die,
   ImageEditorDraft,
   ImageEditorState,
   InventoryItem,
@@ -212,8 +189,6 @@ import type {
   NormalizedHealth,
   MediaTab,
   OpposedRollProposal,
-  OpposedRollResult,
-  OpposedRollSide,
   RollMeta,
   RollPoolBuilder,
   RollMode,
@@ -895,6 +870,43 @@ export default function VampireTable() {
   })
 
   const {
+    queueDiceOverlayRoll,
+    triggerDiceOverlay,
+  } = useDiceOverlayActions({
+    t,
+    tf,
+    shownDiceOverlayIdsRef,
+    setDiceOverlayQueue,
+  })
+  triggerDiceOverlayRef.current = triggerDiceOverlay
+
+  const {
+    publishRoll,
+    publishOpposedRoll,
+    publishRollReplacement,
+    updateOpposedResponseSide,
+    answerOpposedProposal,
+    dismissOpposedProposal,
+  } = useRollPublishActions({
+    room,
+    t,
+    tf,
+    d10,
+    chatUser,
+    disciplineRules,
+    selectedActiveCharacter: chatCharacters.find(item => item.id === selectedChatCharacterId) || null,
+    opposedResponseSide,
+    incomingOpposedProposal,
+    setRolls,
+    setConnectionText,
+    setIncomingOpposedProposal,
+    setOpposedResponseSide,
+    broadcast,
+    triggerDiceOverlay,
+  })
+  publishRollRef.current = publishRoll
+
+  const {
     rollMasterPool,
     rollMasterQuick,
     rollPreviewPool,
@@ -913,170 +925,99 @@ export default function VampireTable() {
     getPoolRollSnapshot: () => poolRollSnapshotRef.current,
   })
 
-  const createScene = async () => {
-    if (!isMaster) return
-    const name = window.prompt(t('Название сцены'), t('Новая сцена'))?.trim()
-    if (!name) return
-    const now = new Date().toISOString()
-    const scene: TableScene = {
-      id: createTableId(),
-      room,
-      name,
-      thumbnailUrl: '',
-      isActive: scenes.length === 0,
-      createdBy: currentOwnerId,
-      createdAt: now,
-      updatedAt: now,
-    }
-    const { error } = await insertScene(scene)
-    if (error) {
-      console.error('Не удалось создать сцену:', error)
-      setSceneStatus('Сцена не создана')
-      return
-    }
-    setScenes(prev => upsertScene(prev, scene))
-    setSelectedSceneId(scene.id)
-    broadcast('scene', scene)
+  const resolveSelectedScene = () => {
+    const id = selectedSceneId || activeSceneId || scenesRef.current[0]?.id || null
+    const active = scenesRef.current.find(scene => scene.id === activeSceneId) || null
+    return scenesRef.current.find(scene => scene.id === id) || active
   }
 
-  const renameScene = async () => {
-    if (!isMaster || !selectedScene) return
-    const name = window.prompt(t('Новое название сцены'), selectedScene.name)?.trim()
-    if (!name || name === selectedScene.name) return
-    const updatedAt = new Date().toISOString()
-    const next = { ...selectedScene, name, updatedAt }
-    setScenes(prev => upsertScene(prev, next))
-    const { error } = await updateSceneRecord(selectedScene.id, { name, updated_at: updatedAt })
-    if (error) {
-      console.error('Не удалось переименовать сцену:', error)
-      setSceneStatus('Название сцены не сохранилось')
-      return
-    }
-    broadcast('scene', next)
-  }
+  const {
+    createScene,
+    renameScene,
+    activateScene,
+    deleteScene,
+    setSceneThumbnailFromSelection,
+    saveSelectionAsGroup,
+    publishSceneTrack,
+  } = useSceneActions({
+    room,
+    roomRef,
+    t,
+    tf,
+    isMaster,
+    selectedLayerIds,
+    layers,
+    layersRef,
+    scenesRef,
+    activeSceneIdRef,
+    sceneMusicRef,
+    channelRef,
+    setScenes,
+    setSelectedSceneId,
+    setActiveSceneId,
+    setSceneStatus,
+    setExpandedFolders,
+    getSelectedScene: resolveSelectedScene,
+    getActiveScene: () => scenesRef.current.find(scene => scene.id === activeSceneId) || null,
+    getCurrentOwnerId: () => (isMaster ? 'master' : chatUser?.id ?? null),
+    loadLayersForScene,
+    loadSceneMusic,
+    broadcast,
+    createFolder,
+    addMediaLayer,
+    patchLayer,
+  })
 
-  const publishSceneTrack = async (track: SceneMusicTrack, options: { play?: boolean } = { play: true }) => {
-    const now = new Date().toISOString()
-    const provider = getMusicProvider(track.url)
-    const youtube = provider === 'youtube' ? parseYouTubeUrl(track.url) : { videoId: '', playlistId: undefined }
-    const payload = {
-      room: roomRef.current,
-      url: track.url,
-      activeUri: provider === 'youtube' ? youtube.playlistId || youtube.videoId : track.url,
-      isPlaying: Boolean(options.play),
-      positionSeconds: 0,
-      updatedAt: now,
-      provider,
-      playlistId: youtube.playlistId,
-      playlistIndex: youtube.playlistId ? Math.max(0, track.orderIndex) : undefined,
-      trackId: youtube.videoId || undefined,
-      sourceType: provider,
-    }
-    await upsertTableMusicState(payload)
-    window.dispatchEvent(new CustomEvent('vtm-music-state', { detail: payload }))
-    broadcastMusicChannel(channelRef.current, 'music', payload)
-  }
+  const {
+    sendMasterWhisper,
+    raiseHand,
+  } = useTableSocialActions({
+    room,
+    t,
+    tf,
+    isMaster,
+    chatUser,
+    chatCharacters,
+    selectedChatCharacterId,
+    masterChatDraft,
+    selectedMasterChatUserId,
+    setMasterChatDraft,
+    setMasterWhispers,
+    setHandNotice,
+    broadcast,
+  })
 
-  const raiseHand = () => {
-    const character = chatCharacters.find(item => item.id === selectedChatCharacterId)
-    const name = character?.name || chatUser?.username || (isMaster ? t('Мастер') : t('Игрок'))
-    const payload = { room, name, at: new Date().toISOString() }
-    setHandNotice(tf('{name} поднял руку', { name }))
-    window.setTimeout(() => setHandNotice(''), 5200)
-    broadcast('hand-raise', payload)
-  }
-
-  const playSceneAutoplayMusic = async (sceneId: string) => {
-    const tracks = sceneId === activeSceneIdRef.current
-      ? sceneMusicRef.current
-      : (await fetchSceneMusic(roomRef.current, sceneId)).tracks
-    const track = sortSceneMusic(tracks).find(item => item.autoplay && item.isDefault) || sortSceneMusic(tracks).find(item => item.autoplay)
-    if (!track?.url) return
-    await publishSceneTrack(track, { play: true })
-  }
-
-  const activateScene = async (sceneId: string) => {
-    if (!isMaster) return
-    const scene = scenesRef.current.find(item => item.id === sceneId)
-    if (!scene) return
-    await deactivateOtherScenes(room, sceneId)
-    const { error } = await activateSceneRecord(sceneId)
-    if (error) {
-      console.error('Не удалось переключить сцену:', error)
-      setSceneStatus('Сцена не переключилась')
-      return
-    }
-    setActiveSceneId(sceneId)
-    activeSceneIdRef.current = sceneId
-    setSelectedSceneId(sceneId)
-    setScenes(prev => prev.map(item => ({ ...item, isActive: item.id === sceneId })))
-    await loadLayersForScene(room, sceneId)
-    await loadSceneMusic(room, sceneId)
-    broadcast('scene-active', { room, sceneId })
-    void playSceneAutoplayMusic(sceneId)
-  }
-
-  const deleteScene = async () => {
-    if (!isMaster || !selectedScene) return
-    if (scenes.length <= 1) {
-      window.alert(t('Нельзя удалить единственную сцену.'))
-      return
-    }
-    const ok = window.confirm(tf('Удалить сцену "{name}" вместе с её слоями, медиа и музыкой?', { name: selectedScene.name }))
-    if (!ok) return
-    const nextActive = selectedScene.isActive ? scenes.find(scene => scene.id !== selectedScene.id) : activeScene
-    const { error } = await deleteSceneWithAssets(selectedScene.id)
-    if (error) {
-      console.error('Не удалось удалить сцену:', error)
-      setSceneStatus('Сцена не удалена')
-      return
-    }
-    setScenes(prev => prev.filter(scene => scene.id !== selectedScene.id))
-    broadcast('scene-delete', { room, id: selectedScene.id, nextActiveSceneId: nextActive?.id })
-    if (nextActive?.id && selectedScene.isActive) await activateScene(nextActive.id)
-    else setSelectedSceneId(nextActive?.id || null)
-  }
-
-  const setSceneThumbnailFromSelection = async () => {
-    if (!isMaster || !selectedScene) return
-    const layer = layers.find(item => selectedLayerIds.has(item.id) && item.layerType === 'image')
-    if (!layer) {
-      window.alert(t('Выдели картинку на активной сцене, чтобы сделать её preview.'))
-      return
-    }
-    const updatedAt = new Date().toISOString()
-    const next = { ...selectedScene, thumbnailUrl: layer.imageData, updatedAt }
-    setScenes(prev => upsertScene(prev, next))
-    await updateSceneRecord(selectedScene.id, { thumbnail_url: layer.imageData, updated_at: updatedAt })
-    broadcast('scene', next)
-  }
-
-  const saveSelectionAsGroup = async () => {
-    if (!isMaster || selectedLayerIds.size === 0) return
-    const name = window.prompt(t('Название группы'), t('Группа сцены'))?.trim()
-    if (!name) return
-    const folderId = await createFolder(null, name, true, false)
-    if (!folderId) return
-    const selected = [...selectedLayerIds]
-      .map(id => layersRef.current.find(layer => layer.id === id))
-      .filter((layer): layer is TableLayer => Boolean(layer))
-      .filter(layer => layer.layerType !== 'folder')
-    for (const [index, layer] of selected.entries()) {
-      const createdId = await addMediaLayer(
-        layer.imageData,
-        layer.name,
-        { width: layer.width, height: layer.height },
-        layer.layerType === 'folder' ? 'file' : layer.layerType,
-        index,
-        { x: layer.x, y: layer.y },
-        false
-      )
-      if (createdId) await patchLayer(createdId, { parentId: folderId })
-    }
-    setExpandedFolders(prev => new Set(prev).add(folderId))
-  }
+  const characterSheetHref = (characterId?: string | null) => getCharacterSheetHref(room, tableRole, characterId)
 
   const selectedActiveCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId) || null
+
+  const {
+    chooseMasterRollCharacter,
+    openCharacterPreview,
+    openParticipantPreview,
+    addExperienceToActiveCharacter,
+  } = useCharacterPreviewActions({
+    room,
+    t,
+    chatUser,
+    chatCharacters,
+    previewCharacter,
+    selectedActiveCharacter,
+    setPreviewCharacter,
+    setSelectedMasterRollCharacterId,
+    setChatCharacters,
+  })
+
+  const contestedOpponentContext = {
+    isMaster,
+    chatUserId: chatUser?.id,
+    roomParticipants,
+    chatCharacters,
+    t,
+    tf,
+  }
+  const opposedPoolContext = { t, d10, disciplineRules }
+
   const selectedMasterRollCharacter = chatCharacters.find(item => item.id === selectedMasterRollCharacterId) || selectedActiveCharacter
   const journalStorageKey = chatUser ? `vtm-journal:${chatUser.id}:${room}` : ''
   const selectedJournalEntry = journalEntries.find(entry => entry.id === selectedJournalEntryId) || journalEntries[0] || null
@@ -1129,44 +1070,6 @@ export default function VampireTable() {
     return `${entry.title} ${entry.text}`.toLowerCase().includes(query)
   })
   const masterChatPlayers = roomParticipants.filter(participant => participant.userId !== chatUser?.id)
-  const getContestedOpponentOptions = (initiator: CharacterOption | null) => {
-    const options: ContestedOpponentOption[] = []
-    const seen = new Set<string>()
-    const addOption = (option: ContestedOpponentOption) => {
-      if (seen.has(option.id)) return
-      seen.add(option.id)
-      options.push(option)
-    }
-
-    roomParticipants
-      .filter(participant => participant.userId !== chatUser?.id && participant.characterId !== initiator?.id)
-      .forEach(participant => {
-        const characterName = participant.characterId && participant.characterName !== 'без персонажа'
-          ? `${participant.characterName} · `
-          : ''
-        addOption({
-          id: `player:${participant.userId}`,
-          label: `${characterName}${participant.username}`,
-          actorKind: 'player',
-          characterId: participant.characterId,
-          userId: participant.userId,
-        })
-      })
-
-    if (isMaster) {
-      chatCharacters.forEach(character => {
-        if (character.id === initiator?.id) return
-        addOption({
-          id: `npc:${character.id}`,
-          label: tf('{name} · НПС', { name: character.name }),
-          actorKind: 'npc',
-          characterId: character.id,
-        })
-      })
-    }
-
-    return options
-  }
   const visibleMasterWhispers = masterWhispers.filter(message => {
     if (!chatUser) return false
     if (isMaster) return !selectedMasterChatUserId
@@ -1224,7 +1127,7 @@ export default function VampireTable() {
   ].filter(Boolean)
   const masterRollPoolName = masterRollPoolParts.join(' + ') || d10(masterRollDiceCount || 1)
   const masterRollHidden = masterRollVisibility === 'hidden'
-  const masterContestedOpponentOptions = getContestedOpponentOptions(selectedMasterRollCharacter)
+  const masterContestedOpponentOptions = getContestedOpponentOptions(contestedOpponentContext, selectedMasterRollCharacter)
   const selectedMasterContestedOpponent = masterContestedOpponentOptions.find(option => option.id === masterContestedOpponentId) || null
 
   useEffect(() => {
@@ -1275,7 +1178,7 @@ export default function VampireTable() {
     status: 'normal' as const,
   }
   const canRollPreview = Boolean(previewCharacter?.id && (isMaster || previewCharacter.id === selectedActiveCharacter?.id))
-  const previewContestedOpponentOptions = getContestedOpponentOptions(previewCharacter)
+  const previewContestedOpponentOptions = getContestedOpponentOptions(contestedOpponentContext, previewCharacter)
   const selectedPreviewContestedOpponent = previewContestedOpponentOptions.find(option => option.id === previewContestedOpponentId) || null
   const canEditPreviewInventory = Boolean(chatUser && previewCharacter?.id && previewCharacter.id === selectedActiveCharacter?.id)
   const canEditPreviewActiveEffects = canEditPreviewInventory
@@ -1460,258 +1363,6 @@ export default function VampireTable() {
     setMasterContestedOpponentId('')
   }, [selectedMasterRollCharacterId])
 
-  const chooseMasterRollCharacter = (characterId: string) => {
-    setSelectedMasterRollCharacterId(characterId)
-    if (!chatUser) return
-    window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}:${room}`, characterId)
-    window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}`, characterId)
-  }
-
-  const openCharacterPreview = async (character: CharacterOption, username?: string) => {
-    setPreviewCharacter({ ...character, username: username || character.username })
-    if (!character.id) return
-    const { row, error } = await fetchCharacterById(character.id)
-    if (error || !row) return
-    const fresh = { ...mapCharacterRow(row), username: username || character.username }
-    setPreviewCharacter(fresh)
-    setChatCharacters(current => current.map(item => item.id === fresh.id ? { ...fresh, username: item.username || fresh.username } : item))
-  }
-
-  const openParticipantPreview = async (participant: ActiveParticipant) => {
-    const local = chatCharacters.find(character => character.id === participant.characterId)
-    if (local) {
-      await openCharacterPreview(local, participant.username)
-      return
-    }
-    if (!participant.characterId) {
-      setPreviewCharacter({
-        id: '',
-        name: t('Без персонажа'),
-        clan: null,
-        image: '',
-        username: participant.username,
-        characterType: 'vampire',
-        inventory: [],
-        attributes: {},
-        skills: {},
-        disciplines: {},
-        selectedPowers: {},
-        selectedPathPowers: {},
-        derivedStats: tableGetDerivedStats({}, {}),
-        activeEffects: [],
-      })
-      return
-    }
-    const { row, error } = await fetchCharacterById(participant.characterId)
-    if (error || !row) {
-      setPreviewCharacter({
-        id: participant.characterId,
-        name: participant.characterName === 'без персонажа' ? t('без персонажа') : participant.characterName,
-        clan: participant.characterClan,
-        image: participant.characterImage,
-        username: participant.username,
-        characterType: 'vampire',
-        inventory: [],
-        attributes: {},
-        skills: {},
-        disciplines: {},
-        selectedPowers: {},
-        selectedPathPowers: {},
-        derivedStats: tableGetDerivedStats({}, {}),
-        activeEffects: [],
-      })
-      return
-    }
-    setPreviewCharacter({ ...mapCharacterRow(row), username: participant.username })
-  }
-
-  const updateOpposedResponseSide = (patch: Partial<RollPoolBuilder>) => {
-    setOpposedResponseSide(current => ({ ...current, ...patch }))
-  }
-
-  const getOpposedCharacterPool = (character: CharacterOption | null, sideState: RollPoolBuilder) => {
-    const attributeDots = character ? getAttributeDots(character.attributes, sideState.attribute) : 0
-    const attributeTwoDots = character ? getAttributeDots(character.attributes, sideState.attributeTwo) : 0
-    const skillDots = character ? getSkillDots(resolveSkillValue(character.skills, sideState.skill)) : 0
-    const disciplineDots = character ? getDisciplineDots(character.disciplines[sideState.discipline] || {}) : 0
-    const willpowerPenalty = getWillpowerImpairmentPenalty([sideState.attribute, sideState.attributeTwo], character)
-    const healthPenalty = tableHealth().getHealthImpairmentPenalty([sideState.attribute, sideState.attributeTwo], getCharacterHealth(character))
-    const baseDiceCount = attributeDots + attributeTwoDots + skillDots + disciplineDots + sideState.modifier
-    const rollEffectResult = character
-      ? tableApplyDisciplineEffectsToRoll({
-          characterData: character,
-          rulesJson: disciplineRules,
-          baseDiceCount,
-          poolType: 'opposed-response',
-          kind: 'roll',
-          action: 'contested',
-          source: 'manual',
-          traits: getRollTraits(sideState.attribute, sideState.attributeTwo, sideState.skill, sideState.discipline),
-          penalties: getRollPenalties(t,willpowerPenalty, healthPenalty),
-        }, character.derivedStats)
-      : null
-    const diceCount = rollEffectResult?.finalDiceCount || 0
-    const poolParts = [
-      sideState.attribute ? `${t(sideState.attribute)} ${attributeDots}` : '',
-      sideState.attributeTwo ? `${t(sideState.attributeTwo)} ${attributeTwoDots}` : '',
-      sideState.skill ? `${t(sideState.skill)} ${skillDots}` : '',
-      sideState.discipline ? `${sideState.discipline} ${disciplineDots}` : '',
-      sideState.modifier ? `${t('модификатор')} ${sideState.modifier > 0 ? '+' : ''}${sideState.modifier}` : '',
-      willpowerPenalty ? t('Истощение Воли -2') : '',
-      healthPenalty ? t('Изнурение по здоровью -2') : '',
-    ].filter(Boolean)
-
-    return {
-      diceCount,
-      poolName: poolParts.join(' + ') || d10(diceCount || 0),
-      poolParts,
-      rollEffectResult,
-      extraAttributes: character ? getExtraTraitNames(character.attributes, ATTRIBUTE_GROUPS) : [],
-      extraSkills: character ? getExtraTraitNames(character.skills, SKILL_GROUPS) : [],
-      disciplineNames: character
-        ? Array.from(new Set([
-            ...Object.keys(character.disciplines),
-            ...Object.keys(character.selectedPowers),
-            ...Object.keys(character.selectedPathPowers),
-          ])).sort((a, b) => a.localeCompare(b, 'ru'))
-        : [],
-    }
-  }
-
-  const queueDiceOverlayRoll = (overlayRoll: DiceOverlayRoll) => {
-    setDiceOverlayQueue(prev => [...prev, overlayRoll])
-  }
-
-  const buildDiceOverlaySummary = (successes: number, meta?: RollMeta) => {
-    if (meta?.bestialFailure) return { text: t('Звериный провал'), tone: 'bad' as const }
-    if (meta?.messyCritical) return { text: tf('Грязный критический успех · {n}', { n: successes }), tone: 'good' as const }
-    if (successes > 0) return { text: tf('Успехов: {n}', { n: successes }), tone: 'good' as const }
-    return { text: t('Провал'), tone: 'bad' as const }
-  }
-
-  // Fires the 3D overlay for any freshly-arrived roll, own or remote. Dedupes by roll id so the
-  // broadcast listener and the postgres_changes listener never show the same roll twice, and so a
-  // contested-roll request (dice already rolled, but deliberately hidden until answered) only
-  // animates once it resolves into `roll.opposed` — never at the moment the request is sent.
-  const triggerDiceOverlay = (roll: RollMessage) => {
-    if (shownDiceOverlayIdsRef.current.has(roll.id)) return
-    if (roll.meta?.rollMode === 'contested' && roll.meta.contested?.status !== 'resolved' && !roll.opposed) return
-
-    if (roll.opposed) {
-      const totalDice = roll.opposed.sides.reduce((sum, side) => sum + side.dice.length, 0)
-      if (totalDice === 0) return
-      shownDiceOverlayIdsRef.current.add(roll.id)
-      const groups: DiceOverlayGroup[] = roll.opposed.sides.map(side => ({
-        key: side.id,
-        label: `${side.actorName} · ${t(side.poolName)}`,
-        dice: side.dice.map(die => ({ value: die.value, kind: die.kind })),
-      }))
-      queueDiceOverlayRoll({
-        id: roll.id,
-        title: t(roll.poolName),
-        groups,
-        summary: roll.opposed.summary,
-        summaryTone: roll.opposed.winnerSideId ? 'good' : 'neutral',
-      })
-      return
-    }
-
-    if (!roll.dice.length) return
-    shownDiceOverlayIdsRef.current.add(roll.id)
-    const summary = buildDiceOverlaySummary(roll.successes, roll.meta)
-    queueDiceOverlayRoll({
-      id: roll.id,
-      title: `${roll.characterName} · ${t(roll.poolName)}`,
-      groups: [{ key: 'main', label: '', dice: roll.dice.map(die => ({ value: die.value, kind: die.kind })) }],
-      summary: summary.text,
-      summaryTone: summary.tone,
-    })
-  }
-  triggerDiceOverlayRef.current = triggerDiceOverlay
-
-  const publishRoll = async (roll: RollMessage) => {
-    setRolls(prev => mergeRoll(prev, roll))
-    triggerDiceOverlay(roll)
-    if (roll.hidden) {
-      setConnectionText('Скрытый бросок')
-      return
-    }
-
-    broadcast('roll', roll)
-    const { error } = await insertRollRecord(roll)
-
-    if (error) setConnectionText('Бросок отправлен онлайн, но не сохранился')
-    else setConnectionText('Онлайн')
-  }
-  publishRollRef.current = publishRoll
-
-  const publishOpposedRoll = async (roll: RollMessage, opposed: OpposedRollResult) => {
-    setRolls(prev => mergeRoll(prev, roll))
-    triggerDiceOverlay(roll)
-    broadcast('roll', roll)
-    const { error } = await insertRollRecord(roll, opposed)
-    if (error) setConnectionText('Встречная проверка отправлена онлайн, но не сохранилась')
-    else setConnectionText('Онлайн')
-  }
-
-  const answerOpposedProposal = async () => {
-    const proposal = incomingOpposedProposal
-    if (!proposal || !chatUser || proposal.toUserId !== chatUser.id) return
-    if (!selectedActiveCharacter) {
-      window.alert(t('Сначала выбери активного персонажа.'))
-      return
-    }
-
-    const responsePool = getOpposedCharacterPool(selectedActiveCharacter, opposedResponseSide)
-    if (responsePool.diceCount < 1) {
-      window.alert(t('Твой ответный пул должен быть хотя бы 1к10.'))
-      return
-    }
-
-    const rightDice = rollsDice().rollD10Pool(responsePool.diceCount, getCharacterHunger(selectedActiveCharacter)) as Die[]
-    const rightSide: OpposedRollSide = {
-      id: 'right',
-      actorName: selectedActiveCharacter.name || t('Ответчик'),
-      actorKind: 'player',
-      poolName: responsePool.poolName,
-      diceCount: rightDice.length,
-      dice: rightDice,
-      successes: rollsDice().countD10Successes(rightDice),
-    }
-    const leftSide = proposal.initiator
-    const responseRollModifiers = responsePool.rollEffectResult?.modifiers.filter(modifier => (
-      modifier.active
-      && (
-        modifier.diceDelta !== 0
-        || modifier.difficultyDelta !== 0
-        || modifier.operation === 'ignore_penalty'
-        || modifier.operation === 'auto_success'
-      )
-    ))
-    const { roll, opposed } = buildAnsweredOpposedRoll({
-      room,
-      proposalId: proposal.id,
-      leftSide,
-      rightSide,
-      opponentUserId: chatUser.id,
-      opponentCharacterId: selectedActiveCharacter.id,
-      responseRollModifiers,
-      rollDifficultyModifier: responsePool.rollEffectResult?.difficultyDelta || undefined,
-      warnings: getActiveRollModifierWarnings(responsePool.rollEffectResult),
-      t,
-      tf,
-    })
-
-    setIncomingOpposedProposal(null)
-    setOpposedResponseSide({ ...DEFAULT_OPPOSED_RESPONSE })
-    await publishOpposedRoll(roll, opposed)
-  }
-
-  const dismissOpposedProposal = () => {
-    setIncomingOpposedProposal(null)
-    setOpposedResponseSide({ ...DEFAULT_OPPOSED_RESPONSE })
-  }
-
   const createQuickRoll = createQuickRollFactory({
     room,
     isMaster,
@@ -1819,15 +1470,6 @@ export default function VampireTable() {
       if (selected.length >= 3) return { rollId: roll.id, selectedDieIds: selected }
       return { rollId: roll.id, selectedDieIds: [...selected, dieId] }
     })
-  }
-
-  const publishRollReplacement = async (roll: RollMessage) => {
-    setRolls(prev => mergeRoll(prev, roll))
-    broadcast('roll', roll)
-    const { error } = await updateRollRecord(roll.id, roll)
-
-    if (error) setConnectionText('Переброс отправлен онлайн, но не сохранился')
-    else setConnectionText('Онлайн')
   }
 
   const confirmWillpowerReroll = async (roll: RollMessage) => {
@@ -1986,37 +1628,6 @@ export default function VampireTable() {
     })
   }
 
-  const addExperienceToActiveCharacter = async () => {
-    if (!chatUser || !previewCharacter?.id || previewCharacter.id !== selectedActiveCharacter?.id) return
-    const amount = Number(window.prompt(t('Сколько опыта добавить?'), '1'))
-    if (!Number.isFinite(amount) || amount <= 0) return
-    const { row: data, error } = await fetchCharacterById(previewCharacter.id, {
-      userId: chatUser.id,
-      select: 'data',
-    })
-    if (error || !data?.data) {
-      window.alert(t('Не удалось загрузить персонажа для добавления опыта.'))
-      return
-    }
-    const characterData = data.data as Record<string, unknown>
-    const current = Number(characterData.freeExp ?? characterData.experience ?? 0) || 0
-    const nextData = {
-      ...characterData,
-      freeExp: current + amount,
-      timestamp: new Date().toISOString(),
-    }
-    const { error: updateError } = await updateCharacterData(previewCharacter.id, nextData, {
-      userId: chatUser.id,
-    })
-    if (updateError) {
-      window.alert(t('Опыт не сохранился.'))
-      return
-    }
-    const nextFreeExp = current + amount
-    setPreviewCharacter(prev => prev ? { ...prev, freeExp: nextFreeExp } : prev)
-    setChatCharacters(prev => prev.map(character => character.id === previewCharacter.id ? { ...character, freeExp: nextFreeExp } : character))
-  }
-
   useEffect(() => {
     if (!chatUser || !journalStorageKey) {
       setJournalEntries([])
@@ -2152,43 +1763,12 @@ export default function VampireTable() {
     getDroppedMediaUrls,
   })
 
-  const sendMasterWhisper = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const text = masterChatDraft.trim()
-    if (!chatUser || !text) return
-    const targetId = isMaster ? selectedMasterChatUserId : null
-    if (isMaster && !targetId) {
-      window.alert(t('Выбери игрока для ответа.'))
-      return
-    }
-    const message: MasterWhisper = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      room,
-      fromUserId: chatUser.id,
-      fromUsername: chatUser.username,
-      toUserId: targetId,
-      message: text,
-      fromMaster: isMaster,
-      createdAt: new Date().toISOString(),
-    }
-    setMasterChatDraft('')
-    setMasterWhispers(prev => [...prev, message].slice(-160))
-    broadcast('master-whisper', message)
-  }
-
   const handleLogoutChat = () => {
     stopVoice()
     logoutChat()
   }
 
-  const getCharacterSheetHref = (characterId?: string | null) => {
-    const params = new URLSearchParams({ room })
-    if (tableRole) params.set('role', tableRole)
-    if (characterId) params.set('characterId', characterId)
-    return `/character-sheet?${params.toString()}`
-  }
-
-  const opposedResponsePool = getOpposedCharacterPool(selectedActiveCharacter, opposedResponseSide)
+  const opposedResponsePool = getOpposedCharacterPool(opposedPoolContext, selectedActiveCharacter, opposedResponseSide)
   const canAnswerOpposedProposal = Boolean(incomingOpposedProposal && selectedActiveCharacter && opposedResponsePool.diceCount > 0)
 
   return (
@@ -2208,7 +1788,7 @@ export default function VampireTable() {
             onResetTableRole={resetTableRole}
             onSaveMasterPassword={saveMasterPassword}
           />
-          <a href={getCharacterSheetHref(selectedActiveCharacter?.id)} title={t('Открыть лист персонажа')}>{t('Лист')}</a>
+          <a href={characterSheetHref(selectedActiveCharacter?.id)} title={t('Открыть лист персонажа')}>{t('Лист')}</a>
           <input ref={fileInputRef} type="file" multiple onChange={handleImageUpload} />
           <input ref={folderInputRef} type="file" multiple onChange={handleFolderUpload} />
           <input ref={backgroundFileInputRef} type="file" accept="image/*" multiple onChange={handleBackgroundUpload} />
@@ -2233,7 +1813,7 @@ export default function VampireTable() {
           <button type="button" onClick={() => selectedActiveCharacter ? void openCharacterPreview(selectedActiveCharacter) : setRightRailTab('chat')} disabled={!selectedActiveCharacter}>
             {t('Быстрый просмотр')}
           </button>
-          <a href={getCharacterSheetHref(selectedActiveCharacter?.id)}>{t('Открыть полный лист')}</a>
+          <a href={characterSheetHref(selectedActiveCharacter?.id)}>{t('Открыть полный лист')}</a>
         </div>
         <div className="active-character-picker">
           <label>
@@ -2798,7 +2378,7 @@ export default function VampireTable() {
               ) : chatCharacters.length === 0 ? (
                 <div className="master-roll-empty">
                   <p>{t('Сохранённых персонажей пока нет.')}</p>
-                  <a href={getCharacterSheetHref()}>{t('Создать лист')}</a>
+                  <a href={characterSheetHref()}>{t('Создать лист')}</a>
                 </div>
               ) : (
                 <div className="master-roll-layout">
@@ -2852,7 +2432,7 @@ export default function VampireTable() {
                           >
                             {t('Просмотр')}
                           </button>
-                          <a href={getCharacterSheetHref(selectedMasterRollCharacter.id)}>{t('Лист')}</a>
+                          <a href={characterSheetHref(selectedMasterRollCharacter.id)}>{t('Лист')}</a>
                         </div>
 
                         <div className="master-roll-mode" aria-label={t('Видимость броска')}>
@@ -3183,7 +2763,7 @@ export default function VampireTable() {
           }}
           isMaster={isMaster}
           isActiveCharacter={previewCharacter.id === selectedActiveCharacter?.id}
-          characterSheetHref={getCharacterSheetHref(previewCharacter.id)}
+          characterSheetHref={characterSheetHref(previewCharacter.id)}
         />
       ) : null}
 
