@@ -35,9 +35,11 @@ Willpower damage is modeled via the same damage/target machinery (`target:
 `damage/index.ts` before adding a parallel implementation.
 
 ## Humanity / stains / remorse
-`humanity/index.ts` handles the humanity track, stains, and remorse rolls/flow.
-**Legacy duplicate:** `public/vtm-humanity.js`. The end-to-end
-stains→remorse→humanity UX is a roadmap item.
+`humanity/index.ts` handles the humanity track, stains, and remorse resolution
+(`applyRemorseCheckResult` — dice rolling stays in UI). Table quick-preview uses
+`modules/rolls/utils/remorse-roll.ts` on top of the same core function.
+**Legacy duplicate:** `public/vtm-humanity.js` (includes `applyRemorseCheckResult`).
+Guarded by `npm run test:vtm-parity`.
 
 ## Derived stats
 `derived-stats/index.ts` computes values derived from core traits (e.g.
@@ -62,6 +64,7 @@ divergence in `DECISIONS.md`.
 - `npm run audit:disciplines` — audits discipline rules data.
 - `npm run validate:disciplines` — validates discipline mechanics.
 - `npm run test:disciplines` — tests the discipline engine.
+- `npm run test:vtm-parity` — legacy `vtm-health.js` / `vtm-humanity.js` ↔ `core/` parity.
 - `npm run lint` — type check.
 
 ## Safe edit protocol

@@ -4,30 +4,32 @@
 > Delete stale lines. Long-term decisions go to `DECISIONS.md`, not here.
 
 ## Current development focus
-- `modules/table/` decomposition largely done — APIs, hooks, utils, and major
-  modals extracted from `GameTable.tsx` (~7.4k lines, was ~9k). Remaining:
-  voice WebRTC, roll-rail cards, layer-drag orchestration.
-- Establishing this AI context layer (`docs/ai/*`) so agents work safely.
-- Validating VTM mechanics (disciplines, health, humanity) rather than adding new
-  ones.
+- **Legacy character sheet phase** — iframe sheet (`public/main.js` +
+  `old-sheet.html`) stays load-bearing; bridge lives in `modules/character-sheet/`.
+  Work incrementally: parity tests, small extractions to `core/`, wizard/humanity UX.
+- Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines).
+- Run `npm run test:vtm-parity` after health/humanity edits in `core/` or `public/vtm-*.js`.
+  Remorse resolution (`applyRemorseCheckResult`) is shared: core ↔ legacy ↔ table.
 
 ## What is stable enough
-- Routes `/`, `/character-sheet`, `/table`, `/journal`, `/reference`.
+- Routes `/`, `/character-sheet`, `/table`, `/journal`, `/reference` — all thin
+  `app/*/page.tsx` wrappers over `modules/*/*Route`.
 - The iframe character sheet loads, saves and loads characters.
 - The game table renders and syncs a room via Supabase.
 - `core/systems/vtm5/rules/*` pure modules (health, humanity, damage, derived stats, disciplines).
 - `modules/chat/*` owns text chat auth, message history, realtime delivery and UI.
 - `modules/music/*` owns shared room music playback, adapters and the persistent
   root engine mount.
-- `modules/table/*` owns table data layer, APIs, hooks, utils, modals
-  (`lib/table/*` shims for backward compat).
+- `modules/table/*` owns table orchestrator, data layer, APIs, hooks, utils,
+  panels/modals (`RollHistoryPanel`, `LayerContextMenuPanel`, `MediaPreviewModal`,
+  etc.); `components/table/*` are compatibility shims only.
 
 ## What is fragile
 - `public/main.js` (~11k lines) — legacy sheet logic monolith.
 - `public/old-sheet.html` (~5k lines) — legacy sheet markup/styles.
-- `components/table/GameTable.tsx` (~9k lines) — table orchestrator.
-- **Duplicated VTM logic**: `core/systems/vtm5/rules/health/index.ts` vs `public/vtm-health.js`,
-  `core/systems/vtm5/rules/humanity/index.ts` vs `public/vtm-humanity.js` can drift.
+- `modules/table/GameTable.tsx` (~2.6k lines) — still wires many hooks inline.
+- **Duplicated VTM logic**: `vtm-health.js` / `vtm-humanity.js` must stay aligned with
+  `core/` — guarded by `npm run test:vtm-parity` (discipline parsing in `main.js` still manual).
 - The **iframe bridge** between `/character-sheet` and `/old-sheet.html`
   (query params, localStorage, `vtm-character-saved` postMessage).
 - RU/EN trait & discipline names across `rules.json` / `rules_eng.json` / i18n.
@@ -47,9 +49,10 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 
 ## Do not touch casually
 - `public/main.js`, `public/old-sheet.html` — read `workflows/legacy-edit-protocol.md`.
-- `components/table/GameTable.tsx` — read `workflows/react-table-edit-protocol.md`.
+- `modules/table/GameTable.tsx` — read `workflows/react-table-edit-protocol.md`.
 - Supabase table/bucket names & saved-data shape — read `workflows/supabase-edit-protocol.md`.
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-02 — `modules/table/` phase complete: APIs, hooks, utils, components wired.
+2026-07-02 — Legacy sheet phase started: `test:vtm-parity` guards health/humanity sync;
+  bridge docs point to `modules/character-sheet/`.

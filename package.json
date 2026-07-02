@@ -10,7 +10,8 @@
     "audit:structure": "node --import tsx scripts/audit-project-structure.ts",
     "audit:disciplines": "node --import tsx scripts/audit-discipline-rules.ts",
     "validate:disciplines": "node --import tsx scripts/validate-discipline-mechanics.ts",
-    "test:disciplines": "node --import tsx scripts/test-discipline-engine.ts"
+    "test:disciplines": "node --import tsx scripts/test-discipline-engine.ts",
+    "test:vtm-parity": "node --import tsx scripts/test-vtm-legacy-parity.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

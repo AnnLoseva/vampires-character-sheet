@@ -26,6 +26,7 @@ Read `../subsystems/vtm-mechanics.md` first.
 ## After the change — run the checks
 ```bash
 npm run lint                 # types
+npm run test:vtm-parity      # if health/index.ts or humanity/index.ts touched
 npm run audit:disciplines    # if disciplines/rules data touched
 npm run validate:disciplines # if mechanics touched
 npm run test:disciplines     # if the engine touched

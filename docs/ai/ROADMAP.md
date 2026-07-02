@@ -4,10 +4,11 @@ Working list of directions — not a fantasy plan. Keep it realistic and current
 
 ## Now
 - Keep the current site stable; no UI regressions.
-- Document the legacy ↔ React boundary (this AI context layer).
-- Validate VTM mechanics (disciplines, health, humanity) with the audit/validate
-  scripts.
-- Do **not** add chaos to `components/table/GameTable.tsx` or `public/main.js`.
+- Legacy character sheet phase: small incremental work in `public/main.js` only with
+  explicit tasks; bridge in `modules/character-sheet/`.
+- Run `npm run test:vtm-parity` after health/humanity edits; discipline scripts for
+  discipline work.
+- Do **not** add chaos to `modules/table/GameTable.tsx` or `public/main.js`.
 
 ## Next
 - Gradually extract logic from `public/main.js` into `core/systems/vtm5/rules/*` / `lib/table/*`

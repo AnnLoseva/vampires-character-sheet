@@ -13,16 +13,16 @@ persist to the same Supabase project.
 | Route | Component | Layer |
 |---|---|---|
 | `/` | `components/screens/MainScreen.tsx` | React |
-| `/character-sheet` | `components/screens/CharacterSheetScreen.tsx` | React shell → legacy iframe |
-| `/table` | `components/table/GameTable.tsx` | React |
-| `/journal` | `components/journal/*` | React |
-| `/reference` | `components/reference/*` | React |
+| `/character-sheet` | `modules/character-sheet/*` | React shell → legacy iframe |
+| `/table` | `modules/table/TableRoute` → `GameTable.tsx` | React |
+| `/journal` | `modules/journal/JournalRoute` | React |
+| `/reference` | `modules/reference/ReferenceRoute` | React |
 | `/old` | `app/old/page.tsx` | redirect → `/character-sheet` |
 
 ## Flow: character sheet
 ```text
 /character-sheet
- → CharacterSheetScreen              (React shell: reads room/role/characterId/new)
+ → CharacterSheetRoute → CharacterSheetScreen   (React shell + legacy/bridge.ts)
  → <iframe src="/old-sheet.html?room=&role=&characterId=&new=">
  → public/main.js                    (legacy sheet logic)
  → public/supabase.js                (legacy Supabase client + character CRUD)

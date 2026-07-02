@@ -39,10 +39,7 @@ import {
 import {
   extractImageUrlsFromHtml,
   extractVideoUrlsFromHtml,
-  getDocumentEmbedUrl,
   getDroppedMediaUrls,
-  getEmbeddableVideoUrl,
-  getFileLayerMeta,
   getMediaUrlsFromText,
 } from '@/modules/table/utils/media-utils'
 import {
@@ -58,7 +55,6 @@ import {
 import {
   getEditorImageStyle,
   buildLayerTree,
-  getLayerCrop,
   getLayerMediaStyle,
   getSmartFloatingPosition,
   isLayerEffectivelyVisible,
@@ -76,9 +72,9 @@ import {
   MasterRoleTopbar,
   OpposedRollModal,
   RollModifierControls,
-  SmartContextMenu,
-  WillpowerRerollControls,
-  RollMetaDetails,
+  RollHistoryPanel,
+  MediaPreviewModal,
+  LayerContextMenuPanel,
 } from '@/modules/table/components'
 import {
   type DisciplinePowerEntry,
@@ -108,7 +104,6 @@ import {
 import { formatRuleValue, formatTime, getDotDisplay } from '@/modules/table/utils/display'
 
 import { getRollPenalties, getRollTraits } from '@/modules/table/utils/roll-pool-helpers'
-import { getDieImage } from '@/modules/table/utils/dice-display'
 
 import {
   useCharacterActions,
@@ -168,7 +163,6 @@ import type {
 import type { ActiveEffect } from '@/core/systems/vtm5/rules/disciplines/schema'
 import type {
   ActiveParticipant,
-  BlendMode,
   CharacterOption,
   CharacterRow,
   ImageEditorDraft,
@@ -2068,99 +2062,16 @@ export default function VampireTable() {
           </section>
 
           <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label={t('История бросков')}>
-            <section className="roll-list">
-              {rolls.length === 0 ? (
-                <p className="panel-empty">{t('Бросков пока нет.')}</p>
-              ) : (
-                rolls.map(roll => {
-                  const rerollDraftForRoll = willpowerRerollDraft?.rollId === roll.id ? willpowerRerollDraft : null
-                  const canRerollWithWillpower = canUseWillpowerReroll(roll)
-                  const contestedRequest = roll.meta?.rollMode === 'contested' && roll.meta.contested?.status === 'requested'
-                  return (
-                  <article className={`roll-card ${roll.hidden ? 'hidden-roll' : ''}`} key={roll.id}>
-                    <div className="roll-meta">
-                      <strong>{roll.characterName}</strong>
-                      {roll.hidden ? <span className="roll-hidden-badge">{t('скрытый')}</span> : null}
-                      <time dateTime={roll.createdAt}>{formatTime(roll.createdAt)}</time>
-                    </div>
-                    <span className="roll-pool">{t(roll.poolName)}</span>
-
-                    {contestedRequest ? (
-                      <div className="contested-request-result">
-                        <strong>{t('Запрошен встречный бросок')}</strong>
-                        <span>{tf('Пул инициатора: {pool}, {count}.', { pool: roll.meta?.contested?.initiatorPoolName || d10(roll.diceCount), count: d10(roll.meta?.contested?.initiatorDiceCount || roll.diceCount) })}</span>
-                        <span>{tf('Оппонент: {name}.', { name: roll.meta?.contested?.opponentName || t('не выбран') })}</span>
-                        <small>{t('Ожидается ответный бросок.')}</small>
-                      </div>
-                    ) : roll.poolType === 'humanity-event' ? (
-                      <div className="humanity-history-event">{t('Событие Человечности')}</div>
-                    ) : roll.opposed ? (
-                      <div className="opposed-roll-result">
-                        <strong className={`opposed-result-badge outcome-${roll.opposed.outcome}`}>{roll.opposed.summary}</strong>
-                        {roll.opposed.sides.map(side => {
-                          const sideOutcome = roll.opposed?.winnerSideId === side.id ? 'winner' : roll.opposed?.winnerSideId ? 'loser' : 'tie'
-                          return (
-                            <section className={`opposed-result-side ${sideOutcome}`} key={`${roll.id}-${side.id}`}>
-                              <div>
-                                <strong>{side.actorName}</strong>
-                                <span>{t(side.poolName)}</span>
-                              </div>
-                              <div className="dice-row" aria-label={tf('Результаты кубиков {actor}: {values}', { actor: side.actorName, values: side.dice.map(die => die.value).join(', ') })}>
-                                {side.dice.map((die, index) => {
-                                  const dieImage = getDieImage(die)
-                                  const dieLabel = t(dieImage.label)
-                                  return (
-                                    <span
-                                      className={`die die-${die.kind}`}
-                                      key={`${roll.id}-${side.id}-${index}`}
-                                      aria-label={`${dieLabel}: ${die.value}`}
-                                      title={`${die.value} - ${dieLabel}`}
-                                    >
-                                      <img src={dieImage.src} alt="" draggable={false} />
-                                    </span>
-                                  )
-                                })}
-                              </div>
-                              <footer>
-                                <span>{d10(side.diceCount)}</span>
-                                <strong>{side.successes}</strong>
-                              </footer>
-                            </section>
-                          )
-                        })}
-                      </div>
-                    ) : (
-                      <>
-                        <WillpowerRerollControls
-                          roll={roll}
-                          canReroll={canRerollWithWillpower}
-                          draft={rerollDraftForRoll}
-                          onToggleDie={dieId => toggleWillpowerRerollDie(roll, dieId)}
-                          onStartReroll={() => setWillpowerRerollDraft({ rollId: roll.id, selectedDieIds: [] })}
-                          onCancelReroll={() => setWillpowerRerollDraft(null)}
-                          onConfirmReroll={() => confirmWillpowerReroll(roll)}
-                        />
-                        {!['health', 'rouse-check', 'remorse-check', 'humanity-event'].includes(roll.poolType) && !contestedRequest && chatCharacters.length ? (
-                          <div className="roll-health-actions">
-                            <button type="button" onClick={() => applyRollDamage(roll)}>
-                              {t('Применить урон к цели')}
-                            </button>
-                          </div>
-                        ) : null}
-                      </>
-                    )}
-                    {roll.opposed && chatCharacters.length ? (
-                      <div className="roll-health-actions">
-                        <button type="button" onClick={() => applyRollDamage(roll)}>
-                          {t('Применить урон к цели')}
-                        </button>
-                      </div>
-                    ) : null}
-                    <RollMetaDetails roll={roll} />
-                  </article>
-                )})
-              )}
-            </section>
+            <RollHistoryPanel
+              rolls={rolls}
+              willpowerRerollDraft={willpowerRerollDraft}
+              chatCharacters={chatCharacters}
+              canUseWillpowerReroll={canUseWillpowerReroll}
+              onToggleWillpowerRerollDie={toggleWillpowerRerollDie}
+              onSetWillpowerRerollDraft={setWillpowerRerollDraft}
+              onConfirmWillpowerReroll={confirmWillpowerReroll}
+              onApplyRollDamage={applyRollDamage}
+            />
           </section>
 
           <ChatPanel
@@ -2666,221 +2577,40 @@ export default function VampireTable() {
       />
 
       {previewLayer ? (
-        <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label={t('Предпросмотр медиа')} onMouseDown={() => setPreviewLayerId(null)}>
-          <section className="media-preview-modal" onMouseDown={event => event.stopPropagation()}>
-            <header>
-              <div>
-                <span>{previewLayer.ownerRole === 'master' ? t('Мастер') : t('Игрок')}</span>
-                <strong>{previewLayer.name}</strong>
-              </div>
-              <button type="button" onClick={() => setPreviewLayerId(null)} aria-label={t('Закрыть предпросмотр')}>×</button>
-            </header>
-            <div className="media-preview-body">
-              {previewLayer.layerType === 'image' ? (
-                <img src={previewLayer.imageData} alt={previewLayer.name} />
-              ) : previewLayer.layerType === 'video' ? (
-                getEmbeddableVideoUrl(previewLayer.imageData) ? (
-                  <iframe
-                    src={getEmbeddableVideoUrl(previewLayer.imageData)}
-                    title={previewLayer.name}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                    allowFullScreen
-                  />
-                ) : (
-                  <video src={previewLayer.imageData} controls playsInline />
-                )
-              ) : previewLayer.layerType === 'text' ? (
-                <article className="preview-text-material" dangerouslySetInnerHTML={{ __html: previewLayer.imageData }} />
-              ) : previewLayer.layerType === 'file' ? (() => {
-                const meta = getFileLayerMeta(previewLayer.imageData, previewLayer.name)
-                const embedUrl = getDocumentEmbedUrl(meta)
-                return embedUrl ? (
-                  <iframe src={embedUrl} title={previewLayer.name} />
-                ) : (
-                  <article className="preview-file-card">
-                    <strong>{previewLayer.name}</strong>
-                    <span>{meta.type}</span>
-                    <a href={meta.url} target="_blank" rel="noreferrer">{t('Открыть файл')}</a>
-                  </article>
-                )
-              })() : null}
-            </div>
-          </section>
-        </div>
+        <MediaPreviewModal layer={previewLayer} onClose={() => setPreviewLayerId(null)} />
       ) : null}
 
-      {layerContextMenu ? (() => {
-        const layer = layers.find(item => item.id === layerContextMenu.layerId)
-        const ids = getContextLayerIds(layerContextMenu.layerId)
-        const contextLayers = ids
-          .map(id => layers.find(item => item.id === id))
-          .filter((item): item is TableLayer => Boolean(item))
-        if (contextLayers.length === 0) return null
-        const firstLayer = layer || contextLayers[0]
-        const allVisible = contextLayers.every(item => item.visible)
-        const allLocked = contextLayers.every(item => item.locked)
-        const singleLayer = contextLayers.length === 1 ? contextLayers[0] : null
-        const canManageContext = contextLayers.every(item => canEditLayer(item))
-        const movableIds = canManageContext ? ids.filter(id => layers.find(item => item.id === id)?.layerType !== 'folder') : []
-        const folderScope = firstLayer.onTable ? tableManagerLayers : libraryLayers
-        const availableFolders = canManageContext ? folderScope.filter(item => item.layerType === 'folder' && !ids.includes(item.id)) : []
-        if (!canManageContext && (!singleLayer || singleLayer.layerType === 'folder')) return null
-        return (
-          <SmartContextMenu
-            x={layerContextMenu.x}
-            y={layerContextMenu.y}
-            onClick={event => event.stopPropagation()}
-          >
-            {singleLayer && singleLayer.layerType !== 'folder' ? (
-              <>
-                {/* Add to journal — available to all players for any visible layer */}
-                {chatUser && !isMaster && singleLayer.layerType === 'image' ? (
-                  <button
-                    type="button"
-                    style={{ fontWeight: 600, color: '#ffd89a', borderColor: 'rgba(214,170,101,0.5)' }}
-                    onClick={() => addLayerToJournal(singleLayer.imageData, singleLayer.name)}
-                  >
-                    📖 {t('Добавить в дневник')}
-                  </button>
-                ) : null}
-                <div className="context-menu-group">
-                  <span>{t('Копировать')}</span>
-                  <button type="button" onClick={() => copyLayerForDiary(singleLayer)}>{t('Для дневника')}</button>
-                  <button type="button" onClick={() => copyLayerUrl(singleLayer)}>{t('Ссылку')}</button>
-                  <button type="button" onClick={() => copyLayerToPersonalMedia(singleLayer)}>{t('В мои медиа')}</button>
-                </div>
-              </>
-            ) : null}
-            {canManageContext ? (
-              <>
-                {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>{t('Переименовать')}</button> : null}
-                {singleLayer && ['image', 'video'].includes(singleLayer.layerType) ? (
-                  <div className="context-menu-group">
-                    <span>{t('Изображение')}</span>
-                    <button type="button" onClick={() => openImageEditor(singleLayer)}>{t('Обрезать')}</button>
-                    <button type="button" onClick={() => patchLayer(singleLayer.id, { rotation: (singleLayer.rotation + 90) % 360 })}>{t('Повернуть')}</button>
-                    <button type="button" onClick={() => duplicateLayer(singleLayer)}>{t('Дублировать')}</button>
-                  </div>
-                ) : null}
-                {singleLayer && getLayerCrop(singleLayer).cropped ? (
-                  <button type="button" onClick={() => resetLayerCrop(singleLayer)}>{t('Восстановить обрезанное')}</button>
-                ) : null}
-                <button type="button" onClick={() => {
-                  patchSelectedLayers(ids, () => ({ visible: !allVisible }))
-                  setLayerContextMenu(null)
-                }}>
-                  {allVisible ? t('Скрыть') : t('Показать')}
-                </button>
-                <button type="button" onClick={() => {
-                  patchSelectedLayers(ids, () => ({ locked: !allLocked }))
-                  setLayerContextMenu(null)
-                }}>
-                  {allLocked ? t('Разблокировать') : t('Заблокировать')}
-                </button>
-                {singleLayer && singleLayer.layerType !== 'folder' ? (
-                  <div className="context-menu-group context-menu-controls">
-                    <span>{t('Слой')}</span>
-                    <label>
-                      <small>Opacity</small>
-                      <input
-                        key={`${singleLayer.id}:${singleLayer.opacity}`}
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        defaultValue={singleLayer.opacity}
-                        data-committed-value={singleLayer.opacity}
-                        onInput={event => previewLayerOpacity(singleLayer.id, Number(event.currentTarget.value))}
-                        onPointerUp={event => commitLayerOpacity(singleLayer.id, event.currentTarget)}
-                        onPointerCancel={event => commitLayerOpacity(singleLayer.id, event.currentTarget)}
-                        onKeyUp={event => commitLayerOpacity(singleLayer.id, event.currentTarget)}
-                        onBlur={event => commitLayerOpacity(singleLayer.id, event.currentTarget)}
-                      />
-                    </label>
-                    <label>
-                      <small>Blend</small>
-                      <select
-                        value={singleLayer.blendMode}
-                        onChange={event => patchLayer(singleLayer.id, { blendMode: event.target.value as BlendMode })}
-                      >
-                        {(['normal', 'multiply', 'screen', 'overlay', 'darken', 'lighten', 'color-dodge', 'color-burn', 'hard-light', 'soft-light', 'difference', 'luminosity'] as BlendMode[]).map(mode => (
-                          <option value={mode} key={mode}>{mode}</option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                ) : null}
-                <div className="context-menu-group">
-                  <span>{t('Порядок слоя')}</span>
-                  <button type="button" onClick={() => {
-                    reorderLayers(ids, 'top')
-                    setLayerContextMenu(null)
-                  }}>{t('На самый верх')}</button>
-                  <button type="button" onClick={() => {
-                    reorderLayers(ids, 'up')
-                    setLayerContextMenu(null)
-                  }}>{t('Выше')}</button>
-                  <button type="button" onClick={() => {
-                    reorderLayers(ids, 'down')
-                    setLayerContextMenu(null)
-                  }}>{t('Ниже')}</button>
-                  <button type="button" onClick={() => {
-                    reorderLayers(ids, 'bottom')
-                    setLayerContextMenu(null)
-                  }}>{t('На самый низ')}</button>
-                </div>
-                {singleLayer?.layerType === 'folder' ? (
-                  <button type="button" onClick={() => {
-                    createNamedFolder(singleLayer.id, singleLayer.onTable)
-                    setLayerContextMenu(null)
-                  }}>{t('Новая папка внутри')}</button>
-                ) : null}
-                {contextLayers.some(item => item.parentId) ? (
-                  <button type="button" onClick={() => {
-                    patchSelectedLayers(ids, () => ({ parentId: null }))
-                    setLayerContextMenu(null)
-                  }}>{t('Вынести из папки')}</button>
-                ) : null}
-                {contextLayers.some(item => item.onTable) ? (
-                  <button type="button" onClick={() => {
-                    patchSelectedLayers(ids, () => ({ onTable: false, parentId: null }))
-                    setLayerContextMenu(null)
-                  }}>{t('Убрать в медиа сцены')}</button>
-                ) : null}
-                {contextLayers.some(item => !item.onTable) ? (
-                  <button type="button" onClick={() => {
-                    patchSelectedLayers(ids, () => ({ onTable: true, visible: true, parentId: null }))
-                    setLayerContextMenu(null)
-                  }}>{t('Вынести на стол')}</button>
-                ) : null}
-                {movableIds.length > 0 ? (
-                  <div className="context-menu-group">
-                    <span>{t('Поместить в папку')}</span>
-                    {availableFolders.map(folder => (
-                      <button type="button" key={folder.id} onClick={() => {
-                        moveLayersToFolder(movableIds, folder.id)
-                        setLayerContextMenu(null)
-                      }}>{folder.name}</button>
-                    ))}
-                    <button type="button" onClick={() => {
-                      createFolderForSelection(movableIds)
-                      setLayerContextMenu(null)
-                    }}>{t('Создать новую папку')}</button>
-                  </div>
-                ) : null}
-                <button type="button" onClick={() => {
-                  focusLayersForEveryone(ids.length > 0 ? ids : [firstLayer.id])
-                  setLayerContextMenu(null)
-                }}>{t('Указать всем')}</button>
-                <button type="button" className="danger" onClick={() => {
-                  deleteSelectedLayers(ids)
-                  setLayerContextMenu(null)
-                }}>{t('Удалить')}</button>
-              </>
-            ) : null}
-          </SmartContextMenu>
-        )
-      })() : null}
+      {layerContextMenu ? (
+        <LayerContextMenuPanel
+          layerContextMenu={layerContextMenu}
+          layers={layers}
+          isMaster={isMaster}
+          chatUser={chatUser}
+          tableManagerLayers={tableManagerLayers}
+          libraryLayers={libraryLayers}
+          getContextLayerIds={getContextLayerIds}
+          canEditLayer={canEditLayer}
+          addLayerToJournal={addLayerToJournal}
+          copyLayerForDiary={copyLayerForDiary}
+          copyLayerUrl={copyLayerUrl}
+          copyLayerToPersonalMedia={copyLayerToPersonalMedia}
+          renameLayer={renameLayer}
+          openImageEditor={openImageEditor}
+          patchLayer={patchLayer}
+          patchSelectedLayers={patchSelectedLayers}
+          duplicateLayer={duplicateLayer}
+          resetLayerCrop={resetLayerCrop}
+          reorderLayers={reorderLayers}
+          createNamedFolder={createNamedFolder}
+          moveLayersToFolder={moveLayersToFolder}
+          createFolderForSelection={createFolderForSelection}
+          focusLayersForEveryone={focusLayersForEveryone}
+          deleteSelectedLayers={deleteSelectedLayers}
+          previewLayerOpacity={previewLayerOpacity}
+          commitLayerOpacity={commitLayerOpacity}
+          onClose={() => setLayerContextMenu(null)}
+        />
+      ) : null}
 
       <MasterPasswordGate
         open={!tableRole}

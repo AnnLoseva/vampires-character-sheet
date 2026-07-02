@@ -162,6 +162,46 @@ export function getRemorseDice(state: HumanityState) {
   return Math.max(0, 10 - clampHumanityValue(state.value) - clampHumanityStains(state.stains, state.value))
 }
 
+export type RemorseCheckResolution = {
+  automaticFailure: boolean
+  successes: number
+  success: boolean
+  humanityAfter: number
+  nextState: HumanityState
+}
+
+/** Applies remorse-check dice results to humanity state. Dice rolling stays with the caller. */
+export function applyRemorseCheckResult(
+  before: HumanityState,
+  params: {
+    remorseDice: number
+    diceValues: number[]
+    checkedAt?: string
+  },
+): RemorseCheckResolution {
+  const remorseDice = Math.max(0, Math.floor(Number(params.remorseDice) || 0))
+  const automaticFailure = remorseDice <= 0
+  const diceValues = Array.isArray(params.diceValues) ? params.diceValues : []
+  const successes = diceValues.filter(value => Number(value) >= 6).length
+  const success = !automaticFailure && successes > 0
+  const humanityAfter = success ? before.value : Math.max(0, before.value - 1)
+  const now = params.checkedAt || new Date().toISOString()
+  const nextState: HumanityState = {
+    ...before,
+    value: humanityAfter,
+    stains: 0,
+    lastRemorseCheckAt: now,
+    lastHumanityLossAt: success ? before.lastHumanityLossAt : now,
+  }
+  return {
+    automaticFailure,
+    successes,
+    success,
+    humanityAfter,
+    nextState,
+  }
+}
+
 export function getStainSourceLabel(source: HumanityStainSource) {
   return STAIN_SOURCE_LABELS[source]
 }

@@ -7,7 +7,10 @@ an iframe and reports back when a character is saved. This contract is small but
 load-bearing — breaking it loses characters or role state.
 
 ## Route
-- `/character-sheet` → `components/screens/CharacterSheetScreen.tsx`.
+- `/character-sheet` → `modules/character-sheet/CharacterSheetRoute.tsx` →
+  `modules/character-sheet/components/CharacterSheetScreen.tsx`.
+- Bridge helpers: `modules/character-sheet/legacy/{params,events,bridge}.ts`.
+- `components/screens/CharacterSheetScreen.tsx` is a deprecated shim.
 - The shell renders `<iframe src="/old-sheet.html?...">`.
 - `/old` (`app/old/page.tsx`) is a legacy redirect to `/character-sheet`,
   preserving `room`.

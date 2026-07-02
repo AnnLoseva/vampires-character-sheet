@@ -6,6 +6,23 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-02 — VTM legacy parity test (`test:vtm-parity`)
+
+**Area:** VTM mechanics / legacy character sheet
+**Decision:** `scripts/test-vtm-legacy-parity.ts` (`npm run test:vtm-parity`) is the
+guard for `public/vtm-health.js` and `public/vtm-humanity.js` staying aligned with
+`core/systems/vtm5/rules/{health,humanity}/index.ts`. Run it after edits on either side.
+**Reason:** Duplicated mechanics were the top drift risk between the legacy iframe sheet
+and the React table; disciplines already had scripts but health/humanity did not.
+**Consequences:** Health/humanity changes require parity pass. Discipline parsing in
+`main.js` remains manually checked.
+**Affected files:** `scripts/test-vtm-legacy-parity.ts`, `public/vtm-health.js`,
+`public/vtm-humanity.js`, `core/systems/vtm5/rules/health/index.ts`,
+`core/systems/vtm5/rules/humanity/index.ts`, `package.json`
+**Status:** active
+
+---
+
 ## 2026-07-02 — Table module decomposition (`modules/table`)
 
 **Area:** Game table / module migration

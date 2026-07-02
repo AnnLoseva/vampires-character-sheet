@@ -1,4 +1,4 @@
-import type { HumanityState } from '@/core/systems/vtm5/rules/humanity'
+import { applyRemorseCheckResult, type HumanityState } from '@/core/systems/vtm5/rules/humanity'
 import type { Die, RollMessage } from '@/modules/table/types'
 import type { RollsDiceAdapter } from '../system-adapter'
 import type { RemorseCheckOutcome } from '../types'
@@ -13,17 +13,12 @@ export function computeRemorseCheckOutcome(params: {
   const { before, remorseDice, rollsDice, tf, t } = params
   const automaticFailure = remorseDice <= 0
   const dice = automaticFailure ? [] as Die[] : rollsDice.rollD10Pool(remorseDice, 0) as Die[]
-  const successes = dice.filter(die => die.value >= 6).length
-  const success = !automaticFailure && successes > 0
-  const humanityAfter = success ? before.value : Math.max(0, before.value - 1)
-  const now = new Date().toISOString()
-  const nextState: HumanityState = {
-    ...before,
-    value: humanityAfter,
-    stains: 0,
-    lastRemorseCheckAt: now,
-    lastHumanityLossAt: success ? before.lastHumanityLossAt : now,
-  }
+  const resolution = applyRemorseCheckResult(before, {
+    remorseDice,
+    diceValues: dice.map(die => die.value),
+    checkedAt: new Date().toISOString(),
+  })
+  const { successes, success, humanityAfter, nextState } = resolution
 
   const poolName = automaticFailure
     ? tf('Проверка мук совести: свободных ячеек нет. Результат: автоматический провал. Человечность: {before} → {after}. Сомнения очищены.', { before: before.value, after: humanityAfter })
@@ -41,7 +36,7 @@ export function computeRemorseCheckOutcome(params: {
   return {
     before,
     remorseDice,
-    automaticFailure,
+    automaticFailure: resolution.automaticFailure,
     dice,
     successes,
     success,

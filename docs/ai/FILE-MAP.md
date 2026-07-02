@@ -20,21 +20,20 @@ opening code**. Risk levels drive how careful you must be.
 | `components/screens/MainScreen.tsx` | landing / entry | medium | react-table-edit-protocol | Character/room selection |
 | `components/screens/CharacterSheetScreen.tsx` | iframe bridge shell | **high** | legacy-edit-protocol | Owns room/role/characterId/new + postMessage |
 
-## Game table (React)
+## Game table (React) — legacy shims
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
-| `components/table/GameTable.tsx` | room orchestrator (~7.4k lines) | **critical** | react-table-edit-protocol | Do not grow it; extract to `modules/table` |
-| `components/table/TableCanvas.tsx` | tldraw canvas | high | react-table-edit-protocol | Media/layer rendering |
-| `components/table/{TableLeftPanel,TableRightPanel,MasterPanel}.tsx` | panels | medium | react-table-edit-protocol | UI shells |
-| `components/table/{SceneManager,LayerManager,MediaLibrary}.tsx` | scenes/layers/media UI | high | react-table-edit-protocol | Uses `lib/table/*` utils |
-| `components/table/DiceRollOverlay.tsx` | roll UI/overlay | high | vtm-mechanics-edit-protocol | See dice-and-rolls subsystem |
-| `components/table/JournalPanel.tsx` | in-table journal | medium | react-table-edit-protocol | |
-| `components/table/GameTableStyles.tsx` | global table styles | medium | react-table-edit-protocol | Large style block |
-| `components/table/VampireTable.tsx`, `components/VampireTable.tsx`, `components/CharacterSheet.tsx` | React sheet/table variants | high | react-table-edit-protocol | Confirm which is live before editing |
+| `components/table/GameTable.tsx` | shim → `modules/table/GameTable` | low | before-any-change | Do not edit; use `modules/table` |
+| `components/table/VampireTable.tsx`, `components/VampireTable.tsx` | shims → `modules/table/GameTable` | low | before-any-change | |
+| `components/CharacterSheet.tsx` | unused shim | low | before-any-change | Audit marks as unused |
 
 ## Table module (`modules/table/*`)
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
+| `modules/table/GameTable.tsx` | room orchestrator (~2.6k lines) | **critical** | react-table-edit-protocol | Do not grow it; extract to child components/hooks |
+| `modules/table/TableRoute.tsx` | `/table` entry + bootstrap | low | before-any-change | Thin wrapper |
+| `modules/table/components/{RollHistoryPanel,LayerContextMenuPanel,MediaPreviewModal}.tsx` | extracted UI slices | medium | react-table-edit-protocol | Roll rail, context menu, media preview |
+| `modules/table/components/{canvas,panels,scenes,layers,media,master}/*` | table UI panels | medium–high | react-table-edit-protocol | Canonical table UI |
 | `modules/table/types.ts` | table data model (canonical) | high | react-table-edit-protocol | Chat types re-exported from `modules/chat/types` |
 | `modules/table/constants.ts` | table/bucket names, keys (canonical) | **critical** | supabase-edit-protocol | Includes `constants/roll-traits.ts` |
 | `modules/table/mappers.ts` | DB ↔ app mapping (canonical) | high | supabase-edit-protocol | |
@@ -44,6 +43,14 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/table/components/*` | modals + roll UI slices | medium | react-table-edit-protocol | See `components/README.md` |
 | `modules/table/index.ts` | public module barrel | low | before-any-change | |
 | `lib/table/{types,constants,mappers,*-utils}.ts` | compatibility shims | low | before-any-change | Re-export `@/modules/table/*` |
+
+## Character sheet module (`modules/character-sheet/*`)
+| Path | Role | Risk | Edit protocol | Notes |
+|---|---|---|---|---|
+| `modules/character-sheet/CharacterSheetRoute.tsx` | `/character-sheet` entry | low | before-any-change | Thin wrapper |
+| `modules/character-sheet/components/CharacterSheetScreen.tsx` | iframe shell + nav | **high** | legacy-edit-protocol | Bridge contract owner |
+| `modules/character-sheet/legacy/{params,events,bridge}.ts` | bridge contract (canonical) | **high** | legacy-edit-protocol | Params, postMessage, localStorage |
+| `components/screens/CharacterSheetScreen.tsx` | shim → module | low | before-any-change | Deprecated |
 
 ## Chat, music, journal, reference
 | Path | Role | Risk | Edit protocol | Notes |
@@ -55,8 +62,8 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/music/components/GlobalMusicEngineMount.tsx` | persistent hidden music mount | medium | react-table-edit-protocol | Root layout mount; keep stable across navigation |
 | `modules/music/MusicSyncEngine.ts` | music sync | high | react-table-edit-protocol | Realtime sync + autoplay limits |
 | `modules/music/adapters/{localAudioAdapter,youtubeAdapter}.ts` | playback adapters | medium | react-table-edit-protocol | Browser/YouTube limits |
-| `components/journal/*` | TipTap journal | medium | before-any-change | |
-| `components/reference/*` | markdown reference | low | before-any-change | |
+| `modules/journal/*` | TipTap journal (canonical) | medium | before-any-change | `components/journal/*` is shim |
+| `modules/reference/*` | markdown reference (canonical) | low | before-any-change | `components/reference/*` is shim |
 
 ## VTM mechanics (`core/systems/vtm5/rules/*`)
 | Path | Role | Risk | Edit protocol | Notes |
@@ -107,6 +114,7 @@ opening code**. Risk levels drive how careful you must be.
 | `scripts/audit-discipline-rules.ts` | `npm run audit:disciplines` | low | before-any-change | Discipline rules audit |
 | `scripts/validate-discipline-mechanics.ts` | `npm run validate:disciplines` | low | before-any-change | Mechanics validation |
 | `scripts/test-discipline-engine.ts` | `npm run test:disciplines` | low | before-any-change | Engine tests |
+| `scripts/test-vtm-legacy-parity.ts` | `npm run test:vtm-parity` | low | vtm-mechanics-edit-protocol | health/humanity legacy ↔ core parity |
 
 > Workflows referenced above live in `docs/ai/workflows/`. "before-any-change" is
 > the general checklist; the others are area-specific protocols.

@@ -1199,19 +1199,14 @@ async function performRemorseCheck(character = null, options = {}) {
     }
 
     const remorseDice = window.VTMHumanity.getRemorseDice(before);
-    const automaticFailure = remorseDice <= 0;
-    const dice = automaticFailure ? [] : rollD10Pool(remorseDice, 0);
-    const successes = dice.filter(die => die.value >= 6).length;
-    const success = !automaticFailure && successes > 0;
-    const now = new Date().toISOString();
-    const valueAfter = success ? before.value : Math.max(0, before.value - 1);
-    humanityState = {
-        ...before,
-        value: valueAfter,
-        stains: 0,
-        lastRemorseCheckAt: now,
-        lastHumanityLossAt: success ? before.lastHumanityLossAt : now
-    };
+    const dice = remorseDice <= 0 ? [] : rollD10Pool(remorseDice, 0);
+    const resolution = window.VTMHumanity.applyRemorseCheckResult(before, {
+        remorseDice,
+        diceValues: dice.map(die => die.value)
+    });
+    const { automaticFailure, successes, success, humanityAfter: valueAfter, nextState } = resolution;
+    const now = nextState.lastRemorseCheckAt;
+    humanityState = nextState;
     vitalTrackers.humanity = valueAfter;
     renderVitalTracker('humanity');
     await saveHumanityState({ immediate: true });

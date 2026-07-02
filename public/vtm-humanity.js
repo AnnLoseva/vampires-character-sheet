@@ -89,6 +89,30 @@
         return Math.max(0, 10 - clampValue(state.value) - clampStains(state.stains, state.value));
     }
 
+    function applyRemorseCheckResult(before, params) {
+        const remorseDice = Math.max(0, Math.floor(Number(params && params.remorseDice) || 0));
+        const automaticFailure = remorseDice <= 0;
+        const diceValues = params && Array.isArray(params.diceValues) ? params.diceValues : [];
+        const successes = diceValues.filter(value => Number(value) >= 6).length;
+        const success = !automaticFailure && successes > 0;
+        const humanityAfter = success ? before.value : Math.max(0, before.value - 1);
+        const now = (params && params.checkedAt) || new Date().toISOString();
+        const nextState = {
+            ...before,
+            value: humanityAfter,
+            stains: 0,
+            lastRemorseCheckAt: now,
+            lastHumanityLossAt: success ? before.lastHumanityLossAt : now
+        };
+        return {
+            automaticFailure,
+            successes,
+            success,
+            humanityAfter,
+            nextState
+        };
+    }
+
     function addStains(characterData, amount, reason, options) {
         const before = getHumanityState(characterData);
         const requestedAmount = Math.max(0, Math.floor(Number(amount) || 0));
@@ -164,6 +188,7 @@
         getHumanityState,
         getStatus,
         getRemorseDice,
+        applyRemorseCheckResult,
         addStains,
         normalizeMorality
     };
