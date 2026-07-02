@@ -1,2 +1,5 @@
 export * as vtm5Rules from './rules'
 export type { Vtm5System } from './types'
+export type { Vtm5ModuleAdapters, Vtm5SystemCore } from './system-core'
+export { createVtm5SystemCore } from './system-core'
+export { createVtm5RollsAdapter, createVtm5TableAdapter } from './adapters'

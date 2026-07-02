@@ -6,3 +6,11 @@ export * from './api'
 export * from './hooks'
 export * from './components'
 export type { TableModule } from './types'
+export type { TableHealthAdapter, TableSystemAdapter } from './system-adapter'
+export {
+  configureTableModule,
+  getTableSystemAdapter,
+  isTableModuleConfigured,
+  resetTableModuleConfiguration,
+} from './configure'
+export { tableModuleDefinition } from './module-definition'
