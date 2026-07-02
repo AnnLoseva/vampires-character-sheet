@@ -53,7 +53,6 @@ import {
   getCharacterHunger,
   getCharacterWillpower,
   getWillpowerImpairmentPenalty,
-  getWillpowerMetaState,
   getWillpowerRecoveryPool,
 } from '@/modules/table/utils/character-state'
 import {
@@ -68,6 +67,7 @@ import {
 import { sortSceneMusic } from '@/modules/table/utils/scene-utils'
 import { getCharacterSheetHref } from '@/modules/table/utils/table-urls'
 import { getContestedOpponentOptions, getOpposedCharacterPool } from '@/modules/table/utils/contested-roll-helpers'
+import { buildCharacterRollPool } from '@/modules/table/utils/roll-pool-builders'
 
 import {
   CharacterPreviewModal,
@@ -109,12 +109,7 @@ import { formatRuleValue, formatTime, getDotDisplay } from '@/modules/table/util
 
 import { getRollPenalties, getRollTraits } from '@/modules/table/utils/roll-pool-helpers'
 import { getDieImage } from '@/modules/table/utils/dice-display'
-import {
-  getExtraTraitNames,
-  getRollDieId,
-  getWillpowerRerollEligibleDieIds,
-  isWillpowerRerollExcluded,
-} from '@/modules/table/utils/roll-utils'
+
 import {
   useCharacterActions,
   useCharacterPreviewActions,
@@ -131,7 +126,11 @@ import {
   useSceneMusicActions,
   useTableSocialActions,
   usePoolRollActions,
+  useQuickRollActions,
+  useRollAttributeActions,
+  useRollDamageActions,
   useRollPublishActions,
+  useWillpowerRerollActions,
   useRoomSession,
   useTableCanvas,
   useTableVoice,
@@ -141,7 +140,6 @@ import {
   useTableScenes,
 } from '@/modules/table/hooks'
 import { DEFAULT_OPPOSED_RESPONSE } from '@/modules/rolls/constants'
-import { rollsDice } from '@/modules/rolls/system-runtime'
 import type {
   ContestedOpponentOption,
   DisciplineRollContext,
@@ -149,7 +147,6 @@ import type {
 } from '@/modules/rolls/types'
 import { createQuickRollFactory } from '@/modules/rolls/hooks'
 import {
-  applyWillpowerRerollToDice,
   getActivePenaltyDelta,
   getBloodSurgeBonus,
   getRouseWarning,
@@ -169,7 +166,6 @@ import type {
   DisciplineCostPayment,
 } from '@/core/systems/vtm5/rules/disciplines/costs'
 import type { ActiveEffect } from '@/core/systems/vtm5/rules/disciplines/schema'
-import type { DamageSeverity, HealthDamageOptions } from '@/core/systems/vtm5/rules/health'
 import type {
   ActiveParticipant,
   BlendMode,
@@ -194,7 +190,6 @@ import type {
   RollMode,
   RightRailTab,
   RollMessage,
-  RouseCheckResult,
   SceneMusicTrack,
   SelectionRect,
   TableLayer,
@@ -906,6 +901,59 @@ export default function VampireTable() {
   })
   publishRollRef.current = publishRoll
 
+  const { rollQuickDice } = useQuickRollActions({
+    room,
+    t,
+    isMaster,
+    disciplineRules,
+    selectedActiveCharacter: chatCharacters.find(item => item.id === selectedChatCharacterId) || null,
+    createQuickRollRef,
+    rollQuickDiceRef,
+    performRouseCheck,
+    publishRoll,
+  })
+
+  const {
+    applyRollDamage,
+    promptCharacterHealthDamage,
+  } = useRollDamageActions({
+    t,
+    tf,
+    chatCharacters,
+    getRollCharacter,
+    applyCharacterHealthDamage,
+  })
+
+  const {
+    canUseWillpowerReroll,
+    toggleWillpowerRerollDie,
+    confirmWillpowerReroll,
+  } = useWillpowerRerollActions({
+    t,
+    tf,
+    isMaster,
+    willpowerRerollDraft,
+    setWillpowerRerollDraft,
+    getRollCharacter,
+    spendWillpower,
+    queueDiceOverlayRoll,
+    publishRollReplacement,
+  })
+
+  const {
+    toggleMasterRollAttribute,
+    togglePreviewAttribute,
+  } = useRollAttributeActions({
+    masterRollAttribute,
+    masterRollAttributeTwo,
+    previewRollAttribute,
+    previewRollAttributeTwo,
+    setMasterRollAttribute,
+    setMasterRollAttributeTwo,
+    setPreviewRollAttribute,
+    setPreviewRollAttributeTwo,
+  })
+
   const {
     rollMasterPool,
     rollMasterQuick,
@@ -1085,47 +1133,37 @@ export default function VampireTable() {
   }
   const getDisciplineDots = (sources: Record<string, number>) => Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
 
-  const masterRollAttributeDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttribute) : 0
-  const masterRollAttributeTwoDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttributeTwo) : 0
-  const masterRollSkillDots = selectedMasterRollCharacter ? getSkillDots(resolveSkillValue(selectedMasterRollCharacter.skills, masterRollSkill)) : 0
-  const masterRollDisciplineDots = selectedMasterRollCharacter ? getDisciplineDots(selectedMasterRollCharacter.disciplines[masterRollDiscipline] || {}) : 0
-  const masterRollPoolBeforeLimit = masterRollAttributeDots + masterRollAttributeTwoDots + masterRollSkillDots + masterRollDisciplineDots + masterRollModifier
-  const masterWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([masterRollAttribute, masterRollAttributeTwo], selectedMasterRollCharacter)
-  const masterHealthImpairmentPenalty = tableHealth().getHealthImpairmentPenalty([masterRollAttribute, masterRollAttributeTwo], getCharacterHealth(selectedMasterRollCharacter))
-  const masterRollEffectResult = selectedMasterRollCharacter
-    ? tableApplyDisciplineEffectsToRoll({
-        characterData: selectedMasterRollCharacter,
-        rulesJson: disciplineRules,
-        baseDiceCount: masterRollPoolBeforeLimit,
-        poolType: 'master-character',
-        kind: 'roll',
-        action: masterRollMode,
-        source: masterUseBloodSurge ? 'blood_surge' : 'manual',
-        traits: getRollTraits(masterRollAttribute, masterRollAttributeTwo, masterRollSkill, masterRollDiscipline),
-        penalties: getRollPenalties(t,masterWillpowerImpairmentPenalty, masterHealthImpairmentPenalty),
-        disabledModifierIds: disabledMasterRollModifierIds,
-      }, selectedMasterRollCharacter.derivedStats)
-    : null
-  const masterRollDiceCount = masterRollEffectResult?.finalDiceCount || 0
+  const {
+    attributeDots: masterRollAttributeDots,
+    attributeTwoDots: masterRollAttributeTwoDots,
+    skillDots: masterRollSkillDots,
+    disciplineDots: masterRollDisciplineDots,
+    poolBeforeLimit: masterRollPoolBeforeLimit,
+    willpowerImpairmentPenalty: masterWillpowerImpairmentPenalty,
+    healthImpairmentPenalty: masterHealthImpairmentPenalty,
+    rollEffectResult: masterRollEffectResult,
+    diceCount: masterRollDiceCount,
+    poolName: masterRollPoolName,
+    extraAttributes: masterRollExtraAttributes,
+    extraSkills: masterRollExtraSkills,
+    disciplineNames: masterRollDisciplineNames,
+  } = buildCharacterRollPool({
+    character: selectedMasterRollCharacter,
+    attribute: masterRollAttribute,
+    attributeTwo: masterRollAttributeTwo,
+    skill: masterRollSkill,
+    discipline: masterRollDiscipline,
+    modifier: masterRollModifier,
+    rollMode: masterRollMode,
+    useBloodSurge: masterUseBloodSurge,
+    poolType: 'master-character',
+    disciplineRules,
+    disabledModifierIds: disabledMasterRollModifierIds,
+    t,
+    d10,
+  })
   const masterBloodPotency = getCharacterBloodPotency(selectedMasterRollCharacter)
   const masterBloodSurgeBonus = getBloodSurgeBonus(masterBloodPotency)
-  const masterRollExtraAttributes = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.attributes, ATTRIBUTE_GROUPS) : []
-  const masterRollExtraSkills = selectedMasterRollCharacter ? getExtraTraitNames(selectedMasterRollCharacter.skills, SKILL_GROUPS) : []
-  const masterRollDisciplineNames = selectedMasterRollCharacter
-    ? Array.from(new Set([
-        ...Object.keys(selectedMasterRollCharacter.disciplines),
-        ...Object.keys(selectedMasterRollCharacter.selectedPowers),
-        ...Object.keys(selectedMasterRollCharacter.selectedPathPowers),
-      ])).sort((a, b) => a.localeCompare(b, 'ru'))
-    : []
-  const masterRollPoolParts = [
-    masterRollAttribute ? `${t(masterRollAttribute)} ${masterRollAttributeDots}` : '',
-    masterRollAttributeTwo ? `${t(masterRollAttributeTwo)} ${masterRollAttributeTwoDots}` : '',
-    masterRollSkill ? `${t(masterRollSkill)} ${masterRollSkillDots}` : '',
-    masterRollDiscipline ? `${masterRollDiscipline} ${masterRollDisciplineDots}` : '',
-    masterRollModifier ? `${t('модификатор')} ${masterRollModifier > 0 ? '+' : ''}${masterRollModifier}` : '',
-  ].filter(Boolean)
-  const masterRollPoolName = masterRollPoolParts.join(' + ') || d10(masterRollDiceCount || 1)
   const masterRollHidden = masterRollVisibility === 'hidden'
   const masterContestedOpponentOptions = getContestedOpponentOptions(contestedOpponentContext, selectedMasterRollCharacter)
   const selectedMasterContestedOpponent = masterContestedOpponentOptions.find(option => option.id === masterContestedOpponentId) || null
@@ -1135,30 +1173,36 @@ export default function VampireTable() {
     setOpposedResponseSide({ ...DEFAULT_OPPOSED_RESPONSE })
   }, [incomingOpposedProposal?.id, selectedActiveCharacter?.id])
 
-  const previewAttributeDots = previewCharacter ? getAttributeDots(previewCharacter.attributes, previewRollAttribute) : 0
-  const previewAttributeTwoDots = previewCharacter ? getAttributeDots(previewCharacter.attributes, previewRollAttributeTwo) : 0
-  const previewSkillDots = previewCharacter ? getSkillDots(resolveSkillValue(previewCharacter.skills, previewRollSkill)) : 0
-  const previewDisciplineDots = previewCharacter ? getDisciplineDots(previewCharacter.disciplines[previewRollDiscipline] || {}) : 0
-  const previewPoolBeforeLimit = previewAttributeDots + previewAttributeTwoDots + previewSkillDots + previewDisciplineDots + previewRollModifier
-  const previewWillpowerImpairmentPenalty = getWillpowerImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewCharacter)
+  const {
+    attributeDots: previewAttributeDots,
+    attributeTwoDots: previewAttributeTwoDots,
+    skillDots: previewSkillDots,
+    disciplineDots: previewDisciplineDots,
+    poolBeforeLimit: previewPoolBeforeLimit,
+    willpowerImpairmentPenalty: previewWillpowerImpairmentPenalty,
+    healthImpairmentPenalty: previewHealthImpairmentPenalty,
+    rollEffectResult: previewRollEffectResult,
+    diceCount: previewDiceCount,
+    extraAttributes: previewExtraAttributes,
+    extraSkills: previewExtraSkills,
+    disciplineNames: previewDisciplineNames,
+  } = buildCharacterRollPool({
+    character: previewCharacter,
+    attribute: previewRollAttribute,
+    attributeTwo: previewRollAttributeTwo,
+    skill: previewRollSkill,
+    discipline: previewRollDiscipline,
+    modifier: previewRollModifier,
+    rollMode: previewRollMode,
+    useBloodSurge: previewUseBloodSurge,
+    poolType: 'character-sheet',
+    disciplineRules,
+    disabledModifierIds: disabledPreviewRollModifierIds,
+    t,
+    d10,
+  })
   const previewHealth = getCharacterHealth(previewCharacter)
   const previewSheetFixed = previewCharacter?.sheetFixed ?? true
-  const previewHealthImpairmentPenalty = tableHealth().getHealthImpairmentPenalty([previewRollAttribute, previewRollAttributeTwo], previewHealth)
-  const previewRollEffectResult = previewCharacter
-    ? tableApplyDisciplineEffectsToRoll({
-        characterData: previewCharacter,
-        rulesJson: disciplineRules,
-        baseDiceCount: previewPoolBeforeLimit,
-        poolType: 'character-sheet',
-        kind: 'roll',
-        action: previewRollMode,
-        source: previewUseBloodSurge ? 'blood_surge' : 'manual',
-        traits: getRollTraits(previewRollAttribute, previewRollAttributeTwo, previewRollSkill, previewRollDiscipline),
-        penalties: getRollPenalties(t,previewWillpowerImpairmentPenalty, previewHealthImpairmentPenalty),
-        disabledModifierIds: disabledPreviewRollModifierIds,
-      }, previewCharacter.derivedStats)
-    : null
-  const previewDiceCount = previewRollEffectResult?.finalDiceCount || 0
   const previewBloodPotency = getCharacterBloodPotency(previewCharacter)
   const previewBloodSurgeBonus = getBloodSurgeBonus(previewBloodPotency)
   const previewHunger = getCharacterHunger(previewCharacter)
@@ -1182,15 +1226,6 @@ export default function VampireTable() {
   const selectedPreviewContestedOpponent = previewContestedOpponentOptions.find(option => option.id === previewContestedOpponentId) || null
   const canEditPreviewInventory = Boolean(chatUser && previewCharacter?.id && previewCharacter.id === selectedActiveCharacter?.id)
   const canEditPreviewActiveEffects = canEditPreviewInventory
-  const previewExtraAttributes = previewCharacter ? getExtraTraitNames(previewCharacter.attributes, ATTRIBUTE_GROUPS) : []
-  const previewExtraSkills = previewCharacter ? getExtraTraitNames(previewCharacter.skills, SKILL_GROUPS) : []
-  const previewDisciplineNames = previewCharacter
-    ? Array.from(new Set([
-        ...Object.keys(previewCharacter.disciplines),
-        ...Object.keys(previewCharacter.selectedPowers),
-        ...Object.keys(previewCharacter.selectedPathPowers),
-      ])).sort((a, b) => a.localeCompare(b, 'ru'))
-    : []
   const previewDisciplineRule = previewDisciplineName && disciplineRules ? disciplineRules[previewDisciplineName] : undefined
   const previewOpenedDisciplineDots = previewCharacter && previewDisciplineName
     ? getDisciplineDots(previewCharacter.disciplines[previewDisciplineName] || {})
@@ -1362,193 +1397,6 @@ export default function VampireTable() {
     setMasterRollMode('normal')
     setMasterContestedOpponentId('')
   }, [selectedMasterRollCharacterId])
-
-  const createQuickRoll = createQuickRollFactory({
-    room,
-    isMaster,
-    disciplineRules,
-    rollsDice: rollsDice(),
-    applyDisciplineEffectsToRoll: tableApplyDisciplineEffectsToRoll,
-    performRouseCheck,
-    getCharacterHunger,
-    getCharacterWillpower,
-    getCharacterBloodPotency,
-    getCharacterHealth,
-    getWillpowerMetaState,
-  })
-  createQuickRollRef.current = createQuickRoll
-
-  const rollQuickDice = async (
-    diceCount = 1,
-    poolName = t('Быстрый бросок'),
-    characterOverride?: CharacterOption,
-    poolType = 'quick',
-    options: QuickRollOptions = {},
-  ) => {
-    const character = characterOverride || selectedActiveCharacter
-    if (!character) {
-      window.alert(t('Сначала выбери активного персонажа.'))
-      return
-    }
-    const roll = await createQuickRoll(diceCount, poolName, character, poolType, options)
-    await publishRoll(roll)
-  }
-  rollQuickDiceRef.current = rollQuickDice
-
-  const applyRollDamage = async (roll: RollMessage) => {
-    if (!chatCharacters.length) {
-      window.alert(t('На столе нет доступных целей.'))
-      return
-    }
-    const targetList = chatCharacters.map((character, index) => `${index + 1}. ${character.name}`).join('\n')
-    const targetIndex = Number(window.prompt(tf('Выбери цель:\n{list}', { list: targetList }), '1') || 0) - 1
-    const target = chatCharacters[targetIndex]
-    if (!target) return
-    const sourceCharacter = getRollCharacter(roll)
-    const opposedMargin = roll.opposed
-      ? Math.abs((roll.opposed.sides[0]?.successes || 0) - (roll.opposed.sides[1]?.successes || 0))
-      : roll.successes
-    const margin = Math.max(0, Number(window.prompt(t('Разница успехов:'), String(opposedMargin)) || 0))
-    const weaponModifier = Number(window.prompt(t('Модификатор оружия:'), '0') || 0)
-    const severity: DamageSeverity = window.confirm(t('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.'))
-      ? 'aggravated'
-      : 'superficial'
-    const halveSuperficial = severity === 'superficial'
-      ? window.confirm(t('Делить лёгкий урон пополам с округлением вверх?'))
-      : false
-    const amount = tableHealth().calculateConflictDamage({ margin, weaponModifier })
-    if (amount < 1) {
-      window.alert(t('Итоговый урон равен нулю.'))
-      return
-    }
-    await applyCharacterHealthDamage(target, amount, severity, {
-      source: 'physical_conflict',
-      sourceCharacterData: sourceCharacter || undefined,
-      attackType: 'physical_conflict',
-      margin,
-      weaponModifier,
-      halveSuperficial,
-      ignoreHalving: severity === 'superficial' && !halveSuperficial,
-      notes: [tf('Урон применён из броска «{poolName}».', { poolName: t(roll.poolName) })],
-    })
-  }
-
-  const promptCharacterHealthDamage = async (character: CharacterOption) => {
-    const amount = Math.max(0, Number(window.prompt(t('Сколько урона нанести?'), '1') || 0))
-    if (amount < 1) return
-    const severity: DamageSeverity = window.confirm(t('Нанести тяжёлый урон? Нажмите «Отмена» для лёгкого.'))
-      ? 'aggravated'
-      : 'superficial'
-    const halveSuperficial = severity === 'superficial'
-      ? window.confirm(t('Делить лёгкий урон пополам с округлением вверх?'))
-      : false
-    const note = window.prompt(t('Комментарий к урону (необязательно):'), '') || ''
-    await applyCharacterHealthDamage(character, amount, severity, {
-      source: 'manual',
-      halveSuperficial,
-      ignoreHalving: severity === 'superficial' && !halveSuperficial,
-      notes: note ? [note] : [],
-    })
-  }
-
-  const canUseWillpowerReroll = (roll: RollMessage) => {
-    if (roll.opposed || (roll.hidden && !isMaster) || roll.meta?.willpowerReroll?.used || isWillpowerRerollExcluded(roll)) return false
-    if (!getWillpowerRerollEligibleDieIds(roll).length) return false
-    const character = getRollCharacter(roll)
-    if (!character) return false
-    const willpower = getCharacterWillpower(character)
-    return willpower.max > 0 && willpower.aggravated < willpower.max
-  }
-
-  const toggleWillpowerRerollDie = (roll: RollMessage, dieId: string) => {
-    if (!canUseWillpowerReroll(roll)) return
-    setWillpowerRerollDraft(current => {
-      const selected = current?.rollId === roll.id ? current.selectedDieIds : []
-      if (selected.includes(dieId)) {
-        return { rollId: roll.id, selectedDieIds: selected.filter(id => id !== dieId) }
-      }
-      if (selected.length >= 3) return { rollId: roll.id, selectedDieIds: selected }
-      return { rollId: roll.id, selectedDieIds: [...selected, dieId] }
-    })
-  }
-
-  const confirmWillpowerReroll = async (roll: RollMessage) => {
-    const draft = willpowerRerollDraft?.rollId === roll.id ? willpowerRerollDraft : null
-    if (!draft || draft.selectedDieIds.length < 1) {
-      window.alert(t('Выбери от одного до трёх обычных кубиков.'))
-      return
-    }
-    const character = getRollCharacter(roll)
-    if (!character) {
-      window.alert(t('Не удалось найти персонажа для траты Воли.'))
-      return
-    }
-    const spendResult = await spendWillpower(character, 1, tf('Воля: переброс · {poolName}', { poolName: t(roll.poolName) }))
-    if (!spendResult) return
-
-    const { rerolledDice, oldDice, newDice, successes, outcomeMeta } = applyWillpowerRerollToDice(
-      roll,
-      draft.selectedDieIds,
-      rollsDice(),
-      getRollDieId,
-    )
-    const previousWarnings = roll.meta?.warnings || []
-    const updatedRoll: RollMessage = {
-      ...roll,
-      dice: rerolledDice,
-      diceCount: rerolledDice.length,
-      successes,
-      meta: {
-        ...(roll.meta || {}),
-        characterId: character.id,
-        willpowerBefore: getWillpowerMetaState(spendResult.before),
-        willpowerAfter: getWillpowerMetaState(spendResult.after),
-        spentWillpower: (roll.meta?.spentWillpower || 0) + spendResult.spent,
-        willpowerImpaired: spendResult.after.impaired,
-        willpowerReroll: {
-          used: true,
-          selectedDieIds: draft.selectedDieIds,
-          oldDice,
-          newDice,
-        },
-        warnings: [...previousWarnings, ...spendResult.warnings],
-        ...outcomeMeta,
-      },
-    }
-    setWillpowerRerollDraft(null)
-    queueDiceOverlayRoll({
-      id: `${updatedRoll.id}-reroll`,
-      title: `${updatedRoll.characterName} · ${t('Переброс Воли')}`,
-      groups: [{ key: 'main', label: '', dice: newDice.map(die => ({ value: die.value, kind: die.kind })) }],
-    })
-    await publishRollReplacement(updatedRoll)
-  }
-
-  const toggleMasterRollAttribute = (name: string) => {
-    if (masterRollAttribute === name) {
-      setMasterRollAttribute('')
-      return
-    }
-    if (masterRollAttributeTwo === name) {
-      setMasterRollAttributeTwo('')
-      return
-    }
-    if (!masterRollAttribute) setMasterRollAttribute(name)
-    else setMasterRollAttributeTwo(name)
-  }
-
-  const togglePreviewAttribute = (name: string) => {
-    if (previewRollAttribute === name) {
-      setPreviewRollAttribute('')
-      return
-    }
-    if (previewRollAttributeTwo === name) {
-      setPreviewRollAttributeTwo('')
-      return
-    }
-    if (!previewRollAttribute) setPreviewRollAttribute(name)
-    else setPreviewRollAttributeTwo(name)
-  }
 
   const openPreviewDiscipline = (name: string) => {
     setPreviewDisciplineName(name)
