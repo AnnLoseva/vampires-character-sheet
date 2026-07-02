@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase'
-import { TABLE_CHAT_MESSAGES } from '@/lib/table/constants'
-import { mapCharacterRow } from '@/lib/table/mappers'
-import type { CharacterOption, CharacterRow } from '@/lib/table/types'
+import { TABLE_CHAT_MESSAGES } from '@/modules/table/constants'
+import { mapCharacterRow } from '@/modules/table/mappers'
+import type { CharacterOption, CharacterRow } from '@/modules/table/types'
 import type { ChatMessage, ChatMessageRow, ChatUser } from '../types'
 
 export function hashChatPassword(password: string) {

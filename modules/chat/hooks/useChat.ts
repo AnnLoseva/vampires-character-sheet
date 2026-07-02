@@ -2,8 +2,8 @@
 
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
-import { TABLE_CHAT_MESSAGES } from '@/lib/table/constants'
-import type { CharacterOption } from '@/lib/table/types'
+import { TABLE_CHAT_MESSAGES } from '@/modules/table/constants'
+import type { CharacterOption } from '@/modules/table/types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import {
   loadChatCharacters,

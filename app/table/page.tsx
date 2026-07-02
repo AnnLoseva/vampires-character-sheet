@@ -1,5 +1,5 @@
-import GameTable from '@/components/table/GameTable'
+import TableRoute from '@/modules/table/TableRoute'
 
-export default function Home() {
-  return <GameTable />
+export default function TablePage() {
+  return <TableRoute />
 }

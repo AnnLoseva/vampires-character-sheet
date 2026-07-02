@@ -1,5 +1,5 @@
-import ReferencePage from '@/components/reference/ReferencePage'
+import ReferenceRoute from '@/modules/reference/ReferenceRoute'
 
 export default function Reference() {
-  return <ReferencePage />
+  return <ReferenceRoute />
 }

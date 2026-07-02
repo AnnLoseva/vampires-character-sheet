@@ -1,12 +1,8 @@
 import type { CharacterOption, CharacterRow, CharacterType, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
 import { getMusicProvider } from '@/modules/music/utils'
-import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from '@/core/systems/vtm5/rules/health'
-import { getHumanityState, getHumanityStatus, normalizeMoralityState } from '@/core/systems/vtm5/rules/humanity'
 import type { HumanityStainEvent } from '@/core/systems/vtm5/rules/humanity'
 import { getAttributeDots } from '@/lib/i18n/ruleNames'
-import { normalizeCharacterDisciplines } from '@/core/systems/vtm5/rules/disciplines/character-disciplines'
-import { getDerivedStats } from '@/core/systems/vtm5/rules/derived-stats'
-import { getActiveEffects } from '@/core/systems/vtm5/rules/disciplines/active-effects'
+import { mapperRules } from './mapper-adapters'
 import defaultRules from '@/public/rules.json'
 
 const DIE_KINDS = new Set<Die['kind']>([
@@ -84,13 +80,13 @@ export function normalizeWillpowerTracker(value: unknown, max: number): Normaliz
 function normalizeVitalTrackers(
   value: unknown,
   willpowerMax: number,
-  health: ReturnType<typeof normalizeHealthTracker>,
+  health: ReturnType<typeof mapperRules.normalizeHealthTracker>,
   humanityValue: number,
 ): VitalTrackers {
   const source = isRecord(value) ? value : {}
   const willpower = normalizeWillpowerTracker(source.willpower, willpowerMax)
   return {
-    health: toHealthTracker(health),
+    health: mapperRules.toHealthTracker(health),
     willpower: {
       superficial: willpower.superficial,
       aggravated: willpower.aggravated,
@@ -440,12 +436,12 @@ export function mapCharacterRowToOption(
   rules: unknown = defaultRules,
 ): CharacterOption {
   const data = row.data || {}
-  const normalizedDisciplines = normalizeCharacterDisciplines(data)
-  const derivedStats = getDerivedStats(data, rules)
+  const normalizedDisciplines = mapperRules.normalizeCharacterDisciplines(data)
+  const derivedStats = mapperRules.getDerivedStats(data, rules)
   const characterType = getCharacterType(data)
   const bloodPotency = Number(data.bloodPotency ?? data.blood?.potency ?? 0) || 0
-  const humanityState = getHumanityState(data)
-  const moralitySource = normalizeMoralityState(data.morality)
+  const humanityState = mapperRules.getHumanityState(data)
+  const moralitySource = mapperRules.normalizeMoralityState(data.morality)
   const legacyTouchstones = moralitySource.touchstones.length
     ? moralitySource.touchstones
     : (data.touchstones || []).flatMap((item, index) => {
@@ -453,12 +449,12 @@ export function mapCharacterRowToOption(
       return name.trim() ? [{ id: `legacy-touchstone-${index}`, name: name.trim(), status: 'safe' as const }] : []
     })
   const morality = { ...moralitySource, touchstones: legacyTouchstones }
-  const damageProfile = normalizeDamageProfile(data.damageProfile || getDefaultDamageProfile(characterType))
+  const damageProfile = mapperRules.normalizeDamageProfile(data.damageProfile || getDefaultDamageProfile(characterType))
   const rawHealthTracker = data.vitalTrackers?.health
   const healthTracker = typeof rawHealthTracker === 'number'
     ? rawHealthTracker + derivedStats.health.passiveBonus
     : rawHealthTracker
-  const health = normalizeHealthTracker(
+  const health = mapperRules.normalizeHealthTracker(
     healthTracker,
     getAttributeDots(data.attributes, 'Выносливость')
       + derivedStats.health.passiveBonus,
@@ -488,7 +484,7 @@ export function mapCharacterRowToOption(
     humanity: {
       ...humanityState,
       freeBoxes: Math.max(0, 10 - humanityState.value - humanityState.stains),
-      status: data.status?.humanityState === 'lost_to_beast' ? 'lost_to_beast' : getHumanityStatus(humanityState),
+      status: data.status?.humanityState === 'lost_to_beast' ? 'lost_to_beast' : mapperRules.getHumanityStatus(humanityState),
     },
     morality,
     health,
@@ -509,7 +505,7 @@ export function mapCharacterRowToOption(
     selectedPowers: normalizedDisciplines.powers,
     selectedPathPowers: normalizedDisciplines.pathPowers,
     derivedStats,
-    activeEffects: getActiveEffects(data),
+    activeEffects: mapperRules.getActiveEffects(data),
   }
 }
 

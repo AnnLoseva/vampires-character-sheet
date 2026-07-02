@@ -6,7 +6,7 @@ import type {
   RightRailTab,
   VoiceParticipant,
   VoiceQuality,
-} from '@/lib/table/types'
+} from '@/modules/table/types'
 import type { ChatAuthMode, ChatMessage, ChatPanelTab, ChatUser } from '../types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 

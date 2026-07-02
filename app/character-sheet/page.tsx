@@ -1,5 +1,5 @@
-import CharacterSheetScreen from '@/components/screens/CharacterSheetScreen'
+import CharacterSheetRoute from '@/modules/character-sheet/CharacterSheetRoute'
 
 export default function CharacterSheetPage() {
-  return <CharacterSheetScreen />
+  return <CharacterSheetRoute />
 }

@@ -1,7 +1,7 @@
 import type { Dispatch, DragEvent, FormEvent, RefObject, SetStateAction } from 'react'
-import { ROOT_LAYER_DROP_ID } from '@/lib/table/constants'
-import type { LayerContextMenu, LayerDropTarget, LayerPatch, LayerTreeNode, MediaTab, TableLayer } from '@/lib/table/types'
-import LayerManager from './LayerManager'
+import { ROOT_LAYER_DROP_ID } from '@/modules/table/constants'
+import type { LayerContextMenu, LayerDropTarget, LayerPatch, LayerTreeNode, MediaTab, TableLayer } from '@/modules/table/types'
+import LayerManager from '../layers/LayerManager'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type MediaLibraryProps = {

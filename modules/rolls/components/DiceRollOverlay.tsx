@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react'
 import * as THREE from 'three'
-import type { Die } from '@/lib/table/types'
+import type { Die } from '@/modules/table/types'
 
 export type DiceOverlayDie = {
   value: number

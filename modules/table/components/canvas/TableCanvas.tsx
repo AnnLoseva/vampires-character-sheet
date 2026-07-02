@@ -4,13 +4,13 @@ import {
   getEditorPreviewStyle,
   getLayerCrop,
   getLayerMediaStyle,
-} from '@/lib/table/layer-utils'
+} from '@/modules/table/utils/layer-utils'
 import {
   getDocumentEmbedUrl,
   getEmbeddableVideoUrl,
   getFileLayerMeta,
-} from '@/lib/table/media-utils'
-import type { DragState, ImageEditorDraft, ImageEditorState, LayerContextMenu, SelectionRect, TableLayer, TableScene } from '@/lib/table/types'
+} from '@/modules/table/utils/media-utils'
+import type { DragState, ImageEditorDraft, ImageEditorState, LayerContextMenu, SelectionRect, TableLayer, TableScene } from '@/modules/table/types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type TableCanvasProps = {

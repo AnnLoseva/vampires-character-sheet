@@ -1,5 +1,5 @@
 import type { Dispatch, DragEvent, FormEvent, RefObject, SetStateAction } from 'react'
-import type { LeftToolbarTab, SceneMusicTrack, TableScene } from '@/lib/table/types'
+import type { LeftToolbarTab, SceneMusicTrack, TableScene } from '@/modules/table/types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type SceneManagerProps = {

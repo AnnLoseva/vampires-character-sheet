@@ -1,3 +1,5 @@
+// Source of truth: core/systems/vtm5/rules/humanity/index.ts
+// Keep this legacy copy in sync when changing humanity mechanics.
 (function (root) {
     const SOURCE_LABELS = {
         manual: 'ручное решение',

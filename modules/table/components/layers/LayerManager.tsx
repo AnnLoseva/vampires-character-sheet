@@ -1,5 +1,5 @@
 import type { Dispatch, DragEvent, ReactNode, SetStateAction } from 'react'
-import type { LayerContextMenu, LayerDropTarget, LayerPatch, LayerTreeNode, TableLayer } from '@/lib/table/types'
+import type { LayerContextMenu, LayerDropTarget, LayerPatch, LayerTreeNode, TableLayer } from '@/modules/table/types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type LayerManagerProps = {

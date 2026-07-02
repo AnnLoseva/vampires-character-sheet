@@ -3,10 +3,9 @@
 import type { FormEvent, ReactNode } from 'react'
 import type { CharacterDerivedStats } from '@/core/systems/vtm5/rules/derived-stats'
 import type { DisciplineRollEffectResult } from '@/core/systems/vtm5/rules/disciplines/effects'
-import { getDisciplineDurationLabel } from '@/core/systems/vtm5/rules/disciplines/durations'
 import type { DamageSeverity, HealthDamageOptions } from '@/core/systems/vtm5/rules/health'
-import { getHealthWarning, getSuperficialMendAmount } from '@/core/systems/vtm5/rules/health'
-import { getRemorseDice } from '@/core/systems/vtm5/rules/humanity'
+import { tableDisciplines, tableHealth, tableHumanity } from '../system-runtime'
+import { getActivePenaltyDelta } from '../utils/roll-utils'
 import { getAttributeDots, resolveSkillValue } from '@/lib/i18n/ruleNames'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import { ATTRIBUTE_GROUPS, INVENTORY_CATEGORIES, SKILL_GROUPS, type InventoryCategory } from '../constants/roll-traits'
@@ -145,7 +144,7 @@ function getActiveEffectDescription(
     activeEffect.source.level
       ? tf('уровень {level}', { level: activeEffect.source.level })
       : '',
-    getDisciplineDurationLabel(activeEffect.duration, t, tf),
+    tableDisciplines().getDisciplineDurationLabel(activeEffect.duration, t, tf),
   ].filter(Boolean).join(' · ')
 }
 
@@ -168,17 +167,6 @@ function getSkillSpecs(value: unknown) {
 
 function getDisciplineDots(sources: Record<string, number>) {
   return Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
-}
-
-function getActivePenaltyDelta(
-  result: DisciplineRollEffectResult | null | undefined,
-  penaltyId: string,
-) {
-  return result?.modifiers.find(
-    modifier => modifier.sourceKind === 'penalty'
-      && modifier.id === `penalty:${penaltyId}`
-      && modifier.active,
-  )?.diceDelta || 0
 }
 
 type ContestedOpponentOption = {
@@ -332,7 +320,7 @@ export function CharacterPreviewModal({
     willpowerRecoveryPool,
     playerLabel,
   } = computed
-  const superficialMendAmount = getSuperficialMendAmount(bloodPotency)
+  const superficialMendAmount = tableHealth().getSuperficialMendAmount(bloodPotency)
 
   return (
     <div className="media-preview-backdrop" role="dialog" aria-modal="true" aria-label={t('Быстрый просмотр персонажа')} onMouseDown={actions.onClose}>
@@ -462,7 +450,7 @@ export function CharacterPreviewModal({
                         type="button"
                         onClick={actions.performRemorseCheck}
                         disabled={!canRoll || humanity.stains <= 0}
-                        title={humanity.stains <= 0 ? t('Нет Сомнений для проверки.') : tf('Пул: {dice}к10', { dice: getRemorseDice(humanity) })}
+                        title={humanity.stains <= 0 ? t('Нет Сомнений для проверки.') : tf('Пул: {dice}к10', { dice: tableHumanity().getRemorseDice(humanity) })}
                       >
                         {t('Проверка мук совести')}
                       </button>
@@ -503,7 +491,7 @@ export function CharacterPreviewModal({
                     )
                   })}
                 </div>
-                {health.impaired ? <p className="preview-roll-notice">{getHealthWarning(health, damageProfile, t)}</p> : null}
+                {health.impaired ? <p className="preview-roll-notice">{tableHealth().getHealthWarning(health, damageProfile, t)}</p> : null}
                 {sheetFixed ? <div className="preview-willpower-actions preview-health-actions">
                   <button type="button" onClick={() => actions.applyHealthDamage(1, 'superficial', { source: 'manual', ignoreHalving: true })} disabled={!canRoll}>+ {t('лёгкий')}</button>
                   <button type="button" onClick={() => actions.applyHealthDamage(1, 'aggravated', { source: 'manual' })} disabled={!canRoll}>+ {t('тяжёлый')}</button>

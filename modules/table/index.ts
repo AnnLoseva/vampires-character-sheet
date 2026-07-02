@@ -14,3 +14,13 @@ export {
   resetTableModuleConfiguration,
 } from './configure'
 export { tableModuleDefinition } from './module-definition'
+export { bootstrapTableForRoom } from './bootstrap'
+export {
+  tableApplyDisciplineEffectsToRoll,
+  tableDisciplines,
+  tableGetDerivedStats,
+  tableHealth,
+  tableHumanity,
+} from './system-runtime'
+export { default as TableRoute } from './TableRoute'
+export { default as GameTable } from './GameTable'

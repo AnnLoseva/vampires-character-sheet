@@ -1,5 +1,5 @@
 import type { Dispatch, FormEvent, SetStateAction } from 'react'
-import type { ActiveParticipant, ChatUser, MasterReveal, MasterWhisper, RightRailTab } from '@/lib/table/types'
+import type { ActiveParticipant, ChatUser, MasterReveal, MasterWhisper, RightRailTab } from '@/modules/table/types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type MasterPanelProps = {

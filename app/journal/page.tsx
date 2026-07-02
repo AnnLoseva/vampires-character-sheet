@@ -1,5 +1,5 @@
-import JournalPage from '@/components/journal/JournalPage'
+import JournalRoute from '@/modules/journal/JournalRoute'
 
 export default function Journal() {
-  return <JournalPage />
+  return <JournalRoute />
 }

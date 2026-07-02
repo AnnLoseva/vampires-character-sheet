@@ -1,1 +1,7 @@
 export type { CharacterSheetModule } from './types'
+export { characterSheetModuleDefinition } from './module-definition'
+export { default as CharacterSheetRoute } from './CharacterSheetRoute'
+export { default as CharacterSheetScreen } from './components/CharacterSheetScreen'
+export * from './legacy/events'
+export * from './legacy/params'
+export * from './legacy/bridge'

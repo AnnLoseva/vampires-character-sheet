@@ -1,3 +1,5 @@
+// Source of truth: core/systems/vtm5/rules/health/index.ts
+// Keep this legacy copy in sync when changing health mechanics.
 (function exposeVtmHealth(global) {
     const mendByBloodPotency = [1, 1, 2, 2, 3, 3, 3, 3, 4, 4, 5];
 

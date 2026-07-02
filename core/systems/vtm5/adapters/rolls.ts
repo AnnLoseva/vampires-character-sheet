@@ -1,4 +1,10 @@
 import type { RollsRollLike, RollsSystemAdapter } from '@/modules/rolls/system-adapter'
+import {
+  countD10Successes,
+  getDieKind,
+  getRollOutcomeMeta,
+  rollD10Pool,
+} from '../rules/rolls'
 
 function getRollDieId(roll: RollsRollLike, index: number) {
   return roll.dice[index]?.id || `${roll.id}:${index}`
@@ -8,6 +14,12 @@ export function createVtm5RollsAdapter(): RollsSystemAdapter {
   return {
     systemId: 'vtm5',
     rulesNamespace: 'vtm5',
+    dice: {
+      getDieKind,
+      rollD10Pool,
+      countD10Successes,
+      getRollOutcomeMeta,
+    },
     isWillpowerRerollExcluded(roll) {
       const text = `${roll.poolType} ${roll.poolName}`.toLocaleLowerCase('ru')
       return roll.poolType === 'rouse-check'

@@ -1,1 +1,5 @@
 export type { JournalModule } from './types'
+export { journalModuleDefinition } from './module-definition'
+export { default as JournalRoute } from './JournalRoute'
+export { default as JournalPage } from './components/JournalPage'
+export { default as JournalPanel } from './components/JournalPanel'

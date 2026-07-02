@@ -1,5 +1,5 @@
 import type { Dispatch, ReactNode, SetStateAction } from 'react'
-import type { RightRailTab } from '@/lib/table/types'
+import type { RightRailTab } from '@/modules/table/types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type TableRightPanelProps = {

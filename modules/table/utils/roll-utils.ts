@@ -1,4 +1,11 @@
 import { ATTRIBUTE_NAME_EN, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
+import { getRollsSystemAdapter, isRollsModuleConfigured } from '@/modules/rolls/configure'
+export {
+  getActivePenaltyDelta,
+  getActiveRollModifierWarnings,
+  getBloodSurgeBonus,
+  getRouseWarning,
+} from '@/modules/rolls/utils/roll-helpers'
 import type { RollMessage } from '../types'
 
 export function getRollDieId(roll: RollMessage, index: number) {
@@ -6,6 +13,10 @@ export function getRollDieId(roll: RollMessage, index: number) {
 }
 
 export function isWillpowerRerollExcluded(roll: RollMessage) {
+  if (isRollsModuleConfigured()) {
+    return getRollsSystemAdapter().isWillpowerRerollExcluded(roll)
+  }
+
   const text = `${roll.poolType} ${roll.poolName}`.toLocaleLowerCase('ru')
   return roll.poolType === 'rouse-check'
     || roll.poolType === 'willpower'
@@ -18,6 +29,10 @@ export function isWillpowerRerollExcluded(roll: RollMessage) {
 }
 
 export function getWillpowerRerollEligibleDieIds(roll: RollMessage) {
+  if (isRollsModuleConfigured()) {
+    return getRollsSystemAdapter().getWillpowerRerollEligibleDieIds(roll)
+  }
+
   return roll.dice
     .map((die, index) => ({ die, id: getRollDieId(roll, index) }))
     .filter(({ die }) => !String(die.kind).startsWith('hunger'))

@@ -1,8 +1,8 @@
 'use client'
 
 import { type Dispatch, type SetStateAction, useMemo, useRef } from 'react'
-import type { ChatUser, JournalEntry, RightRailTab } from '@/lib/table/types'
-import JournalEditor, { type JournalEditorHandle } from '@/components/journal/JournalEditor'
+import type { ChatUser, JournalEntry, RightRailTab } from '@/modules/table/types'
+import JournalEditor, { type JournalEditorHandle } from './JournalEditor'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 // ─── markdown → HTML (for legacy plain-text entries) ─────────────────────────
