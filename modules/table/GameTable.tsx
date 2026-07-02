@@ -11,6 +11,7 @@ import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkil
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import MusicPlayer from '@/modules/music/components/MusicPlayer'
 import MusicTopbarControl from '@/modules/music/components/MusicTopbarControl'
+import PlayerTopbarCharacter from '@/modules/table/components/topbar/PlayerTopbarCharacter'
 import type { DiceOverlayRoll } from '@/modules/rolls/components/DiceRollOverlay'
 import GameTableStyles from './components/GameTableStyles'
 import LayerManager from './components/layers/LayerManager'
@@ -329,6 +330,7 @@ export default function VampireTable() {
   const panRef = useRef(pan)
   const chatUserRef = useRef<ChatUser | null>(null)
   const chatCharactersRef = useRef<CharacterOption[]>([])
+  const playerLayoutInitRef = useRef(false)
   const publishRollRef = useRef<(roll: RollMessage) => Promise<void>>(async () => {})
   const createQuickRollRef = useRef<ReturnType<typeof createQuickRollFactory>>(async () => {
     throw new Error('createQuickRoll is not ready')
@@ -1527,9 +1529,27 @@ export default function VampireTable() {
   const selectedScene = scenes.find(scene => scene.id === getSelectedSceneId()) || activeScene
   const activeSceneMusic = useMemo(() => sortSceneMusic(sceneMusic.filter(track => track.sceneId === activeSceneId)), [sceneMusic, activeSceneId])
   const selectedSceneMusic = useMemo(() => sortSceneMusic(sceneMusic.filter(track => track.sceneId === selectedScene?.id)), [sceneMusic, selectedScene?.id])
-  const isMusicPanelVisible = isMaster
-    ? leftPanelOpen && leftToolbarTab === 'music'
-    : rightPanelOpen && rightRailTab === 'media' && mediaTab === 'music'
+  const isMusicPanelVisible = isMaster && leftPanelOpen && leftToolbarTab === 'music'
+
+  useEffect(() => {
+    if (tableRole !== 'player' || playerLayoutInitRef.current) return
+    playerLayoutInitRef.current = true
+    setRightPanelOpen(false)
+    setMediaTab('library')
+  }, [tableRole])
+
+  useEffect(() => {
+    if (!isMaster && rightRailTab === 'media') setMediaTab('library')
+  }, [isMaster, rightRailTab])
+
+  const togglePlayerJournal = () => {
+    if (rightRailTab === 'diary' && rightPanelOpen) {
+      setRightPanelOpen(false)
+      return
+    }
+    setRightRailTab('diary')
+    setRightPanelOpen(true)
+  }
   const selectedLayer = layers.find(layer => layer.id === selectedLayerId) || null
   const previewLayer = layers.find(layer => layer.id === previewLayerId) || null
   const currentOwnerId = isMaster ? 'master' : chatUser?.id ?? null
@@ -1623,6 +1643,31 @@ export default function VampireTable() {
         </div>
         <div className="table-topbar-right">
           <MusicTopbarControl room={room} />
+          {!isMaster ? (
+            <button
+              type="button"
+              className={`table-journal-toggle ${rightRailTab === 'diary' && rightPanelOpen ? 'active' : ''}`}
+              onClick={togglePlayerJournal}
+              title={t('Дневник')}
+            >
+              {t('Дневник')}
+            </button>
+          ) : null}
+          {!isMaster ? (
+            <PlayerTopbarCharacter
+              selectedActiveCharacter={selectedActiveCharacter}
+              chatCharacters={chatCharacters}
+              selectedChatCharacterId={selectedChatCharacterId}
+              chatUser={chatUser}
+              chooseActiveCharacter={chooseActiveCharacter}
+              openCharacterPreview={openCharacterPreview}
+              characterSheetHref={characterSheetHref}
+              onNeedCharacter={() => {
+                setRightRailTab('chat')
+                setRightPanelOpen(true)
+              }}
+            />
+          ) : null}
           <div className="table-actions">
           <a href="/" title={t('Вернуться на главную страницу')}>{t('Главная')}</a>
           <MasterRoleTopbar
@@ -1633,7 +1678,9 @@ export default function VampireTable() {
             onResetTableRole={resetTableRole}
             onSaveMasterPassword={saveMasterPassword}
           />
-          <a href={characterSheetHref(selectedActiveCharacter?.id)} title={t('Открыть лист персонажа')}>{t('Лист')}</a>
+          {isMaster ? (
+            <a href={characterSheetHref(selectedActiveCharacter?.id)} title={t('Открыть лист персонажа')}>{t('Лист')}</a>
+          ) : null}
           <input ref={fileInputRef} type="file" multiple onChange={handleImageUpload} />
           <input ref={folderInputRef} type="file" multiple onChange={handleFolderUpload} />
           <input ref={backgroundFileInputRef} type="file" accept="image/*" multiple onChange={handleBackgroundUpload} />
@@ -1641,45 +1688,6 @@ export default function VampireTable() {
           </div>
         </div>
       </section>
-
-      {!isMaster ? <section className="active-character-strip" aria-label={t('Активный персонаж')}>
-        <div className="active-character-card">
-          <div className="chat-avatar large" aria-hidden="true">
-            {selectedActiveCharacter?.image ? (
-              <img src={selectedActiveCharacter.image} alt="" />
-            ) : (
-              <span>{(selectedActiveCharacter?.name || '?').slice(0, 1).toUpperCase()}</span>
-            )}
-          </div>
-          <div>
-            <span>{t('Активный персонаж')}</span>
-            <strong>{selectedActiveCharacter?.name || t('Персонаж не выбран')}</strong>
-            <small>{selectedActiveCharacter?.clan || (chatUser ? t('без клана') : t('войдите в аккаунт'))}</small>
-          </div>
-          <button type="button" onClick={() => selectedActiveCharacter ? void openCharacterPreview(selectedActiveCharacter) : setRightRailTab('chat')} disabled={!selectedActiveCharacter}>
-            {t('Быстрый просмотр')}
-          </button>
-          <a href={characterSheetHref(selectedActiveCharacter?.id)}>{t('Открыть полный лист')}</a>
-        </div>
-        <div className="active-character-picker">
-          <label>
-            <span>{t('Смена персонажа')}</span>
-            <select
-              value={selectedChatCharacterId}
-              onChange={event => chooseActiveCharacter(event.target.value)}
-              disabled={!chatUser || chatCharacters.length === 0}
-            >
-              {chatCharacters.length === 0 ? <option value="">{t('Нет сохранённых персонажей')}</option> : null}
-              {chatCharacters.map(character => (
-                <option value={character.id} key={character.id}>
-                  {character.name}{character.clan ? `, ${character.clan}` : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-          {!selectedActiveCharacter ? <button type="button" onClick={() => setRightRailTab('chat')}>{t('Выбрать персонажа')}</button> : null}
-        </div>
-      </section> : null}
 
       <MusicPlayer
         room={room}
@@ -1873,8 +1881,6 @@ export default function VampireTable() {
         </TableLeftPanel>
 
         <TableCanvas
-          tableStatus={tableStatus}
-          activeScene={activeScene}
           layersLength={layers.length}
           zoom={zoom}
           pan={pan}
@@ -1924,103 +1930,10 @@ export default function VampireTable() {
           setRightPanelOpen={setRightPanelOpen}
           setRightRailTab={setRightRailTab}
         >
-          <section className={`media-sidebar table-right-panel ${rightRailTab === 'media' ? '' : 'table-right-panel-hidden'}`} aria-label={t('Медиа стола')}>
-            {!isMaster ? (
-              <nav className="sub-tabs" aria-label={t('Медиа панели')}>
-                <button type="button" className={mediaTab === 'layers' ? 'active' : ''} onClick={() => setMediaTab('layers')}>
-                  {t('Стол')}
-                </button>
-                <button type="button" className={mediaTab === 'library' ? 'active' : ''} onClick={() => setMediaTab('library')}>
-                  {t('Мои медиа')}
-                </button>
-                <button type="button" className={mediaTab === 'music' ? 'active' : ''} onClick={() => setMediaTab('music')}>
-                  {t('Музыка')}
-                </button>
-              </nav>
-            ) : null}
-
-            {!isMaster ? (
-            <section
-              className={`layer-panel table-right-panel ${mediaTab === 'layers' ? '' : 'table-right-panel-hidden'}`}
-              aria-label={t('Слои стола')}
-              onDragOver={event => {
-                if (event.dataTransfer.types.includes('Files') || event.dataTransfer.types.includes('text/uri-list') || event.dataTransfer.types.includes('text/plain')) event.preventDefault()
-              }}
-              onDrop={handleTableLayerPanelDrop}
-            >
-              <header>
-                <strong>{t('Изображения и видео')}</strong>
-                <span>{selectedManagerLayer?.name || t('папки выше перекрывают ниже')}</span>
-              </header>
-
-              <div className="media-manager-toolbar">
-                <button type="button" onClick={() => createNamedFolder()}>{t('Папка')}</button>
-                <button type="button" onClick={() => fileInputRef.current?.click()} disabled={isUploading}>
-                  {isUploading ? t('Загрузка...') : t('Новый слой')}
-                </button>
-                <button type="button" onClick={() => folderInputRef.current?.click()} disabled={isUploading}>
-                  {t('Папка файлов')}
-                </button>
-              </div>
-
-              <form className="media-url-form" onSubmit={handleMediaUrlSubmit}>
-                <input
-                  value={mediaUrlDraft}
-                  onChange={event => setMediaUrlDraft(event.target.value)}
-                  placeholder={t('Ссылка на картинку, видео или YouTube')}
-                  disabled={isUploading}
-                />
-                <button type="submit" disabled={isUploading || !mediaUrlDraft.trim()}>
-                  {t('Вставить')}
-                </button>
-              </form>
-
-              <div
-                className={`layer-list ${layerDropTarget?.layerId === ROOT_LAYER_DROP_ID ? 'drop-root' : ''}`}
-                onDragOver={handleLayerRootDragOver}
-                onDrop={handleLayerRootDrop}
-                onDragLeave={event => {
-                  if (event.currentTarget === event.target) setLayerDropTarget(null)
-                }}
-              >
-                {layerTree.length === 0 ? (
-                  <p className="panel-empty">{t('Слоёв пока нет.')}</p>
-                ) : (
-                  <LayerManager layers={layerTree}
-                            isMaster={isMaster}
-                            expandedFolders={expandedFolders}
-                            layerDropTarget={layerDropTarget}
-                            selectedLayerIds={selectedLayerIds}
-                            draggingLayerId={draggingLayerId}
-                            canMoveLayer={canMoveLayer}
-                            isLayerEffectivelyVisible={checkLayerEffectivelyVisible}
-                            handleLayerDragStart={handleLayerDragStart}
-                            handleLayerDragOver={handleLayerDragOver}
-                            handleLayerDrop={handleLayerDrop}
-                            handleLayerDragEnd={handleLayerDragEnd}
-                            handleManagerDoubleClick={handleManagerDoubleClick}
-                            patchLayer={patchLayer}
-                            placeLayerOnTable={placeLayerOnTable}
-                            deleteLayer={deleteLayer}
-                            setLayerSelection={setLayerSelection}
-                            setLayerContextMenu={setLayerContextMenu}
-                            toggleFolder={toggleFolder}
-                          />
-                )}
-                <div
-                  className="layer-root-drop-zone"
-                  onDragOver={handleLayerRootDragOver}
-                  onDrop={handleLayerRootDrop}
-                >
-                  {t('Перетащи сюда, чтобы вынести в корень')}
-                </div>
-              </div>
-            </section>
-            ) : null}
-
-            {!isMaster ? (
+          {!isMaster ? (
+          <section className={`media-sidebar table-right-panel ${rightRailTab === 'media' ? '' : 'table-right-panel-hidden'}`} aria-label={t('Мои медиа')}>
             <MediaLibrary
-              mediaTab={mediaTab}
+              mediaTab="library"
               isMaster={isMaster}
               isUploading={isUploading}
               fileInputRef={fileInputRef}
@@ -2056,14 +1969,8 @@ export default function VampireTable() {
               setLayerContextMenu={setLayerContextMenu}
               toggleFolder={toggleFolder}
             />
-            ) : null}
-
-            {!isMaster && mediaTab === 'music' ? (
-              <div className="table-right-panel" style={{ overflow: 'auto' }}>
-                <MusicPlayer room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={false} />
-              </div>
-            ) : null}
           </section>
+          ) : null}
 
           <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label={t('История бросков')}>
             <RollHistoryPanel

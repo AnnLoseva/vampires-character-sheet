@@ -41,7 +41,7 @@ export default function TableRightPanel({
               className={rightRailTab === 'media' ? 'active' : ''}
               onClick={() => setRightRailTab('media')}
             >
-              {t('Медиа')}
+              {t('Мои медиа')}
             </button>
           ) : null}
           <button
@@ -58,13 +58,15 @@ export default function TableRightPanel({
           >
             {t('Чат')}
           </button>
-          <button
-            type="button"
-            className={rightRailTab === 'diary' ? 'active' : ''}
-            onClick={() => setRightRailTab('diary')}
-          >
-            {isMaster ? t('Персонажи') : t('Дневник')}
-          </button>
+          {isMaster ? (
+            <button
+              type="button"
+              className={rightRailTab === 'diary' ? 'active' : ''}
+              onClick={() => setRightRailTab('diary')}
+            >
+              {t('Персонажи')}
+            </button>
+          ) : null}
           <button
             type="button"
             className={rightRailTab === 'master' ? 'active' : ''}

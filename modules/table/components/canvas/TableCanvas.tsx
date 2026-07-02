@@ -10,12 +10,10 @@ import {
   getEmbeddableVideoUrl,
   getFileLayerMeta,
 } from '@/modules/table/utils/media-utils'
-import type { DragState, ImageEditorDraft, ImageEditorState, LayerContextMenu, SelectionRect, TableLayer, TableScene } from '@/modules/table/types'
+import type { DragState, ImageEditorDraft, ImageEditorState, LayerContextMenu, SelectionRect, TableLayer } from '@/modules/table/types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type TableCanvasProps = {
-  tableStatus: string
-  activeScene: TableScene | null | undefined
   layersLength: number
   zoom: number
   pan: { x: number; y: number }
@@ -59,8 +57,6 @@ type TableCanvasProps = {
 }
 
 export default function TableCanvas({
-  tableStatus,
-  activeScene,
   layersLength,
   zoom,
   pan,
@@ -102,23 +98,15 @@ export default function TableCanvas({
   previewLayerOpacity,
   commitLayerOpacity,
 }: TableCanvasProps) {
-  const { t, tf } = useLang()
+  const { t } = useLang()
   return (
     <section className="play-surface" aria-label={t('Игровой стол')}>
-      <header className="surface-head">
-        <div>
-          <span>{t(tableStatus)}</span>
-          <strong>{activeScene?.name || (layersLength ? tf('{count} слоёв', { count: layersLength }) : t('Пустая сцена'))}</strong>
-        </div>
-        <div>
-          <span>{t('Масштаб')}</span>
-          <strong>{Math.round(zoom * 100)}%</strong>
-        </div>
-        <div className="zoom-tools">
-          <button type="button" onClick={raiseHand} title={t('Поднять руку')}>!</button>
-          <button type="button" onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))}>−</button>
-          <button type="button" onClick={() => setZoom(1)}>100</button>
-          <button type="button" onClick={() => setZoom(prev => Math.min(5, prev + 0.1))}>+</button>
+      <header className="surface-head" aria-label={t('Управление столом')}>
+        <div className="zoom-tools canvas-actions">
+          <button type="button" className="canvas-action canvas-action-hand" onClick={raiseHand} title={t('Поднять руку')}>!</button>
+          <button type="button" className="canvas-action" onClick={() => setZoom(prev => Math.max(0.2, prev - 0.1))} title={t('Уменьшить')}>−</button>
+          <button type="button" className="canvas-action canvas-action-reset" onClick={() => setZoom(1)} title={t('Сбросить масштаб')}>{Math.round(zoom * 100)}</button>
+          <button type="button" className="canvas-action" onClick={() => setZoom(prev => Math.min(5, prev + 0.1))} title={t('Увеличить')}>+</button>
         </div>
       </header>
       {handNotice ? <div className="hand-notice" role="status">{t(handNotice)}</div> : null}

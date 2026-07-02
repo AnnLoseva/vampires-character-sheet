@@ -209,6 +209,141 @@ export default function GameTableStyles() {
           text-align: right;
         }
 
+        .table-journal-toggle {
+          min-height: var(--ctrl-md);
+          border: 1px solid var(--vtm-line);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-1);
+          color: var(--vtm-ink-dim);
+          padding: 6px 12px;
+          font: inherit;
+          font-size: var(--fs-11);
+          font-weight: 700;
+          letter-spacing: var(--ls-label);
+          cursor: pointer;
+          transition: all var(--dur-fast) var(--ease);
+        }
+
+        .table-journal-toggle:hover,
+        .table-journal-toggle.active {
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood-pale);
+        }
+
+        .tbl-char.player-topbar-char {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid var(--vtm-line);
+          border-radius: var(--r-md);
+          background: var(--vtm-surface-1);
+          padding: 5px 8px;
+          min-width: 0;
+          max-width: min(420px, 42vw);
+        }
+
+        .tbl-char-sigil {
+          width: 30px;
+          height: 30px;
+          display: grid;
+          place-items: center;
+          flex-shrink: 0;
+          border: 1px solid var(--vtm-line-blood);
+          border-radius: 50%;
+          background: var(--vtm-void);
+          overflow: hidden;
+          color: var(--vtm-blood);
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .tbl-char-sigil img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+          display: block;
+        }
+
+        .tbl-char-body {
+          display: grid;
+          gap: 1px;
+          min-width: 0;
+          margin-right: auto;
+        }
+
+        .tbl-char-body strong {
+          font-size: var(--fs-11);
+          color: var(--vtm-ink);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tbl-char-body span {
+          font-size: var(--fs-10);
+          color: var(--vtm-ink-muted);
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+
+        .tbl-char-select-wrap {
+          min-width: 0;
+          flex-shrink: 1;
+        }
+
+        .tbl-char-select {
+          max-width: 120px;
+          height: 26px;
+          border: 1px solid var(--vtm-line-strong);
+          border-radius: var(--r-xs);
+          background: var(--vtm-surface-4);
+          color: var(--vtm-ink);
+          font: inherit;
+          font-size: var(--fs-10);
+          padding: 0 6px;
+        }
+
+        .tbl-char-action {
+          flex-shrink: 0;
+          min-height: 26px;
+          border: 1px solid var(--vtm-line-blood);
+          border-radius: var(--r-xs);
+          background: var(--vtm-surface-3);
+          color: var(--vtm-ink);
+          padding: 4px 7px;
+          font: inherit;
+          font-size: var(--fs-10);
+          font-weight: 700;
+          letter-spacing: var(--ls-label);
+          text-decoration: none;
+          cursor: pointer;
+          white-space: nowrap;
+        }
+
+        .tbl-char-action:hover:not(:disabled) {
+          border-color: var(--vtm-blood);
+          color: var(--vtm-blood-pale);
+        }
+
+        .tbl-char-action:disabled {
+          opacity: 0.45;
+          cursor: not-allowed;
+        }
+
+        .sr-only {
+          position: absolute;
+          width: 1px;
+          height: 1px;
+          padding: 0;
+          margin: -1px;
+          overflow: hidden;
+          clip: rect(0, 0, 0, 0);
+          white-space: nowrap;
+          border: 0;
+        }
+
         .table-kicker {
           margin: 0 0 3px;
           color: var(--vtm-blood);
@@ -785,35 +920,6 @@ export default function GameTableStyles() {
           padding: 0;
         }
 
-        .surface-head > div:first-child {
-          position: absolute;
-          left: 16px;
-          top: 14px;
-          max-width: 320px;
-          display: grid;
-          gap: 3px;
-          pointer-events: none;
-        }
-
-        .surface-head > div:nth-child(2) {
-          display: none;
-        }
-
-        .surface-head > div:first-child span {
-          color: var(--vtm-blood);
-          font-size: var(--fs-10);
-          letter-spacing: var(--ls-kicker);
-          text-transform: uppercase;
-        }
-
-        .surface-head > div:first-child strong {
-          font-family: var(--font-display);
-          font-weight: 600;
-          font-size: 20px;
-          color: var(--vtm-ink);
-          text-shadow: rgba(0, 0, 0, 0.8) 0 2px 18px;
-        }
-
         .layer-panel header span,
         .roll-sidebar header span,
         .chat-sidebar header span {
@@ -830,7 +936,8 @@ export default function GameTableStyles() {
           font-size: var(--fs-15);
         }
 
-        .zoom-tools {
+        .zoom-tools,
+        .canvas-actions {
           position: absolute !important;
           right: 12px !important;
           top: 12px !important;
@@ -840,23 +947,49 @@ export default function GameTableStyles() {
           pointer-events: auto;
         }
 
-        .zoom-tools button {
-          min-height: auto;
-          height: auto;
+        .canvas-action {
+          min-width: 34px;
+          min-height: 30px;
           border-radius: var(--r-xs);
           border: 1px solid var(--vtm-line-strong);
           background: rgba(12, 10, 10, 0.78);
           color: var(--vtm-ink-dim);
           padding: 6px 10px;
           font-size: var(--fs-11);
+          font-weight: 700;
+          letter-spacing: var(--ls-label);
           cursor: pointer;
-          font: inherit;
-          transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+          font-family: var(--font-mono);
+          line-height: 1;
+          transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
         }
 
-        .zoom-tools button:hover {
+        .canvas-action:hover {
           border-color: var(--vtm-blood);
           color: var(--vtm-ink);
+          background: rgba(20, 12, 12, 0.9);
+        }
+
+        .canvas-action-reset {
+          min-width: 44px;
+          color: var(--vtm-blood-soft);
+          border-color: var(--vtm-line-blood-deep);
+        }
+
+        .canvas-action-reset:hover {
+          color: var(--vtm-blood-pale);
+          box-shadow: var(--glow-blood);
+        }
+
+        .canvas-action-hand {
+          border-color: var(--vtm-gold-line);
+          color: var(--vtm-gold-warn);
+          background: rgba(26, 19, 7, 0.82);
+        }
+
+        .canvas-action-hand:hover {
+          border-color: var(--vtm-gold-warn);
+          color: #fff2c8;
         }
 
         .hand-notice {
@@ -5347,19 +5480,22 @@ export default function GameTableStyles() {
             min-height: 340px;
           }
 
-          .surface-head {
-            grid-template-columns: 1fr auto;
-            display: grid;
-            padding: 8px;
+          .canvas-action {
+            min-width: 38px;
+            min-height: 34px;
           }
 
-          .surface-head div:nth-child(2) {
+          .player-topbar-char {
+            max-width: 100%;
+            flex-wrap: wrap;
+          }
+
+          .tbl-char-body {
             display: none;
           }
 
-          .zoom-tools button {
-            width: 38px;
-            height: 34px;
+          .tbl-char-select {
+            max-width: 100px;
           }
 
           .right-rail {
