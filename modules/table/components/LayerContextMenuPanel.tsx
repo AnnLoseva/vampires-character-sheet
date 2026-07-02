@@ -13,7 +13,7 @@ export type LayerContextMenuPanelProps = {
   chatUser: ChatUser | null
   tableManagerLayers: TableLayer[]
   libraryLayers: TableLayer[]
-  getContextLayerIds: (layerId: string) => string[]
+  getContextLayerIds: (layerId: string | null) => string[]
   canEditLayer: (layer: TableLayer) => boolean
   addLayerToJournal: (imageData: string, name: string) => void
   copyLayerForDiary: (layer: TableLayer) => void
@@ -67,24 +67,25 @@ export default function LayerContextMenuPanel({
 }: LayerContextMenuPanelProps) {
   const { t } = useLang()
 
-  if (!layerContextMenu.layerId) return null
-
   const ids = getContextLayerIds(layerContextMenu.layerId)
   const contextLayers = ids
     .map(id => layers.find(item => item.id === id))
     .filter((item): item is TableLayer => Boolean(item))
   if (contextLayers.length === 0) return null
 
-  const layer = layers.find(item => item.id === layerContextMenu.layerId)
+  const layer = layerContextMenu.layerId
+    ? layers.find(item => item.id === layerContextMenu.layerId)
+    : null
   const firstLayer = layer || contextLayers[0]
   const allVisible = contextLayers.every(item => item.visible)
   const allLocked = contextLayers.every(item => item.locked)
   const singleLayer = contextLayers.length === 1 ? contextLayers[0] : null
   const canManageContext = contextLayers.every(item => canEditLayer(item))
+  const hasReadOnlyActions = Boolean(singleLayer && singleLayer.layerType !== 'folder')
   const movableIds = canManageContext ? ids.filter(id => layers.find(item => item.id === id)?.layerType !== 'folder') : []
   const folderScope = firstLayer.onTable ? tableManagerLayers : libraryLayers
   const availableFolders = canManageContext ? folderScope.filter(item => item.layerType === 'folder' && !ids.includes(item.id)) : []
-  if (!canManageContext && (!singleLayer || singleLayer.layerType === 'folder')) return null
+  if (!canManageContext && !hasReadOnlyActions) return null
 
   return (
     <SmartContextMenu

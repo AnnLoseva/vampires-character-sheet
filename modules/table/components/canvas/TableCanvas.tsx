@@ -1,4 +1,4 @@
-import type { Dispatch, DragEvent, PointerEvent, RefObject, SetStateAction, TouchEvent, WheelEvent } from 'react'
+import type { Dispatch, DragEvent, MouseEvent, PointerEvent, RefObject, SetStateAction, TouchEvent, WheelEvent } from 'react'
 import {
   createEditorState,
   getEditorPreviewStyle,
@@ -99,6 +99,19 @@ export default function TableCanvas({
   commitLayerOpacity,
 }: TableCanvasProps) {
   const { t } = useLang()
+
+  const openLayerContextMenu = (event: MouseEvent<HTMLElement>, layer: TableLayer) => {
+    event.preventDefault()
+    event.stopPropagation()
+    if (suppressNextContextMenuRef.current) {
+      suppressNextContextMenuRef.current = false
+      return
+    }
+    if (!selectedLayerIds.has(layer.id)) setLayerSelection([layer.id], layer.id)
+    else setSelectedLayerId(layer.id)
+    setLayerContextMenu({ layerId: layer.id, x: event.clientX, y: event.clientY })
+  }
+
   return (
     <section className="play-surface" aria-label={t('Игровой стол')}>
       <header className="surface-head" aria-label={t('Управление столом')}>
@@ -167,17 +180,7 @@ export default function TableCanvas({
                 mixBlendMode: layer.blendMode,
               }}
               onPointerDown={event => startLayerDrag(event, layer, 'move')}
-              onContextMenu={event => {
-                event.preventDefault()
-                event.stopPropagation()
-                if (suppressNextContextMenuRef.current) {
-                  suppressNextContextMenuRef.current = false
-                  return
-                }
-                if (!selectedLayerIds.has(layer.id)) setLayerSelection([layer.id], layer.id)
-                else setSelectedLayerId(layer.id)
-                setLayerContextMenu({ layerId: layer.id, x: event.clientX, y: event.clientY })
-              }}
+              onContextMenu={event => openLayerContextMenu(event, layer)}
               onDoubleClick={event => {
                 event.preventDefault()
                 event.stopPropagation()
@@ -201,6 +204,7 @@ export default function TableCanvas({
                         title={layer.name}
                         allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                         allowFullScreen
+                        onContextMenu={event => openLayerContextMenu(event, layer)}
                       />
                       <button
                         type="button"
@@ -223,6 +227,7 @@ export default function TableCanvas({
                       playsInline
                       draggable={false}
                       style={imageEditor?.layerId === layer.id ? getEditorPreviewStyle(imageEditor.state) : getLayerMediaStyle(layer)}
+                      onContextMenu={event => openLayerContextMenu(event, layer)}
                       onError={event => {
                         event.currentTarget.style.display = 'none'
                         event.currentTarget.parentElement?.classList.add('image-load-error')
@@ -243,7 +248,7 @@ export default function TableCanvas({
                   <article className={`scene-file-material ${embedUrl ? 'embedded-document' : ''}`}>
                     <strong>{layer.name}</strong>
                     {embedUrl ? (
-                      <iframe src={embedUrl} title={layer.name} />
+                      <iframe src={embedUrl} title={layer.name} onContextMenu={event => openLayerContextMenu(event, layer)} />
                     ) : (
                       <>
                         <span>{meta.type}</span>

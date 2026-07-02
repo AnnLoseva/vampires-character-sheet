@@ -552,10 +552,15 @@ export default function VampireTable() {
   useEffect(() => {
     if (!layerContextMenu) return
     const closeMenu = () => setLayerContextMenu(null)
-    window.addEventListener('click', closeMenu)
+    const closeMenuOnClick = (event: Event) => {
+      const target = event.target
+      if (target instanceof Element && target.closest('.layer-context-menu')) return
+      closeMenu()
+    }
+    window.addEventListener('click', closeMenuOnClick)
     window.addEventListener('keydown', closeMenu)
     return () => {
-      window.removeEventListener('click', closeMenu)
+      window.removeEventListener('click', closeMenuOnClick)
       window.removeEventListener('keydown', closeMenu)
     }
   }, [layerContextMenu])

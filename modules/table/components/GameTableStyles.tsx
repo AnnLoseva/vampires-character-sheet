@@ -1172,6 +1172,11 @@ export default function GameTableStyles() {
 
         .scene-layer iframe {
           border: 0;
+          pointer-events: none;
+        }
+
+        .scene-layer .embedded-video-drag-handle {
+          pointer-events: auto;
         }
 
         .inline-crop-surface {
@@ -2043,7 +2048,7 @@ export default function GameTableStyles() {
 
         .layer-context-menu {
           position: fixed;
-          z-index: 1000;
+          z-index: 4000;
           min-width: 190px;
           max-height: calc(100vh - 16px);
           overflow-y: auto;
