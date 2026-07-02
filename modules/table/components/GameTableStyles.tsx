@@ -4290,29 +4290,32 @@ export default function GameTableStyles() {
           grid-template-rows: auto auto minmax(0, 1fr) auto;
         }
 
-        .chat-sidebar header {
-          display: grid;
-          grid-template-columns: 92px minmax(0, 1fr);
+        .chat-sidebar > header {
+          display: flex;
+          justify-content: space-between;
+          gap: 10px;
+          align-items: center;
+          padding: 10px 12px;
+          border-bottom: 1px solid var(--vtm-line);
+          background: rgb(17, 17, 17);
         }
 
-        .chat-sidebar header div {
+        .chat-sidebar > header div {
           display: grid;
-          gap: 4px;
-          padding: 10px;
-          border-right: 1px solid #292929;
+          gap: 2px;
           min-width: 0;
         }
 
-        .chat-sidebar header div:last-child {
-          border-right: none;
+        .chat-sidebar > header span {
+          color: var(--vtm-ink-muted);
+          font-size: var(--fs-12);
+          letter-spacing: var(--ls-label);
+          text-transform: uppercase;
         }
 
-        .chat-sidebar header strong {
-          color: #36d675;
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          font-size: 14px;
+        .chat-sidebar > header strong {
+          color: var(--vtm-ink-2);
+          font-size: var(--fs-15);
         }
 
         .chat-login {

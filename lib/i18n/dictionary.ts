@@ -188,9 +188,14 @@ export const dictionary: Record<string, string> = {
 
   // ChatPanel.tsx
   'Чат стола': 'Table chat',
-  'Писать как': 'Write as',
+  'Чат сцены': 'Scene chat',
+  '{count} сообщений': '{count} messages',
+  'Войди на главной, чтобы писать': 'Log in on the home page to write',
+  'Войди на главной, чтобы писать в чат.': 'Log in on the home page to write in chat.',
+  'Выбери персонажа вверху справа': 'Choose a character in the top right',
+  'Выбери персонажа вверху справа.': 'Choose a character in the top right.',
+  'Войди на главной, чтобы увидеть своих персонажей.': 'Log in on the home page to see your characters.',
   'Нет сохранённых персонажей': 'No saved characters',
-  'Сохрани персонажа на листе в личный кабинет, и он появится здесь.': 'Save a character to the Personal Archive from the sheet, and it will appear here.',
   'Войти': 'Log in',
   'Панели чата': 'Chat panels',
   'Текст': 'Text',

@@ -1,27 +1,22 @@
+'use client'
+
 import { useEffect, useRef } from 'react'
 import type { Dispatch, FormEvent, RefObject, SetStateAction } from 'react'
 import type {
-  ActiveParticipant,
   CharacterOption,
   RightRailTab,
   VoiceParticipant,
   VoiceQuality,
 } from '@/modules/table/types'
-import type { ChatAuthMode, ChatMessage, ChatPanelTab, ChatUser } from '../types'
+import type { ChatMessage, ChatPanelTab, ChatUser } from '../types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type ChatPanelProps = {
   rightRailTab: RightRailTab
   chatMessages: ChatMessage[]
-  chatStatus: string
   chatUser: ChatUser | null
-  roomParticipants: ActiveParticipant[]
   chatCharacters: CharacterOption[]
   selectedChatCharacterId: string
-  chatAuthMode: ChatAuthMode
-  chatUsernameDraft: string
-  chatPasswordDraft: string
-  isChatBusy: boolean
   chatPanelTab: ChatPanelTab
   voiceStatus: string
   voiceEnabled: boolean
@@ -33,13 +28,6 @@ type ChatPanelProps = {
   voiceAudioRefs: RefObject<Map<string, HTMLAudioElement>>
   remoteStreamsRef: RefObject<Map<string, MediaStream>>
   formatTime: (value: string) => string
-  openParticipantPreview: (participant: ActiveParticipant) => Promise<void>
-  logoutChat: () => void
-  chooseActiveCharacter: (characterId: string) => void
-  handleChatAuth: (event: FormEvent<HTMLFormElement>) => Promise<void>
-  setChatAuthMode: Dispatch<SetStateAction<'login' | 'register'>>
-  setChatUsernameDraft: Dispatch<SetStateAction<string>>
-  setChatPasswordDraft: Dispatch<SetStateAction<string>>
   setChatPanelTab: Dispatch<SetStateAction<ChatPanelTab>>
   startVoice: () => Promise<void>
   stopVoice: () => void
@@ -55,15 +43,9 @@ type ChatPanelProps = {
 export default function ChatPanel({
   rightRailTab,
   chatMessages,
-  chatStatus,
   chatUser,
-  roomParticipants,
   chatCharacters,
   selectedChatCharacterId,
-  chatAuthMode,
-  chatUsernameDraft,
-  chatPasswordDraft,
-  isChatBusy,
   chatPanelTab,
   voiceStatus,
   voiceEnabled,
@@ -75,13 +57,6 @@ export default function ChatPanel({
   voiceAudioRefs,
   remoteStreamsRef,
   formatTime,
-  openParticipantPreview,
-  logoutChat,
-  chooseActiveCharacter,
-  handleChatAuth,
-  setChatAuthMode,
-  setChatUsernameDraft,
-  setChatPasswordDraft,
   setChatPanelTab,
   startVoice,
   stopVoice,
@@ -93,64 +68,29 @@ export default function ChatPanel({
   sendChatMessage,
   setChatDraft,
 }: ChatPanelProps) {
-  const { t } = useLang()
+  const { t, tf } = useLang()
   const chatListRef = useRef<HTMLDivElement>(null)
   const selectedVoiceCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId)
+  const canUseChat = Boolean(chatUser && selectedChatCharacterId && chatCharacters.length > 0)
 
   useEffect(() => {
     chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight })
   }, [chatMessages, rightRailTab, chatPanelTab])
 
+  const composerPlaceholder = !chatUser
+    ? t('Войди на главной, чтобы писать')
+    : !selectedChatCharacterId || chatCharacters.length === 0
+      ? t('Выбери персонажа вверху справа')
+      : t('Сообщение в сцену...')
+
   return (
     <section className={`chat-sidebar table-right-panel ${rightRailTab === 'chat' ? '' : 'table-right-panel-hidden'}`} aria-label={t('Чат стола')}>
-      <div className="chat-login">
-        {chatUser ? (
-          <>
-            <div className="chat-user-row">
-              <span>{chatUser.username}</span>
-              <button type="button" onClick={logoutChat}>{t('Выйти')}</button>
-            </div>
-            <label>
-              <span>{t('Писать как')}</span>
-              <select
-                value={selectedChatCharacterId}
-                onChange={event => {
-                  chooseActiveCharacter(event.target.value)
-                }}
-              >
-                {chatCharacters.length === 0 ? <option value="">{t('Нет сохранённых персонажей')}</option> : null}
-                {chatCharacters.map(character => (
-                  <option value={character.id} key={character.id}>
-                    {character.name}{character.clan ? `, ${character.clan}` : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
-            {chatCharacters.length === 0 ? <p>{t('Сохрани персонажа на листе в личный кабинет, и он появится здесь.')}</p> : null}
-          </>
-        ) : (
-          <form onSubmit={handleChatAuth}>
-            <div className="chat-auth-tabs">
-              <button type="button" className={chatAuthMode === 'login' ? 'active' : ''} onClick={() => setChatAuthMode('login')}>{t('Вход')}</button>
-              <button type="button" className={chatAuthMode === 'register' ? 'active' : ''} onClick={() => setChatAuthMode('register')}>{t('Регистрация')}</button>
-            </div>
-            <input
-              value={chatUsernameDraft}
-              onChange={event => setChatUsernameDraft(event.target.value)}
-              placeholder={t('Имя пользователя')}
-              autoComplete="username"
-            />
-            <input
-              value={chatPasswordDraft}
-              onChange={event => setChatPasswordDraft(event.target.value)}
-              placeholder={t('Пароль')}
-              type="password"
-              autoComplete={chatAuthMode === 'login' ? 'current-password' : 'new-password'}
-            />
-            <button type="submit" disabled={isChatBusy}>{isChatBusy ? '...' : chatAuthMode === 'login' ? t('Войти') : t('Создать аккаунт')}</button>
-          </form>
-        )}
-      </div>
+      <header>
+        <div>
+          <span>{t('Чат сцены')}</span>
+          <strong>{tf('{count} сообщений', { count: chatMessages.length })}</strong>
+        </div>
+      </header>
 
       <nav className="sub-tabs" aria-label={t('Панели чата')}>
         <button type="button" className={chatPanelTab === 'text' ? 'active' : ''} onClick={() => setChatPanelTab('text')}>
@@ -171,7 +111,7 @@ export default function ChatPanel({
             type="button"
             className={voiceEnabled ? 'danger' : ''}
             onClick={voiceEnabled ? stopVoice : () => void startVoice()}
-            disabled={!chatUser || chatCharacters.length === 0}
+            disabled={!canUseChat}
           >
             {voiceEnabled ? t('Выйти') : t('Войти')}
           </button>
@@ -218,7 +158,7 @@ export default function ChatPanel({
                 {selectedVoiceCharacter?.image ? (
                   <img src={selectedVoiceCharacter.image} alt="" />
                 ) : (
-                  <span>{(selectedVoiceCharacter?.name || chatUser?.username || t('Я')).slice(0, 1).toUpperCase()}</span>
+                  <span>{(selectedVoiceCharacter?.name || t('Я')).slice(0, 1).toUpperCase()}</span>
                 )}
               </div>
               <div>
@@ -295,7 +235,6 @@ export default function ChatPanel({
                 </div>
               </div>
               <p>{message.message}</p>
-              <span>{message.username}</span>
             </article>
           ))
         )}
@@ -305,9 +244,9 @@ export default function ChatPanel({
         <textarea
           value={chatDraft}
           onChange={event => setChatDraft(event.target.value)}
-          placeholder={chatUser ? t('Сообщение в сцену...') : t('Войди, чтобы писать')}
-          disabled={!chatUser || chatCharacters.length === 0}
-          rows={3}
+          placeholder={composerPlaceholder}
+          disabled={!canUseChat}
+          rows={2}
           onKeyDown={event => {
             if (event.key === 'Enter' && !event.shiftKey) {
               event.preventDefault()
@@ -315,7 +254,7 @@ export default function ChatPanel({
             }
           }}
         />
-        <button type="submit" disabled={!chatUser || chatCharacters.length === 0 || !chatDraft.trim()}>
+        <button type="submit" disabled={!canUseChat || !chatDraft.trim()}>
           {t('Отправить')}
         </button>
       </form>

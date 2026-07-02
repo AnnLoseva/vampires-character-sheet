@@ -454,25 +454,15 @@ export default function VampireTable() {
   const suppressNextContextMenuRef = useRef(false)
   const {
     chatMessages,
-    chatStatus,
     chatUser,
     chatCharacters,
     setChatCharacters,
     selectedChatCharacterId,
     chooseActiveCharacter,
-    chatAuthMode,
-    setChatAuthMode,
-    chatUsernameDraft,
-    setChatUsernameDraft,
-    chatPasswordDraft,
-    setChatPasswordDraft,
-    isChatBusy,
     chatPanelTab,
     setChatPanelTab,
     chatDraft,
     setChatDraft,
-    handleChatAuth,
-    logoutChat,
     sendChatMessage,
   } = useChat({ chronicleId: room })
 
@@ -1626,11 +1616,6 @@ export default function VampireTable() {
     getDroppedMediaUrls,
   })
 
-  const handleLogoutChat = () => {
-    stopVoice()
-    logoutChat()
-  }
-
   const opposedResponsePool = getOpposedCharacterPool(opposedPoolContext, selectedActiveCharacter, opposedResponseSide)
   const canAnswerOpposedProposal = Boolean(incomingOpposedProposal && selectedActiveCharacter && opposedResponsePool.diceCount > 0)
 
@@ -1988,15 +1973,9 @@ export default function VampireTable() {
           <ChatPanel
             rightRailTab={rightRailTab}
             chatMessages={chatMessages}
-            chatStatus={chatStatus}
             chatUser={chatUser}
-            roomParticipants={roomParticipants}
             chatCharacters={chatCharacters}
             selectedChatCharacterId={selectedChatCharacterId}
-            chatAuthMode={chatAuthMode}
-            chatUsernameDraft={chatUsernameDraft}
-            chatPasswordDraft={chatPasswordDraft}
-            isChatBusy={isChatBusy}
             chatPanelTab={chatPanelTab}
             voiceStatus={voiceStatus}
             voiceEnabled={voiceEnabled}
@@ -2008,13 +1987,6 @@ export default function VampireTable() {
             voiceAudioRefs={voiceAudioRefs}
             remoteStreamsRef={remoteStreamsRef}
             formatTime={formatTime}
-            openParticipantPreview={openParticipantPreview}
-            logoutChat={handleLogoutChat}
-            chooseActiveCharacter={chooseActiveCharacter}
-            handleChatAuth={handleChatAuth}
-            setChatAuthMode={setChatAuthMode}
-            setChatUsernameDraft={setChatUsernameDraft}
-            setChatPasswordDraft={setChatPasswordDraft}
             setChatPanelTab={setChatPanelTab}
             startVoice={startVoice}
             stopVoice={stopVoice}
@@ -2042,8 +2014,8 @@ export default function VampireTable() {
 
               {!chatUser ? (
                 <div className="master-roll-empty">
-                  <p>{t('Войди в чат, чтобы увидеть своих персонажей.')}</p>
-                  <button type="button" onClick={() => setRightRailTab('chat')}>{t('Открыть чат')}</button>
+                  <p>{t('Войди на главной, чтобы увидеть своих персонажей.')}</p>
+                  <a href="/">{t('На главную')}</a>
                 </div>
               ) : chatCharacters.length === 0 ? (
                 <div className="master-roll-empty">

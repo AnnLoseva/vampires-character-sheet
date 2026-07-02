@@ -21,7 +21,7 @@ type UseChatOptions = {
 }
 
 function readStoredChatUser(): ChatUser | null {
-  const savedUser = window.localStorage.getItem('vtm-chat-user')
+  const savedUser = window.localStorage.getItem('vtm-chat-user') || window.localStorage.getItem('vtm-sheet-user')
   if (!savedUser) return null
 
   try {
@@ -196,7 +196,7 @@ export function useChat({ chronicleId }: UseChatOptions) {
     window.localStorage.removeItem('vtm-chat-user')
     window.localStorage.removeItem('vtm-sheet-user')
     setChatUser(null)
-    setChatStatus('Выйди в аккаунт, чтобы писать')
+    setChatStatus('Войди на главной, чтобы писать')
   }, [])
 
   const sendChatMessage = useCallback(async (event: FormEvent<HTMLFormElement>) => {
@@ -205,11 +205,11 @@ export function useChat({ chronicleId }: UseChatOptions) {
     const character = chatCharacters.find(item => item.id === selectedChatCharacterId)
 
     if (!chatUser) {
-      window.alert(t('Сначала войди в аккаунт.'))
+      window.alert(t('Войди на главной, чтобы писать в чат.'))
       return
     }
     if (!character) {
-      window.alert(t('Выбери персонажа. Сохранённые персонажи берутся из личного кабинета листа.'))
+      window.alert(t('Выбери персонажа вверху справа.'))
       return
     }
     if (!text) return
