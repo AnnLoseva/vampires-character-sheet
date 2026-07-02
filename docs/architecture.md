@@ -1,5 +1,9 @@
 # Архитектура проекта
 
+> **Обновление (2026-07-02):** актуальная четырёхслойная модель, статус миграции
+> и правила для модулей/систем — в [`new-architecture.md`](./new-architecture.md).
+> Этот файл сохраняет детальный миграционный план, legacy-контракты и Definition of Done.
+
 Этот проект - живой VTM V5 character sheet + online game table. Его нельзя
 переписывать "правильно с нуля": новая архитектура должна вырастать вокруг
 работающего legacy-листа и React-стола маленькими проверяемыми шагами.
@@ -44,7 +48,7 @@ legacy-iframe или сохранённые данные.
   длинные списки props из `GameTable.tsx`. Это первый признак, что нужен слой
   hooks/services/context, а не только разнос JSX по файлам.
 - `lib/table/` уже хранит типы, константы, мапперы и часть чистых утилит стола.
-  Supabase-запросы пока в основном остаются в `GameTable.tsx` и music-компонентах.
+  Supabase-запросы стола — в `modules/table/api/`; chat — в `modules/chat/api/`; music — в `modules/music/`.
 - `core/systems/vtm5/rules/` является ядром правил: health, humanity, damage,
   derived stats, disciplines. Этот слой должен оставаться без React, DOM и
   Supabase.
@@ -111,8 +115,8 @@ runtime core VTM V5 живёт в `core/systems/vtm5/rules/`.
   `rules/derived-stats/` - правила трекеров, урона и производных статов;
 - `rules/disciplines/*` - schema, loader, engine, costs, durations, effects,
   active effects and legacy cost parsing;
-- `adapters/` - будущие адаптеры между чистыми правилами и table/sheet flows;
-- `adapters/rolls.ts` - первая заглушка под будущий адаптер бросков.
+- `adapters/` - адаптеры между чистыми правилами и module contracts (`table`, `rolls`);
+- `system-core.ts` - `createVtm5SystemCore()` отдаёт систему и адаптеры модулям.
 
 Правило зависимости: `core/systems/vtm5/rules/*` может импортировать только
 чистые helpers, типы и rules data adapters. UI, Supabase, React и browser APIs
