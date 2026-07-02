@@ -166,6 +166,7 @@ import {
   useCharacterActions,
   useDisciplineActions,
   useInventoryActions,
+  usePoolRollActions,
   useRoomSession,
   useTableLayers,
   useTableRealtime,
@@ -395,6 +396,9 @@ export default function VampireTable() {
   const chatUserRef = useRef<ChatUser | null>(null)
   const chatCharactersRef = useRef<CharacterOption[]>([])
   const publishRollRef = useRef<(roll: RollMessage) => Promise<void>>(async () => {})
+  const createQuickRollRef = useRef<ReturnType<typeof createQuickRollFactory>>(async () => {
+    throw new Error('createQuickRoll is not ready')
+  })
   const rollQuickDiceRef = useRef<(
     diceCount?: number,
     poolName?: string,
@@ -402,6 +406,42 @@ export default function VampireTable() {
     poolType?: string,
     options?: QuickRollOptions,
   ) => Promise<void>>(async () => {})
+  const poolRollSnapshotRef = useRef({
+    selectedMasterRollCharacter: null as CharacterOption | null,
+    masterRollDiceCount: 0,
+    masterRollMode: 'normal' as RollMode,
+    selectedMasterContestedOpponent: null as ContestedOpponentOption | null,
+    masterRollPoolBeforeLimit: 0,
+    masterRollPoolName: '',
+    masterRollHidden: false,
+    masterUseBloodSurge: false,
+    masterRollAttribute: '',
+    masterRollAttributeTwo: '',
+    masterRollSkill: '',
+    masterRollDiscipline: '',
+    masterWillpowerImpairmentPenalty: 0,
+    masterHealthImpairmentPenalty: 0,
+    disabledMasterRollModifierIds: [] as string[],
+    previewCharacter: null as CharacterOption | null,
+    canRollPreview: false,
+    previewDiceCount: 0,
+    previewRollMode: 'normal' as RollMode,
+    selectedPreviewContestedOpponent: null as ContestedOpponentOption | null,
+    previewPoolBeforeLimit: 0,
+    previewBloodSurgeEnabled: false,
+    previewRollAttribute: '',
+    previewRollAttributeTwo: '',
+    previewRollSkill: '',
+    previewRollDiscipline: '',
+    previewAttributeDots: 0,
+    previewAttributeTwoDots: 0,
+    previewSkillDots: 0,
+    previewDisciplineDots: 0,
+    previewRollModifier: 0,
+    previewWillpowerImpairmentPenalty: 0,
+    previewHealthImpairmentPenalty: 0,
+    disabledPreviewRollModifierIds: [] as string[],
+  })
   const selectedChatCharacterIdRef = useRef('')
   const journalEntriesRef = useRef<JournalEntry[]>([])
   const voiceEnabledRef = useRef(false)
@@ -726,6 +766,25 @@ export default function VampireTable() {
     setPreviewCharacter,
     broadcast,
     getPreviewCharacter: () => previewCharacter,
+  })
+
+  const {
+    rollMasterPool,
+    rollMasterQuick,
+    rollPreviewPool,
+  } = usePoolRollActions({
+    room,
+    t,
+    tf,
+    d10,
+    chatUser,
+    isMaster,
+    setConnectionText,
+    broadcast,
+    publishRollRef,
+    rollQuickDiceRef,
+    createQuickRollRef,
+    getPoolRollSnapshot: () => poolRollSnapshotRef.current,
   })
 
   const createScene = async () => {
@@ -1301,6 +1360,43 @@ export default function VampireTable() {
     ),
   )
 
+  poolRollSnapshotRef.current = {
+    selectedMasterRollCharacter,
+    masterRollDiceCount,
+    masterRollMode,
+    selectedMasterContestedOpponent,
+    masterRollPoolBeforeLimit,
+    masterRollPoolName,
+    masterRollHidden,
+    masterUseBloodSurge,
+    masterRollAttribute,
+    masterRollAttributeTwo,
+    masterRollSkill,
+    masterRollDiscipline,
+    masterWillpowerImpairmentPenalty,
+    masterHealthImpairmentPenalty,
+    disabledMasterRollModifierIds,
+    previewCharacter,
+    canRollPreview,
+    previewDiceCount,
+    previewRollMode,
+    selectedPreviewContestedOpponent,
+    previewPoolBeforeLimit,
+    previewBloodSurgeEnabled,
+    previewRollAttribute,
+    previewRollAttributeTwo,
+    previewRollSkill,
+    previewRollDiscipline,
+    previewAttributeDots,
+    previewAttributeTwoDots,
+    previewSkillDots,
+    previewDisciplineDots,
+    previewRollModifier,
+    previewWillpowerImpairmentPenalty,
+    previewHealthImpairmentPenalty,
+    disabledPreviewRollModifierIds,
+  }
+
   useEffect(() => {
     if (!previewDisciplineName || !disciplineRules) return
     const disciplineRule = disciplineRules[previewDisciplineName]
@@ -1651,6 +1747,7 @@ export default function VampireTable() {
     getCharacterHealth,
     getWillpowerMetaState,
   })
+  createQuickRollRef.current = createQuickRoll
 
   const rollQuickDice = async (
     diceCount = 1,
@@ -1668,88 +1765,6 @@ export default function VampireTable() {
     await publishRoll(roll)
   }
   rollQuickDiceRef.current = rollQuickDice
-
-  const sendContestedRollRequest = async (
-    diceCount: number,
-    poolName: string,
-    character: CharacterOption,
-    opponent: ContestedOpponentOption | null,
-    poolType: string,
-    options: QuickRollOptions = {},
-  ) => {
-    if (!chatUser) {
-      window.alert(t('Сначала войди в чат стола.'))
-      return
-    }
-    if (!opponent) {
-      window.alert(t('Выбери оппонента для встречного броска.'))
-      return
-    }
-    if (opponent.actorKind === 'player' && (!opponent.userId || opponent.userId === chatUser.id)) {
-      window.alert(t('Выбери другого игрока для встречного броска.'))
-      return
-    }
-
-    const initiatorRoll = await createQuickRoll(diceCount, poolName, character, poolType, {
-      ...options,
-      hidden: false,
-    })
-    const requestId = initiatorRoll.id
-    const contestedMeta: NonNullable<RollMeta['contested']> = {
-      requestId,
-      initiatorCharacterId: character.id,
-      initiatorCharacterName: character.name,
-      initiatorPoolName: poolName,
-      initiatorDiceCount: initiatorRoll.diceCount,
-      opponentUserId: opponent.userId,
-      opponentCharacterId: opponent.characterId || undefined,
-      opponentName: opponent.label,
-      status: 'requested',
-      initiatorSuccesses: initiatorRoll.successes,
-    }
-    const requestRoll: RollMessage = {
-      id: `${requestId}-request`,
-      room,
-      characterName: character.name,
-      poolName: tf('{left} против {right}', { left: character.name, right: opponent.label }),
-      poolType: 'contested-request',
-      diceCount: initiatorRoll.diceCount,
-      dice: [],
-      successes: 0,
-      createdAt: initiatorRoll.createdAt,
-      meta: {
-        ...(initiatorRoll.meta || {}),
-        rollMode: 'contested',
-        contested: contestedMeta,
-      },
-    }
-
-    await publishRoll(requestRoll)
-
-    if (opponent.actorKind === 'player' && opponent.userId) {
-      const proposal: OpposedRollProposal = {
-        id: requestId,
-        room,
-        fromUserId: chatUser.id,
-        fromUsername: chatUser.username,
-        toUserId: opponent.userId,
-        createdAt: initiatorRoll.createdAt,
-        initiator: {
-          id: 'left',
-          actorName: character.name,
-          actorKind: isMaster ? 'npc' : 'player',
-          poolName,
-          diceCount: initiatorRoll.diceCount,
-          dice: initiatorRoll.dice,
-          successes: initiatorRoll.successes,
-        },
-      }
-      await broadcast('opposed-roll-proposal', proposal)
-    }
-
-    setConnectionText(`Встречный бросок запрошен: ${opponent.label}`)
-  }
-
 
   const applyRollDamage = async (roll: RollMessage) => {
     if (!chatCharacters.length) {
@@ -1889,66 +1904,6 @@ export default function VampireTable() {
     await publishRollReplacement(updatedRoll)
   }
 
-  const rollMasterPool = async () => {
-    if (!selectedMasterRollCharacter) {
-      window.alert(t('Выбери персонажа мастера.'))
-      return
-    }
-    if (masterRollDiceCount < 1) {
-      window.alert(t('Выбери характеристику, навык, дисциплину или положительный модификатор.'))
-      return
-    }
-    if (masterRollMode === 'contested' && !selectedMasterContestedOpponent) {
-      window.alert(t('Выбери оппонента для встречного броска.'))
-      return
-    }
-    const options: QuickRollOptions = {
-      hidden: masterRollHidden,
-      useBloodSurge: masterUseBloodSurge,
-      source: masterUseBloodSurge ? 'blood_surge' : 'manual',
-      rollTraits: getRollTraits(masterRollAttribute, masterRollAttributeTwo, masterRollSkill, masterRollDiscipline),
-      rollAction: masterRollMode,
-      rollPenalties: getRollPenalties(t,masterWillpowerImpairmentPenalty, masterHealthImpairmentPenalty),
-      disabledRollModifierIds: disabledMasterRollModifierIds,
-    }
-    if (masterRollMode === 'contested') {
-      await sendContestedRollRequest(
-        masterRollPoolBeforeLimit,
-        masterRollPoolName,
-        selectedMasterRollCharacter,
-        selectedMasterContestedOpponent,
-        'master-character',
-        options,
-      )
-      return
-    }
-    await rollQuickDice(
-      masterRollPoolBeforeLimit,
-      masterRollPoolName,
-      selectedMasterRollCharacter,
-      'master-character',
-      options,
-    )
-  }
-
-  const rollMasterQuick = async (diceCount: number) => {
-    if (!selectedMasterRollCharacter) {
-      window.alert(t('Выбери персонажа мастера.'))
-      return
-    }
-    await rollQuickDice(
-      diceCount,
-      d10(diceCount),
-      selectedMasterRollCharacter,
-      'master-quick',
-      {
-        hidden: masterRollHidden,
-        useBloodSurge: masterUseBloodSurge,
-        source: masterUseBloodSurge ? 'blood_surge' : 'manual',
-      },
-    )
-  }
-
   const toggleMasterRollAttribute = (name: string) => {
     if (masterRollAttribute === name) {
       setMasterRollAttribute('')
@@ -1960,49 +1915,6 @@ export default function VampireTable() {
     }
     if (!masterRollAttribute) setMasterRollAttribute(name)
     else setMasterRollAttributeTwo(name)
-  }
-
-  const rollPreviewPool = async () => {
-    if (!previewCharacter || !canRollPreview) {
-      window.alert(t('Броски доступны мастеру или владельцу активного персонажа.'))
-      return
-    }
-    if (previewDiceCount < 1) {
-      window.alert(t('Выбери характеристику, навык или положительный модификатор.'))
-      return
-    }
-    if (previewRollMode === 'contested' && !selectedPreviewContestedOpponent) {
-      window.alert(t('Выбери оппонента для встречного броска.'))
-      return
-    }
-
-    const poolParts = []
-    if (previewRollAttribute) poolParts.push(`${t(previewRollAttribute)} ${previewAttributeDots}`)
-    if (previewRollAttributeTwo) poolParts.push(`${t(previewRollAttributeTwo)} ${previewAttributeTwoDots}`)
-    if (previewRollSkill) poolParts.push(`${t(previewRollSkill)} ${previewSkillDots}`)
-    if (previewRollDiscipline) poolParts.push(`${previewRollDiscipline} ${previewDisciplineDots}`)
-    if (previewRollModifier) poolParts.push(`${t('модификатор')} ${previewRollModifier > 0 ? '+' : ''}${previewRollModifier}`)
-    const poolName = poolParts.join(' + ') || d10(previewDiceCount)
-    const options: QuickRollOptions = {
-      useBloodSurge: previewBloodSurgeEnabled,
-      source: previewBloodSurgeEnabled ? 'blood_surge' : 'manual',
-      rollTraits: getRollTraits(previewRollAttribute, previewRollAttributeTwo, previewRollSkill, previewRollDiscipline),
-      rollAction: previewRollMode,
-      rollPenalties: getRollPenalties(t,previewWillpowerImpairmentPenalty, previewHealthImpairmentPenalty),
-      disabledRollModifierIds: disabledPreviewRollModifierIds,
-    }
-    if (previewRollMode === 'contested') {
-      await sendContestedRollRequest(
-        previewPoolBeforeLimit,
-        poolName,
-        previewCharacter,
-        selectedPreviewContestedOpponent,
-        'character-sheet',
-        options,
-      )
-      return
-    }
-    await rollQuickDice(previewPoolBeforeLimit, poolName, previewCharacter, 'character-sheet', options)
   }
 
   const togglePreviewAttribute = (name: string) => {

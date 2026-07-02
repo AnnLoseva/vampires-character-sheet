@@ -14,3 +14,5 @@ export type {
 } from './useDisciplineActions'
 export { useInventoryActions } from './useInventoryActions'
 export type { InventoryActionsDeps } from './useInventoryActions'
+export { usePoolRollActions } from './usePoolRollActions'
+export type { PoolRollActionsDeps, PoolRollSnapshot } from './usePoolRollActions'
