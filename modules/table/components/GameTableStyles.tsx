@@ -15,18 +15,94 @@ export default function GameTableStyles() {
         }
       `}</style>
       <style jsx global>{`
+        @import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@600&display=swap");
+
+        :root {
+          --vtm-void: #080808;
+          --vtm-bg: #090909;
+          --vtm-surface-1: #101010;
+          --vtm-surface-2: #141414;
+          --vtm-surface-3: #171717;
+          --vtm-surface-4: #1b1b1b;
+          --vtm-surface-hover: #242424;
+          --vtm-surface-blood: #221414;
+          --vtm-line: #2b2b2b;
+          --vtm-line-soft: #292929;
+          --vtm-line-strong: #333333;
+          --vtm-line-blood: #773030;
+          --vtm-line-blood-deep: #6a2727;
+          --vtm-blood: #ff3131;
+          --vtm-blood-bright: #ff7777;
+          --vtm-blood-soft: #ffb3b3;
+          --vtm-blood-pale: #ffd7d7;
+          --vtm-blood-wash: #ffe2e2;
+          --vtm-blood-deep: #710000;
+          --vtm-success: #36d675;
+          --vtm-success-pale: #dfffe9;
+          --vtm-gold-warn: #ffd98a;
+          --vtm-gold-line: #6d511e;
+          --vtm-gold-bg: #1a1307;
+          --vtm-ink: #f4f4f4;
+          --vtm-ink-2: #f5f5f5;
+          --vtm-ink-dim: #a9a9a9;
+          --vtm-ink-muted: #9c9c9c;
+          --vtm-ink-faint: #777777;
+          --font-mono: "Courier New", Courier, monospace;
+          --font-display: "Cinzel", "Courier New", serif;
+          --fs-10: 10px;
+          --fs-11: 11px;
+          --fs-12: 12px;
+          --fs-13: 13px;
+          --fs-15: 15px;
+          --ls-kicker: 0.16em;
+          --ls-label: 0.08em;
+          --lh-snug: 1.35;
+          --sp-1: 4px;
+          --sp-2: 6px;
+          --r-xs: 5px;
+          --r-sm: 6px;
+          --r-md: 8px;
+          --r-pill: 999px;
+          --ctrl-sm: 30px;
+          --ctrl-md: 34px;
+          --shadow-1: 0 10px 24px rgba(0, 0, 0, 0.36);
+          --glow-blood: 0 0 26px rgba(255, 49, 49, 0.22);
+          --shadow-toast: 0 16px 38px rgba(0, 0, 0, 0.42), 0 0 26px rgba(255, 49, 49, 0.22);
+          --bg-blood-wash: linear-gradient(180deg, rgba(120, 0, 0, 0.16), rgba(0, 0, 0, 0) 250px);
+          --bg-canvas-grid: linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+          --grid-size: 32px;
+          --ease: cubic-bezier(0.2, 0, 0.2, 1);
+          --dur-fast: 0.15s;
+        }
+
         .table-page-shell {
           height: 100vh;
           height: 100dvh;
-          padding: 18px;
-          font-family: "Courier New", Courier, monospace;
-          background:
-            linear-gradient(180deg, rgba(120, 0, 0, 0.16), rgba(0, 0, 0, 0) 250px),
-            #090909;
+          padding: 12px 14px 14px;
+          gap: 10px;
+          font-family: var(--font-mono);
+          color: var(--vtm-ink);
+          background: var(--bg-blood-wash), var(--vtm-bg);
           display: flex;
           flex-direction: column;
           box-sizing: border-box;
           overflow: hidden;
+        }
+
+        .table-page-shell ::-webkit-scrollbar {
+          width: 10px;
+          height: 10px;
+        }
+
+        .table-page-shell ::-webkit-scrollbar-thumb {
+          background: padding-box rgb(42, 32, 32);
+          border-radius: 6px;
+          border: 2px solid transparent;
+        }
+
+        .table-page-shell ::-webkit-scrollbar-thumb:hover {
+          background: padding-box rgb(74, 42, 42);
         }
 
         .table-topbar {
@@ -36,23 +112,35 @@ export default function GameTableStyles() {
           gap: 18px;
           width: 100%;
           min-width: 0;
-          margin: 0 auto 14px;
-          border-bottom: 1px solid #2d2d2d;
-          padding-bottom: 12px;
+          margin: 0;
+          border-bottom: 1px solid var(--vtm-line);
+          padding-bottom: 10px;
+        }
+
+        .table-brand {
+          min-width: 0;
         }
 
         .table-kicker {
-          margin: 0 0 5px;
-          color: #ff3131;
-          letter-spacing: 0.16em;
+          margin: 0 0 3px;
+          color: var(--vtm-blood);
+          letter-spacing: var(--ls-kicker);
           text-transform: uppercase;
-          font-size: 12px;
+          font-size: var(--fs-10);
         }
 
-        h1 {
+        .table-page-shell h1 {
           margin: 0;
-          font-size: clamp(28px, 4vw, 46px);
-          letter-spacing: 0;
+          font-family: var(--font-display);
+          font-weight: 600;
+          font-size: clamp(22px, 3vw, 28px);
+          letter-spacing: 0.04em;
+          color: var(--vtm-ink);
+          line-height: 1;
+          text-shadow: rgba(255, 49, 49, 0.18) 0 0 24px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
         }
 
         .table-actions {
@@ -71,16 +159,26 @@ export default function GameTableStyles() {
 
         .table-actions a,
         .table-actions button {
-          border: 1px solid #773030;
-          background: #141414;
-          color: #f5f5f5;
-          border-radius: 6px;
+          border: 1px solid var(--vtm-line-blood);
+          background: var(--vtm-surface-2);
+          color: var(--vtm-ink);
+          border-radius: var(--r-sm);
           padding: 9px 12px;
           font: inherit;
+          font-size: var(--fs-12);
+          font-weight: 700;
+          letter-spacing: var(--ls-label);
           line-height: 1.2;
           text-align: center;
           text-decoration: none;
           cursor: pointer;
+          transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+        }
+
+        .table-actions a:hover,
+        .table-actions button:hover:not(:disabled) {
+          border-color: var(--vtm-blood);
+          background: var(--vtm-surface-hover);
         }
 
         .table-actions button:disabled {
@@ -89,8 +187,9 @@ export default function GameTableStyles() {
         }
 
         .role-pill {
-          border-color: #36d675 !important;
-          color: #dfffe9 !important;
+          border-color: var(--vtm-success) !important;
+          color: var(--vtm-success-pale) !important;
+          background: transparent !important;
         }
 
         .master-password-control {
@@ -125,9 +224,9 @@ export default function GameTableStyles() {
 
         .active-character-card,
         .active-character-picker {
-          border: 1px solid #2b2b2b;
-          border-radius: 8px;
-          background: #101010;
+          border: 1px solid var(--vtm-line);
+          border-radius: var(--r-md);
+          background: var(--vtm-surface-1);
           padding: 10px;
           min-width: 0;
         }
@@ -137,6 +236,18 @@ export default function GameTableStyles() {
           grid-template-columns: 52px minmax(0, 1fr) auto auto;
           gap: 10px;
           align-items: center;
+          transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease);
+        }
+
+        .active-character-card:hover {
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-2);
+        }
+
+        .active-character-card .chat-avatar {
+          border-color: var(--vtm-line-blood);
+          border-radius: 50%;
+          background: var(--vtm-void);
         }
 
         .active-character-card div:nth-child(2),
@@ -149,12 +260,13 @@ export default function GameTableStyles() {
         .active-character-card span,
         .active-character-picker span,
         .active-character-card small {
-          color: #9c9c9c;
-          font-size: 12px;
+          color: var(--vtm-ink-muted);
+          font-size: var(--fs-10);
         }
 
         .active-character-card strong {
-          color: #f4f4f4;
+          color: var(--vtm-ink);
+          font-size: var(--fs-12);
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
@@ -165,14 +277,14 @@ export default function GameTableStyles() {
         .active-character-picker button,
         .active-character-picker select {
           min-width: 0;
-          min-height: 34px;
-          border: 1px solid #773030;
-          border-radius: 6px;
-          background: #171717;
-          color: #f4f4f4;
+          min-height: var(--ctrl-md);
+          border: 1px solid var(--vtm-line-blood);
+          border-radius: var(--r-xs);
+          background: var(--vtm-surface-4);
+          color: var(--vtm-ink);
           padding: 8px 10px;
           font: inherit;
-          font-size: 12px;
+          font-size: var(--fs-11);
           line-height: 1.2;
           text-align: center;
           text-decoration: none;
@@ -195,7 +307,7 @@ export default function GameTableStyles() {
         .table-layout {
           position: relative;
           display: grid;
-          grid-template-columns: minmax(360px, 1fr) minmax(320px, 420px);
+          grid-template-columns: minmax(0, 1fr) 332px;
           gap: 12px;
           flex: 1;
           min-height: 0;
@@ -203,7 +315,7 @@ export default function GameTableStyles() {
         }
 
         .table-layout.with-left-toolbar {
-          grid-template-columns: minmax(320px, 380px) minmax(360px, 1fr) minmax(320px, 420px);
+          grid-template-columns: minmax(300px, 360px) minmax(0, 1fr) 332px;
         }
 
         .table-layout.right-collapsed {
@@ -211,7 +323,7 @@ export default function GameTableStyles() {
         }
 
         .table-layout.with-left-toolbar.right-collapsed {
-          grid-template-columns: minmax(320px, 380px) minmax(360px, 1fr);
+          grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
         }
 
         .play-surface,
@@ -221,17 +333,18 @@ export default function GameTableStyles() {
         .layer-panel,
         .roll-sidebar,
         .chat-sidebar {
-          border: 1px solid #2b2b2b;
-          background: #101010;
-          border-radius: 8px;
+          border: 1px solid var(--vtm-line);
+          background: var(--vtm-surface-1);
+          border-radius: var(--r-md);
           overflow: hidden;
+          box-shadow: var(--shadow-1);
         }
 
         .play-surface {
           position: relative;
           min-width: 0;
-          display: grid;
-          grid-template-rows: auto 1fr;
+          min-height: 0;
+          display: block;
         }
 
         .music-dock {
@@ -264,7 +377,7 @@ export default function GameTableStyles() {
         }
 
         .column-edge-toggle:hover {
-          border-color: #ff3131;
+          border-color: var(--vtm-blood);
         }
 
         .master-toggle {
@@ -278,7 +391,7 @@ export default function GameTableStyles() {
         }
 
         .right-toggle {
-          right: 406px;
+          right: 344px;
           top: 50%;
           transform: translateY(-50%);
         }
@@ -326,9 +439,9 @@ export default function GameTableStyles() {
         }
 
         .left-tabs button.active {
-          border-color: #773030;
-          background: #221414;
-          color: #ffd7d7;
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood-pale);
         }
 
         .scene-control-panel,
@@ -567,97 +680,162 @@ export default function GameTableStyles() {
           color: #36d675;
         }
 
-        .surface-head,
         .layer-panel header,
         .roll-sidebar header,
         .chat-sidebar header {
-          border-bottom: 1px solid #2b2b2b;
-          background: #111;
+          border-bottom: 1px solid var(--vtm-line);
+          background: rgb(17, 17, 17);
         }
 
         .surface-head {
-          display: flex;
-          justify-content: space-between;
-          gap: 16px;
-          padding: 12px 14px;
-          align-items: center;
+          position: absolute;
+          inset: 0;
+          z-index: 6;
+          pointer-events: none;
+          border: 0;
+          background: transparent;
+          padding: 0;
         }
 
-        .surface-head div {
+        .surface-head > div:first-child {
+          position: absolute;
+          left: 16px;
+          top: 14px;
+          max-width: 320px;
           display: grid;
-          gap: 4px;
+          gap: 3px;
+          pointer-events: none;
         }
 
-        .surface-head span,
+        .surface-head > div:nth-child(2) {
+          display: none;
+        }
+
+        .surface-head > div:first-child span {
+          color: var(--vtm-blood);
+          font-size: var(--fs-10);
+          letter-spacing: var(--ls-kicker);
+          text-transform: uppercase;
+        }
+
+        .surface-head > div:first-child strong {
+          font-family: var(--font-display);
+          font-weight: 600;
+          font-size: 20px;
+          color: var(--vtm-ink);
+          text-shadow: rgba(0, 0, 0, 0.8) 0 2px 18px;
+        }
+
         .layer-panel header span,
         .roll-sidebar header span,
         .chat-sidebar header span {
-          color: #9c9c9c;
-          font-size: 12px;
+          color: var(--vtm-ink-muted);
+          font-size: var(--fs-12);
+          letter-spacing: var(--ls-label);
+          text-transform: uppercase;
         }
 
-        .surface-head strong,
         .layer-panel header strong,
         .roll-sidebar header strong,
         .chat-sidebar header strong {
-          color: #f5f5f5;
-          font-size: 15px;
+          color: var(--vtm-ink-2);
+          font-size: var(--fs-15);
         }
 
         .zoom-tools {
+          position: absolute !important;
+          right: 12px !important;
+          top: 12px !important;
           display: flex !important;
           gap: 6px !important;
           align-items: center;
+          pointer-events: auto;
         }
 
         .zoom-tools button {
-          width: 34px;
-          height: 30px;
-          border-radius: 5px;
-          border: 1px solid #333;
-          background: #181818;
-          color: #f4f4f4;
+          min-height: auto;
+          height: auto;
+          border-radius: var(--r-xs);
+          border: 1px solid var(--vtm-line-strong);
+          background: rgba(12, 10, 10, 0.78);
+          color: var(--vtm-ink-dim);
+          padding: 6px 10px;
+          font-size: var(--fs-11);
           cursor: pointer;
           font: inherit;
+          transition: border-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+        }
+
+        .zoom-tools button:hover {
+          border-color: var(--vtm-blood);
+          color: var(--vtm-ink);
         }
 
         .hand-notice {
           position: absolute;
           left: 50%;
-          top: 74px;
+          top: 14px;
           z-index: 80;
           transform: translateX(-50%);
-          border: 1px solid #ff3131;
-          border-radius: 6px;
-          background: rgba(18, 6, 6, 0.94);
-          color: #ffe2e2;
-          padding: 9px 14px;
-          font-size: 13px;
-          box-shadow: 0 16px 38px rgba(0,0,0,0.42), 0 0 26px rgba(255,49,49,0.22);
+          border: 1px solid var(--vtm-gold-line);
+          border-radius: var(--r-pill);
+          background: var(--vtm-gold-bg);
+          color: var(--vtm-gold-warn);
+          padding: 5px 14px;
+          font-size: var(--fs-10);
+          letter-spacing: 0.1em;
+          text-transform: uppercase;
+          box-shadow: var(--shadow-1);
           pointer-events: none;
         }
 
         .scene {
-          position: relative;
+          position: absolute;
+          inset: 0;
           min-height: 0;
           overflow: hidden;
           touch-action: none;
           overscroll-behavior: contain;
-          background-color: #080808;
-          background-image:
-            linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
-          background-size: 32px 32px;
+          background:
+            radial-gradient(120% 90% at 70% -10%, rgba(120, 10, 20, 0.45), rgba(0, 0, 0, 0) 55%),
+            radial-gradient(90% 80% at 20% 110%, rgba(60, 20, 40, 0.5), rgba(0, 0, 0, 0) 60%),
+            linear-gradient(rgb(21, 10, 13), rgb(8, 6, 7));
           cursor: grab;
+          user-select: none;
+        }
+
+        .scene::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background-image: var(--bg-canvas-grid);
+          background-size: var(--grid-size) var(--grid-size);
+          opacity: 0.7;
+          pointer-events: none;
+        }
+
+        .scene::after {
+          content: "";
+          position: absolute;
+          inset: 0;
+          pointer-events: none;
+          z-index: 5;
+          box-shadow: rgba(0, 0, 0, 0.75) 0 0 180px 40px inset;
+          background: radial-gradient(120% 90% at 50% 40%, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.55) 100%);
         }
 
         .scene:active {
           cursor: grabbing;
         }
 
+        .scene.drag-over::before {
+          opacity: 0.35;
+        }
+
         .scene.drag-over {
-          outline: 2px solid #36d675;
-          outline-offset: -2px;
+          outline: 1.5px dashed var(--vtm-blood);
+          outline-offset: -10px;
+          background-color: rgba(120, 0, 0, 0.1);
         }
 
         .scene-world {
@@ -670,20 +848,31 @@ export default function GameTableStyles() {
 
         .scene-empty {
           position: absolute;
-          inset: 20px;
+          inset: 0;
           display: grid;
-          place-content: center;
-          text-align: center;
-          color: #aaa;
-          border: 1px dashed #3a3a3a;
-          border-radius: 8px;
+          place-items: center;
+          z-index: 1;
           pointer-events: none;
+          border: 1px dashed var(--vtm-line-strong);
+          border-radius: var(--r-md);
+          margin: 20px;
+          padding: 26px 34px;
+          text-align: center;
+          gap: 6px;
+          align-content: center;
+          max-width: 380px;
+          max-height: max-content;
+          justify-self: center;
+          align-self: center;
         }
 
         .scene-empty h2 {
-          margin: 0 0 8px;
-          color: #fff;
-          letter-spacing: 0;
+          margin: 0;
+          font-family: var(--font-display);
+          font-weight: 600;
+          font-size: 18px;
+          color: var(--vtm-ink-dim);
+          letter-spacing: 0.04em;
           text-transform: none;
           border: 0;
           padding: 0;
@@ -691,7 +880,9 @@ export default function GameTableStyles() {
 
         .scene-empty p {
           margin: 0;
-          max-width: 500px;
+          font-size: var(--fs-11);
+          color: var(--vtm-ink-faint);
+          line-height: var(--lh-snug);
         }
 
         .scene-layer {
@@ -711,8 +902,8 @@ export default function GameTableStyles() {
         }
 
         .scene-layer.selected {
-          border-color: #36d675;
-          box-shadow: 0 0 0 2px rgba(54, 214, 117, 0.2), 0 12px 34px rgba(0,0,0,0.36);
+          border-color: var(--vtm-line-blood);
+          box-shadow: var(--shadow-1), var(--glow-blood);
         }
 
         .scene-layer.locked {
@@ -906,9 +1097,10 @@ export default function GameTableStyles() {
         }
 
         .text-layer {
-          background: #030303;
-          border: 1px solid #ff3131;
-          box-shadow: 0 0 18px rgba(255,49,49,0.55), 0 12px 34px rgba(0,0,0,0.42);
+          background: var(--vtm-surface-3);
+          border: 1px solid var(--vtm-line);
+          border-radius: var(--r-sm);
+          box-shadow: var(--shadow-1);
         }
 
         .scene-text-material {
@@ -919,12 +1111,13 @@ export default function GameTableStyles() {
           gap: 10px;
           padding: 18px;
           box-sizing: border-box;
-          color: #ffffff;
+          color: var(--vtm-ink);
           overflow: hidden;
+          border-top: 2px solid var(--vtm-line-blood-deep);
         }
 
         .scene-text-material strong {
-          color: #ffb3b3;
+          color: var(--vtm-blood-soft);
           font-size: 15px;
           overflow: hidden;
           text-overflow: ellipsis;
@@ -1111,41 +1304,45 @@ export default function GameTableStyles() {
         .right-rail {
           min-width: 0;
           min-height: 0;
-          display: grid;
-          grid-template-rows: auto minmax(0, 1fr);
-          gap: 12px;
+          display: flex;
+          flex-direction: column;
+          gap: 10px;
           overflow: hidden;
         }
 
         .right-tabs {
-          display: grid;
-          grid-template-columns: repeat(5, minmax(0, 1fr));
-          gap: 4px;
-          padding: 4px;
-          border: 1px solid #2b2b2b;
-          border-radius: 8px;
-          background: #101010;
+          display: flex;
+          gap: var(--sp-1);
+          padding: 0;
+          margin-bottom: 0;
+          border: 0;
+          border-radius: 0;
+          background: transparent;
         }
 
         .right-tabs button {
+          flex: 1 1 0;
           min-width: 0;
-          height: 34px;
+          min-height: var(--ctrl-md);
           border: 1px solid transparent;
-          border-radius: 5px;
+          border-radius: var(--r-xs);
           background: transparent;
-          color: #a9a9a9;
+          color: var(--vtm-ink-dim);
           cursor: pointer;
           font: inherit;
-          font-size: 12px;
+          font-size: var(--fs-12);
+          font-weight: 700;
+          letter-spacing: var(--ls-label);
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+          transition: all var(--dur-fast) var(--ease);
         }
 
         .right-tabs button.active {
-          border-color: #3b3b3b;
-          background: #242424;
-          color: #f4f4f4;
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood-pale);
         }
 
         .sub-tabs {
@@ -1173,9 +1370,9 @@ export default function GameTableStyles() {
         }
 
         .sub-tabs button.active {
-          border-color: #3b3b3b;
-          background: #242424;
-          color: #f4f4f4;
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood-pale);
         }
 
         .media-sidebar {
@@ -3589,9 +3786,9 @@ export default function GameTableStyles() {
         }
 
         .roll-card {
-          border: 1px solid #303030;
-          border-radius: 8px;
-          background: #151515;
+          border: 1px solid var(--vtm-line);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-3);
           padding: 10px;
         }
 
@@ -3716,7 +3913,8 @@ export default function GameTableStyles() {
         }
 
         .roll-card footer strong {
-          color: #36d675;
+          color: var(--vtm-blood-bright);
+          font-family: var(--font-display);
           font-size: 18px;
         }
 
@@ -4212,15 +4410,34 @@ export default function GameTableStyles() {
         }
 
         .chat-message {
-          border: 1px solid #303030;
-          border-radius: 8px;
-          background: #151515;
-          padding: 10px;
+          border: 1px solid var(--vtm-line-soft);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-3);
+          padding: 7px 9px;
+          max-width: 88%;
         }
 
         .chat-message.own {
-          border-color: rgba(54, 214, 117, 0.42);
-          background: #142019;
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          justify-self: end;
+          margin-left: auto;
+        }
+
+        .chat-message:not(.own) {
+          border-color: var(--vtm-line-blood);
+          background: rgb(26, 16, 16);
+        }
+
+        .chat-message:not(.own) .chat-message-meta strong,
+        .chat-message-meta strong {
+          color: var(--vtm-blood-soft);
+          font-size: var(--fs-11);
+          letter-spacing: var(--ls-label);
+        }
+
+        .chat-message.own .chat-message-meta strong {
+          color: var(--vtm-blood-bright);
         }
 
         .chat-message-head {
@@ -4871,7 +5088,11 @@ export default function GameTableStyles() {
           }
 
           .right-rail {
-            grid-template-rows: auto minmax(420px, 52svh);
+            min-height: 420px;
+          }
+
+          .right-rail > :last-child {
+            min-height: min(52svh, 680px);
           }
 
           .table-topbar {
@@ -4962,7 +5183,7 @@ export default function GameTableStyles() {
             margin-bottom: 8px;
           }
 
-          h1 {
+          .table-page-shell h1 {
             font-size: 24px;
           }
 
@@ -5034,8 +5255,12 @@ export default function GameTableStyles() {
           }
 
           .right-rail {
-            grid-template-rows: auto minmax(360px, 42svh);
             gap: 8px;
+            min-height: 360px;
+          }
+
+          .right-rail > :last-child {
+            min-height: 42svh;
           }
 
           .right-tabs button,

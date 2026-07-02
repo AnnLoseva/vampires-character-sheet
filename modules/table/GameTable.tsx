@@ -1616,9 +1616,9 @@ export default function VampireTable() {
   return (
     <main className="table-page-shell">
       <section className="table-topbar">
-        <div>
-          <p className="table-kicker">{t('Игровой стол')}</p>
-          <h1>{room}</h1>
+        <div className="table-brand">
+          <p className="table-kicker">{t('Игровой стол')} · V5 · {tf('комната {room}', { room })}</p>
+          <h1>{activeScene?.name || room}</h1>
         </div>
         <div className="table-actions">
           <a href="/" title={t('Вернуться на главную страницу')}>{t('Главная')}</a>
