@@ -1,4 +1,4 @@
-import type { CharacterOption, CharacterRow, CharacterType, ChatMessage, ChatMessageRow, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
+import type { CharacterOption, CharacterRow, CharacterType, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
 import { getMusicProvider } from '@/modules/music/utils'
 import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from '@/core/systems/vtm5/rules/health'
 import { getHumanityState, getHumanityStatus, normalizeMoralityState } from '@/core/systems/vtm5/rules/humanity'
@@ -401,20 +401,6 @@ export function mapRollRow(row: RollRow): RollMessage {
     createdAt: row.created_at,
     opposed,
     meta,
-  }
-}
-
-export function mapChatRow(row: ChatMessageRow): ChatMessage {
-  return {
-    id: row.id,
-    room: row.room,
-    userId: row.user_id,
-    username: row.username,
-    characterId: row.character_id,
-    characterName: row.character_name,
-    characterImage: row.character_image || '',
-    message: row.message,
-    createdAt: row.created_at,
   }
 }
 

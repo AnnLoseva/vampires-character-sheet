@@ -1,16 +1,9 @@
 import type { CSSProperties } from 'react'
-import type { ChatMessage, ImageEditorState, RollMessage, TableLayer } from './types'
+import type { ImageEditorState, RollMessage, TableLayer } from './types'
 
 export function mergeRoll(rolls: RollMessage[], roll: RollMessage) {
   if (rolls.some(item => item.id === roll.id)) return rolls
   return [roll, ...rolls].slice(0, 80)
-}
-
-export function mergeChatMessage(messages: ChatMessage[], message: ChatMessage) {
-  if (messages.some(item => item.id === message.id)) return messages
-  return [...messages, message]
-    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
-    .slice(-120)
 }
 
 export function upsertLayer(layers: TableLayer[], layer: TableLayer) {

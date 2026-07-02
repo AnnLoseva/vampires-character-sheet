@@ -15,7 +15,8 @@ import TableLeftPanel from './TableLeftPanel'
 import TableRightPanel from './TableRightPanel'
 import SceneManager from './SceneManager'
 import MediaLibrary from './MediaLibrary'
-import ChatPanel from './ChatPanel'
+import { ChatPanel, useChat } from '@/modules/chat'
+import type { ChatUser } from '@/modules/chat/types'
 import JournalPanel from './JournalPanel'
 import MasterPanel from './MasterPanel'
 import defaultRules from '@/public/rules.json'
@@ -34,7 +35,6 @@ import {
   DEFAULT_SCENE_NAME,
   MASTER_PASSWORD_KEY,
   ROOT_LAYER_DROP_ID,
-  TABLE_CHAT_MESSAGES,
   TABLE_IMAGE_BUCKET,
   TABLE_IMAGES,
   TABLE_ROLLS,
@@ -43,7 +43,6 @@ import {
 } from '@/lib/table/constants'
 import {
   mapCharacterRow,
-  mapChatRow,
   mapLayerRow,
   mapRollRow,
   mapSceneMusicRow,
@@ -77,7 +76,6 @@ import {
   getLayerCrop,
   getLayerMediaStyle,
   getSmartFloatingPosition,
-  mergeChatMessage,
   mergeRoll,
   sortLayers,
   upsertLayer,
@@ -137,10 +135,6 @@ import type {
   BlendMode,
   CharacterOption,
   CharacterRow,
-  ChatMessage,
-  ChatMessageRow,
-  ChatPanelTab,
-  ChatUser,
   Die,
   DragState,
   ImageEditorDraft,
@@ -991,10 +985,6 @@ export default function VampireTable() {
   const [rolls, setRolls] = useState<RollMessage[]>([])
   const [diceOverlayQueue, setDiceOverlayQueue] = useState<DiceOverlayRoll[]>([])
   const shownDiceOverlayIdsRef = useRef<Set<string>>(new Set())
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
-  const [chatUser, setChatUser] = useState<ChatUser | null>(null)
-  const [chatCharacters, setChatCharacters] = useState<CharacterOption[]>([])
-  const [selectedChatCharacterId, setSelectedChatCharacterId] = useState('')
   const [roomParticipants, setRoomParticipants] = useState<ActiveParticipant[]>([])
   const [previewCharacter, setPreviewCharacter] = useState<CharacterOption | null>(null)
   const [previewCharacterTab, setPreviewCharacterTab] = useState<'mechanics' | 'inventory'>('mechanics')
@@ -1042,12 +1032,6 @@ export default function VampireTable() {
   const [masterWhispers, setMasterWhispers] = useState<MasterWhisper[]>([])
   const [masterChatDraft, setMasterChatDraft] = useState('')
   const [selectedMasterChatUserId, setSelectedMasterChatUserId] = useState('')
-  const [chatDraft, setChatDraft] = useState('')
-  const [chatUsernameDraft, setChatUsernameDraft] = useState('')
-  const [chatPasswordDraft, setChatPasswordDraft] = useState('')
-  const [chatAuthMode, setChatAuthMode] = useState<'login' | 'register'>('login')
-  const [chatStatus, setChatStatus] = useState('Чат подключается...')
-  const [isChatBusy, setIsChatBusy] = useState(false)
   const [voiceEnabled, setVoiceEnabled] = useState(false)
   const [voiceMuted, setVoiceMuted] = useState(false)
   const [voiceStatus, setVoiceStatus] = useState('Голос выключен')
@@ -1088,14 +1072,12 @@ export default function VampireTable() {
   const [leftPanelOpen, setLeftPanelOpen] = useState(true)
   const [rightPanelOpen, setRightPanelOpen] = useState(true)
   const [musicPanelOpen, setMusicPanelOpen] = useState(true)
-  const [chatPanelTab, setChatPanelTab] = useState<ChatPanelTab>('text')
   const [selectionRect, setSelectionRect] = useState<SelectionRect>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const folderInputRef = useRef<HTMLInputElement>(null)
   const backgroundFileInputRef = useRef<HTMLInputElement>(null)
   const sceneMusicFileInputRef = useRef<HTMLInputElement>(null)
   const sceneRef = useRef<HTMLDivElement>(null)
-  const chatListRef = useRef<HTMLDivElement>(null)
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
   const dragRef = useRef<DragState | null>(null)
   const dragAnimationFrameRef = useRef<number | null>(null)
@@ -1187,6 +1169,29 @@ export default function VampireTable() {
   const voiceAudioRefs = useRef<Map<string, HTMLAudioElement>>(new Map())
   const suppressNextContextMenuRef = useRef(false)
   const isMaster = tableRole === 'master'
+  const {
+    chatMessages,
+    chatStatus,
+    chatUser,
+    chatCharacters,
+    setChatCharacters,
+    selectedChatCharacterId,
+    chooseActiveCharacter,
+    chatAuthMode,
+    setChatAuthMode,
+    chatUsernameDraft,
+    setChatUsernameDraft,
+    chatPasswordDraft,
+    setChatPasswordDraft,
+    isChatBusy,
+    chatPanelTab,
+    setChatPanelTab,
+    chatDraft,
+    setChatDraft,
+    handleChatAuth,
+    logoutChat,
+    sendChatMessage,
+  } = useChat({ chronicleId: room })
 
   useEffect(() => {
     layersRef.current = layers
@@ -1264,71 +1269,35 @@ export default function VampireTable() {
       window.localStorage.removeItem('vtm-table-role')
     } else if (savedRole === 'master' || savedRole === 'player') setTableRole(savedRole)
 
-    const savedUser = window.localStorage.getItem('vtm-chat-user')
-    if (savedUser) {
-      try {
-        const parsed = JSON.parse(savedUser) as ChatUser
-        if (parsed?.id && parsed?.username) setChatUser(parsed)
-      } catch {
-        window.localStorage.removeItem('vtm-chat-user')
-      }
-    }
   }, [])
 
   useEffect(() => {
-    chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight })
-  }, [chatMessages, rightRailTab, chatPanelTab])
-
-  useEffect(() => {
     if (!chatUser) {
-      setChatCharacters([])
-      setSelectedChatCharacterId('')
+      setSelectedMasterRollCharacterId('')
+      return
+    }
+    if (!chatCharacters.length) {
       setSelectedMasterRollCharacterId('')
       return
     }
 
-    let cancelled = false
-    createClient()
-      .from('characters')
-      .select('id, name, clan, data')
-      .eq('user_id', chatUser.id)
-      .order('created_at', { ascending: false })
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error('Не удалось загрузить персонажей:', error)
-          setChatStatus('Персонажи не загрузились')
-          return
-        }
+    const savedMasterRollId = window.localStorage.getItem(`vtm-master-roll-character:${chatUser.id}:${room}`)
+      || window.localStorage.getItem(`vtm-master-roll-character:${chatUser.id}`)
+    const savedIsValid = Boolean(savedMasterRollId && chatCharacters.some(character => character.id === savedMasterRollId))
+    const fallbackId = selectedChatCharacterId && chatCharacters.some(character => character.id === selectedChatCharacterId)
+      ? selectedChatCharacterId
+      : chatCharacters[0]?.id || ''
 
-        const characters = (data || []).map(row => mapCharacterRow(row as CharacterRow))
-        setChatCharacters(characters)
-        const savedId = window.localStorage.getItem(`vtm-chat-character:${chatUser.id}:${roomRef.current}`)
-          || window.localStorage.getItem(`vtm-chat-character:${chatUser.id}`)
-        const nextId = savedId && characters.some(character => character.id === savedId)
-          ? savedId
-          : characters[0]?.id || ''
-        const savedMasterRollId = window.localStorage.getItem(`vtm-master-roll-character:${chatUser.id}:${roomRef.current}`)
-          || window.localStorage.getItem(`vtm-master-roll-character:${chatUser.id}`)
-        const nextMasterRollId = savedMasterRollId && characters.some(character => character.id === savedMasterRollId)
-          ? savedMasterRollId
-          : nextId
-        setSelectedChatCharacterId(nextId)
-        setSelectedMasterRollCharacterId(nextMasterRollId)
-        if (nextId) {
-          window.localStorage.setItem(`vtm-chat-character:${chatUser.id}:${roomRef.current}`, nextId)
-          window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, nextId)
-        }
-        if (nextMasterRollId) {
-          window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}:${roomRef.current}`, nextMasterRollId)
-          window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}`, nextMasterRollId)
-        }
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [chatUser])
+    setSelectedMasterRollCharacterId(current => {
+      const currentIsValid = Boolean(current && chatCharacters.some(character => character.id === current))
+      const nextId = currentIsValid ? current : savedIsValid ? savedMasterRollId || '' : fallbackId
+      if (nextId) {
+        window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}:${room}`, nextId)
+        window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}`, nextId)
+      }
+      return nextId
+    })
+  }, [chatCharacters, chatUser, room, selectedChatCharacterId])
 
   useEffect(() => {
     if (!layerContextMenu) return
@@ -1912,25 +1881,6 @@ export default function VampireTable() {
       void loadSceneMusic(currentRoom, sceneId)
     })
 
-    supabase
-      .from(TABLE_CHAT_MESSAGES)
-      .select('id, room, user_id, username, character_id, character_name, character_image, message, created_at')
-      .eq('room', currentRoom)
-      .order('created_at', { ascending: false })
-      .limit(120)
-      .then(({ data, error }) => {
-        if (cancelled) return
-        if (error) {
-          console.error('Не удалось загрузить чат:', error)
-          setChatStatus('Нет общей истории чата')
-          return
-        }
-
-        setChatMessages((data || []).map(row => mapChatRow(row as ChatMessageRow)).reverse())
-        setChatStatus('Чат онлайн')
-      })
-
-
     const channel = supabase
       .channel(`table-room:${currentRoom}`)
       .on('broadcast', { event: 'roll' }, payload => {
@@ -2033,12 +1983,6 @@ export default function VampireTable() {
         if (deleted.room !== currentRoom || deleted.sceneId !== activeSceneIdRef.current || !deleted.id) return
         setSceneMusic(prev => prev.filter(track => track.id !== deleted.id))
       })
-      .on('broadcast', { event: 'chat-message' }, payload => {
-        const message = payload.payload as ChatMessage
-        if (!message || message.room !== currentRoom) return
-        setChatMessages(prev => mergeChatMessage(prev, message))
-        setChatStatus('Чат онлайн')
-      })
       .on('broadcast', { event: 'hand-raise' }, payload => {
         const notice = payload.payload as { room?: string; name?: string; at?: string }
         if (notice.room !== currentRoom || !notice.name) return
@@ -2093,21 +2037,6 @@ export default function VampireTable() {
           setConnectionText('Онлайн')
         }
       )
-
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: TABLE_CHAT_MESSAGES,
-          filter: `room=eq.${currentRoom}`,
-        },
-        payload => {
-          setChatMessages(prev => mergeChatMessage(prev, mapChatRow(payload.new as ChatMessageRow)))
-          setChatStatus('Чат онлайн')
-        }
-      )
-
 
       .on(
         'postgres_changes',
@@ -2600,14 +2529,6 @@ export default function VampireTable() {
     const next = journalEntries.filter(entry => entry.id !== selectedJournalEntry.id)
     saveJournalEntries(next, 'Сохранено')
     setSelectedJournalEntryId(next[0]?.id || '')
-  }
-
-  const chooseActiveCharacter = (characterId: string) => {
-    setSelectedChatCharacterId(characterId)
-    if (!chatUser) return
-    window.localStorage.setItem(`vtm-chat-character:${chatUser.id}:${room}`, characterId)
-    window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, characterId)
-    window.localStorage.setItem(`vtm-home-character:${chatUser.id}`, characterId)
   }
 
   const chooseMasterRollCharacter = (characterId: string) => {
@@ -4862,138 +4783,6 @@ export default function VampireTable() {
     broadcastMusicChannel(channelRef.current, event, payload)
   }
 
-  const hashChatPassword = (password: string) => {
-    try {
-      return window.btoa(password)
-    } catch {
-      return window.btoa(unescape(encodeURIComponent(password)))
-    }
-  }
-
-  const rememberChatUser = (user: ChatUser) => {
-    window.localStorage.setItem('vtm-chat-user', JSON.stringify(user))
-    window.localStorage.setItem('vtm-sheet-user', JSON.stringify(user))
-    setChatUser(user)
-    setChatUsernameDraft('')
-    setChatPasswordDraft('')
-  }
-
-  const handleChatAuth = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const username = chatUsernameDraft.trim()
-    const password = chatPasswordDraft.trim()
-
-    if (username.length < 3) {
-      window.alert(t('Имя пользователя минимум 3 символа.'))
-      return
-    }
-    if (password.length < 6) {
-      window.alert(t('Пароль минимум 6 символов.'))
-      return
-    }
-
-    setIsChatBusy(true)
-    try {
-      const supabase = createClient()
-      const passwordHash = hashChatPassword(password)
-
-      if (chatAuthMode === 'register') {
-        const { data, error } = await supabase
-          .from('users')
-          .insert({ username, password_hash: passwordHash })
-          .select('id, username')
-          .single()
-
-        if (error || !data) {
-          console.error('Не удалось зарегистрировать пользователя:', error)
-          window.alert(error?.code === '23505' ? t('Пользователь с таким именем уже существует.') : t('Не удалось создать аккаунт.'))
-          return
-        }
-
-        rememberChatUser(data as ChatUser)
-        setChatStatus('Вход выполнен')
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, username')
-        .eq('username', username)
-        .eq('password_hash', passwordHash)
-        .single()
-
-      if (error || !data) {
-        console.error('Не удалось войти в чат:', error)
-        window.alert(t('Неверный логин или пароль.'))
-        return
-      }
-
-      rememberChatUser(data as ChatUser)
-      setChatStatus('Вход выполнен')
-    } finally {
-      setIsChatBusy(false)
-    }
-  }
-
-  const logoutChat = () => {
-    stopVoice()
-    window.localStorage.removeItem('vtm-chat-user')
-    window.localStorage.removeItem('vtm-sheet-user')
-    setChatUser(null)
-    setChatStatus('Выйди в аккаунт, чтобы писать')
-  }
-
-  const sendChatMessage = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const text = chatDraft.trim()
-    const character = chatCharacters.find(item => item.id === selectedChatCharacterId)
-    if (!chatUser) {
-      window.alert(t('Сначала войди в аккаунт.'))
-      return
-    }
-    if (!character) {
-      window.alert(t('Выбери персонажа. Сохранённые персонажи берутся из личного кабинета листа.'))
-      return
-    }
-    if (!text) return
-
-    const message: ChatMessage = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      room,
-      userId: chatUser.id,
-      username: chatUser.username,
-      characterId: character.id,
-      characterName: character.name,
-      characterImage: character.image,
-      message: text,
-      createdAt: new Date().toISOString(),
-    }
-
-    setChatDraft('')
-    setChatMessages(prev => mergeChatMessage(prev, message))
-    broadcast('chat-message', message)
-
-    const { error } = await createClient().from(TABLE_CHAT_MESSAGES).insert({
-      id: message.id,
-      room: message.room,
-      user_id: message.userId,
-      username: message.username,
-      character_id: message.characterId,
-      character_name: message.characterName,
-      character_image: message.characterImage,
-      message: message.message,
-      created_at: message.createdAt,
-    })
-
-    if (error) {
-      console.error('Не удалось сохранить сообщение чата:', error)
-      setChatStatus('Сообщение показано онлайн, но не сохранилось')
-      window.alert(t('Сообщение отправлено в realtime, но не сохранилось. Нужно применить SQL для table_chat_messages.'))
-    } else {
-      setChatStatus('Чат онлайн')
-    }
-  }
-
   const sendMasterWhisper = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const text = masterChatDraft.trim()
@@ -5266,6 +5055,11 @@ export default function VampireTable() {
     setVoiceEnabled(false)
     setVoiceParticipants([])
     setVoiceStatus('Голос выключен')
+  }
+
+  const handleLogoutChat = () => {
+    stopVoice()
+    logoutChat()
   }
 
   const startVoice = async () => {
@@ -7726,12 +7520,11 @@ export default function VampireTable() {
             voiceQuality={voiceQuality}
             voiceParticipants={voiceParticipants}
             chatDraft={chatDraft}
-            chatListRef={chatListRef}
             voiceAudioRefs={voiceAudioRefs}
             remoteStreamsRef={remoteStreamsRef}
             formatTime={formatTime}
             openParticipantPreview={openParticipantPreview}
-            logoutChat={logoutChat}
+            logoutChat={handleLogoutChat}
             chooseActiveCharacter={chooseActiveCharacter}
             handleChatAuth={handleChatAuth}
             setChatAuthMode={setChatAuthMode}

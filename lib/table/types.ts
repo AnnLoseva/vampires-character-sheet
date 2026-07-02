@@ -4,6 +4,7 @@ import type { CharacterDerivedStats } from '@/core/systems/vtm5/rules/derived-st
 import type { ActiveEffect } from '@/core/systems/vtm5/rules/disciplines/schema'
 import type { AppliedDisciplineRollModifier } from '@/core/systems/vtm5/rules/disciplines/effects'
 import type { AppliedDisciplineDamageModifier } from '@/core/systems/vtm5/rules/damage'
+export type { ChatMessage, ChatMessageRow, ChatPanelTab, ChatUser } from '@/modules/chat/types'
 
 export type Die = {
   id?: string
@@ -222,11 +223,6 @@ export type RollRow = {
   created_at: string
 }
 
-export type ChatUser = {
-  id: string
-  username: string
-}
-
 export type CharacterType = 'vampire' | 'mortal' | 'ghoul' | 'thinblood'
 
 export type CharacterHumanity = HumanityState & {
@@ -391,30 +387,6 @@ export type MasterWhisper = {
   message: string
   fromMaster: boolean
   createdAt: string
-}
-
-export type ChatMessage = {
-  id: string
-  room: string
-  userId: string
-  username: string
-  characterId: string | null
-  characterName: string
-  characterImage: string
-  message: string
-  createdAt: string
-}
-
-export type ChatMessageRow = {
-  id: string
-  room: string
-  user_id: string
-  username: string
-  character_id: string | null
-  character_name: string
-  character_image: string | null
-  message: string
-  created_at: string
 }
 
 export type VoiceParticipant = {
@@ -643,5 +615,4 @@ export type LayerDropTarget = {
 export type RightRailTab = 'media' | 'rolls' | 'chat' | 'diary' | 'master'
 export type MediaTab = 'music' | 'layers' | 'library'
 export type LeftToolbarTab = 'scenes' | 'layers' | 'media' | 'music'
-export type ChatPanelTab = 'text' | 'voice'
 export type VoiceQuality = 'balanced' | 'clear'

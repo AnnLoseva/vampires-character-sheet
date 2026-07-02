@@ -1,14 +1,13 @@
+import { useEffect, useRef } from 'react'
 import type { Dispatch, FormEvent, RefObject, SetStateAction } from 'react'
 import type {
   ActiveParticipant,
   CharacterOption,
-  ChatMessage,
-  ChatPanelTab,
-  ChatUser,
   RightRailTab,
   VoiceParticipant,
   VoiceQuality,
 } from '@/lib/table/types'
+import type { ChatAuthMode, ChatMessage, ChatPanelTab, ChatUser } from '../types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 
 type ChatPanelProps = {
@@ -19,7 +18,7 @@ type ChatPanelProps = {
   roomParticipants: ActiveParticipant[]
   chatCharacters: CharacterOption[]
   selectedChatCharacterId: string
-  chatAuthMode: 'login' | 'register'
+  chatAuthMode: ChatAuthMode
   chatUsernameDraft: string
   chatPasswordDraft: string
   isChatBusy: boolean
@@ -31,7 +30,6 @@ type ChatPanelProps = {
   voiceQuality: VoiceQuality
   voiceParticipants: VoiceParticipant[]
   chatDraft: string
-  chatListRef: RefObject<HTMLDivElement | null>
   voiceAudioRefs: RefObject<Map<string, HTMLAudioElement>>
   remoteStreamsRef: RefObject<Map<string, MediaStream>>
   formatTime: (value: string) => string
@@ -74,7 +72,6 @@ export default function ChatPanel({
   voiceQuality,
   voiceParticipants,
   chatDraft,
-  chatListRef,
   voiceAudioRefs,
   remoteStreamsRef,
   formatTime,
@@ -97,7 +94,12 @@ export default function ChatPanel({
   setChatDraft,
 }: ChatPanelProps) {
   const { t } = useLang()
+  const chatListRef = useRef<HTMLDivElement>(null)
   const selectedVoiceCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId)
+
+  useEffect(() => {
+    chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight })
+  }, [chatMessages, rightRailTab, chatPanelTab])
 
   return (
     <section className={`chat-sidebar table-right-panel ${rightRailTab === 'chat' ? '' : 'table-right-panel-hidden'}`} aria-label={t('Чат стола')}>

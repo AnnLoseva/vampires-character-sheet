@@ -28,14 +28,16 @@ opening code**. Risk levels drive how careful you must be.
 | `components/table/{TableLeftPanel,TableRightPanel,MasterPanel}.tsx` | panels | medium | react-table-edit-protocol | UI shells |
 | `components/table/{SceneManager,LayerManager,MediaLibrary}.tsx` | scenes/layers/media UI | high | react-table-edit-protocol | Uses `lib/table/*` utils |
 | `components/table/DiceRollOverlay.tsx` | roll UI/overlay | high | vtm-mechanics-edit-protocol | See dice-and-rolls subsystem |
-| `components/table/ChatPanel.tsx` | chat | medium | react-table-edit-protocol | `table_chat_messages` |
 | `components/table/JournalPanel.tsx` | in-table journal | medium | react-table-edit-protocol | |
 | `components/table/GameTableStyles.tsx` | global table styles | medium | react-table-edit-protocol | Large style block |
 | `components/table/VampireTable.tsx`, `components/VampireTable.tsx`, `components/CharacterSheet.tsx` | React sheet/table variants | high | react-table-edit-protocol | Confirm which is live before editing |
 
-## Music, journal, reference
+## Chat, music, journal, reference
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
+| `modules/chat/components/ChatPanel.tsx` | chat UI | medium | react-table-edit-protocol | `table_chat_messages` |
+| `modules/chat/hooks/useChat.ts` | chat state/auth/realtime | high | react-table-edit-protocol + supabase-edit-protocol | Supabase realtime + localStorage user |
+| `modules/chat/api/chat-api.ts` | chat Supabase API/mappers | high | supabase-edit-protocol | Do not rename `table_chat_messages` |
 | `modules/music/components/MusicPlayer.tsx` | music UI | medium | react-table-edit-protocol | |
 | `modules/music/components/GlobalMusicEngineMount.tsx` | persistent hidden music mount | medium | react-table-edit-protocol | Root layout mount; keep stable across navigation |
 | `modules/music/MusicSyncEngine.ts` | music sync | high | react-table-edit-protocol | Realtime sync + autoplay limits |

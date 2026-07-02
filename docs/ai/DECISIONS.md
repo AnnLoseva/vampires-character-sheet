@@ -6,6 +6,25 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-02 — Text chat runtime moved into `modules/chat`
+
+**Area:** Chat / module migration
+**Decision:** Text chat auth, message types, Supabase API helpers, message
+history/realtime state and `ChatPanel` UI now live in `modules/chat/*`.
+`GameTable.tsx` consumes `useChat` and composes table-specific voice/master
+flows around it.
+**Reason:** Chat is a self-contained pluggable feature keyed by chronicle/room.
+Moving it out of the table monolith reduces `GameTable.tsx` ownership without
+changing the `table_chat_messages` Supabase contract.
+**Consequences:** Keep `table_chat_messages` column names unchanged unless there
+is a documented Supabase migration. Voice chat and master-private messages are
+still table-specific and can move later as separate slices.
+**Affected files:** `modules/chat/*`, `components/table/GameTable.tsx`,
+`lib/table/types.ts`, `lib/table/mappers.ts`, `lib/table/layer-utils.ts`
+**Status:** active
+
+---
+
 ## 2026-07-02 — Music runtime moved into `modules/music`
 
 **Area:** Music/media / module migration

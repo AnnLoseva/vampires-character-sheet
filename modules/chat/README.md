@@ -1,6 +1,7 @@
 # Chat Module
 
-Future module boundary for room chat, private master messages, participants, and
-event delivery.
+Runtime module for chronicle room chat: user auth, character selection, message
+history, Supabase realtime delivery, and chat UI.
 
-Current runtime chat code still lives inside the table components.
+`useChat` owns text chat state for any `chronicleId`; table-specific voice and
+master tools still compose around it from the game table.

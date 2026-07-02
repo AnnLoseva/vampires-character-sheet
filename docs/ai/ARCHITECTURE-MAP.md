@@ -35,7 +35,9 @@ persist to the same Supabase project.
 ```text
 /table
  → GameTable                         (orchestrator: room state + Supabase I/O)
- → components/table/*                (Canvas, panels, chat, dice, scenes, media, journal)
+ → components/table/*                (Canvas, panels, dice, scenes, media, journal)
+ → modules/chat/*                    (chat UI, auth, history, realtime)
+ → modules/music/*                   (music UI, playback adapters, global engine)
  → lib/table/*                       (types, constants, mappers, media/layer/scene utils)
  → core/systems/vtm5/rules/*        (pure rules: health, humanity, damage, disciplines)
  → Supabase tables + storage buckets (realtime room sync)
@@ -50,7 +52,8 @@ shell only through URL params, localStorage, and `postMessage`.
 
 ## React / Next layer (`app/`, `components/`)
 App Router routes render screen/table components. `components/screens/*` are
-entry screens; `components/table/*` is the room; `modules/music/*`,
+entry screens; `components/table/*` is the room; `modules/chat/*`,
+`modules/music/*`,
 `components/journal/*`, `components/reference/*` are feature areas. Shared state
 and Supabase I/O for the table currently concentrate in `GameTable.tsx`.
 

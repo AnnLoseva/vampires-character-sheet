@@ -28,13 +28,15 @@ real time through Supabase and keyed by `room`.
 - `SceneManager.tsx`, `LayerManager.tsx`, `MediaLibrary.tsx` — scenes / layers /
   media UI (use `lib/table/*` utils).
 - `DiceRollOverlay.tsx` — roll UI/overlay (see `dice-and-rolls.md`).
-- `ChatPanel.tsx`, `JournalPanel.tsx` — chat and in-table journal.
+- Chat: `modules/chat/*`.
+- `JournalPanel.tsx` — in-table journal.
 - `GameTableStyles.tsx` — large global style block for the table.
 - Music: `modules/music/*` (see `music-and-media.md`).
 
 ## Table data model
-Types and helpers live in `lib/table/*`:
-- `types.ts` — shared table types (rolls, scenes, layers, media, chat…).
+Types and helpers live in `lib/table/*` plus extracted modules:
+- `types.ts` — shared table types (rolls, scenes, layers, media…); chat types
+  are re-exported from `modules/chat/types.ts`.
 - `constants.ts` — table/bucket names + keys (see below).
 - `mappers.ts` — map Supabase rows ↔ app objects.
 - `media-utils.ts`, `layer-utils.ts`, `scene-utils.ts` — domain helpers.

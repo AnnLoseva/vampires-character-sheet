@@ -41,9 +41,10 @@ Handled by the **legacy** `public/supabase.js` against the `characters` table
 layers.
 
 ## Table persistence
-`GameTable.tsx` reads/writes the `table_*` tables and subscribes to a per-room
-realtime channel (`table-room:{room}`). Names must come from
-`lib/table/constants.ts`; row mapping goes through `lib/table/mappers.ts`.
+`GameTable.tsx` reads/writes most `table_*` tables and subscribes to a per-room
+realtime channel (`table-room:{room}`). Chat is handled by `modules/chat/*`
+against `table_chat_messages`. Names must come from `lib/table/constants.ts`;
+row mapping belongs in the relevant module/API.
 
 ## Music / media persistence
 Images/media → `table_images` + `table-images` bucket; music → `table_music`,

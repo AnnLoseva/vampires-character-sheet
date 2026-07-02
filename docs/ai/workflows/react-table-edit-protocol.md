@@ -1,7 +1,7 @@
 # React Table Edit Protocol
 
 Applies to: `components/table/*` (especially `GameTable.tsx`),
-`modules/music/*`, and the table libs `lib/table/*`.
+`modules/chat/*`, `modules/music/*`, and the table libs `lib/table/*`.
 
 Read `../subsystems/game-table.md` first (and `music-and-media.md` /
 `dice-and-rolls.md` if relevant).
@@ -10,7 +10,8 @@ Read `../subsystems/game-table.md` first (and `music-and-media.md` /
 1. **Do not grow `GameTable.tsx`.** It is already ~9k lines. New sizeable behavior
    goes into a child component, a hook, or a lib module — not inline.
 2. **Where things belong:**
-   - UI → a component in `components/table/*` (or `modules/music/components/*`).
+   - UI → a component in `components/table/*`, `modules/chat/components/*`, or
+     `modules/music/components/*`.
    - Shared/domain logic → `lib/table/*`.
    - VTM rules → `core/systems/vtm5/rules/*` (pure).
    - Constants (table/bucket names, keys) → `lib/table/constants.ts`.

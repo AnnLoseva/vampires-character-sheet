@@ -253,8 +253,10 @@ lib/table/api/
 
 Безопасный порядок:
 
-1. read-only loaders: roll history, chat history, scene list;
-2. simple inserts: chat message, roll insert;
+1. read-only loaders: roll history, scene list (`chat` already moved to
+   `modules/chat/api/chat-api.ts`);
+2. simple inserts: roll insert (`chat message` already moved to
+   `modules/chat/api/chat-api.ts`);
 3. scene CRUD;
 4. layer/media CRUD;
 5. character updates, только после отдельной проверки `characters` contract.
@@ -271,7 +273,6 @@ modules/table/hooks/
   useTableSession.ts
   useTableRealtime.ts
   useRolls.ts
-  useChat.ts
   useScenes.ts
   useLayers.ts
   useTableMedia.ts
@@ -298,7 +299,8 @@ modules/table/hooks/
 1. `components/table/{SceneManager,LayerManager,MediaLibrary}` ->
    `modules/table/components/{scenes,layers,media}/`;
 2. `TableCanvas` -> `modules/table/components/canvas/`;
-3. `ChatPanel`, `MasterPanel`, `JournalPanel` -> соответствующие module folders;
+3. `MasterPanel`, `JournalPanel` -> соответствующие module folders
+   (`ChatPanel` уже перенесён в `modules/chat/components/`);
 4. `DiceRollOverlay` -> `modules/table/components/rolls/`, но 3D/rendering
    оставить изолированным от VTM core;
 5. `GameTableStyles.tsx` дробить последним и только вместе с визуальной проверкой.
@@ -408,20 +410,17 @@ modules/
       layers/
       media/
       rolls/
-      chat/
       master/
       voice/
     hooks/
       useTableSession.ts
       useTableRealtime.ts
       useRolls.ts
-      useChat.ts
       useScenes.ts
       useLayers.ts
       useTableMedia.ts
     services/
       rolls.ts
-      chat.ts
       characters.ts
       scenes.ts
       layers.ts
@@ -431,6 +430,15 @@ modules/
       events.ts
       types.ts
       mappers.ts
+
+  chat/
+    components/
+      ChatPanel.tsx
+    hooks/
+      useChat.ts
+    api/
+      chat-api.ts
+    types.ts
 
   character-sheet/
     CharacterSheetRoute.tsx
