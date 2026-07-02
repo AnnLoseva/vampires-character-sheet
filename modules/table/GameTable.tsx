@@ -40,7 +40,6 @@ import {
   getCharacterType,
   getDefaultDamageProfile,
   normalizeWillpowerTracker,
-  normalizeInventory,
 } from '@/modules/table/mappers'
 import {
   extractImageUrlsFromHtml,
@@ -155,6 +154,7 @@ import {
   getJournalReferencedMediaUrls,
   isMediaUrlReferencedInJournal,
 } from '@/modules/table/utils/journal-media'
+import { getRollPenalties, getRollTraits } from '@/modules/table/utils/roll-pool-helpers'
 import { getDieImage } from '@/modules/table/utils/dice-display'
 import {
   getExtraTraitNames,
@@ -164,6 +164,8 @@ import {
 } from '@/modules/table/utils/roll-utils'
 import {
   useCharacterActions,
+  useDisciplineActions,
+  useInventoryActions,
   useRoomSession,
   useTableLayers,
   useTableRealtime,
@@ -683,6 +685,49 @@ export default function VampireTable() {
     rollQuickDiceRef,
   })
 
+  const {
+    deactivatePreviewDisciplinePower: runDeactivatePreviewDisciplinePower,
+    rollPreviewPower: runRollPreviewPower,
+    removePreviewActiveEffect: runRemovePreviewActiveEffect,
+  } = useDisciplineActions({
+    room,
+    t,
+    tf,
+    previewDisciplineName,
+    chatUser,
+    selectedActiveCharacterId: selectedChatCharacterId,
+    setChatCharacters,
+    setPreviewCharacter,
+    setConnectionText,
+    broadcast,
+    publishRollRef,
+    rollQuickDiceRef,
+    addHumanityStains,
+  })
+
+  const {
+    addQuickInventoryItem,
+    showInventoryItemToMaster,
+  } = useInventoryActions({
+    room,
+    t,
+    tf,
+    chatUser,
+    selectedActiveCharacterId: selectedChatCharacterId,
+    quickInventoryName,
+    quickInventoryCategory,
+    quickInventoryQuantity,
+    isQuickInventoryBusy,
+    setQuickInventoryName,
+    setQuickInventoryQuantity,
+    setQuickInventoryStatus,
+    setIsQuickInventoryBusy,
+    setChatCharacters,
+    setPreviewCharacter,
+    broadcast,
+    getPreviewCharacter: () => previewCharacter,
+  })
+
   const createScene = async () => {
     if (!isMaster) return
     const name = window.prompt(t('Название сцены'), t('Новая сцена'))?.trim()
@@ -1058,30 +1103,7 @@ export default function VampireTable() {
     return Array.isArray(specs) ? specs.filter((spec): spec is string => typeof spec === 'string') : []
   }
   const getDisciplineDots = (sources: Record<string, number>) => Object.values(sources || {}).reduce((sum, value) => sum + (Number(value) || 0), 0)
-  const getRollTraits = (...parts: string[]) => parts.map(part => part.trim()).filter(Boolean)
-  const getRollPenalties = (
-    willpowerPenalty: number,
-    healthPenalty: number,
-  ): DisciplineRollPenalty[] => {
-    const penalties: DisciplineRollPenalty[] = []
-    if (willpowerPenalty) {
-      penalties.push({
-        id: 'willpower_impairment',
-        kind: 'willpower_impairment',
-        label: t('истощения Воли'),
-        diceDelta: willpowerPenalty,
-      })
-    }
-    if (healthPenalty) {
-      penalties.push({
-        id: 'health_impairment',
-        kind: 'health_impairment',
-        label: t('изнурения'),
-        diceDelta: healthPenalty,
-      })
-    }
-    return penalties
-  }
+
   const masterRollAttributeDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttribute) : 0
   const masterRollAttributeTwoDots = selectedMasterRollCharacter ? getAttributeDots(selectedMasterRollCharacter.attributes, masterRollAttributeTwo) : 0
   const masterRollSkillDots = selectedMasterRollCharacter ? getSkillDots(resolveSkillValue(selectedMasterRollCharacter.skills, masterRollSkill)) : 0
@@ -1099,7 +1121,7 @@ export default function VampireTable() {
         action: masterRollMode,
         source: masterUseBloodSurge ? 'blood_surge' : 'manual',
         traits: getRollTraits(masterRollAttribute, masterRollAttributeTwo, masterRollSkill, masterRollDiscipline),
-        penalties: getRollPenalties(masterWillpowerImpairmentPenalty, masterHealthImpairmentPenalty),
+        penalties: getRollPenalties(t,masterWillpowerImpairmentPenalty, masterHealthImpairmentPenalty),
         disabledModifierIds: disabledMasterRollModifierIds,
       }, selectedMasterRollCharacter.derivedStats)
     : null
@@ -1151,7 +1173,7 @@ export default function VampireTable() {
         action: previewRollMode,
         source: previewUseBloodSurge ? 'blood_surge' : 'manual',
         traits: getRollTraits(previewRollAttribute, previewRollAttributeTwo, previewRollSkill, previewRollDiscipline),
-        penalties: getRollPenalties(previewWillpowerImpairmentPenalty, previewHealthImpairmentPenalty),
+        penalties: getRollPenalties(t,previewWillpowerImpairmentPenalty, previewHealthImpairmentPenalty),
         disabledModifierIds: disabledPreviewRollModifierIds,
       }, previewCharacter.derivedStats)
     : null
@@ -1238,7 +1260,7 @@ export default function VampireTable() {
         action: selectedPreviewPower?.name || 'discipline-power',
         source: 'discipline',
         traits: getRollTraits(...previewPowerPoolSelections, previewDisciplineName),
-        penalties: getRollPenalties(previewPowerWillpowerImpairmentPenalty, previewPowerHealthImpairmentPenalty),
+        penalties: getRollPenalties(t,previewPowerWillpowerImpairmentPenalty, previewPowerHealthImpairmentPenalty),
         disabledModifierIds: disabledPreviewPowerModifierIds,
       }, previewCharacter.derivedStats)
     : null
@@ -1451,7 +1473,7 @@ export default function VampireTable() {
           action: 'contested',
           source: 'manual',
           traits: getRollTraits(sideState.attribute, sideState.attributeTwo, sideState.skill, sideState.discipline),
-          penalties: getRollPenalties(willpowerPenalty, healthPenalty),
+          penalties: getRollPenalties(t,willpowerPenalty, healthPenalty),
         }, character.derivedStats)
       : null
     const diceCount = rollEffectResult?.finalDiceCount || 0
@@ -1886,7 +1908,7 @@ export default function VampireTable() {
       source: masterUseBloodSurge ? 'blood_surge' : 'manual',
       rollTraits: getRollTraits(masterRollAttribute, masterRollAttributeTwo, masterRollSkill, masterRollDiscipline),
       rollAction: masterRollMode,
-      rollPenalties: getRollPenalties(masterWillpowerImpairmentPenalty, masterHealthImpairmentPenalty),
+      rollPenalties: getRollPenalties(t,masterWillpowerImpairmentPenalty, masterHealthImpairmentPenalty),
       disabledRollModifierIds: disabledMasterRollModifierIds,
     }
     if (masterRollMode === 'contested') {
@@ -1966,7 +1988,7 @@ export default function VampireTable() {
       source: previewBloodSurgeEnabled ? 'blood_surge' : 'manual',
       rollTraits: getRollTraits(previewRollAttribute, previewRollAttributeTwo, previewRollSkill, previewRollDiscipline),
       rollAction: previewRollMode,
-      rollPenalties: getRollPenalties(previewWillpowerImpairmentPenalty, previewHealthImpairmentPenalty),
+      rollPenalties: getRollPenalties(t,previewWillpowerImpairmentPenalty, previewHealthImpairmentPenalty),
       disabledRollModifierIds: disabledPreviewRollModifierIds,
     }
     if (previewRollMode === 'contested') {
@@ -2031,500 +2053,47 @@ export default function VampireTable() {
     }
   }
 
-  const payActivateAndSaveDisciplinePower = async (
-    character: CharacterOption,
-    power: DisciplinePowerEntry,
-    cost: DisciplineCost,
-    inputValues: Record<string, string> = {},
-  ) => {
-    let rouseChecksOverride: number | undefined
-    if (cost.variableRouseChecks) {
-      const answer = window.prompt(
-        t('Сколько Испытаний Крови сделать для этой силы?'),
-        String(Math.max(1, cost.rouseChecks)),
-      )
-      if (answer === null) return null
-      rouseChecksOverride = Math.max(
-        1,
-        Math.min(5, Math.floor(Number(answer) || cost.rouseChecks || 1)),
-      )
-    }
-
-    const { row: data, error } = await fetchCharacterById(character.id)
-
-    if (error || !data?.data) {
-      console.error('Не удалось прочитать персонажа для оплаты силы:', error)
-      setConnectionText('Цена силы не оплачена')
-      return null
-    }
-
-    const storedCharacter = mapCharacterRow(data as CharacterRow)
-    const isActivePower = power.rule.mechanics?.activation?.kind === 'active'
-    let payment: DisciplineCostPayment<CharacterOption>
-    let nextActiveEffects: ActiveEffect[] | undefined
-    let activated = false
-
-    if (isActivePower) {
-      const activation = tableDisciplines().activateDisciplinePower(
-        storedCharacter,
-        power.rule.mechanics || {},
-        {
-          identity: {
-            discipline: previewDisciplineName,
-            path: power.path,
-            power: power.name,
-            level: power.level,
-          },
-          legacyCost: power.rule.cost,
-          legacyDuration: power.rule.duration,
-          targetCharacterId: storedCharacter.id,
-          reason: `${previewDisciplineName}: ${power.name}`,
-          rouseChecksOverride,
-          inputValues,
-          t,
-          tf,
-        },
-      )
-      if (!activation.success || !activation.payment) {
-        setConnectionText(activation.warnings[0] || 'Сила не активирована')
-        return null
-      }
-      payment = activation.payment
-      nextActiveEffects = activation.activeEffects
-      activated = activation.createdEffects.length > 0
-    } else {
-      payment = tableDisciplines().payDisciplineCost(
-        storedCharacter,
-        {
-          mechanics: power.rule.mechanics,
-          legacyCost: power.rule.cost,
-        },
-        {
-          reason: `${previewDisciplineName}: ${power.name}`,
-          rouseChecksOverride,
-          t,
-          tf,
-        },
-      )
-      if (!payment.success) {
-        setConnectionText(payment.warnings[0] || 'Цена силы требует ручного решения')
-        return null
-      }
-    }
-
-    const hasAutomaticCost = payment.rouseChecks.length > 0
-      || payment.spentWillpower > 0
-    if (!hasAutomaticCost && !activated) {
-      return { character: storedCharacter, payment, activated }
-    }
-
-    const characterData = data.data as NonNullable<CharacterRow['data']>
-    const nextData = {
-      ...characterData,
-      vitalTrackers: {
-        ...(characterData.vitalTrackers || {}),
-        ...(payment.rouseChecks.length > 0
-          ? { hunger: payment.hungerAfter }
-          : {}),
-        ...(payment.spentWillpower > 0
-          ? {
-              willpower: {
-                superficial: payment.willpowerAfter.superficial,
-                aggravated: payment.willpowerAfter.aggravated,
-              },
-            }
-          : {}),
-      },
-      ...(nextActiveEffects ? { activeEffects: nextActiveEffects } : {}),
-      timestamp: new Date().toISOString(),
-    }
-    const { error: updateError } = await updateCharacterData(character.id, nextData)
-
-    if (updateError) {
-      console.error('Не удалось сохранить оплату силы:', updateError)
-      setConnectionText('Цена силы не сохранилась')
-      return null
-    }
-
-    const updatedCharacter = mapCharacterRow({
-      ...(data as CharacterRow),
-      data: nextData,
-    })
-    setChatCharacters(current => current.map(currentCharacter => (
-      currentCharacter.id === character.id
-        ? { ...updatedCharacter, username: currentCharacter.username }
-        : currentCharacter
-    )))
-    setPreviewCharacter(current => current?.id === character.id
-      ? { ...updatedCharacter, username: current.username }
-      : current)
-
-    if (chatUser && selectedActiveCharacter?.id === character.id) {
-      const participant: ActiveParticipant = {
-        userId: chatUser.id,
-        username: chatUser.username,
-        characterId: character.id,
-        characterName: updatedCharacter.name || 'без персонажа',
-        characterClan: updatedCharacter.clan || null,
-        characterImage: updatedCharacter.image || '',
-        updatedAt: new Date().toISOString(),
-      }
-      broadcast('active-character', { room, participant })
-    }
-
-    setConnectionText(activated ? 'Сила активирована' : 'Цена силы оплачена')
-    return { character: updatedCharacter, payment, activated }
-  }
-
-  const publishDisciplineActivation = async (
-    character: CharacterOption,
-    context: DisciplineRollContext,
-    rouseChecks: RouseCheckResult[],
-    willpowerMeta: Partial<RollMeta> = {},
-    action: 'Активация' | 'Отключение' = 'Активация',
-  ) => {
-    const dice = rouseChecks.map(result => ({ value: result.value, kind: rollsDice().getDieKind(result.value, false) } as Die))
-    const hungerBefore = rouseChecks[0]?.hungerBefore ?? getCharacterHunger(character)
-    const hungerAfter = rouseChecks[rouseChecks.length - 1]?.hungerAfter ?? hungerBefore
-    const warnings = rouseChecks.map(getRouseWarning).filter(Boolean)
-    const roll: RollMessage = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      room,
-      characterName: character.name,
-      poolName: `${context.name}: ${context.power} · ${t(action)}`,
-      poolType: 'discipline-power',
-      diceCount: dice.length,
-      dice,
-      successes: rouseChecks.filter(result => result.success).length,
-      createdAt: new Date().toISOString(),
-      meta: {
-        source: 'discipline',
-        hungerBefore,
-        hungerAfter,
-        hungerDice: 0,
-        bloodPotency: getCharacterBloodPotency(character),
-        rouseChecks,
-        discipline: context,
-        warnings: [...warnings, ...(willpowerMeta.warnings || [])],
-        characterId: character.id,
-        willpowerBefore: willpowerMeta.willpowerBefore || getWillpowerMetaState(getCharacterWillpower(character)),
-        willpowerAfter: willpowerMeta.willpowerAfter || getWillpowerMetaState(getCharacterWillpower(character)),
-        spentWillpower: willpowerMeta.spentWillpower,
-        recoveredWillpower: willpowerMeta.recoveredWillpower,
-        willpowerImpaired: getCharacterWillpower(character).impaired,
-      },
-    }
-    await publishRoll(roll)
-  }
-
   const deactivatePreviewDisciplinePower = async () => {
-    if (
-      !previewCharacter
-      || !selectedPreviewPower
-      || !selectedPreviewPowerIsActive
-      || !canRollPreview
-    ) return
-
-    const { row: data, error } = await fetchCharacterById(previewCharacter.id)
-
-    if (error || !data?.data) {
-      console.error('Не удалось прочитать персонажа для отключения силы:', error)
-      setConnectionText('Сила не отключена')
-      return
-    }
-
-    const storedCharacter = mapCharacterRow(data as CharacterRow)
-    const deactivation = tableDisciplines().deactivateDisciplinePower(
-      storedCharacter,
-      selectedPreviewPower.rule.mechanics || {},
-      {
-        discipline: previewDisciplineName,
-        path: selectedPreviewPower.path,
-        power: selectedPreviewPower.name,
-        level: selectedPreviewPower.level,
-      },
-    )
-    if (!deactivation.success) {
-      setConnectionText('Активный эффект силы не найден')
-      return
-    }
-
-    const characterData = data.data as NonNullable<CharacterRow['data']>
-    const nextData = {
-      ...characterData,
-      activeEffects: deactivation.activeEffects,
-      timestamp: new Date().toISOString(),
-    }
-    const { error: updateError } = await updateCharacterData(previewCharacter.id, nextData)
-
-    if (updateError) {
-      console.error('Не удалось сохранить отключение силы:', updateError)
-      setConnectionText('Сила не отключена')
-      return
-    }
-
-    const updatedCharacter = mapCharacterRow({
-      ...(data as CharacterRow),
-      data: nextData,
+    if (!previewCharacter || !selectedPreviewPower) return
+    await runDeactivatePreviewDisciplinePower({
+      previewCharacter,
+      selectedPreviewPower,
+      canRollPreview,
+      selectedPreviewPowerIsActive,
+      previewDisciplineName,
     })
-    setChatCharacters(current => current.map(character => (
-      character.id === updatedCharacter.id
-        ? { ...updatedCharacter, username: character.username }
-        : character
-    )))
-    setPreviewCharacter(current => current?.id === updatedCharacter.id
-      ? { ...updatedCharacter, username: current.username }
-      : current)
-    setConnectionText('Сила отключена')
-
-    await publishDisciplineActivation(
-      updatedCharacter,
-      {
-        name: previewDisciplineName,
-        power: selectedPreviewPower.name,
-        level: selectedPreviewPower.level,
-        cost: t('без оплаты'),
-      },
-      [],
-      { warnings: ['Активный эффект силы отключён.'] },
-      'Отключение',
-    )
   }
 
   const rollPreviewPower = async () => {
-    if (!previewCharacter || !selectedPreviewPower || !canRollPreview) return
-    if (hasMissingPreviewPowerInput) {
-      setConnectionText('Заполни поля силы перед активацией')
-      return
-    }
-    let activeCharacter = previewCharacter
-    let willpowerMeta: Partial<RollMeta> = {}
-    const context: DisciplineRollContext = {
-      name: previewDisciplineName,
-      power: selectedPreviewPower.name,
-      level: selectedPreviewPower.level,
-      cost: selectedPreviewPowerCostLabel,
-    }
-    const humanityRisk = selectedPreviewPower.rule.mechanics?.humanity
-    if (humanityRisk?.risk) {
-      const suggested = Math.max(1, Math.floor(Number(humanityRisk.suggestedStains) || 1))
-      const answer = window.prompt(
-        t('Эта сила может угрожать Человечности. Добавить Сомнения?\n\n1 — +1\n2 — +2\n0 — не добавлять\nДругое число — ручное значение'),
-        String(suggested),
-      )
-      if (answer !== null) {
-        const amount = Math.max(0, Math.min(10, Math.floor(Number(answer) || 0)))
-        if (amount > 0) {
-          const updated = await addHumanityStains(activeCharacter, amount, 'использование силы с риском Человечности', {
-            source: 'discipline_risk',
-            reasonText: humanityRisk.reason || `${previewDisciplineName}: ${selectedPreviewPower.name}`,
-          })
-          if (updated) activeCharacter = updated
-        }
-      }
-    }
-
-    const costResult = await payActivateAndSaveDisciplinePower(
-      activeCharacter,
+    if (!previewCharacter || !selectedPreviewPower) return
+    await runRollPreviewPower({
+      previewCharacter,
       selectedPreviewPower,
+      canRollPreview,
+      hasMissingPreviewPowerInput,
+      previewDisciplineName,
+      selectedPreviewPowerCostLabel,
       selectedPreviewPowerCost,
       previewPowerInputValues,
-    )
-    if (!costResult) return
-    activeCharacter = costResult.character
-    const rouseChecks = costResult.payment.rouseChecks
-    willpowerMeta = {
-      willpowerBefore: getWillpowerMetaState(costResult.payment.willpowerBefore),
-      willpowerAfter: getWillpowerMetaState(costResult.payment.willpowerAfter),
-      spentWillpower: costResult.payment.spentWillpower || undefined,
-      warnings: costResult.payment.warnings,
-    }
-
-    if (previewPowerDiceCount < 1 || previewPowerPoolChoices.length === 0) {
-      if (
-        costResult.activated
-        || rouseChecks.length > 0
-        || willpowerMeta.spentWillpower
-      ) {
-        await publishDisciplineActivation(activeCharacter, context, rouseChecks, willpowerMeta)
-        return
-      }
-      window.alert(t('Для этой силы автоматический бросок не указан. Используй обычный конструктор пула.'))
-      return
-    }
-    const selectedParts = previewPowerPoolSelections.map(name => `${t(name)} ${getCharacterPoolPartDots(activeCharacter, name)}`)
-    if (previewPowerModifier) selectedParts.push(`${t('модификатор')} ${previewPowerModifier > 0 ? '+' : ''}${previewPowerModifier}`)
-    await rollQuickDice(
+      previewPowerDiceCount,
+      previewPowerPoolChoices,
       previewPowerPoolBeforeLimit,
-      `${previewDisciplineName}: ${selectedPreviewPower.name} · ${selectedParts.join(' + ')}`,
-      activeCharacter,
-      'discipline-power',
-      {
-        source: 'discipline',
-        disciplineContext: context,
-        rouseChecks,
-        willpowerBefore: willpowerMeta.willpowerBefore,
-        willpowerAfter: willpowerMeta.willpowerAfter,
-        spentWillpower: willpowerMeta.spentWillpower,
-        rollTraits: getRollTraits(...previewPowerPoolSelections, previewDisciplineName),
-        rollAction: selectedPreviewPower.name,
-        rollPenalties: getRollPenalties(previewPowerWillpowerImpairmentPenalty, previewPowerHealthImpairmentPenalty),
-        disabledRollModifierIds: disabledPreviewPowerModifierIds,
-        warnings: [
-          ...(willpowerMeta.warnings || []),
-        ],
-      },
-    )
-  }
-
-  const addQuickInventoryItem = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const name = quickInventoryName.trim()
-    if (!name || !previewCharacter?.id || !chatUser || !canEditPreviewInventory || isQuickInventoryBusy) return
-
-    setIsQuickInventoryBusy(true)
-    setQuickInventoryStatus('Сохраняю...')
-    const now = new Date().toISOString()
-    const item: InventoryItem = {
-      id: `inventory-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      name,
-      description: '',
-      quantity: Math.max(0, Math.floor(quickInventoryQuantity)),
-      category: quickInventoryCategory,
-      note: '',
-      createdAt: now,
-      updatedAt: now,
-      collapsed: true,
-    }
-
-    try {
-      const { row: data, error } = await fetchCharacterById(previewCharacter.id, {
-        userId: chatUser.id,
-        select: 'data',
-      })
-      if (error || !data?.data) throw error || new Error('Данные персонажа не найдены')
-
-      const characterData = data.data as Record<string, unknown>
-      const nextInventory = [item, ...normalizeInventory(characterData.inventory)]
-      const { error: updateError } = await updateCharacterData(
-        previewCharacter.id,
-        { ...characterData, inventory: nextInventory, timestamp: now },
-        { userId: chatUser.id },
-      )
-      if (updateError) throw updateError
-
-      setPreviewCharacter(current => current ? { ...current, inventory: nextInventory } : current)
-      setChatCharacters(current => current.map(character => character.id === previewCharacter.id ? { ...character, inventory: nextInventory } : character))
-      setQuickInventoryName('')
-      setQuickInventoryQuantity(1)
-      setQuickInventoryStatus('Предмет добавлен')
-    } catch (error) {
-      console.error('Не удалось добавить предмет в инвентарь:', error)
-      setQuickInventoryStatus('Не удалось сохранить предмет')
-    } finally {
-      setIsQuickInventoryBusy(false)
-    }
+      previewPowerPoolSelections,
+      previewPowerModifier,
+      previewPowerWillpowerImpairmentPenalty,
+      previewPowerHealthImpairmentPenalty,
+      disabledPreviewPowerModifierIds,
+    })
   }
 
   const removePreviewActiveEffect = async (effectId: string) => {
-    if (
-      !previewCharacter?.id
-      || !chatUser
-      || !canEditPreviewActiveEffects
-    ) return
-
-    setConnectionText('Удаляю эффект...')
-    const { row: data, error } = await fetchCharacterById(previewCharacter.id, { userId: chatUser.id })
-
-    if (error || !data?.data) {
-      console.error('Не удалось прочитать активные эффекты персонажа:', error)
-      setConnectionText('Эффект не удалён')
-      return
-    }
-
-    const storedCharacter = mapCharacterRow(data as CharacterRow)
-    const targetEffect = storedCharacter.activeEffects.find(
-      (activeEffect) => activeEffect.id === effectId,
-    )
-    const deactivation = targetEffect
-      ? tableDisciplines().deactivateDisciplinePower(
-          storedCharacter,
-          {
-            identity: targetEffect.source,
-            activation: { kind: 'active' },
-          },
-          targetEffect.source,
-        )
-      : null
-    const withoutEffect = deactivation?.success
-      ? {
-          ...(data.data as NonNullable<CharacterRow['data']>),
-          activeEffects: deactivation.activeEffects,
-        }
-      : tableDisciplines().removeActiveEffect(
-          data.data,
-          effectId,
-        ) as NonNullable<CharacterRow['data']>
-    const nextData = {
-      ...withoutEffect,
-      timestamp: new Date().toISOString(),
-    }
-    const { error: updateError } = await updateCharacterData(previewCharacter.id, nextData, {
-      userId: chatUser.id,
-    })
-
-    if (updateError) {
-      console.error('Не удалось удалить активный эффект:', updateError)
-      setConnectionText('Эффект не удалён')
-      return
-    }
-
-    const updatedCharacter = mapCharacterRow({
-      ...(data as CharacterRow),
-      data: nextData,
-    })
-    setPreviewCharacter(current => current?.id === updatedCharacter.id
-      ? { ...updatedCharacter, username: current.username }
-      : current)
-    setChatCharacters(current => current.map(character => (
-      character.id === updatedCharacter.id
-        ? { ...updatedCharacter, username: character.username }
-        : character
-    )))
-    setConnectionText('Эффект отключён')
-
-    if (targetEffect) {
-      await publishDisciplineActivation(
-        updatedCharacter,
-        {
-          name: targetEffect.source.discipline,
-          power: targetEffect.source.power,
-          level: targetEffect.source.level || 0,
-          cost: t('без оплаты'),
-        },
-        [],
-        { warnings: ['Активный эффект силы отключён.'] },
-        'Отключение',
-      )
-    }
-  }
-
-  const showInventoryItemToMaster = (item: InventoryItem) => {
     if (!previewCharacter || !chatUser) return
-    const reveal: MasterReveal = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      room,
-      kind: t('Инвентарь'),
-      title: item.name || t('Без названия'),
-      body: item.description || item.note || t('Описание не указано'),
-      meta: tf('{category} · {quantity} шт.', { category: t(item.category) || t('Другое'), quantity: item.quantity ?? 1 }),
-      characterName: previewCharacter.name || t('Безымянный'),
-      userId: chatUser.id,
-      username: chatUser.username,
-      createdAt: new Date().toISOString(),
-    }
-    broadcast('master-reveal', reveal)
-    setQuickInventoryStatus(tf('«{title}» показано мастеру', { title: reveal.title }))
+    await runRemovePreviewActiveEffect({
+      previewCharacter,
+      chatUser,
+      canEditPreviewActiveEffects,
+      effectId,
+    })
   }
 
   const addExperienceToActiveCharacter = async () => {

@@ -26,3 +26,10 @@ export { default as TableRoute } from './TableRoute'
 export { default as GameTable } from './GameTable'
 export { createCharacterActions } from './services/character-actions'
 export type { CharacterActionsDeps } from './services/character-actions'
+export { createDisciplineActions } from './services/discipline-actions'
+export type {
+  DeactivatePreviewPowerParams,
+  DisciplineActionsDeps,
+  RemovePreviewActiveEffectParams,
+  RollPreviewPowerParams,
+} from './services/discipline-actions'

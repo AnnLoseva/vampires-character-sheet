@@ -5,3 +5,12 @@ export { useTableLayers } from './useTableLayers'
 export { useTableRealtime } from './useTableRealtime'
 export { useCharacterActions } from './useCharacterActions'
 export type { CharacterActionsDeps } from './useCharacterActions'
+export { useDisciplineActions } from './useDisciplineActions'
+export type {
+  DeactivatePreviewPowerParams,
+  DisciplineActionsDeps,
+  RemovePreviewActiveEffectParams,
+  RollPreviewPowerParams,
+} from './useDisciplineActions'
+export { useInventoryActions } from './useInventoryActions'
+export type { InventoryActionsDeps } from './useInventoryActions'
