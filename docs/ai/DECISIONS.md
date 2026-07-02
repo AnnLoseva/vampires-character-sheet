@@ -21,8 +21,8 @@ future game-system and feature boundaries explicit.
 module contracts, then API/hooks, then UI folders. `GameTable.tsx` and legacy
 files must shrink through small verified steps, not rewrites. See
 `docs/architecture.md`.
-**Affected files:** `docs/architecture.md`, future `lib/vtm/*` / `core/vtm/*`,
-`components/table/*`, `lib/table/*`, future `modules/*`
+**Affected files:** `docs/architecture.md`, future `lib/vtm/*` /
+`core/systems/vtm5/*`, `components/table/*`, `lib/table/*`, future `modules/*`
 **Status:** active
 
 ---

@@ -77,8 +77,8 @@ Hub не должен:
 ### 2. Game System Cores
 
 Game System Core - чистый TypeScript-слой конкретной системы правил. Текущий
-core: VTM V5. Сегодня он живёт в `lib/vtm/`; в будущем его можно перенести в
-`core/vtm/` или `lib/cores/vtm/` с временными re-export shims.
+runtime core VTM V5 живёт в `lib/vtm/`; целевая папка нового ядра -
+`core/systems/vtm5/` с временными re-export shims на переходе.
 
 Правила core:
 
@@ -317,18 +317,19 @@ modules/character-sheet/
 Вариант перехода:
 
 ```txt
-core/vtm/
+core/systems/vtm5/
   index.ts
-  system.ts
-  rolls/
-  trackers/
-  blood/
-  disciplines/
-  character/
+  types.ts
   rules/
+    health/
+    humanity/
+    damage/
+    derived-stats/
+    disciplines/
+  adapters/
 
 lib/vtm/*
-  // временные re-export shims на core/vtm/*
+  // временные re-export shims на core/systems/vtm5/*
 ```
 
 Эту фазу делать только после того, как VTM helpers из `GameTable.tsx` уже вынесены
@@ -348,45 +349,30 @@ app/
   reference/page.tsx
 
 core/
-  shared/
-    dice/
-    ids/
-    result.ts
-  vtm/
+  infrastructure/
+  hub/
     index.ts
-    system.ts
-    character/
-      schema.ts
-      normalize.ts
-      derived-stats.ts
-    rolls/
-      d10.ts
-      opposed.ts
-      outcomes.ts
-    trackers/
-      health.ts
-      willpower.ts
-      humanity.ts
-      hunger.ts
-    blood/
-      blood-potency.ts
-      rouse.ts
-      surge.ts
-    damage/
-      damage.ts
-    disciplines/
-      schema.ts
-      rules-loader.ts
-      costs.ts
-      durations.ts
-      effects.ts
-      engine.ts
-      active-effects.ts
-      character-disciplines.ts
-      legacy-cost-parser.ts
-    rules/
-      ids.ts
-      adapters.ts
+    types.ts
+  systems/
+    vtm5/
+      index.ts
+      types.ts
+      rules/
+        health/
+        humanity/
+        damage/
+        derived-stats/
+        disciplines/
+          active-effects/
+          character-disciplines/
+          costs/
+          durations/
+          effects/
+          engine/
+          legacy-cost-parser/
+          rules-loader/
+          schema/
+      adapters/
 
 modules/
   table/
@@ -468,7 +454,7 @@ lib/
   table/
     // transitional re-exports while modules/table/contracts is introduced
   vtm/
-    // transitional re-exports while core/vtm is introduced
+    // transitional re-exports while core/systems/vtm5 is introduced
 
 public/
   old-sheet.html
@@ -515,7 +501,7 @@ public/
 - замена legacy-листа React-листом;
 - перенос `public/rules.json` / `rules_eng.json` schema;
 - дробление `GameTableStyles.tsx`;
-- физический перенос `lib/vtm` в `core/vtm`.
+- физический перенос `lib/vtm` в `core/systems/vtm5`.
 
 ## Правила дальнейших изменений
 
