@@ -14,6 +14,8 @@
 - The iframe character sheet loads, saves and loads characters.
 - The game table renders and syncs a room via Supabase.
 - `core/systems/vtm5/rules/*` pure modules (health, humanity, damage, derived stats, disciplines).
+- `modules/music/*` owns shared room music playback, adapters and the persistent
+  root engine mount.
 
 ## What is fragile
 - `public/main.js` (~11k lines) — legacy sheet logic monolith.
@@ -45,4 +47,4 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-02 — VTM TypeScript rules moved to `core/systems/vtm5/rules/*`.
+2026-07-02 — Music runtime moved to `modules/music/*`.

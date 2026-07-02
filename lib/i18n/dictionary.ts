@@ -738,7 +738,7 @@ export const dictionary: Record<string, string> = {
   'Не удалось найти персонажа для траты Воли.': 'Could not find the character to spend Willpower.',
   'Воля: переброс · {poolName}': 'Willpower: reroll · {poolName}',
 
-  // MusicPanel.tsx / music adapters / MusicSyncEngine.ts
+  // modules/music: MusicPlayer, adapters, MusicSyncEngine
   'Музыка не выбрана': 'No music selected',
   'Играет синхронно': 'Playing in sync',
   'Пауза': 'Paused',

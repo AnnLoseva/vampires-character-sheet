@@ -44,7 +44,7 @@ This is the catalog of the project's AI context. Every agent starts here after
 - `subsystems/vtm-mechanics.md` — `core/systems/vtm5/rules/*` (pure rules)
 - `subsystems/rules-data.md` — `rules.json` / `rules_eng.json`
 - `subsystems/supabase-persistence.md` — DB tables, buckets, save/load
-- `subsystems/music-and-media.md` — `components/music/*`, table media/layers
+- `subsystems/music-and-media.md` — `modules/music/*`, table media/layers
 - `subsystems/dice-and-rolls.md` — rolls, rouse checks, overlays
 - `subsystems/i18n.md` — RU/EN naming, `lib/i18n/*` and legacy i18n JS
 

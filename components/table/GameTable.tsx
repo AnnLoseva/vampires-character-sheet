@@ -6,7 +6,7 @@ import dynamic from 'next/dynamic'
 import { createClient } from '@/lib/supabase'
 import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkillValue, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
 import { useLang } from '@/lib/i18n/LanguageProvider'
-import MusicPanel from '../music/MusicPanel'
+import MusicPlayer from '@/modules/music/components/MusicPlayer'
 import type { DiceOverlayGroup, DiceOverlayRoll } from './DiceRollOverlay'
 import GameTableStyles from './GameTableStyles'
 import LayerManager from './LayerManager'
@@ -29,7 +29,7 @@ import {
   TABLE_MUSIC_BUCKET,
   toLegacyMusicDbRow,
   toMusicDbRow,
-} from '../music/utils'
+} from '@/modules/music/utils'
 import {
   DEFAULT_SCENE_NAME,
   MASTER_PASSWORD_KEY,
@@ -7191,7 +7191,7 @@ export default function VampireTable() {
         </div>
       </section> : null}
 
-      <MusicPanel
+      <MusicPlayer
         room={room}
         tableRole={tableRole}
         channelRef={channelRef}
@@ -7375,7 +7375,7 @@ export default function VampireTable() {
 
             {leftToolbarTab === 'music' ? (
               <div style={{ flex: 1, overflow: 'auto' }}>
-                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={false} />
+                <MusicPlayer room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={false} />
               </div>
             ) : null}
           </aside>
@@ -7570,7 +7570,7 @@ export default function VampireTable() {
 
             {!isMaster && mediaTab === 'music' ? (
               <div className="table-right-panel" style={{ overflow: 'auto' }}>
-                <MusicPanel room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={false} />
+                <MusicPlayer room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={false} />
               </div>
             ) : null}
           </section>

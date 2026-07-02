@@ -36,9 +36,10 @@ opening code**. Risk levels drive how careful you must be.
 ## Music, journal, reference
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
-| `components/music/MusicPanel.tsx` | music UI | medium | react-table-edit-protocol | |
-| `components/music/MusicSyncEngine.ts` | music sync | high | react-table-edit-protocol | Realtime sync + autoplay limits |
-| `components/music/adapters/{localAudioAdapter,youtubeAdapter}.ts` | playback adapters | medium | react-table-edit-protocol | Browser/YouTube limits |
+| `modules/music/components/MusicPlayer.tsx` | music UI | medium | react-table-edit-protocol | |
+| `modules/music/components/GlobalMusicEngineMount.tsx` | persistent hidden music mount | medium | react-table-edit-protocol | Root layout mount; keep stable across navigation |
+| `modules/music/MusicSyncEngine.ts` | music sync | high | react-table-edit-protocol | Realtime sync + autoplay limits |
+| `modules/music/adapters/{localAudioAdapter,youtubeAdapter}.ts` | playback adapters | medium | react-table-edit-protocol | Browser/YouTube limits |
 | `components/journal/*` | TipTap journal | medium | before-any-change | |
 | `components/reference/*` | markdown reference | low | before-any-change | |
 

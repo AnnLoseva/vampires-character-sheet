@@ -3,10 +3,11 @@
 import { ChangeEvent, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { useLang } from '@/lib/i18n/LanguageProvider'
-import { LocalAudioAdapter } from './adapters/localAudioAdapter'
-import { YouTubeAdapter } from './adapters/youtubeAdapter'
-import { MusicSyncEngine } from './MusicSyncEngine'
-import type { MusicChannel, MusicChannelRef, MusicDropTarget, MusicLibraryItem, MusicLibraryRow, MusicProvider, MusicState, MusicSyncAdapter, MusicTreeNode } from './types'
+import { LocalAudioAdapter } from '../adapters/localAudioAdapter'
+import { YouTubeAdapter } from '../adapters/youtubeAdapter'
+import { GLOBAL_MUSIC_ENGINE_ID } from '../hooks/useMusic'
+import { MusicSyncEngine } from '../MusicSyncEngine'
+import type { MusicChannel, MusicChannelRef, MusicDropTarget, MusicLibraryItem, MusicLibraryRow, MusicProvider, MusicState, MusicSyncAdapter, MusicTreeNode } from '../types'
 import {
   buildMusicTree,
   broadcastMusicChannel,
@@ -23,7 +24,7 @@ import {
   TABLE_MUSIC_BUCKET,
   TABLE_MUSIC_LIBRARY,
   upsertMusicLibraryItem,
-} from './utils'
+} from '../utils'
 
 const VISIBLE_MUSIC_ENGINE_ID = 'vtm-music-visible-engine'
 const VISIBLE_MUSIC_ENGINE_EVENT = 'vtm-music-visible-engine-updated'
@@ -46,7 +47,7 @@ function clampMusicVolume(volume: number) {
   return Math.min(100, Math.max(0, Math.round(volume)))
 }
 
-type MusicPanelProps = {
+export type MusicPlayerProps = {
   room: string
   tableRole: 'master' | 'player' | null
   channelRef?: MusicChannelRef
@@ -64,7 +65,7 @@ const emptyMusicState = (room: string): MusicState => ({
   provider: 'none',
 })
 
-export default function MusicPanel({ room, tableRole, channelRef, hidden = false, playbackEnabled = true }: MusicPanelProps) {
+export default function MusicPlayer({ room, tableRole, channelRef, hidden = false, playbackEnabled = true }: MusicPlayerProps) {
   const { t, tf } = useLang()
   const isMaster = tableRole === 'master'
   const [musicLibrary, setMusicLibrary] = useState<MusicLibraryItem[]>([])
@@ -165,7 +166,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     notify()
     return () => {
       const visibleMount = document.getElementById(VISIBLE_MUSIC_ENGINE_ID)
-      const globalMount = document.getElementById('global-music-engine')
+      const globalMount = document.getElementById(GLOBAL_MUSIC_ENGINE_ID)
       if (visibleMount && globalMount && visibleMount.firstChild) {
         globalMount.innerHTML = ''
         while (visibleMount.firstChild) globalMount.appendChild(visibleMount.firstChild)
@@ -481,7 +482,7 @@ export default function MusicPanel({ room, tableRole, channelRef, hidden = false
     // Always re-evaluate the best mount target (runs on every effect trigger,
     // including when visibleEngineMountVersion changes after the visible panel appears).
     const visibleMount = typeof document !== 'undefined' ? document.getElementById(VISIBLE_MUSIC_ENGINE_ID) as HTMLDivElement | null : null
-    const globalMount = typeof document !== 'undefined' ? document.getElementById('global-music-engine') as HTMLDivElement | null : null
+    const globalMount = typeof document !== 'undefined' ? document.getElementById(GLOBAL_MUSIC_ENGINE_ID) as HTMLDivElement | null : null
     const mountEl = visibleMount ?? (!hidden && playerMountRef.current ? playerMountRef.current : globalMount ?? playerMountRef.current)
     if (mountEl) adapterRef.current?.mount(mountEl)
 

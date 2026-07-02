@@ -25,15 +25,16 @@ legacy-iframe или сохранённые данные.
 - `public/old-sheet.html`, `public/main.js` и связанные JS-файлы - legacy-лист
   персонажа. Он работает как статическое приложение без сборки и открывается
   внутри iframe.
-- `app/`, `components/table/`, `components/music/`, `components/journal/`,
+- `app/`, `components/table/`, `modules/music/`, `components/journal/`,
   `components/reference/`, `lib/table/`, `core/systems/vtm5/` - современная
   React/TypeScript зона.
 
 Важные текущие факты:
 
 - `app/layout.tsx` сейчас является корневой оболочкой: подключает
-  `LanguageProvider`, тёмную тему и скрытый `#global-music-engine` для музыки.
-  Это естественная точка роста Hub, но бизнес-логику туда добавлять нельзя.
+  `LanguageProvider`, тёмную тему и `GlobalMusicEngineMount` из
+  `modules/music/`. Это естественная точка роста Hub, но бизнес-логику туда
+  добавлять нельзя.
 - Маршруты в `app/*/page.tsx` в основном тонкие и импортируют экран или стол.
   Это правильно: маршруты должны оставаться оболочками.
 - `components/table/GameTable.tsx` (~9k строк) - главный оркестратор стола:
@@ -50,7 +51,7 @@ legacy-iframe или сохранённые данные.
 - Часть VTM-логики ещё живёт внутри `GameTable.tsx`: базовые d10-броски,
   hunger/rouse, willpower helpers, blood surge, сборка пулов, contested rolls.
   Это кандидаты на перенос в VTM core.
-- Музыкальные таблицы и bucket сейчас объявлены в `components/music/utils.ts`,
+- Музыкальные таблицы и bucket сейчас объявлены в `modules/music/utils.ts`,
   а часть table-констант - в `lib/table/constants.ts`. Их можно объединять только
   как перенос констант без переименования реальных таблиц/buckets.
 

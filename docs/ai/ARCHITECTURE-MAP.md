@@ -50,7 +50,7 @@ shell only through URL params, localStorage, and `postMessage`.
 
 ## React / Next layer (`app/`, `components/`)
 App Router routes render screen/table components. `components/screens/*` are
-entry screens; `components/table/*` is the room; `components/music/*`,
+entry screens; `components/table/*` is the room; `modules/music/*`,
 `components/journal/*`, `components/reference/*` are feature areas. Shared state
 and Supabase I/O for the table currently concentrate in `GameTable.tsx`.
 
@@ -81,7 +81,8 @@ maps display names ↔ stable identifiers.
 Images, video, files and layers on the table canvas (tldraw). Utilities in
 `lib/table/media-utils.ts`, `layer-utils.ts`, `scene-utils.ts`; UI in
 `components/table/{TableCanvas,LayerManager,MediaLibrary,SceneManager}.tsx`.
-Music in `components/music/*` with local-audio and YouTube adapters.
+Music in `modules/music/*` with local-audio and YouTube adapters. The root
+layout mounts `GlobalMusicEngineMount` so playback survives route navigation.
 
 ## Known duplication
 - Health logic: `core/systems/vtm5/rules/health/index.ts` ↔ `public/vtm-health.js`.

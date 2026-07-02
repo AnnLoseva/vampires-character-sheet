@@ -30,7 +30,7 @@ real time through Supabase and keyed by `room`.
 - `DiceRollOverlay.tsx` — roll UI/overlay (see `dice-and-rolls.md`).
 - `ChatPanel.tsx`, `JournalPanel.tsx` — chat and in-table journal.
 - `GameTableStyles.tsx` — large global style block for the table.
-- Music: `components/music/*` (see `music-and-media.md`).
+- Music: `modules/music/*` (see `music-and-media.md`).
 
 ## Table data model
 Types and helpers live in `lib/table/*`:

@@ -6,6 +6,27 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-02 — Music runtime moved into `modules/music`
+
+**Area:** Music/media / module migration
+**Decision:** The shared room music runtime now lives in `modules/music/*`.
+`app/layout.tsx` mounts `GlobalMusicEngineMount` from the module, and
+`GameTable.tsx` renders `MusicPlayer` from the module for controls and library
+management.
+**Reason:** Music is a self-contained pluggable feature with playback adapters,
+sync, library helpers and a persistent global engine. Moving it out of
+`components/music/*` makes the module boundary explicit without changing
+Supabase contracts or playback behavior.
+**Consequences:** Keep playback/source-specific behavior in `modules/music`
+adapters and keep the root engine mount stable so music survives App Router
+navigation. Do not rename `table_music`, `table_music_library`, or the
+`table-music` bucket without a Supabase migration decision.
+**Affected files:** `modules/music/*`, `app/layout.tsx`,
+`components/table/GameTable.tsx`, `lib/table/mappers.ts`
+**Status:** active
+
+---
+
 ## 2026-07-02 — VTM5 runtime rules moved into `core/systems/vtm5/rules`
 
 **Area:** VTM mechanics / core migration

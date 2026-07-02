@@ -1,5 +1,5 @@
 import type { CharacterOption, CharacterRow, CharacterType, ChatMessage, ChatMessageRow, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
-import { getMusicProvider } from '@/components/music/utils'
+import { getMusicProvider } from '@/modules/music/utils'
 import { normalizeDamageProfile, normalizeHealthTracker, toHealthTracker } from '@/core/systems/vtm5/rules/health'
 import { getHumanityState, getHumanityStatus, normalizeMoralityState } from '@/core/systems/vtm5/rules/humanity'
 import type { HumanityStainEvent } from '@/core/systems/vtm5/rules/humanity'

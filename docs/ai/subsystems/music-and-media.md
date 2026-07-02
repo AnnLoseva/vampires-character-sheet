@@ -6,11 +6,13 @@ the canvas and organized into layers within scenes, plus a music system with
 local-audio and YouTube sources, synced across the room.
 
 ## Main files
-- Music UI/logic: `components/music/MusicPanel.tsx`,
-  `components/music/MusicSyncEngine.ts`, `components/music/types.ts`,
-  `components/music/utils.ts`.
-- Music adapters: `components/music/adapters/localAudioAdapter.ts`,
-  `components/music/adapters/youtubeAdapter.ts`.
+- Music UI/logic: `modules/music/components/MusicPlayer.tsx`,
+  `modules/music/MusicSyncEngine.ts`, `modules/music/types.ts`,
+  `modules/music/utils.ts`.
+- Persistent global player mount:
+  `modules/music/components/GlobalMusicEngineMount.tsx` in `app/layout.tsx`.
+- Music adapters: `modules/music/adapters/localAudioAdapter.ts`,
+  `modules/music/adapters/youtubeAdapter.ts`.
 - Table media/layers: `components/table/{TableCanvas,MediaLibrary,LayerManager,
   SceneManager}.tsx`.
 - Media/layer/scene helpers: `lib/table/{media-utils,layer-utils,scene-utils}.ts`.
@@ -30,6 +32,8 @@ local-audio and YouTube sources, synced across the room.
 - `MusicSyncEngine.ts` coordinates playback state across the room (realtime).
 - Adapters abstract the source: local uploaded audio vs YouTube. Each has its own
   loading, seeking, and error behavior.
+- `GlobalMusicEngineMount` keeps the hidden engine mounted from the root layout,
+  so playback survives App Router navigation.
 - Persistence: current music via `table_music`, per-scene via `table_scene_music`,
   a reusable library via `table_music_library`; audio files in the music bucket.
 
