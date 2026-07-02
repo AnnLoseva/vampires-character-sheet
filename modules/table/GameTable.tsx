@@ -72,12 +72,17 @@ import {
 import {
   createEditorState,
   getEditorImageStyle,
+  buildLayerTree,
+  getAncestorIds,
+  getDescendantIds,
+  getLayerClipboardText,
   getLayerCrop,
   getLayerMediaStyle,
+  getLayerShareUrl,
   getSmartFloatingPosition,
+  isLayerEffectivelyVisible,
   mergeRoll,
   sortLayers,
-  upsertLayer,
 } from '@/modules/table/utils/layer-utils'
 import { sortSceneMusic, upsertScene } from '@/modules/table/utils/scene-utils'
 import {
@@ -94,10 +99,6 @@ import {
   updateSceneRecord,
 } from '@/modules/table/api/scene-api'
 import {
-  deleteLayerRecords,
-  insertLayer,
-  removeStorageObject,
-  updateLayerRecord,
   updateLayerRecords,
   uploadTableImageFile,
 } from '@/modules/table/api/layer-api'
@@ -150,10 +151,7 @@ import {
   resolvePowerPool,
 } from '@/modules/table/utils/discipline-ui'
 import { formatRuleValue, formatTime, getDotDisplay } from '@/modules/table/utils/display'
-import {
-  getJournalReferencedMediaUrls,
-  isMediaUrlReferencedInJournal,
-} from '@/modules/table/utils/journal-media'
+
 import { getRollPenalties, getRollTraits } from '@/modules/table/utils/roll-pool-helpers'
 import { getDieImage } from '@/modules/table/utils/dice-display'
 import {
@@ -166,6 +164,7 @@ import {
   useCharacterActions,
   useDisciplineActions,
   useInventoryActions,
+  useLayerActions,
   usePoolRollActions,
   useRoomSession,
   useTableVoice,
@@ -436,6 +435,12 @@ export default function VampireTable() {
     previewHealthImpairmentPenalty: 0,
     disabledPreviewRollModifierIds: [] as string[],
   })
+  const layerContextRef = useRef({
+    currentSceneId: null as string | null,
+    currentOwnerId: null as string | null,
+    selectedLayer: null as TableLayer | null,
+    tableRole: null as TableRole | null,
+  })
   const selectedChatCharacterIdRef = useRef('')
   const journalEntriesRef = useRef<JournalEntry[]>([])
 
@@ -680,6 +685,46 @@ export default function VampireTable() {
     onVoiceSignalRef: handleVoiceSignalRef,
   })
   broadcastRef.current = broadcast
+
+  const {
+    patchLayer,
+    patchLayers,
+    patchSelectedLayers,
+    addMediaLayer,
+    createFolder,
+    deleteLayer,
+    moveLayersToFolder,
+    createFolderForSelection,
+    placeLayerOnTable,
+    reorderLayers,
+    deleteSelectedLayers,
+    duplicateLayer,
+    renameLayer,
+    resetLayerCrop,
+    createNamedFolder,
+    copyLayerToPersonalMedia,
+    setLayerSelection,
+    canEditLayer,
+  } = useLayerActions({
+    room,
+    t,
+    tf,
+    isMaster,
+    chatUser,
+    layers,
+    layersRef,
+    setLayers,
+    setSelectedLayerId,
+    setSelectedLayerIds,
+    setTableStatus,
+    setRightRailTab,
+    setExpandedFolders,
+    setLayerContextMenu,
+    setMediaTab,
+    broadcast: (event, payload) => broadcastRef.current(event, payload),
+    journalEntriesRef,
+    getLayerContext: () => layerContextRef.current,
+  })
 
   const {
     updateCharacterHunger,
@@ -2097,43 +2142,19 @@ export default function VampireTable() {
   const previewLayer = layers.find(layer => layer.id === previewLayerId) || null
   const currentOwnerId = isMaster ? 'master' : chatUser?.id ?? null
   const currentSceneId = activeSceneId || scenes[0]?.id || null
-  const canEditLayer = (layer: TableLayer) => {
-    if (isMaster) return true
-    if (layer.ownerRole === 'master') return false
-    if (!layer.ownerId) return true
-    return Boolean(chatUser?.id && layer.ownerId === chatUser.id)
-  }
-  const getDescendantIds = (layerId: string) => {
-    const ids = new Set<string>()
-    const visit = (parentId: string) => {
-      layersRef.current.forEach(layer => {
-        if (layer.parentId !== parentId || ids.has(layer.id)) return
-        ids.add(layer.id)
-        visit(layer.id)
-      })
-    }
-    visit(layerId)
-    return ids
+
+  layerContextRef.current = {
+    currentSceneId,
+    currentOwnerId,
+    selectedLayer,
+    tableRole,
   }
 
-  const isLayerEffectivelyVisible = (layer: TableLayer) => {
-    if (!layer.onTable) return false
-    if (layer.layerType === 'folder') return false
-    if (!layer.visible) return false
-    let parentId = layer.parentId
-    const visited = new Set<string>()
-    while (parentId) {
-      if (visited.has(parentId)) return true
-      visited.add(parentId)
-      const parent = layers.find(item => item.id === parentId)
-      if (!parent) return true
-      if (!parent.visible) return false
-      parentId = parent.parentId
-    }
-    return true
-  }
-
-  const visibleLayers = useMemo(() => sortLayers(layers).filter(isLayerEffectivelyVisible), [layers, isMaster, chatUser])
+  const visibleLayers = useMemo(
+    () => sortLayers(layers).filter(layer => isLayerEffectivelyVisible(layer, layers)),
+    [layers],
+  )
+  const checkLayerEffectivelyVisible = (layer: TableLayer) => isLayerEffectivelyVisible(layer, layers)
   const managerLayers = useMemo(
     () => (isMaster ? layers : layers.filter(layer => canEditLayer(layer))),
     [isMaster, layers, chatUser]
@@ -2144,25 +2165,6 @@ export default function VampireTable() {
     return managerLayers.filter(layer => !layer.onTable && (!query || layer.name.toLowerCase().includes(query) || layer.layerType.includes(query)))
   }, [managerLayers, mediaSearchDraft])
   const selectedManagerLayer = managerLayers.find(layer => layer.id === selectedLayerId) || null
-  const buildLayerTree = (sourceLayers: TableLayer[]) => {
-    const nodeMap = new Map<string, LayerTreeNode>()
-    sortLayers(sourceLayers).forEach(layer => nodeMap.set(layer.id, { ...layer, children: [] }))
-
-    const roots: LayerTreeNode[] = []
-    nodeMap.forEach(node => {
-      const parent = node.parentId ? nodeMap.get(node.parentId) : null
-      if (parent && parent.id !== node.id) parent.children.push(node)
-      else roots.push(node)
-    })
-
-    const sortNodes = (nodes: LayerTreeNode[]) => {
-      nodes.sort((a, b) => b.zIndex - a.zIndex || b.createdAt.localeCompare(a.createdAt))
-      nodes.forEach(node => sortNodes(node.children))
-      return nodes
-    }
-
-    return sortNodes(roots)
-  }
   const layerTree = useMemo<LayerTreeNode[]>(() => {
     return buildLayerTree(tableManagerLayers)
   }, [tableManagerLayers])
@@ -2199,22 +2201,6 @@ export default function VampireTable() {
     logoutChat()
   }
 
-  const patchLayer = async (id: string, patch: LayerPatch) => {
-    const existingLayer = layersRef.current.find(layer => layer.id === id)
-    if (existingLayer && !canEditLayer(existingLayer)) return
-
-    const nextLayers = sortLayers(layersRef.current.map(layer => (layer.id === id ? { ...layer, ...patch } : layer)))
-    layersRef.current = nextLayers
-    setLayers(nextLayers)
-    broadcast('layer-update', { id, room, patch })
-
-    const { error } = await updateLayerRecord(id, patch)
-    if (error) {
-      console.error('Не удалось обновить слой:', error)
-      setTableStatus('Слой не сохранился')
-    }
-  }
-
   const previewLayerOpacity = (id: string, opacity: number) => {
     const element = Array.from(sceneRef.current?.querySelectorAll<HTMLElement>('.scene-layer[data-layer-id]') || [])
       .find(item => item.dataset.layerId === id)
@@ -2226,80 +2212,6 @@ export default function VampireTable() {
     if (!Number.isFinite(opacity) || input.dataset.committedValue === String(opacity)) return
     input.dataset.committedValue = String(opacity)
     void patchLayer(id, { opacity })
-  }
-
-  const addMediaLayer = async (
-    imageData: string,
-    name: string,
-    natural: { width: number; height: number },
-    layerType: 'image' | 'video' | 'text' | 'file' = 'image',
-    index = 0,
-    point?: { x: number; y: number },
-    onTable = true,
-    overrides: LayerPatch = {}
-  ) => {
-    if (!isMaster && !chatUser) {
-      window.alert(t('Сначала войди в аккаунт игрока в чате, чтобы материалы получили владельца.'))
-      setRightRailTab('chat')
-      return
-    }
-    if (!currentSceneId) {
-      window.alert(t('Сначала нужна активная сцена.'))
-      return
-    }
-    const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
-    const fitWidth = Math.min(760, Math.max(220, natural.width))
-    const fitHeight = Math.max(160, Math.round((fitWidth / Math.max(1, natural.width)) * Math.max(1, natural.height)))
-    const ownerRole = tableRole ?? 'player'
-    const activeFolder = selectedLayer?.layerType === 'folder' && canEditLayer(selectedLayer) ? selectedLayer : null
-    const layer: TableLayer = {
-      id: createTableId(),
-      room,
-      sceneId: currentSceneId,
-      layerType,
-      ownerRole,
-      ownerId: currentOwnerId,
-      parentId: activeFolder?.id || null,
-      name,
-      imageData,
-      x: Math.round(point?.x ?? (activeFolder?.x ?? 80) + ((layersRef.current.length + index) % 6) * 28),
-      y: Math.round(point?.y ?? (activeFolder?.y ?? 70) + ((layersRef.current.length + index) % 6) * 24),
-      width: fitWidth,
-      height: fitHeight,
-      cropX: null,
-      cropY: null,
-      cropWidth: null,
-      cropHeight: null,
-      zIndex: maxZ + 1,
-      visible: true,
-      locked: false,
-      opacity: 1,
-      blendMode: 'normal',
-      rotation: 0,
-      flipX: false,
-      flipY: false,
-      brightness: 1,
-      contrast: 1,
-      saturation: 1,
-      onTable,
-      createdAt: new Date().toISOString(),
-    }
-    Object.assign(layer, overrides)
-
-    const { error } = await insertLayer(layer)
-
-    layersRef.current = upsertLayer(layersRef.current, layer)
-    setLayers(layersRef.current)
-    setSelectedLayerId(layer.id)
-    setSelectedLayerIds(new Set([layer.id]))
-    broadcast('layer', layer)
-
-    if (error) {
-      console.error('Не удалось сохранить слой стола:', error)
-      setTableStatus('Слой показан онлайн, но не сохранён')
-      window.alert(t('Слой показан онлайн, но не сохранился. Нужно обновить table_images в Supabase.'))
-    }
-    return layer.id
   }
 
   const uploadFiles = async (
@@ -2500,185 +2412,6 @@ export default function VampireTable() {
     setTextMaterialNameDraft('')
   }
 
-  const placeLayerOnTable = async (layerId: string, point?: { x: number; y: number }) => {
-    const layer = layersRef.current.find(item => item.id === layerId)
-    if (!layer || !canEditLayer(layer)) return
-    if (!layer.onTable) {
-      if (layer.layerType === 'folder') {
-        const ids = [layer.id, ...getDescendantIds(layer.id)]
-        await patchSelectedLayers(ids, () => ({ onTable: true, visible: true }))
-        setLayerSelection(ids, layer.id)
-        return
-      }
-      await addMediaLayer(
-        layer.imageData,
-        layer.name,
-        { width: layer.width, height: layer.height },
-        layer.layerType,
-        0,
-        point,
-        true
-      )
-      return
-    }
-    const maxZ = layersRef.current.reduce((max, item) => Math.max(max, item.zIndex), 0)
-    await patchLayer(layer.id, {
-      onTable: true,
-      visible: true,
-      parentId: null,
-      x: Math.round(point?.x ?? 120),
-      y: Math.round(point?.y ?? 120),
-      zIndex: maxZ + 1,
-    })
-    setLayerSelection([layer.id], layer.id)
-  }
-
-  const moveLayersToFolder = async (ids: string[], folderId: string | null) => {
-    const folder = folderId ? layersRef.current.find(layer => layer.id === folderId) : null
-    const patches = ids
-      .map(id => layersRef.current.find(layer => layer.id === id))
-      .filter((layer): layer is TableLayer => Boolean(layer))
-      .filter(layer => canEditLayer(layer) && layer.layerType !== 'folder' && layer.id !== folderId)
-      .filter(layer => !folder || !getDescendantIds(layer.id).has(folder.id))
-      .map(layer => ({ id: layer.id, patch: { parentId: folderId } }))
-    if (folderId) setExpandedFolders(prev => new Set(prev).add(folderId))
-    await patchLayers(patches)
-  }
-
-  const createFolderForSelection = async (ids: string[]) => {
-    const folderName = window.prompt(t('Название новой папки'), t('Новая папка'))?.trim()
-    if (!folderName) return
-    const folderId = await createFolder(null, folderName, false, true)
-    if (!folderId) return
-    await moveLayersToFolder(ids, folderId)
-  }
-
-  const deleteLayer = async (layerId: string) => {
-    const layer = layersRef.current.find(item => item.id === layerId) || layers.find(item => item.id === layerId)
-    if (layer && !window.confirm(tf('Удалить "{name}"?', { name: layer.name }))) return
-    const childIds = getDescendantIds(layerId)
-    const requestedDeleteIds = new Set([layerId, ...childIds])
-    const deleteIds = isMaster
-      ? requestedDeleteIds
-      : new Set([...requestedDeleteIds].filter(id => {
-        const item = layersRef.current.find(layer => layer.id === id)
-        return item ? canEditLayer(item) : false
-      }))
-    if (deleteIds.size === 0) return
-
-    const deletedLayers = layersRef.current.filter(item => deleteIds.has(item.id))
-    const nextLayers = layersRef.current.filter(item => !deleteIds.has(item.id))
-    layersRef.current = nextLayers
-    setLayers(nextLayers)
-    setSelectedLayerId(prev => (prev && deleteIds.has(prev) ? null : prev))
-    setSelectedLayerIds(prev => new Set([...prev].filter(id => !deleteIds.has(id))))
-    deleteIds.forEach(id => broadcast('layer-delete', { id, room }))
-    await deleteLayerRecords([...deleteIds])
-
-    const journalUrls = getJournalReferencedMediaUrls(journalEntriesRef.current)
-    await Promise.all(deletedLayers.map(async deletedLayer => {
-      const fileUrl = deletedLayer.layerType === 'file' ? getFileLayerMeta(deletedLayer.imageData, deletedLayer.name).url : deletedLayer.imageData
-      const stillUsed = nextLayers.some(item => {
-        const itemUrl = item.layerType === 'file' ? getFileLayerMeta(item.imageData, item.name).url : item.imageData
-        return itemUrl && itemUrl === fileUrl
-      })
-      if (stillUsed) return
-      if (isMediaUrlReferencedInJournal(fileUrl, journalUrls)) return
-      const storagePath = getStoragePathFromPublicUrl(fileUrl)
-      if (storagePath) {
-        const { error } = await removeStorageObject(storagePath)
-        if (error) console.error('Не удалось удалить файл слоя из Storage:', error)
-      }
-    }))
-  }
-
-  const createFolder = async (parentId: string | null = null, name?: string, selectAfterCreate = true, onTable = true) => {
-    if (!isMaster && !chatUser) {
-      window.alert(t('Сначала войди в аккаунт игрока в чате, чтобы папка получила владельца.'))
-      setRightRailTab('chat')
-      return null
-    }
-    if (!currentSceneId) {
-      window.alert(t('Сначала нужна активная сцена.'))
-      return null
-    }
-    const maxZ = layersRef.current.reduce((max, layer) => Math.max(max, layer.zIndex), 0)
-    const siblingCount = layersRef.current.filter(layer => layer.layerType === 'folder' && layer.parentId === parentId).length
-    const parentFolder = parentId ? layersRef.current.find(layer => layer.id === parentId) : null
-    const folder: TableLayer = {
-      id: createTableId(),
-      room,
-      sceneId: currentSceneId,
-      layerType: 'folder',
-      ownerRole: tableRole ?? 'player',
-      ownerId: currentOwnerId,
-      parentId,
-      name: name?.trim() || tf('Папка {n}', { n: siblingCount + 1 }),
-      imageData: '',
-      x: (parentFolder?.x ?? 120) + (siblingCount % 5) * 36,
-      y: (parentFolder?.y ?? 120) + (siblingCount % 5) * 28,
-      width: 520,
-      height: 320,
-      cropX: null,
-      cropY: null,
-      cropWidth: null,
-      cropHeight: null,
-      zIndex: maxZ + 1,
-      visible: true,
-      locked: false,
-      opacity: 1,
-      blendMode: 'normal',
-      rotation: 0,
-      flipX: false,
-      flipY: false,
-      brightness: 1,
-      contrast: 1,
-      saturation: 1,
-      onTable,
-      createdAt: new Date().toISOString(),
-    }
-
-    const { error } = await insertLayer(folder)
-
-    layersRef.current = upsertLayer(layersRef.current, folder)
-    setLayers(layersRef.current)
-    if (selectAfterCreate) {
-      setSelectedLayerId(folder.id)
-      setSelectedLayerIds(new Set([folder.id]))
-    }
-    if (parentId) setExpandedFolders(prev => new Set(prev).add(parentId))
-    broadcast('layer', folder)
-
-    if (error) {
-      console.error('Не удалось сохранить папку:', error)
-      setTableStatus('Папка показана онлайн, но не сохранена')
-    }
-    return folder.id
-  }
-
-  const patchLayers = async (patches: Array<{ id: string; patch: LayerPatch }>) => {
-    if (patches.length === 0) return
-
-    const patchMap = new Map(patches.map(item => [item.id, item.patch]))
-    const nextLayers = sortLayers(layersRef.current.map(layer => ({ ...layer, ...(patchMap.get(layer.id) || {}) })))
-    layersRef.current = nextLayers
-    setLayers(nextLayers)
-    patches.forEach(item => broadcast('layer-update', { id: item.id, room, patch: item.patch }))
-
-    const results = await updateLayerRecords(patches)
-    if (results.some(result => result.error)) {
-      console.error('Не удалось обновить порядок слоёв:', results.find(result => result.error)?.error)
-      setTableStatus('Порядок слоёв не сохранился')
-    }
-  }
-
-  const renameLayer = async (layer: TableLayer) => {
-    const nextName = window.prompt(t('Новое имя слоя'), layer.name)?.trim()
-    if (!nextName || nextName === layer.name) return
-    await patchLayer(layer.id, { name: nextName })
-    setLayerContextMenu(null)
-  }
-
   const openImageEditor = (layer: TableLayer) => {
     if (!canEditLayer(layer) || !['image', 'video'].includes(layer.layerType)) return
     setImageEditor({
@@ -2755,120 +2488,10 @@ export default function VampireTable() {
     setImageEditor(null)
   }
 
-  const resetLayerCrop = async (layer: TableLayer) => {
-    await patchLayer(layer.id, { cropX: null, cropY: null, cropWidth: null, cropHeight: null })
-    setLayerContextMenu(null)
-  }
-
-  const createNamedFolder = async (parentId: string | null = null, onTable = true) => {
-    const nextName = window.prompt(t('Название папки'), t('Новая папка'))?.trim()
-    if (!nextName) return null
-    return createFolder(parentId, nextName, true, onTable)
-  }
-
   const getContextLayerIds = (layerId: string | null) => {
     if (layerId && selectedLayerIds.has(layerId) && selectedLayerIds.size > 1) return [...selectedLayerIds]
     if (layerId) return [layerId]
     return [...selectedLayerIds]
-  }
-
-  const setLayerSelection = (ids: string[], primaryId = ids[0] || null) => {
-    setSelectedLayerIds(new Set(ids))
-    setSelectedLayerId(primaryId)
-  }
-
-  const patchSelectedLayers = async (ids: string[], patchFor: (layer: TableLayer) => LayerPatch) => {
-    const patches = ids
-      .map(id => layersRef.current.find(layer => layer.id === id))
-      .filter((layer): layer is TableLayer => Boolean(layer))
-      .filter(layer => canEditLayer(layer))
-      .map(layer => ({ id: layer.id, patch: patchFor(layer) }))
-    await patchLayers(patches)
-  }
-
-  const reorderLayers = async (ids: string[], direction: 'top' | 'up' | 'down' | 'bottom') => {
-    const selected = ids
-      .map(id => layersRef.current.find(layer => layer.id === id))
-      .filter((layer): layer is TableLayer => Boolean(layer))
-      .filter(layer => canEditLayer(layer))
-    if (selected.length === 0) return
-
-    const patches: Array<{ id: string; patch: LayerPatch }> = []
-    const groups = new Map<string, TableLayer[]>()
-    selected.forEach(layer => {
-      const key = layer.parentId || ROOT_LAYER_DROP_ID
-      groups.set(key, [...(groups.get(key) || []), layer])
-    })
-
-    groups.forEach(groupSelected => {
-      const selectedIds = new Set(groupSelected.map(layer => layer.id))
-      const parentId = groupSelected[0]?.parentId ?? null
-      const siblings = sortLayers(layersRef.current.filter(layer => layer.parentId === parentId))
-      const ordered = siblings.filter(layer => !selectedIds.has(layer.id))
-      const picked = siblings.filter(layer => selectedIds.has(layer.id))
-      const firstIndex = Math.min(...picked.map(layer => siblings.findIndex(item => item.id === layer.id)))
-      const insertIndex =
-        direction === 'top'
-          ? ordered.length
-          : direction === 'bottom'
-            ? 0
-            : direction === 'up'
-              ? Math.min(ordered.length, firstIndex + 1)
-              : Math.max(0, firstIndex - 1)
-      ordered.splice(insertIndex, 0, ...picked)
-      ordered.forEach((layer, index) => {
-        const nextZ = index + 1
-        if (layer.zIndex !== nextZ) patches.push({ id: layer.id, patch: { zIndex: nextZ } })
-      })
-    })
-
-    await patchLayers(patches)
-  }
-
-  const deleteSelectedLayers = async (ids: string[]) => {
-    for (const id of ids) await deleteLayer(id)
-  }
-
-  const duplicateLayer = async (layer: TableLayer) => {
-    if (!canEditLayer(layer) || layer.layerType === 'folder') return
-    await addMediaLayer(
-      layer.imageData,
-      `${layer.name} copy`,
-      { width: layer.width, height: layer.height },
-      layer.layerType === 'video' ? 'video' : layer.layerType === 'text' ? 'text' : layer.layerType === 'file' ? 'file' : 'image',
-      0,
-      { x: layer.x + 28, y: layer.y + 28 },
-      layer.onTable,
-      {
-        parentId: layer.parentId,
-        cropX: layer.cropX,
-        cropY: layer.cropY,
-        cropWidth: layer.cropWidth,
-        cropHeight: layer.cropHeight,
-        opacity: layer.opacity,
-        blendMode: layer.blendMode,
-        rotation: layer.rotation,
-        flipX: layer.flipX,
-        flipY: layer.flipY,
-        brightness: layer.brightness,
-        contrast: layer.contrast,
-        saturation: layer.saturation,
-      }
-    )
-  }
-
-  const getLayerShareUrl = (layer: TableLayer) => {
-    if (layer.layerType === 'file') return getFileLayerMeta(layer.imageData, layer.name).url
-    if (layer.layerType === 'image' || layer.layerType === 'video') return layer.imageData
-    return ''
-  }
-
-  const getLayerClipboardText = (layer: TableLayer) => {
-    const url = getLayerShareUrl(layer)
-    if (layer.layerType === 'image' && url) return `![${layer.name}](${url})`
-    if (url) return `[${layer.name}](${url})`
-    if (layer.layerType === 'text') return `${layer.name}\n\n${layer.imageData}`
-    return layer.name
   }
 
   const copyTextToClipboard = async (text: string) => {
@@ -2926,40 +2549,6 @@ export default function VampireTable() {
     setLayerContextMenu(null)
   }
 
-  const copyLayerToPersonalMedia = async (layer: TableLayer) => {
-    if (layer.layerType === 'folder') return
-    await addMediaLayer(
-      layer.imageData,
-      `${layer.name} copy`,
-      { width: layer.width, height: layer.height },
-      layer.layerType === 'video' ? 'video' : layer.layerType === 'text' ? 'text' : layer.layerType === 'file' ? 'file' : 'image',
-      0,
-      undefined,
-      false,
-      {
-        parentId: null,
-        visible: true,
-        locked: false,
-        cropX: layer.cropX,
-        cropY: layer.cropY,
-        cropWidth: layer.cropWidth,
-        cropHeight: layer.cropHeight,
-        opacity: layer.opacity,
-        blendMode: layer.blendMode,
-        rotation: layer.rotation,
-        flipX: layer.flipX,
-        flipY: layer.flipY,
-        brightness: layer.brightness,
-        contrast: layer.contrast,
-        saturation: layer.saturation,
-      }
-    )
-    setRightRailTab('media')
-    setMediaTab('library')
-    setLayerContextMenu(null)
-    setTableStatus('Скопировано в мои медиа')
-  }
-
   const focusLayersForEveryone = (ids: string[]) => {
     const targets = ids
       .map(id => layersRef.current.find(layer => layer.id === id))
@@ -2993,25 +2582,13 @@ export default function VampireTable() {
     })
   }
 
-  const getAncestorIds = (layerId: string) => {
-    const ids: string[] = []
-    const visited = new Set<string>()
-    let parentId = layersRef.current.find(layer => layer.id === layerId)?.parentId || null
-    while (parentId && !visited.has(parentId)) {
-      visited.add(parentId)
-      ids.push(parentId)
-      parentId = layersRef.current.find(layer => layer.id === parentId)?.parentId || null
-    }
-    return ids
-  }
-
   const revealLayerInTableManager = (layer: TableLayer) => {
     if (!layer.onTable || !canEditLayer(layer)) return
     setRightRailTab('media')
     setMediaTab('layers')
     setExpandedFolders(prev => {
       const next = new Set(prev)
-      getAncestorIds(layer.id).forEach(id => next.add(id))
+      getAncestorIds(layersRef.current, layer.id).forEach(id => next.add(id))
       return next
     })
     setLayerSelection([layer.id], layer.id)
@@ -3038,7 +2615,7 @@ export default function VampireTable() {
     if (!canMoveLayer(dragged)) return false
     if (dragged.id === target.id) return false
     if (placement === 'inside' && target.layerType !== 'folder') return false
-    if (dragged.layerType === 'folder' && getDescendantIds(dragged.id).has(target.id)) return false
+    if (dragged.layerType === 'folder' && getDescendantIds(layersRef.current, dragged.id).has(target.id)) return false
     return true
   }
 
@@ -3247,7 +2824,7 @@ export default function VampireTable() {
     if (mode === 'move') {
       nextSelection.forEach(id => {
         moveIds.add(id)
-        getDescendantIds(id).forEach(childId => moveIds.add(childId))
+        getDescendantIds(layersRef.current, id).forEach(childId => moveIds.add(childId))
       })
       moveIds.delete(layer.id)
     }
@@ -3901,7 +3478,7 @@ export default function VampireTable() {
                             selectedLayerIds={selectedLayerIds}
                             draggingLayerId={draggingLayerId}
                             canMoveLayer={canMoveLayer}
-                            isLayerEffectivelyVisible={isLayerEffectivelyVisible}
+                            isLayerEffectivelyVisible={checkLayerEffectivelyVisible}
                             handleLayerDragStart={handleLayerDragStart}
                             handleLayerDragOver={handleLayerDragOver}
                             handleLayerDrop={handleLayerDrop}
@@ -3988,7 +3565,7 @@ export default function VampireTable() {
                             selectedLayerIds={selectedLayerIds}
                             draggingLayerId={draggingLayerId}
                             canMoveLayer={canMoveLayer}
-                            isLayerEffectivelyVisible={isLayerEffectivelyVisible}
+                            isLayerEffectivelyVisible={checkLayerEffectivelyVisible}
                             handleLayerDragStart={handleLayerDragStart}
                             handleLayerDragOver={handleLayerDragOver}
                             handleLayerDrop={handleLayerDrop}
@@ -4134,7 +3711,7 @@ export default function VampireTable() {
                             selectedLayerIds={selectedLayerIds}
                             draggingLayerId={draggingLayerId}
                             canMoveLayer={canMoveLayer}
-                            isLayerEffectivelyVisible={isLayerEffectivelyVisible}
+                            isLayerEffectivelyVisible={checkLayerEffectivelyVisible}
                             handleLayerDragStart={handleLayerDragStart}
                             handleLayerDragOver={handleLayerDragOver}
                             handleLayerDrop={handleLayerDrop}
@@ -4184,7 +3761,7 @@ export default function VampireTable() {
               uploadFiles={uploadFiles}
               setLayerDropTarget={setLayerDropTarget}
               canMoveLayer={canMoveLayer}
-              isLayerEffectivelyVisible={isLayerEffectivelyVisible}
+              isLayerEffectivelyVisible={checkLayerEffectivelyVisible}
               handleLayerDragStart={handleLayerDragStart}
               handleLayerDragOver={handleLayerDragOver}
               handleLayerDrop={handleLayerDrop}

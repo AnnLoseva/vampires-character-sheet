@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react'
-import type { ImageEditorState, RollMessage, TableLayer } from '../types'
+import { getFileLayerMeta } from './media-utils'
+import type { ImageEditorState, LayerTreeNode, RollMessage, TableLayer } from '../types'
 
 export function mergeRoll(rolls: RollMessage[], roll: RollMessage) {
   if (rolls.some(item => item.id === roll.id)) return rolls
@@ -89,4 +90,90 @@ export function getEditorImageStyle(state: ImageEditorState): CSSProperties {
     transformOrigin: '50% 50%',
     filter: `brightness(${state.brightness}) contrast(${state.contrast}) saturate(${state.saturation})`,
   }
+}
+
+export function canEditLayer(
+  layer: TableLayer,
+  options: { isMaster: boolean; chatUserId?: string | null },
+) {
+  if (options.isMaster) return true
+  if (layer.ownerRole === 'master') return false
+  if (!layer.ownerId) return true
+  return Boolean(options.chatUserId && layer.ownerId === options.chatUserId)
+}
+
+export function getDescendantIds(layers: TableLayer[], layerId: string) {
+  const ids = new Set<string>()
+  const visit = (parentId: string) => {
+    layers.forEach(layer => {
+      if (layer.parentId !== parentId || ids.has(layer.id)) return
+      ids.add(layer.id)
+      visit(layer.id)
+    })
+  }
+  visit(layerId)
+  return ids
+}
+
+export function getAncestorIds(layers: TableLayer[], layerId: string) {
+  const ids: string[] = []
+  const visited = new Set<string>()
+  let parentId = layers.find(layer => layer.id === layerId)?.parentId || null
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    ids.push(parentId)
+    parentId = layers.find(layer => layer.id === parentId)?.parentId || null
+  }
+  return ids
+}
+
+export function isLayerEffectivelyVisible(layer: TableLayer, layers: TableLayer[]) {
+  if (!layer.onTable) return false
+  if (layer.layerType === 'folder') return false
+  if (!layer.visible) return false
+  let parentId = layer.parentId
+  const visited = new Set<string>()
+  while (parentId) {
+    if (visited.has(parentId)) return true
+    visited.add(parentId)
+    const parent = layers.find(item => item.id === parentId)
+    if (!parent) return true
+    if (!parent.visible) return false
+    parentId = parent.parentId
+  }
+  return true
+}
+
+export function getLayerShareUrl(layer: TableLayer) {
+  if (layer.layerType === 'file') return getFileLayerMeta(layer.imageData, layer.name).url
+  if (layer.layerType === 'image' || layer.layerType === 'video') return layer.imageData
+  return ''
+}
+
+export function getLayerClipboardText(layer: TableLayer) {
+  const url = getLayerShareUrl(layer)
+  if (layer.layerType === 'image' && url) return `![${layer.name}](${url})`
+  if (url) return `[${layer.name}](${url})`
+  if (layer.layerType === 'text') return `${layer.name}\n\n${layer.imageData}`
+  return layer.name
+}
+
+export function buildLayerTree(sourceLayers: TableLayer[]) {
+  const nodeMap = new Map<string, LayerTreeNode>()
+  sortLayers(sourceLayers).forEach(layer => nodeMap.set(layer.id, { ...layer, children: [] }))
+
+  const roots: LayerTreeNode[] = []
+  nodeMap.forEach(node => {
+    const parent = node.parentId ? nodeMap.get(node.parentId) : null
+    if (parent && parent.id !== node.id) parent.children.push(node)
+    else roots.push(node)
+  })
+
+  const sortNodes = (nodes: LayerTreeNode[]) => {
+    nodes.sort((a, b) => b.zIndex - a.zIndex || b.createdAt.localeCompare(a.createdAt))
+    nodes.forEach(node => sortNodes(node.children))
+    return nodes
+  }
+
+  return sortNodes(roots)
 }
