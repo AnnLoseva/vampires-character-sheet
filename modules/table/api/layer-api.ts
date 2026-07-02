@@ -1,3 +1,4 @@
+/** Table module API: canvas layers and table-images storage (table_images). */
 import { createClient } from '@/lib/supabase'
 import { TABLE_IMAGE_BUCKET, TABLE_IMAGES } from '../constants'
 import { mapLayerRow, toDbPatch } from '../mappers'

@@ -1,3 +1,4 @@
+/** Table module API: scenes and per-scene music tracks (table_scenes, table_scene_music). */
 import { createClient } from '@/lib/supabase'
 import { TABLE_IMAGES, TABLE_SCENE_MUSIC, TABLE_SCENES } from '../constants'
 import { mapSceneMusicRow, mapSceneRow } from '../mappers'

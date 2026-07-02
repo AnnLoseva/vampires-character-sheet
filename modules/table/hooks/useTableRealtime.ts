@@ -1,11 +1,12 @@
 'use client'
 
+/** Table room Realtime channel: broadcast + postgres_changes. Supabase client from api/realtime-api. */
 import { useCallback, useEffect, useRef } from 'react'
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import type { ChatUser } from '@/modules/chat/types'
 import { broadcastMusicChannel } from '@/modules/music/utils'
 import type { MusicChannel } from '@/modules/music/types'
-import { createClient } from '@/lib/supabase'
+import { getTableSupabaseClient, removeTableRoomChannel } from '../api/realtime-api'
 import {
   TABLE_IMAGES,
   TABLE_ROLLS,
@@ -113,7 +114,7 @@ export function useTableRealtime(options: UseTableRealtimeOptions) {
       onVoiceSignalRef,
     } = optionsRef.current
 
-    const supabase = createClient()
+    const supabase = getTableSupabaseClient()
     let cancelled = false
 
     ensureDefaultScene(currentRoom).then(sceneId => {
@@ -378,7 +379,7 @@ export function useTableRealtime(options: UseTableRealtimeOptions) {
     return () => {
       cancelled = true
       channelRef.current = null
-      supabase.removeChannel(channel)
+      removeTableRoomChannel(supabase, channel)
     }
   }, [options.room])
 

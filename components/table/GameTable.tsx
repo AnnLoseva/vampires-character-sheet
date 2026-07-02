@@ -1,9 +1,12 @@
 'use client'
 
+/**
+ * Campaign table orchestrator: wires UI panels, hooks, and module APIs together.
+ * Data access (Supabase) lives in @/modules/table/api/*; state in @/modules/table/hooks/*.
+ */
 import { ChangeEvent, FormEvent, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { SetStateAction } from 'react'
 import dynamic from 'next/dynamic'
-import { createClient } from '@/lib/supabase'
 import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkillValue, SKILL_NAME_EN } from '@/lib/i18n/ruleNames'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import MusicPlayer from '@/modules/music/components/MusicPlayer'
@@ -23,20 +26,12 @@ import defaultRules from '@/public/rules.json'
 import {
   broadcastMusicChannel,
   getMusicProvider,
-  isMissingColumnError,
   parseYouTubeUrl,
-  safeStorageName as safeMusicStorageName,
-  TABLE_MUSIC,
-  TABLE_MUSIC_BUCKET,
-  toLegacyMusicDbRow,
-  toMusicDbRow,
 } from '@/modules/music/utils'
 import {
+  ATTRIBUTE_GROUPS,
   DEFAULT_SCENE_NAME,
   ROOT_LAYER_DROP_ID,
-} from '@/lib/table/constants'
-import {
-  ATTRIBUTE_GROUPS,
   SKILL_GROUPS,
   type InventoryCategory,
 } from '@/modules/table/constants'
@@ -46,7 +41,7 @@ import {
   getDefaultDamageProfile,
   normalizeWillpowerTracker,
   normalizeInventory,
-} from '@/lib/table/mappers'
+} from '@/modules/table/mappers'
 import {
   extractImageUrlsFromHtml,
   extractVideoUrlsFromHtml,
@@ -63,7 +58,7 @@ import {
   isReadableTextFile,
   isWordLikeFile,
   safeStorageName,
-} from '@/lib/table/media-utils'
+} from '@/modules/table/utils/media-utils'
 import {
   createEditorState,
   getEditorImageStyle,
@@ -73,8 +68,8 @@ import {
   mergeRoll,
   sortLayers,
   upsertLayer,
-} from '@/lib/table/layer-utils'
-import { sortSceneMusic, upsertScene } from '@/lib/table/scene-utils'
+} from '@/modules/table/utils/layer-utils'
+import { sortSceneMusic, upsertScene } from '@/modules/table/utils/scene-utils'
 import {
   activateSceneRecord,
   clearSceneMusicDefaults,
@@ -104,6 +99,10 @@ import {
   insertRollRecord,
   updateRollRecord,
 } from '@/modules/table/api/roll-api'
+import {
+  uploadSceneMusicAudioFile,
+  upsertTableMusicState,
+} from '@/modules/table/api/music-api'
 import {
   CharacterPreviewModal,
   DisciplinePowerPanel,
@@ -217,11 +216,9 @@ import type {
   VoiceQuality,
   VoiceSignal,
   WillpowerRerollDraft,
-} from '@/lib/table/types'
+} from '@/modules/table/types'
 
 const DiceRollOverlay = dynamic(() => import('./DiceRollOverlay'), { ssr: false })
-
-let supportsExtendedTableMusicSchema = true
 
 type DisciplinePowerRule = {
   description?: string
@@ -1386,23 +1383,7 @@ export default function VampireTable() {
       trackId: youtube.videoId || undefined,
       sourceType: provider,
     }
-    const nextMusic = toMusicDbRow(payload)
-
-    let persistLegacyMusic = !supportsExtendedTableMusicSchema
-    if (supportsExtendedTableMusicSchema) {
-      const { error } = await createClient().from(TABLE_MUSIC).upsert(nextMusic)
-      if (isMissingColumnError(error)) {
-        supportsExtendedTableMusicSchema = false
-        persistLegacyMusic = true
-      } else if (error) {
-        console.error('Не удалось сохранить расширенное состояние музыки сцены:', error)
-        persistLegacyMusic = true
-      }
-    }
-
-    if (persistLegacyMusic) {
-      await createClient().from(TABLE_MUSIC).upsert(toLegacyMusicDbRow(payload))
-    }
+    await upsertTableMusicState(payload)
     window.dispatchEvent(new CustomEvent('vtm-music-state', { detail: payload }))
     broadcastMusicChannel(channelRef.current, 'music', payload)
   }
@@ -1597,31 +1578,28 @@ export default function VampireTable() {
 
     setIsUploading(true)
     try {
-      const supabase = createClient()
       const baseOrder = selectedSceneMusic.reduce((max, track) => Math.max(max, track.orderIndex), -1)
       for (const [index, file] of audioFiles.entries()) {
-        const id = `${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`
-        const storagePath = `${room}/scenes/${selectedScene.id}/${id}-${safeMusicStorageName(file.name)}`
-        const { error: uploadError } = await supabase.storage.from(TABLE_MUSIC_BUCKET).upload(storagePath, file, {
-          cacheControl: '3600',
-          upsert: false,
-          contentType: file.type || 'audio/mpeg',
-        })
+        const { error: uploadError, publicUrl, id } = await uploadSceneMusicAudioFile(
+          room,
+          selectedScene.id,
+          file,
+          index,
+        )
 
-        if (uploadError) {
+        if (uploadError || !publicUrl || !id) {
           console.error('Не удалось загрузить музыку сцены:', uploadError)
           window.alert(t('Аудиофайл не загрузился. Проверь bucket table-music и policies из SQL.'))
           continue
         }
 
-        const { data: publicUrlData } = supabase.storage.from(TABLE_MUSIC_BUCKET).getPublicUrl(storagePath)
         const now = new Date().toISOString()
         const track: SceneMusicTrack = {
           id,
           room,
           sceneId: selectedScene.id,
           title: file.name,
-          url: publicUrlData.publicUrl,
+          url: publicUrl,
           sourceType: 'file',
           orderIndex: baseOrder + index + 1,
           isDefault: selectedSceneMusic.length === 0 && index === 0,

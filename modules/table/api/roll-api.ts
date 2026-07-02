@@ -1,3 +1,4 @@
+/** Table module API: dice roll history (table_rolls). */
 import { createClient } from '@/lib/supabase'
 import { TABLE_ROLLS } from '../constants'
 import { mapRollRow } from '../mappers'

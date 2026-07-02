@@ -1,3 +1,4 @@
+/** Table module API: character sheet fetch/update at the table (characters). */
 import { createClient } from '@/lib/supabase'
 import { CHARACTERS } from '../constants'
 import type { CharacterRow } from '../types'
