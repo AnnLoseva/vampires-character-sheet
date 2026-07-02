@@ -89,6 +89,15 @@
         return Math.max(0, 10 - clampValue(state.value) - clampStains(state.stains, state.value));
     }
 
+    var HUMANITY_WARNING_AT_RISK = 'Шкала Сомнений заполнена. Следующая проверка мук совести почти наверняка приведёт к потере Человечности.';
+    var HUMANITY_WARNING_LOST_TO_BEAST = 'Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.';
+
+    function getHumanityWarning(state) {
+        if (state.value <= 0) return HUMANITY_WARNING_LOST_TO_BEAST;
+        if (state.stains >= 10 - clampValue(state.value) && state.stains > 0) return HUMANITY_WARNING_AT_RISK;
+        return '';
+    }
+
     function applyRemorseCheckResult(before, params) {
         const remorseDice = Math.max(0, Math.floor(Number(params && params.remorseDice) || 0));
         const automaticFailure = remorseDice <= 0;
@@ -143,7 +152,7 @@
             applied,
             overflow: requestedAmount - applied,
             warning: requestedAmount > applied
-                ? 'Шкала Сомнений заполнена. Следующая проверка мук совести почти наверняка приведёт к потере Человечности.'
+                ? getHumanityWarning({ ...before, stains: before.stains + applied })
                 : ''
         };
     }
@@ -188,6 +197,7 @@
         getHumanityState,
         getStatus,
         getRemorseDice,
+        getHumanityWarning,
         applyRemorseCheckResult,
         addStains,
         normalizeMorality

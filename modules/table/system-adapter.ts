@@ -45,6 +45,7 @@ export type TableDisciplinesAdapter = {
 export type TableHumanityAdapter = {
   getHumanityState: Vtm5HumanityRules['getHumanityState']
   getHumanityStatus: Vtm5HumanityRules['getHumanityStatus']
+  getHumanityWarning: Vtm5HumanityRules['getHumanityWarning']
   getRemorseDice: Vtm5HumanityRules['getRemorseDice']
   addHumanityStains: Vtm5HumanityRules['addHumanityStains']
 }

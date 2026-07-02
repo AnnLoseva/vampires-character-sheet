@@ -158,6 +158,25 @@ export function getHumanityStatus(state: HumanityState): HumanityStatus {
   return 'normal'
 }
 
+const identityT = (ru: string) => ru
+
+export const HUMANITY_WARNING_AT_RISK =
+  'Шкала Сомнений заполнена. Следующая проверка мук совести почти наверняка приведёт к потере Человечности.'
+
+export const HUMANITY_WARNING_LOST_TO_BEAST =
+  'Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.'
+
+export function getHumanityWarning(
+  state: HumanityState,
+  t: (ru: string) => string = identityT,
+): string {
+  if (state.value <= 0) return t(HUMANITY_WARNING_LOST_TO_BEAST)
+  if (state.stains >= 10 - clampHumanityValue(state.value) && state.stains > 0) {
+    return t(HUMANITY_WARNING_AT_RISK)
+  }
+  return ''
+}
+
 export function getRemorseDice(state: HumanityState) {
   return Math.max(0, 10 - clampHumanityValue(state.value) - clampHumanityStains(state.stains, state.value))
 }
@@ -241,7 +260,7 @@ export function addHumanityStains(
     applied,
     overflow: requestedAmount - applied,
     warning: requestedAmount > applied
-      ? 'Шкала Сомнений заполнена. Следующая проверка мук совести почти наверняка приведёт к потере Человечности.'
+      ? getHumanityWarning({ ...before, stains: before.stains + applied }, identityT)
       : '',
   }
 }

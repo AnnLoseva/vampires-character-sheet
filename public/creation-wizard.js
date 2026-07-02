@@ -1226,6 +1226,22 @@
     };
 
     /* ================= ШАГ 16: ИТОГОВЫЙ ЭКРАН ================= */
+    function getSheetCreationIssues() {
+        if (typeof window.getPlayerCreationIssues !== 'function') return [];
+        try {
+            const issues = window.getPlayerCreationIssues();
+            return Array.isArray(issues) ? issues : [];
+        } catch (error) {
+            console.warn('Не удалось проверить лист персонажа:', error);
+            return [];
+        }
+    }
+
+    function formatCreationIssuesList(issues) {
+        if (!issues.length) return '';
+        return issues.map(item => `• ${item}`).join('\n');
+    }
+
     function mandatoryValid() {
         const ac = counts('attr');
         const pkg = val('skill-package');
@@ -1238,7 +1254,7 @@
             name: !!val('char-name'),
             clan: !!getCurrentClanValue(),
             predator: !!val('predator-input'),
-            generation: !!val('generation-input'),
+            generation: !!val('generation-input') && !!val('type-input'),
             humanity: ['7', '8'].includes(val('base-humanity')),
             attributes: attrOk,
             skills: skillOk,
@@ -1246,20 +1262,30 @@
             meritsFlaws: mfOk
         };
     }
+
+    function isGuidedCreationReady() {
+        const local = mandatoryValid();
+        if (!Object.values(local).every(Boolean)) return false;
+        return getSheetCreationIssues().length === 0;
+    }
     RENDERERS.summary = () => {
         const v = mandatoryValid();
         const row = (lbl, value, cls) =>
             `<div class="cw-summary-row"><span class="lbl">${esc(t(lbl))}</span><span class="val ${cls || ''}">${esc(value)}</span></div>`;
         const yn = b => b ? { t: t('заполнены'), c: 'ok' } : { t: t('ошибки'), c: 'bad' };
         const inv = (sheetData().inventory || []).length;
-        const allOk = Object.values(v).every(Boolean);
+        const localOk = Object.values(v).every(Boolean);
+        const sheetIssues = getSheetCreationIssues();
+        const allOk = isGuidedCreationReady();
         const generation = val('generation-input');
+        const vampireType = val('type-input');
         return shell('summary', t('Персонаж почти готов'), '',
             `<div class="cw-summary">
                 ${row('Имя', val('char-name') || '—', v.name ? '' : 'bad')}
                 ${row('Клан', getCurrentClanValue() || '—', v.clan ? '' : 'bad')}
                 ${row('Тип охоты', val('predator-input') || '—', v.predator ? '' : 'bad')}
                 ${row('Поколение', generation ? generation + (window.VTM_LANG === 'en' ? 'th' : '-е') : '—', v.generation ? '' : 'bad')}
+                ${row('Тип вампира', vampireType || '—', v.generation ? '' : 'bad')}
                 ${row('Человечность', val('base-humanity') || '7', '')}
                 ${row('Характеристики', yn(v.attributes).t, yn(v.attributes).c)}
                 ${row('Навыки', yn(v.skills).t, yn(v.skills).c)}
@@ -1267,16 +1293,28 @@
                 ${row('Преимущества и недостатки', yn(v.meritsFlaws).t, yn(v.meritsFlaws).c)}
                 ${row('Инвентарь', inv ? t('заполнен') : t('пропущен'), '')}
              </div>
-             ${allOk ? '' : `<div class="cw-error">${t('Не все обязательные шаги завершены. Чтобы зафиксировать лист, исправь отмеченные красным пункты.')}</div>`}`,
+             ${!localOk ? `<div class="cw-error">${t('Не все обязательные шаги завершены. Чтобы зафиксировать лист, исправь отмеченные красным пункты.')}</div>` : ''}
+             ${localOk && sheetIssues.length ? `<div class="cw-error"><p>${t('Лист не проходит финальную проверку:')}</p><ul>${sheetIssues.map(item => `<li>${esc(item)}</li>`).join('')}</ul></div>` : ''}`,
             navBtn(t('Вернуться и исправить'), 'prev')
             + navBtn(t('Открыть полный лист'), 'toSheet', 'to-sheet')
             + `<button type="button" class="cw-btn cw-nav-forward primary" data-cw="finish" ${allOk ? '' : 'disabled'}>${t('Зафиксировать лист')}</button>`);
     };
 
     function finishSheet() {
-        const v = mandatoryValid();
-        if (!Object.values(v).every(Boolean)) {
-            showStepError(t('Сначала заверши все обязательные шаги.'));
+        if (typeof window.updateCreationRuleControls === 'function') {
+            try { window.updateCreationRuleControls(); } catch (error) { console.error(error); }
+        }
+        if (!isGuidedCreationReady()) {
+            const local = mandatoryValid();
+            const issues = getSheetCreationIssues();
+            if (!Object.values(local).every(Boolean)) {
+                showStepError(t('Сначала заверши все обязательные шаги.'));
+                return;
+            }
+            showStepError(
+                t('Лист не проходит финальную проверку. Вернись к отмеченным шагам и исправь значения.')
+                + (issues.length ? '\n\n' + formatCreationIssuesList(issues) : '')
+            );
             return;
         }
         let fixed = false;
@@ -1286,7 +1324,11 @@
             } catch (e) { console.error(e); }
         }
         if (!fixed) {
-            showStepError(t('Лист пока не проходит финальную проверку. Вернись к отмеченным шагам и исправь значения.'));
+            const issues = getSheetCreationIssues();
+            showStepError(
+                t('Лист пока не проходит финальную проверку. Вернись к отмеченным шагам и исправь значения.')
+                + (issues.length ? '\n\n' + formatCreationIssuesList(issues) : '')
+            );
             return;
         }
         wizard.finishedAt = new Date().toISOString();
@@ -1303,7 +1345,7 @@
             identity: [() => !!val('char-name'), t('Имя обязательно для заполнения.')],
             clan: [() => !!getCurrentClanValue(), t('Сначала выбери клан.')],
             predator: [() => !!val('predator-input'), t('Сначала выбери тип охоты.')],
-            generation: [() => !!val('generation-input'), t('Сначала выбери поколение.')],
+            generation: [() => !!val('generation-input') && !!val('type-input'), t('Сначала выбери поколение и тип вампира (птенец, неонат или анцилла).')],
             humanity: [() => ['7', '8'].includes(val('base-humanity')), t('Выбери начальную Человечность: 7 или 8.')],
             attributes: [() => {
                 const pkg = val('skill-package');

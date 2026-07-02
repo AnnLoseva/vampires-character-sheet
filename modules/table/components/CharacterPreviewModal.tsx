@@ -435,12 +435,12 @@ export function CharacterPreviewModal({
                   <p className="preview-humanity-caption">
                     {tf('Сомнения {stains} / {remaining} · свободно {free}', { stains: humanity.stains, remaining: 10 - humanity.value, free: humanity.freeBoxes })}
                   </p>
-                  {humanity.status === 'at_risk' ? (
-                    <p className="preview-roll-notice warning">{t('Шкала Сомнений заполнена. Следующая проверка почти наверняка приведёт к потере Человечности.')}</p>
-                  ) : null}
-                  {humanity.status === 'lost_to_beast' ? (
-                    <p className="preview-roll-notice danger">{t('Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.')}</p>
-                  ) : null}
+                  {(() => {
+                    const warning = tableHumanity().getHumanityWarning(humanity)
+                    return warning ? (
+                      <p className={`preview-roll-notice ${humanity.status === 'lost_to_beast' ? 'danger' : 'warning'}`}>{t(warning)}</p>
+                    ) : null
+                  })()}
                   {sheetFixed ? (
                     <div className="preview-humanity-actions">
                       <button type="button" onClick={() => actions.addHumanityStains(1)} disabled={!canRoll}>

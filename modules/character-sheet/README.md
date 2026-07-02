@@ -20,8 +20,12 @@ must match `core/systems/vtm5/rules/{health,humanity}/`. Run after edits:
 npm run test:vtm-parity
 ```
 
+## Creation wizard
+`public/creation-wizard.js` — guided flow for `?new=1`. Summary/finish uses the same
+rules as `getPlayerCreationIssues()` in `main.js` (exposed on `window`).
+
 ## Next incremental work
-1. Humanity / stains / remorse UX in `main.js`
-2. Character creation wizard improvements (`creation-wizard.js`)
+1. Humanity stain event form in table quick-preview (legacy sheet has full form)
+2. Further wizard UX (specialties step, thin-blood hints)
 3. Sync full sheet ↔ table quick-preview representations
 4. Extract more pure logic from `main.js` into `core/` (one function at a time)

@@ -28,6 +28,7 @@ import {
   addHumanityStains,
   getHumanityState,
   getHumanityStatus,
+  getHumanityWarning,
   getRemorseDice,
 } from '../rules/humanity'
 
@@ -60,6 +61,7 @@ export function createVtm5TableAdapter(): TableSystemAdapter {
     humanity: {
       getHumanityState,
       getHumanityStatus,
+      getHumanityWarning,
       getRemorseDice,
       addHumanityStains,
     },

@@ -1039,13 +1039,8 @@ function setHumanityNotice(text = '', kind = '') {
 }
 
 function getHumanityWarning(state = getHumanityState()) {
-    if (state.value <= 0) {
-        return t('Человечность 0: персонаж окончательно уступает Зверю и переходит под контроль Рассказчика.');
-    }
-    if (state.stains >= 10 - state.value && state.stains > 0) {
-        return t('Шкала Сомнений заполнена. Следующая проверка мук совести почти наверняка приведёт к потере Человечности.');
-    }
-    return '';
+    const warning = window.VTMHumanity.getHumanityWarning(state);
+    return warning ? t(warning) : '';
 }
 
 function renderHumanityEvents() {
@@ -11320,3 +11315,5 @@ function fixStartingSheet({ silent = false } = {}) {
 }
 
 window.validatePlayerCreation = validatePlayerCreation;
+window.getPlayerCreationIssues = getPlayerCreationIssues;
+window.updateCreationRuleControls = updateCreationRuleControls;

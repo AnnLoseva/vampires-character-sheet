@@ -21,6 +21,7 @@ import {
   clampHumanityValue,
   getHumanityState,
   getHumanityStatus,
+  getHumanityWarning,
   getRemorseDice,
   normalizeMoralityState,
 } from '../core/systems/vtm5/rules/humanity'
@@ -63,6 +64,7 @@ type LegacyHumanityApi = {
   clampStains: (value: unknown, humanityValue: number) => number
   getHumanityState: (characterData: Record<string, unknown> | null | undefined) => LegacyHumanityState
   getStatus: (state: LegacyHumanityState) => string
+  getHumanityWarning: (state: LegacyHumanityState) => string
   getRemorseDice: (state: LegacyHumanityState) => number
   applyRemorseCheckResult: (
     before: LegacyHumanityState,
@@ -217,6 +219,23 @@ test('humanity: getStatus matches getHumanityStatus', () => {
   ]
   for (const state of states) {
     expectEqual(legacyHumanity.getStatus(state), getHumanityStatus(state), `status value=${state.value} stains=${state.stains}`)
+  }
+})
+
+test('humanity: getHumanityWarning matches core', () => {
+  const identity = (value: string) => value
+  const cases = [
+    { value: 7, stains: 0 },
+    { value: 6, stains: 2 },
+    { value: 5, stains: 5 },
+    { value: 0, stains: 0 },
+  ]
+  for (const state of cases) {
+    expectEqual(
+      legacyHumanity.getHumanityWarning(state),
+      getHumanityWarning(state, identity),
+      `warning value=${state.value} stains=${state.stains}`,
+    )
   }
 })
 

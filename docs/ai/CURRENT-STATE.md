@@ -6,7 +6,7 @@
 ## Current development focus
 - **Legacy character sheet phase** — iframe sheet (`public/main.js` +
   `old-sheet.html`) stays load-bearing; bridge lives in `modules/character-sheet/`.
-  Work incrementally: parity tests, small extractions to `core/`, wizard/humanity UX.
+  Work incrementally: parity tests, small extractions to `core/`, wizard validation sync.
 - Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines).
 - Run `npm run test:vtm-parity` after health/humanity edits in `core/` or `public/vtm-*.js`.
   Remorse resolution (`applyRemorseCheckResult`) is shared: core ↔ legacy ↔ table.
