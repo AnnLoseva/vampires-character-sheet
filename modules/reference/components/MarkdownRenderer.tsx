@@ -9,6 +9,7 @@ type MarkdownRendererProps = {
   markdown: string
   searchTerms?: string[]
   activeMatchIndex?: number
+  onInternalLink?: (href: string) => void
 }
 
 function escapeRegExp(value: string) {
@@ -47,7 +48,16 @@ function highlightChildren(children: ReactNode, terms: string[], activeMatchInde
   return children
 }
 
-export default function MarkdownRenderer({ markdown, searchTerms = [], activeMatchIndex = -1 }: MarkdownRendererProps) {
+function isInternalReferenceHref(href?: string) {
+  return Boolean(href && (href.startsWith('/reference?') || href.startsWith('?doc=')))
+}
+
+export default function MarkdownRenderer({
+  markdown,
+  searchTerms = [],
+  activeMatchIndex = -1,
+  onInternalLink,
+}: MarkdownRendererProps) {
   const counter = { value: 0 }
   const highlight = (children: ReactNode) => highlightChildren(children, searchTerms, activeMatchIndex, counter)
 
@@ -65,12 +75,25 @@ export default function MarkdownRenderer({ markdown, searchTerms = [], activeMat
           li: ({ children }) => <li>{highlight(children)}</li>,
           strong: ({ children }) => <strong>{highlight(children)}</strong>,
           em: ({ children }) => <em>{highlight(children)}</em>,
-          blockquote: ({ children }) => <blockquote>{highlight(children)}</blockquote>,
-          a: ({ children, ...props }) => (
-            <a {...props} target={props.href?.startsWith('http') ? '_blank' : undefined} rel={props.href?.startsWith('http') ? 'noreferrer' : undefined}>
-              {highlight(children)}
-            </a>
-          ),
+          blockquote: ({ children }) => <blockquote className="reference-callout">{children}</blockquote>,
+          a: ({ children, href, ...props }) => {
+            const internal = isInternalReferenceHref(href)
+            return (
+              <a
+                {...props}
+                href={href}
+                onClick={event => {
+                  if (!internal || !href || !onInternalLink) return
+                  event.preventDefault()
+                  onInternalLink(href)
+                }}
+                target={!internal && href?.startsWith('http') ? '_blank' : undefined}
+                rel={!internal && href?.startsWith('http') ? 'noreferrer' : undefined}
+              >
+                {highlight(children)}
+              </a>
+            )
+          },
           th: ({ children }) => <th>{highlight(children)}</th>,
           td: ({ children }) => <td>{highlight(children)}</td>,
           table: ({ children }) => (

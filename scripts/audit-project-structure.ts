@@ -21,6 +21,7 @@ const ignoredExactPaths = new Set([
   'public/rules_eng.json',
   'public/reference/VtM_v5_new.md',
   'public/reference/VtM_v5_new_eng.md',
+  'public/reference/vtm-v5',
 ])
 const textExtensions = new Set([
   '.css',

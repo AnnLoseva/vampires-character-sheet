@@ -54,6 +54,18 @@ export const dictionary: Record<string, string> = {
   'Поиск по справочнику': 'Search the reference',
   'Поиск по словам': 'Search by words',
   'Например: Голконда Бруха Голод': 'e.g.: Golconda Brujah Hunger',
+  'Например: Голконда Бруха Голод Маскарад': 'e.g.: Golconda Brujah Hunger Masquerade',
+  'Разделы': 'Sections',
+  'На этой странице': 'On this page',
+  'Старт': 'Start',
+  'Основные разделы': 'Main sections',
+  'Справочники': 'Handbooks',
+  '← Навигатор': '← Navigator',
+  'Поиск идёт по всем разделам и справочникам одновременно.':
+    'Search runs across every chapter and handbook at once.',
+  'Совпадений на странице нет': 'No matches on this page',
+  'По запросу **{query}** ничего не найдено. Попробуйте другое слово или более общий термин.':
+    'Nothing matched **{query}**. Try a different word, or a more general term.',
   'Найдено разделов: {count}': 'Sections found: {count}',
   'Совпадение {current} из {total}': 'Match {current} of {total}',
   'Совпадений нет': 'No matches',

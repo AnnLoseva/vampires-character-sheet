@@ -1,159 +1,30 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { useLang } from '@/lib/i18n/LanguageProvider'
+import {
+  DEFAULT_REFERENCE_DOC_SLUG,
+  getReferenceDocument,
+  getReferenceDocumentUrl,
+  getReferenceFileUrl,
+  REFERENCE_DOCUMENTS,
+  type ReferenceDocument,
+} from '../catalog'
+import {
+  collectHeadings,
+  getSearchTerms,
+  preprocessReferenceMarkdown,
+  searchReferenceCorpus,
+  type ReferenceSearchHit,
+} from '../utils/markdown'
 import MarkdownRenderer from './MarkdownRenderer'
-import ReferenceSidebar, { ReferenceHeading } from './ReferenceSidebar'
+import ReferenceSidebar from './ReferenceSidebar'
 
-type SearchResult = {
-  title: string
-  level: 2 | 3
-  slug: string
-  snippet: string
-}
-
-function makeSlug(value: string) {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^\p{L}\p{N}\s-]/gu, '')
-    .replace(/\s+/g, '-')
-}
-
-function plainHeadingText(value: string) {
-  return value
-    .replace(/[`*_~[\]()]/g, '')
-    .replace(/#+\s*/g, '')
-    .trim()
-}
-
-function collectHeadings(markdown: string): ReferenceHeading[] {
-  const slugCounts = new Map<string, number>()
-  return markdown
-    .split(/\r?\n/)
-    .map(line => /^(#{2,3})\s+(.+?)\s*$/.exec(line))
-    .filter((match): match is RegExpExecArray => Boolean(match))
-    .map(match => {
-      const title = plainHeadingText(match[2])
-      const baseSlug = makeSlug(title) || 'section'
-      const count = slugCounts.get(baseSlug) || 0
-      slugCounts.set(baseSlug, count + 1)
-      return {
-        id: count === 0 ? baseSlug : `${baseSlug}-${count}`,
-        title,
-        level: match[1].length as 2 | 3,
-      }
-    })
-}
-
-function getSearchTerms(query: string) {
-  return query
-    .toLowerCase()
-    .split(/\s+/)
-    .map(term => term.trim())
-    .filter(term => term.length >= 2)
-}
-
-function normalizeSearchText(value: string) {
-  return value
-    .toLowerCase()
-    .replace(/[`*_#[\]()>|~.-]/g, ' ')
-    .replace(/\s+/g, ' ')
-}
-
-function getFirstHeading(markdown: string, fallback: string) {
-  return markdown.split(/\r?\n/).find(line => /^#\s+/.test(line)) || fallback
-}
-
-function getSearchSnippet(text: string, terms: string[]) {
-  const plain = text
-    .replace(/^#{1,6}\s+/gm, '')
-    .replace(/[`*_#[\]()>|]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-  const lower = plain.toLowerCase()
-  const firstIndex = terms
-    .map(term => lower.indexOf(term))
-    .filter(index => index >= 0)
-    .sort((a, b) => a - b)[0] ?? 0
-  const start = Math.max(0, firstIndex - 90)
-  const end = Math.min(plain.length, firstIndex + 210)
-  const prefix = start > 0 ? '...' : ''
-  const suffix = end < plain.length ? '...' : ''
-  return `${prefix}${plain.slice(start, end)}${suffix}`
-}
-
-function filterMarkdown(
-  markdown: string,
-  query: string,
-  t: (ru: string) => string,
-  tf: (ru: string, vars: Record<string, string | number>) => string,
-) {
-  const terms = getSearchTerms(query)
-  if (terms.length === 0) return { markdown, results: [] as SearchResult[] }
-
-  const lines = markdown.split(/\r?\n/)
-  const title = getFirstHeading(markdown, `# ${t('Справочник')}`)
-  const blocks: Array<{ heading: string; title: string; level: 2 | 3; content: string }> = []
-  let current: string[] = []
-  let currentHeading = ''
-  let currentTitle = ''
-  let currentLevel: 2 | 3 = 2
-
-  const flush = () => {
-    if (!currentHeading) return
-    blocks.push({
-      heading: currentHeading,
-      title: currentTitle,
-      level: currentLevel,
-      content: current.join('\n').trim(),
-    })
-  }
-
-  lines.forEach(line => {
-    const headingMatch = /^(#{2,3})\s+(.+?)\s*$/.exec(line)
-    if (headingMatch) {
-      flush()
-      currentHeading = line
-      currentTitle = plainHeadingText(headingMatch[2])
-      currentLevel = headingMatch[1].length as 2 | 3
-      current = [line]
-      return
-    }
-    if (currentHeading) current.push(line)
-  })
-  flush()
-
-  const slugCounts = new Map<string, number>()
-  const matchingBlocks = blocks.filter(block => {
-    const haystack = normalizeSearchText(`${block.title} ${block.content}`)
-    return terms.every(term => haystack.includes(term))
-  })
-
-  const results = matchingBlocks.map(block => {
-    const baseSlug = makeSlug(block.title) || 'section'
-    const count = slugCounts.get(baseSlug) || 0
-    slugCounts.set(baseSlug, count + 1)
-    return {
-      title: block.title,
-      level: block.level,
-      slug: count === 0 ? baseSlug : `${baseSlug}-${count}`,
-      snippet: getSearchSnippet(block.content, terms),
-    }
-  })
-
-  if (matchingBlocks.length === 0) {
-    return {
-      markdown: `${title}\n\n## ${t('Ничего не найдено')}\n\n${tf('По запросу **{query}** разделы не найдены. Попробуйте другое слово или более общий термин.', { query: query.trim() })}`,
-      results,
-    }
-  }
-
-  return {
-    markdown: `${title}\n\n> ${tf('Показаны только разделы, где найдены все слова запроса: **{query}**.', { query: query.trim() })}\n\n${matchingBlocks.map(block => block.content).join('\n\n')}`,
-    results,
-  }
+type LoadedDoc = {
+  doc: ReferenceDocument
+  markdown: string
 }
 
 const STATUS_TEXT: Record<'loading' | 'ready' | 'error', string> = {
@@ -162,26 +33,46 @@ const STATUS_TEXT: Record<'loading' | 'ready' | 'error', string> = {
   error: 'Справочник не загрузился',
 }
 
+function parseInternalHref(href: string) {
+  const url = href.startsWith('/reference')
+    ? new URL(href, 'http://local')
+    : new URL(href, 'http://local/reference')
+  const slug = url.searchParams.get('doc') || DEFAULT_REFERENCE_DOC_SLUG
+  const hash = url.hash.replace(/^#/, '')
+  return { slug, hash }
+}
+
 export default function ReferencePage() {
-  const { lang, t, tf } = useLang()
-  const [markdown, setMarkdown] = useState('')
+  const router = useRouter()
+  const searchParams = useSearchParams()
+  const { t, tf } = useLang()
+  const [corpus, setCorpus] = useState<LoadedDoc[]>([])
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading')
   const [query, setQuery] = useState('')
   const [activeMatchIndex, setActiveMatchIndex] = useState(0)
   const [matchCount, setMatchCount] = useState(0)
 
+  const activeSlug = searchParams.get('doc') || DEFAULT_REFERENCE_DOC_SLUG
+  const activeDoc = getReferenceDocument(activeSlug) || getReferenceDocument(DEFAULT_REFERENCE_DOC_SLUG)!
+
   useEffect(() => {
     let cancelled = false
-    const path = lang === 'en' ? '/reference/VtM_v5_new_eng.md' : '/reference/VtM_v5_new.md'
     setStatus('loading')
-    fetch(path)
-      .then(response => {
-        if (!response.ok) throw new Error(`Markdown fetch failed: ${response.status}`)
-        return response.text()
-      })
-      .then(text => {
+
+    Promise.all(
+      REFERENCE_DOCUMENTS.map(async doc => {
+        const response = await fetch(getReferenceFileUrl(doc.file))
+        if (!response.ok) throw new Error(`Markdown fetch failed: ${doc.file} (${response.status})`)
+        const raw = await response.text()
+        return {
+          doc,
+          markdown: preprocessReferenceMarkdown(raw, doc.file),
+        }
+      }),
+    )
+      .then(entries => {
         if (cancelled) return
-        setMarkdown(text)
+        setCorpus(entries)
         setStatus('ready')
       })
       .catch(error => {
@@ -192,16 +83,56 @@ export default function ReferencePage() {
     return () => {
       cancelled = true
     }
-  }, [lang])
+  }, [])
 
-  const searchState = useMemo(() => filterMarkdown(markdown, query, t, tf), [markdown, query, t, tf])
+  const activeMarkdown = useMemo(
+    () => corpus.find(entry => entry.doc.slug === activeDoc.slug)?.markdown || '',
+    [activeDoc.slug, corpus],
+  )
+
+  const searchHits = useMemo(
+    () => searchReferenceCorpus(corpus, query),
+    [corpus, query],
+  )
+
   const searchTerms = useMemo(() => getSearchTerms(query), [query])
-  const headings = useMemo(() => collectHeadings(searchState.markdown), [searchState.markdown])
   const isSearching = searchTerms.length > 0
+  const headings = useMemo(() => collectHeadings(activeMarkdown), [activeMarkdown])
+
+  const navigateToDoc = useCallback((slug: string, hash = '') => {
+    const url = getReferenceDocumentUrl(slug, hash)
+    router.push(url, { scroll: false })
+    if (hash) {
+      window.requestAnimationFrame(() => {
+        document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+      return
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [router])
+
+  const handleInternalLink = useCallback((href: string) => {
+    const { slug, hash } = parseInternalHref(href)
+    navigateToDoc(slug, hash)
+  }, [navigateToDoc])
+
+  useEffect(() => {
+    if (!searchParams.get('doc')) {
+      router.replace(getReferenceDocumentUrl(DEFAULT_REFERENCE_DOC_SLUG))
+    }
+  }, [router, searchParams])
+
+  useEffect(() => {
+    const hash = window.location.hash.replace(/^#/, '')
+    if (!hash || status !== 'ready') return
+    window.requestAnimationFrame(() => {
+      document.getElementById(hash)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    })
+  }, [activeDoc.slug, status])
 
   useEffect(() => {
     setActiveMatchIndex(0)
-  }, [query, searchState.markdown])
+  }, [query, activeMarkdown])
 
   useEffect(() => {
     if (!isSearching) {
@@ -224,7 +155,7 @@ export default function ReferencePage() {
     })
 
     return () => window.cancelAnimationFrame(frame)
-  }, [activeMatchIndex, isSearching, searchState.markdown])
+  }, [activeMatchIndex, isSearching, activeMarkdown])
 
   const goToPreviousMatch = () => {
     if (matchCount === 0) return
@@ -234,6 +165,11 @@ export default function ReferencePage() {
   const goToNextMatch = () => {
     if (matchCount === 0) return
     setActiveMatchIndex(current => (current + 1) % matchCount)
+  }
+
+  const openSearchHit = (hit: ReferenceSearchHit) => {
+    setQuery('')
+    navigateToDoc(hit.doc.slug, hit.slug)
   }
 
   return (
@@ -252,7 +188,17 @@ export default function ReferencePage() {
 
       <section className="reference-intro">
         <span>{t(STATUS_TEXT[status])}</span>
-        <strong>{t('Правила, кланы, дисциплины, создание персонажа и материалы для мастера в одном тёмном архиве.')}</strong>
+        <strong>{t(activeDoc.description)}</strong>
+      </section>
+
+      <section className="reference-doc-header">
+        <button type="button" className="reference-doc-back" onClick={() => navigateToDoc('navigator')}>
+          {t('← Навигатор')}
+        </button>
+        <div>
+          <p className="reference-doc-kicker">{t(activeDoc.title)}</p>
+          <h2>{t(activeDoc.shortTitle)}</h2>
+        </div>
       </section>
 
       <section className="reference-searchbar" aria-label={t('Поиск по справочнику')}>
@@ -261,14 +207,18 @@ export default function ReferencePage() {
           <input
             value={query}
             onChange={event => setQuery(event.target.value)}
-            placeholder={t('Например: Голконда Бруха Голод')}
+            placeholder={t('Например: Голконда Бруха Голод Маскарад')}
           />
         </label>
         <div className="reference-search-status">
           {isSearching ? (
             <>
-              <strong>{tf('Найдено разделов: {count}', { count: searchState.results.length })}</strong>
-              <span>{matchCount ? tf('Совпадение {current} из {total}', { current: activeMatchIndex + 1, total: matchCount }) : t('Совпадений нет')}</span>
+              <strong>{tf('Найдено разделов: {count}', { count: searchHits.length })}</strong>
+              <span>
+                {matchCount
+                  ? tf('Совпадение {current} из {total}', { current: activeMatchIndex + 1, total: matchCount })
+                  : t('Совпадений на странице нет')}
+              </span>
               <div className="reference-match-controls" aria-label={t('Переход по совпадениям')}>
                 <button type="button" onClick={goToPreviousMatch} disabled={matchCount === 0}>{t('Назад')}</button>
                 <button type="button" onClick={goToNextMatch} disabled={matchCount === 0}>{t('Вперёд')}</button>
@@ -276,28 +226,39 @@ export default function ReferencePage() {
               <button type="button" onClick={() => setQuery('')}>{t('Сбросить')}</button>
             </>
           ) : (
-            <span>{t('Введите одно или несколько слов, чтобы оставить только подходящие разделы.')}</span>
+            <span>{t('Поиск идёт по всем разделам и справочникам одновременно.')}</span>
           )}
         </div>
       </section>
 
-      {isSearching && searchState.results.length > 0 ? (
+      {isSearching && searchHits.length > 0 ? (
         <section className="reference-results" aria-label={t('Результаты поиска')}>
-          {searchState.results.slice(0, 12).map(result => (
-            <a href={`#${result.slug}`} key={`${result.slug}-${result.title}`}>
-              <span>{result.level === 2 ? t('Раздел') : t('Подраздел')}</span>
-              <strong>{result.title}</strong>
-              <small>{result.snippet}</small>
-            </a>
+          {searchHits.slice(0, 16).map(hit => (
+            <button type="button" className="reference-result-card" key={`${hit.doc.slug}-${hit.slug}-${hit.title}`} onClick={() => openSearchHit(hit)}>
+              <span>{hit.doc.shortTitle} · {hit.level === 2 ? t('Раздел') : t('Подраздел')}</span>
+              <strong>{hit.title}</strong>
+              <small>{hit.snippet}</small>
+            </button>
           ))}
         </section>
       ) : null}
 
+      {isSearching && searchHits.length === 0 && status === 'ready' ? (
+        <section className="reference-results-empty">
+          <p>{tf('По запросу **{query}** ничего не найдено. Попробуйте другое слово или более общий термин.', { query: query.trim() })}</p>
+        </section>
+      ) : null}
+
       <section className="reference-layout">
-        <ReferenceSidebar headings={headings} />
+        <ReferenceSidebar
+          activeDoc={activeDoc}
+          headings={headings}
+          onSelectDoc={slug => navigateToDoc(slug)}
+        />
         <MarkdownRenderer
           activeMatchIndex={activeMatchIndex}
-          markdown={searchState.markdown || `# ${t('Справочник загружается...')}`}
+          markdown={activeMarkdown || `# ${t('Справочник загружается...')}`}
+          onInternalLink={handleInternalLink}
           searchTerms={isSearching ? searchTerms : []}
         />
       </section>
@@ -367,7 +328,8 @@ export default function ReferencePage() {
 
         .reference-topbar a,
         .reference-search-status button,
-        .reference-match-controls button {
+        .reference-match-controls button,
+        .reference-doc-back {
           border: 1px solid #773030;
           border-radius: 6px;
           color: #f5f5f5;
@@ -385,7 +347,8 @@ export default function ReferencePage() {
 
         .reference-topbar a:hover,
         .reference-search-status button:hover,
-        .reference-match-controls button:hover:not(:disabled) {
+        .reference-match-controls button:hover:not(:disabled),
+        .reference-doc-back:hover {
           border-color: #ff3131;
           background: #221111;
           color: #fff3e2;
@@ -409,11 +372,34 @@ export default function ReferencePage() {
           background: #112218;
         }
 
-        .reference-intro {
+        .reference-intro,
+        .reference-doc-header {
           display: grid;
           gap: 8px;
           max-width: 1180px;
           margin-bottom: 16px;
+        }
+
+        .reference-doc-header {
+          grid-template-columns: auto 1fr;
+          gap: 14px;
+          align-items: start;
+          padding: 14px 16px;
+          border: 1px solid rgba(151, 44, 44, 0.34);
+          border-radius: 8px;
+          background: rgba(12, 8, 9, 0.72);
+        }
+
+        .reference-doc-kicker {
+          margin: 0 0 4px;
+          color: #c9a66b;
+          font-size: 13px;
+        }
+
+        .reference-doc-header h2 {
+          margin: 0;
+          color: #fff7ed;
+          font-size: clamp(24px, 3vw, 34px);
         }
 
         .reference-intro span {
@@ -498,14 +484,15 @@ export default function ReferencePage() {
           gap: 8px;
         }
 
-        .reference-results {
+        .reference-results,
+        .reference-results-empty {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
           gap: 10px;
           margin: 0 0 20px;
         }
 
-        .reference-results a {
+        .reference-result-card {
           display: grid;
           gap: 5px;
           border: 1px solid rgba(151, 44, 44, 0.34);
@@ -513,27 +500,35 @@ export default function ReferencePage() {
           background: rgba(15, 10, 11, 0.74);
           color: #eadfd3;
           padding: 12px;
-          text-decoration: none;
+          text-align: left;
+          font: inherit;
+          cursor: pointer;
         }
 
-        .reference-results a:hover {
+        .reference-result-card:hover {
           border-color: #c53030;
           background: rgba(54, 12, 15, 0.72);
         }
 
-        .reference-results strong {
+        .reference-result-card strong {
           color: #ffd89a;
         }
 
-        .reference-results small {
+        .reference-result-card small {
           color: #cdbfb0;
           line-height: 1.45;
+        }
+
+        .reference-results-empty p {
+          margin: 0;
+          color: #cdbfb0;
+          line-height: 1.5;
         }
 
         .reference-layout {
           width: 100%;
           display: grid;
-          grid-template-columns: minmax(240px, 300px) minmax(0, 1fr);
+          grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
           gap: 28px;
           align-items: start;
           min-width: 0;
@@ -551,8 +546,13 @@ export default function ReferencePage() {
 
         :global(.reference-sidebar-inner) {
           display: grid;
-          gap: 12px;
+          gap: 18px;
           padding: 14px;
+        }
+
+        :global(.reference-sidebar-section) {
+          display: grid;
+          gap: 10px;
         }
 
         :global(.reference-sidebar span) {
@@ -562,12 +562,62 @@ export default function ReferencePage() {
           letter-spacing: 0.14em;
         }
 
-        :global(.reference-sidebar nav) {
+        :global(.reference-doc-nav),
+        :global(.reference-heading-nav) {
           display: grid;
           gap: 4px;
         }
 
-        :global(.reference-sidebar a) {
+        :global(.reference-doc-group) {
+          display: grid;
+          gap: 4px;
+          margin-bottom: 8px;
+        }
+
+        :global(.reference-doc-group-label) {
+          margin: 0;
+          color: #8f8175;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.12em;
+        }
+
+        :global(.reference-doc-link) {
+          display: grid;
+          gap: 2px;
+          width: 100%;
+          border: 1px solid transparent;
+          border-radius: 6px;
+          background: transparent;
+          color: #cdbfb0;
+          padding: 8px 9px;
+          text-align: left;
+          font: inherit;
+          cursor: pointer;
+        }
+
+        :global(.reference-doc-link strong) {
+          color: #f2d7ad;
+          font-size: 13px;
+        }
+
+        :global(.reference-doc-link small) {
+          color: #9f9287;
+          font-size: 11px;
+          line-height: 1.35;
+        }
+
+        :global(.reference-doc-link:hover),
+        :global(.reference-doc-link.active) {
+          border-color: rgba(151, 44, 44, 0.42);
+          background: rgba(140, 28, 34, 0.22);
+        }
+
+        :global(.reference-doc-link.active strong) {
+          color: #ffd89a;
+        }
+
+        :global(.reference-heading-nav a) {
           color: #cdbfb0;
           text-decoration: none;
           border-radius: 5px;
@@ -576,13 +626,13 @@ export default function ReferencePage() {
           font-size: 13px;
         }
 
-        :global(.reference-sidebar a.level-3) {
+        :global(.reference-heading-nav a.level-3) {
           padding-left: 20px;
           color: #a99b90;
           font-size: 12px;
         }
 
-        :global(.reference-sidebar a:hover) {
+        :global(.reference-heading-nav a:hover) {
           background: rgba(140, 28, 34, 0.28);
           color: #ffd89a;
         }
@@ -671,11 +721,12 @@ export default function ReferencePage() {
             0 0 18px rgba(255, 49, 49, 0.68);
         }
 
-        :global(.reference-markdown blockquote) {
+        :global(.reference-callout) {
           border-left: 3px solid #9f2d2d;
           background: rgba(82, 12, 18, 0.22);
           padding: 14px 18px;
           color: #dccfc1;
+          border-radius: 0 8px 8px 0;
         }
 
         :global(.reference-markdown ul),
@@ -758,7 +809,8 @@ export default function ReferencePage() {
 
         @media (max-width: 980px) {
           .reference-searchbar,
-          .reference-layout {
+          .reference-layout,
+          .reference-doc-header {
             grid-template-columns: 1fr;
           }
 
@@ -769,7 +821,7 @@ export default function ReferencePage() {
           :global(.reference-sidebar) {
             position: relative;
             top: auto;
-            max-height: 270px;
+            max-height: 360px;
           }
 
           :global(.reference-markdown) {
