@@ -2956,15 +2956,68 @@
         gap: 6px;
         margin-bottom: 22px;
     }
-    .cw-progress span {
+    .cw-progress button {
         flex: 1 1 26px;
         height: 6px;
         border-radius: 4px;
         background: #1d1d1d;
         min-width: 18px;
+        border: 0;
+        padding: 0;
+        cursor: pointer;
+        transition: opacity 0.15s ease, box-shadow 0.15s ease;
     }
-    .cw-progress span.done { background: #5a1414; }
-    .cw-progress span.current { background: #ff3131; box-shadow: 0 0 10px rgba(255,49,49,0.6); }
+    .cw-progress button:hover { opacity: 0.85; }
+    .cw-progress button.done { background: #5a1414; }
+    .cw-progress button.current { background: #ff3131; box-shadow: 0 0 10px rgba(255,49,49,0.6); }
+    .cw-progress button.error { background: #8a2020; box-shadow: 0 0 8px rgba(255,49,49,0.45); }
+    .cw-issue-badge {
+        color: #ff7777;
+        font-size: 13px;
+        margin: 8px 0 0;
+        line-height: 1.45;
+    }
+    .cw-spec-preview-list {
+        list-style: none;
+        margin: 0 0 14px;
+        padding: 0;
+        display: grid;
+        gap: 6px;
+    }
+    .cw-spec-preview-item {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        text-align: left;
+        border: 1px solid #333;
+        border-radius: 6px;
+        background: #111;
+        color: #ddd;
+        padding: 8px 10px;
+        cursor: pointer;
+        font: inherit;
+        font-size: 13px;
+    }
+    .cw-spec-preview-item:hover { border-color: #773030; background: #1a1010; }
+    .cw-spec-preview-item span { color: #aaa; }
+    .cw-spec-empty { color: #888; font-size: 13px; margin: 0 0 10px; }
+    .cw-mf-selection { margin: 14px 0; }
+    .cw-mf-row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        justify-content: space-between;
+        border: 1px solid #2a2a2a;
+        border-radius: 6px;
+        padding: 8px 10px;
+        margin-bottom: 6px;
+        font-size: 13px;
+    }
+    .cw-mf-row small { color: #888; }
+    .cw-mf-remove { min-width: 28px; padding: 2px 8px !important; }
+    .cw-mf-tag { color: #888; font-size: 11px; }
+    .cw-mf-locked { opacity: 0.72; }
     .cw-step-meta {
         color: #666;
         font-size: 12px;

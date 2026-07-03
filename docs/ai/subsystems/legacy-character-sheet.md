@@ -46,6 +46,8 @@ import-tracked.
 - Global variable/state names (no module scope to protect you).
 - The save/load path in `supabase.js` (the `characters` table contract).
 - Character creation in `creation-wizard.js` (drafts in localStorage).
+  Wizard validates specialties, thin-blood generations (14–16), Caitiff discipline
+  picks, and exposes clickable step navigation + inline merits/flaws removal.
 - The i18n runtime (RU/EN switching, name lookups).
 - Anything that emits/consumes the `vtm-*` window events or the postMessage.
 

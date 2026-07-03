@@ -37,8 +37,13 @@ export default function GameTableStyles() {
           --vtm-blood-pale: #ffd7d7;
           --vtm-blood-wash: #ffe2e2;
           --vtm-blood-deep: #710000;
+          --vtm-blood-stain: #741d2a;
+          --vtm-blood-stain-line: #b73545;
           --vtm-success: #36d675;
+          --vtm-success-soft: #77e4a2;
           --vtm-success-pale: #dfffe9;
+          --vtm-gold: #d6aa65;
+          --vtm-gold-soft: #e5c17f;
           --vtm-gold-warn: #ffd98a;
           --vtm-gold-line: #6d511e;
           --vtm-gold-bg: #1a1307;
@@ -53,18 +58,33 @@ export default function GameTableStyles() {
           --fs-11: 11px;
           --fs-12: 12px;
           --fs-13: 13px;
+          --fs-14: 14px;
           --fs-15: 15px;
+          --fs-18: 18px;
           --ls-kicker: 0.16em;
           --ls-label: 0.08em;
           --lh-snug: 1.35;
           --sp-1: 4px;
           --sp-2: 6px;
+          --sp-3: 8px;
+          --sp-4: 10px;
+          --sp-5: 12px;
+          --sp-6: 14px;
+          --sp-7: 18px;
+          --sp-8: 24px;
           --r-xs: 5px;
           --r-sm: 6px;
           --r-md: 8px;
           --r-pill: 999px;
           --ctrl-sm: 30px;
           --ctrl-md: 34px;
+          --ctrl-lg: 36px;
+          --cell-empty-bg: #141414;
+          --cell-empty-line: #3a3a3a;
+          --cell-superficial-bg: #241414;
+          --cell-superficial-line: #b66b6b;
+          --cell-aggravated-bg: #710000;
+          --cell-aggravated-line: #ff3131;
           --shadow-1: 0 10px 24px rgba(0, 0, 0, 0.36);
           --glow-blood: 0 0 26px rgba(255, 49, 49, 0.22);
           --shadow-toast: 0 16px 38px rgba(0, 0, 0, 0.42), 0 0 26px rgba(255, 49, 49, 0.22);
@@ -5073,6 +5093,642 @@ export default function GameTableStyles() {
 
         .character-preview-actions .secondary-left {
           margin-right: auto;
+        }
+
+        .media-preview-backdrop:has(.character-preview-modal) {
+          padding: 18px;
+          background-color: var(--vtm-bg);
+          background-image:
+            linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+            radial-gradient(120% 90% at 70% -10%, rgba(120, 10, 20, 0.35), transparent 55%),
+            radial-gradient(120% 100% at 50% 60%, transparent 40%, rgba(0, 0, 0, 0.72) 100%);
+          background-size: var(--grid-size) var(--grid-size), var(--grid-size) var(--grid-size), auto, auto;
+        }
+
+        .character-preview-modal {
+          width: min(1150px, 100%);
+          height: min(880px, calc(100vh - 36px));
+          height: min(880px, calc(100dvh - 36px));
+          border-color: var(--vtm-line-strong);
+          background: #0b0b0b;
+          color: var(--vtm-ink);
+          font-family: var(--font-mono);
+          box-shadow: 0 24px 70px rgba(0,0,0,0.65), 0 0 28px rgba(255,49,49,0.18);
+        }
+
+        .character-preview-modal > header {
+          display: flex;
+          align-items: center;
+          gap: 14px;
+          border-bottom-color: var(--vtm-line);
+          background: var(--vtm-surface-1);
+          padding: 12px 16px;
+        }
+
+        .character-preview-modal > header > button {
+          flex: 0 0 auto;
+          width: var(--ctrl-sm);
+          height: var(--ctrl-sm);
+          display: grid;
+          place-items: center;
+          border: 1px solid transparent;
+          border-radius: var(--r-sm);
+          background: transparent;
+          color: var(--vtm-ink-dim);
+          font-size: 17px;
+          transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+        }
+
+        .character-preview-modal > header > button:hover {
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood-pale);
+        }
+
+        .character-preview-identity {
+          grid-template-columns: 46px minmax(0, 1fr);
+          gap: 12px;
+        }
+
+        .character-preview-identity .chat-avatar.large {
+          width: 46px;
+          height: 46px;
+          border: 1px solid var(--vtm-line-blood);
+          border-radius: 50%;
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood);
+          font-size: var(--fs-18);
+          box-shadow: 0 0 16px rgba(255, 49, 49, 0.08);
+        }
+
+        .character-preview-identity > div:last-child {
+          display: flex;
+          flex-wrap: wrap;
+          align-items: baseline;
+          gap: 3px 10px;
+        }
+
+        .character-preview-modal .character-preview-identity strong {
+          order: 1;
+          min-width: 0;
+          overflow: hidden;
+          color: var(--vtm-ink);
+          font-family: var(--font-display);
+          font-size: 19px;
+          font-weight: 600;
+          letter-spacing: 0.03em;
+          line-height: 1.15;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .character-preview-modal .character-preview-identity > div:last-child > span {
+          order: 2;
+          max-width: 100%;
+          display: inline-flex;
+          align-items: center;
+          gap: var(--sp-1);
+          border: 1px solid var(--vtm-success);
+          border-radius: var(--r-pill);
+          background: transparent;
+          color: var(--vtm-success-pale);
+          padding: 2px 9px;
+          font-size: var(--fs-10);
+          font-weight: 700;
+          letter-spacing: var(--ls-label);
+          line-height: 1.2;
+          text-transform: uppercase;
+          white-space: nowrap;
+        }
+
+        .character-preview-modal .character-preview-identity small {
+          order: 3;
+          flex: 1 0 100%;
+          min-width: 0;
+          overflow: hidden;
+          color: var(--vtm-ink-dim);
+          font-size: var(--fs-11);
+          letter-spacing: 0.04em;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .character-preview-tabs {
+          align-items: center;
+          gap: 4px;
+          border-bottom-color: var(--vtm-line);
+          background: #0d0d0d;
+          padding: 10px 16px;
+        }
+
+        .character-preview-tabs button {
+          min-height: var(--ctrl-sm);
+          border: 1px solid transparent;
+          border-radius: var(--r-sm);
+          border-bottom-width: 1px;
+          background: transparent;
+          color: var(--vtm-ink-dim);
+          padding: 4px 10px;
+          font-size: var(--fs-11);
+          font-weight: 700;
+          letter-spacing: var(--ls-label);
+          line-height: 1.2;
+          text-transform: uppercase;
+          transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+        }
+
+        .character-preview-tabs button:hover,
+        .character-preview-tabs button.active {
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood-pale);
+          box-shadow: 0 0 12px rgba(255, 49, 49, 0.14);
+        }
+
+        .character-preview-tabs button span {
+          min-width: 19px;
+          height: 19px;
+          border: 1px solid var(--vtm-line-strong);
+          border-radius: var(--r-xs);
+          background: var(--vtm-surface-3);
+          color: var(--vtm-ink-dim);
+        }
+
+        .character-preview-body {
+          padding: 0 16px 16px;
+          background: #0b0b0b;
+        }
+
+        .character-preview-summary {
+          grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
+          gap: 1px;
+          margin: 0 -16px 16px;
+          border-bottom: 1px solid var(--vtm-line);
+          background: var(--vtm-line);
+        }
+
+        .character-preview-summary div {
+          min-height: 54px;
+          background: #0d0d0d;
+          padding: 10px 12px;
+        }
+
+        .character-preview-summary dt {
+          color: var(--vtm-ink-muted);
+          font-size: var(--fs-10);
+          letter-spacing: var(--ls-kicker);
+          text-transform: uppercase;
+        }
+
+        .character-preview-summary dd {
+          color: var(--vtm-ink);
+          font-size: var(--fs-12);
+          font-weight: 700;
+        }
+
+        .character-preview-summary div:nth-child(5) dt,
+        .character-preview-summary div:nth-child(8) dt,
+        .character-preview-summary div:nth-child(9) dt {
+          color: var(--vtm-blood);
+        }
+
+        .character-preview-summary div:nth-child(5) dd,
+        .character-preview-summary div:nth-child(8) dd,
+        .character-preview-summary div:nth-child(9) dd {
+          color: var(--vtm-blood-bright);
+        }
+
+        .character-mechanics-sheet,
+        .character-inventory-sheet {
+          width: 100%;
+          max-width: 950px;
+          box-sizing: border-box;
+          gap: 22px;
+          margin: 0 auto;
+        }
+
+        .character-mechanics-sheet > section,
+        .character-inventory-sheet {
+          border-color: var(--vtm-line);
+          border-radius: var(--r-md);
+          background: var(--vtm-surface-1);
+          padding: 12px;
+        }
+
+        .character-mechanics-sheet > .preview-trait-section {
+          border: 0;
+          border-radius: 0;
+          background: transparent;
+          padding: 0;
+        }
+
+        .preview-blood-panel,
+        .preview-humanity-panel,
+        .preview-willpower-panel,
+        .preview-roll-builder,
+        .preview-creation-vitals {
+          border-color: var(--vtm-line);
+          background: var(--vtm-surface-1);
+        }
+
+        .preview-section-heading {
+          align-items: baseline;
+          gap: 10px;
+        }
+
+        .preview-section-heading h3 {
+          color: var(--vtm-ink);
+          font-size: var(--fs-13);
+          line-height: 1.2;
+        }
+
+        .preview-trait-section .preview-section-heading h3,
+        .character-inventory-sheet > .preview-section-heading h3 {
+          color: var(--vtm-blood);
+          font-size: var(--fs-10);
+          font-weight: 700;
+          letter-spacing: var(--ls-kicker);
+          text-transform: uppercase;
+        }
+
+        .preview-section-heading span,
+        .preview-section-heading > div > span {
+          color: var(--vtm-ink-faint);
+          font-size: var(--fs-10);
+        }
+
+        .preview-section-heading > strong {
+          color: var(--vtm-blood-bright);
+          font-family: var(--font-display);
+          font-size: 22px;
+          font-weight: 600;
+          line-height: 1;
+        }
+
+        .preview-blood-grid > div,
+        .preview-creation-vitals dl > div {
+          border-color: var(--vtm-line-strong);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-2);
+        }
+
+        .preview-blood-grid span,
+        .preview-blood-surge-toggle span,
+        .preview-roll-controls label > span,
+        .quick-inventory-form label > span {
+          color: var(--vtm-ink-muted);
+          font-size: var(--fs-10);
+          letter-spacing: var(--ls-label);
+          text-transform: uppercase;
+        }
+
+        .preview-blood-grid b {
+          color: var(--vtm-blood-bright);
+          font-size: var(--fs-14);
+        }
+
+        .preview-humanity-cell,
+        .preview-willpower-cell {
+          width: 20px;
+          height: 20px;
+          border-radius: 4px;
+        }
+
+        .preview-humanity-cell {
+          border-color: var(--cell-empty-line);
+          background: var(--cell-empty-bg);
+        }
+
+        .preview-humanity-cell.humanity-filled {
+          border-color: #c6c6c6;
+          background: #b5b5b5;
+        }
+
+        .preview-humanity-cell.stain {
+          border-color: var(--vtm-blood-stain-line);
+          background: var(--vtm-blood-stain);
+        }
+
+        .preview-willpower-cell {
+          border-color: var(--cell-empty-line);
+          background: var(--cell-empty-bg);
+        }
+
+        .preview-willpower-cell.superficial {
+          border-color: var(--cell-superficial-line);
+          background: var(--cell-superficial-bg);
+          color: #e8a7a7;
+        }
+
+        .preview-willpower-cell.aggravated {
+          border-color: var(--cell-aggravated-line);
+          background: var(--cell-aggravated-bg);
+          color: #ffc9c9;
+        }
+
+        .preview-humanity-caption,
+        .preview-roll-notice,
+        .character-preview-empty,
+        .quick-inventory-status,
+        .quick-inventory-readonly {
+          color: var(--vtm-ink-muted);
+          font-size: var(--fs-11);
+          line-height: var(--lh-snug);
+        }
+
+        .preview-roll-notice.warning,
+        .quick-inventory-status {
+          color: var(--vtm-gold-warn);
+        }
+
+        .preview-roll-notice.danger {
+          color: #ff8f9b;
+        }
+
+        .preview-humanity-actions,
+        .preview-willpower-actions,
+        .preview-health-actions {
+          grid-template-columns: repeat(auto-fit, minmax(116px, 1fr));
+        }
+
+        .preview-humanity-actions button,
+        .preview-blood-actions button,
+        .preview-willpower-actions button,
+        .discipline-activation-only button,
+        .preview-roll-submit,
+        .quick-roll-grid button,
+        .quick-inventory-form > button,
+        .preview-inventory-list article > footer button {
+          min-height: var(--ctrl-lg);
+          border-radius: var(--r-sm);
+          font-size: var(--fs-11);
+          font-weight: 700;
+          letter-spacing: var(--ls-label);
+          transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+        }
+
+        .preview-humanity-actions button,
+        .preview-blood-actions button,
+        .preview-willpower-actions button,
+        .discipline-activation-only button,
+        .quick-roll-grid button {
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood-pale);
+        }
+
+        .preview-humanity-actions button:hover,
+        .preview-blood-actions button:hover,
+        .preview-willpower-actions button:hover,
+        .discipline-activation-only button:hover,
+        .quick-roll-grid button:hover {
+          border-color: var(--vtm-blood);
+          color: #fff;
+          box-shadow: 0 0 12px rgba(255, 49, 49, 0.14);
+        }
+
+        .preview-roll-controls {
+          gap: 8px;
+        }
+
+        .preview-roll-controls select,
+        .preview-roll-controls input,
+        .quick-inventory-form input,
+        .quick-inventory-form select,
+        .discipline-power-roll-controls select,
+        .discipline-power-roll-controls input,
+        .discipline-power-inputs input,
+        .discipline-power-inputs textarea {
+          height: var(--ctrl-md);
+          border-color: var(--vtm-line-strong);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-4);
+          color: var(--vtm-ink);
+          font-size: var(--fs-12);
+        }
+
+        .discipline-power-inputs textarea {
+          height: auto;
+        }
+
+        .preview-blood-surge-toggle {
+          min-height: var(--ctrl-md);
+          border-color: var(--vtm-gold-line);
+          border-radius: var(--r-sm);
+          background: var(--vtm-gold-bg);
+        }
+
+        .preview-blood-surge-toggle span {
+          color: var(--vtm-gold-warn);
+        }
+
+        .preview-blood-surge-toggle input {
+          accent-color: var(--vtm-gold-soft);
+        }
+
+        .preview-roll-submit,
+        .quick-inventory-form > button {
+          border-color: var(--vtm-line-blood-deep);
+          background: #1b1111;
+          color: #ff9c9c;
+        }
+
+        .preview-roll-submit:hover,
+        .quick-inventory-form > button:hover {
+          border-color: var(--vtm-blood);
+          color: #fff;
+        }
+
+        .preview-roll-submit:disabled,
+        .quick-roll-grid button:disabled,
+        .discipline-power-roll-controls button:disabled,
+        .discipline-activation-only button:disabled,
+        .preview-willpower-actions button:disabled,
+        .preview-humanity-actions button:disabled,
+        .preview-blood-actions button:disabled,
+        .quick-inventory-form > button:disabled {
+          box-shadow: none;
+        }
+
+        .preview-trait-columns {
+          gap: 14px;
+        }
+
+        .preview-trait-columns.skills {
+          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        }
+
+        .preview-trait-group {
+          gap: 6px;
+        }
+
+        .preview-trait-group h4 {
+          color: var(--vtm-ink-faint);
+          font-size: var(--fs-10);
+          font-weight: 400;
+          letter-spacing: var(--ls-label);
+        }
+
+        .preview-trait-group button {
+          min-height: 0;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 8px;
+          border: 1px solid var(--vtm-line);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-2);
+          color: var(--vtm-ink);
+          padding: 9px 11px;
+          font-size: var(--fs-12);
+          font-weight: 700;
+          transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+        }
+
+        .preview-trait-group button:hover {
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-3);
+        }
+
+        .preview-trait-group button.active {
+          border-color: var(--vtm-blood);
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood-pale);
+          box-shadow: 0 0 12px rgba(255, 49, 49, 0.14);
+        }
+
+        .preview-trait-group button > span {
+          min-width: 0;
+          display: grid;
+          gap: 1px;
+        }
+
+        .preview-trait-group button small {
+          color: var(--vtm-ink-faint);
+          font-size: var(--fs-10);
+          font-weight: 400;
+        }
+
+        .preview-trait-group i,
+        .preview-discipline-list i {
+          color: #cfcfcf;
+          font-style: normal;
+          letter-spacing: 0;
+        }
+
+        .preview-trait-group button.active i {
+          color: var(--vtm-blood-pale);
+        }
+
+        .preview-discipline-list {
+          grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+          gap: 6px;
+        }
+
+        .preview-discipline-card {
+          border-color: var(--vtm-line);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-2);
+          padding: 8px 10px;
+          transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), box-shadow var(--dur-fast) var(--ease);
+        }
+
+        .preview-discipline-card:hover {
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          box-shadow: 0 0 12px rgba(255, 49, 49, 0.12);
+        }
+
+        .preview-discipline-card > span {
+          color: var(--vtm-ink);
+          font-size: var(--fs-12);
+          font-weight: 700;
+        }
+
+        .preview-discipline-list p {
+          color: var(--vtm-ink-faint);
+          font-size: var(--fs-10);
+        }
+
+        .quick-inventory-form {
+          border-color: var(--vtm-line);
+          border-radius: var(--r-md);
+          background: var(--vtm-surface-1);
+        }
+
+        .preview-inventory-list {
+          gap: 8px;
+        }
+
+        .preview-inventory-list article {
+          border-color: var(--vtm-line);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-2);
+        }
+
+        .preview-inventory-list article > header span {
+          color: var(--vtm-blood-bright);
+        }
+
+        .preview-inventory-list header b {
+          border-color: var(--vtm-line-strong);
+          border-radius: var(--r-xs);
+          background: var(--vtm-surface-3);
+        }
+
+        .preview-inventory-list aside {
+          border-left-color: var(--vtm-line-blood);
+        }
+
+        .preview-inventory-list article > footer button {
+          border-color: var(--vtm-gold-line);
+          background: var(--vtm-gold-bg);
+          color: var(--vtm-gold-warn);
+        }
+
+        .character-preview-actions {
+          border-top-color: var(--vtm-line);
+          background: var(--vtm-surface-1);
+          padding: 11px 16px;
+        }
+
+        .character-preview-actions button,
+        .character-preview-actions a {
+          min-height: var(--ctrl-lg);
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: var(--r-sm);
+          font-size: var(--fs-11);
+          font-weight: 700;
+          letter-spacing: var(--ls-label);
+          text-transform: uppercase;
+          transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+        }
+
+        .character-preview-actions button {
+          border-color: var(--vtm-line-strong);
+          background: var(--vtm-surface-3);
+          color: var(--vtm-ink);
+        }
+
+        .character-preview-actions .secondary-left {
+          border-color: transparent;
+          background: transparent;
+          color: var(--vtm-ink-dim);
+        }
+
+        .character-preview-actions a {
+          border-color: var(--vtm-line-blood-deep);
+          background: #1b1111;
+          color: #ff9c9c;
+        }
+
+        .character-preview-actions button:hover,
+        .character-preview-actions a:hover {
+          border-color: var(--vtm-blood);
+          color: #fff;
         }
 
         .diary-editor footer span {

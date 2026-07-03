@@ -73,6 +73,32 @@
         return /char-type-npc-/.test(document.body.className);
     }
 
+    const VAMPIRE_SPECIALTY_LIMIT = 5;
+    const MIN_FILLED_SPECIALTIES = 1;
+    const THIN_BLOOD_GENERATIONS = [14, 15, 16];
+
+    function clanValue() { return val('clan-input'); }
+    function isThinBloodClan() {
+        const thin = typeof vtmName === 'function' ? vtmName('Слабокровные') : 'Слабокровные';
+        return clanValue() === thin;
+    }
+    function isCaitiffClan() {
+        const caitiff = typeof vtmName === 'function' ? vtmName('Каитиф') : 'Каитиф';
+        return clanValue() === caitiff;
+    }
+    function parseGenerationValue() {
+        const raw = val('generation-input');
+        const gen = parseInt(raw, 10);
+        return Number.isFinite(gen) ? gen : null;
+    }
+    function generationValid() {
+        const gen = parseGenerationValue();
+        const type = val('type-input');
+        if (!gen || !type) return false;
+        if (isThinBloodClan()) return THIN_BLOOD_GENERATIONS.includes(gen);
+        return gen < 14;
+    }
+
     function defaultWizard() {
         return {
             mode: null,
@@ -173,14 +199,47 @@
     }
 
     // ---------- progress bar ----------
+    function wizardStepLabel(step) {
+        const labels = {
+            warning: t('Старт'),
+            identity: t('Имя'),
+            clanFilter: t('Фильтр'),
+            clan: t('Клан'),
+            predator: t('Охота'),
+            generation: t('Поколение'),
+            humanity: t('Человечность'),
+            touchstones: t('Опоры'),
+            backstory: t('История'),
+            appearance: t('Вид'),
+            notes: t('Заметки'),
+            attributes: t('Навыки'),
+            disciplines: t('Дисциплины'),
+            meritsFlaws: t('Плюсы/минусы'),
+            inventory: t('Инвентарь'),
+            summary: t('Итог')
+        };
+        return labels[step] || step;
+    }
+
     function progressHtml() {
         const idx = STEP_ORDER.indexOf(activeStep);
-        return '<div class="cw-progress">' + STEP_ORDER.map((s, i) => {
-            let cls = '';
-            if (i === idx) cls = 'current';
-            else if (wizard.completedSteps.includes(s) || i < idx) cls = 'done';
-            return `<span class="${cls}"></span>`;
-        }).join('') + '</div>';
+        const stepIssues = typeof getWizardIssuesByStep === 'function' ? getWizardIssuesByStep() : {};
+        return `<div class="cw-progress" role="navigation" aria-label="${esc(t('Шаги мастера'))}">`
+            + STEP_ORDER.map((s, i) => {
+                const cls = [];
+                if (i === idx) cls.push('current');
+                else if (wizard.completedSteps.includes(s) || i < idx) cls.push('done');
+                if (stepIssues[s]) cls.push('error');
+                const label = wizardStepLabel(s);
+                return `<button type="button" class="${cls.join(' ')}" data-cw-progress-step="${s}" title="${esc(label)}" aria-label="${esc(tf('Шаг {n}: {label}', { n: i + 1, label }))}"></button>`;
+            }).join('')
+            + '</div>';
+    }
+
+    function bindProgressNav(root) {
+        root.querySelectorAll('[data-cw-progress-step]').forEach(btn => {
+            btn.addEventListener('click', () => goStep(btn.getAttribute('data-cw-progress-step')));
+        });
     }
 
     function shell(stepKey, title, sub, body, nav) {
@@ -307,6 +366,7 @@
         card.scrollTop = 0;
         overlay.scrollTop = 0;
         bindNav(card);
+        bindProgressNav(card);
         section.afterRender();
     }
 
@@ -525,13 +585,19 @@
         const d = cur ? (rules().clans || {})[cur] : null;
         const desc = (d?.description || '').split(/\n+/).find(Boolean) || '';
         const disc = (d?.disciplines || []).join(', ');
+        const clanHint = isThinBloodClan()
+            ? `<div class="cw-hint cw-issue-badge">${t('Слабокровные: только 14–16 поколение, особые дисциплины и баланс преимуществ.')}</div>`
+            : isCaitiffClan()
+                ? `<div class="cw-hint">${t('Каитиф: выбери любые две дисциплины из общего списка (2 + 1), без клановых ограничений.')}</div>`
+                : '';
         return shell('clan', t('Выбери клан'), cur ? tf('Выбран: {cur}', { cur }) : '',
-            `<div class="cw-picker-panel">
+            clanHint + `<div class="cw-picker-panel">
                 <div class="cw-picker-current">
                     <span class="cw-picker-kicker">${t('Клан')}</span>
                     <strong>${esc(cur || t('Не выбран'))}</strong>
                     ${desc ? `<p>${esc(desc.length > 240 ? desc.slice(0, 237) + '…' : desc)}</p>` : `<p>${t('Открой большую галерею: там есть изображения, правила, теги и умный поиск.')}</p>`}
-                    ${disc ? `<small>${t('Дисциплины:')} ${esc(disc)}</small>` : ''}
+                    ${disc && !isCaitiffClan() ? `<small>${t('Дисциплины:')} ${esc(disc)}</small>` : ''}
+                    ${isCaitiffClan() ? `<small>${t('Дисциплины: любые две из списка V5 (шаг «Дисциплины»).')}</small>` : ''}
                 </div>
                 <button type="button" class="cw-btn primary" data-cw="openClanGalleryLarge">${t('Открыть галерею кланов')}</button>
             </div>`,
@@ -616,12 +682,27 @@
         const cur = val('generation-input');
         const info = GEN_INFO.find(item => String(item.gen) === String(cur));
         const typeText = val('type-input') || '';
+        const thinBlood = isThinBloodClan();
+        const genNum = parseGenerationValue();
+        const genInvalid = thinBlood
+            ? (genNum != null && !THIN_BLOOD_GENERATIONS.includes(genNum))
+            : (genNum != null && genNum >= 14);
+        const thinHint = thinBlood
+            ? `<div class="cw-hint cw-issue-badge">${t('Слабокровным доступны только 14–16 поколения.')}</div>`
+            : '';
+        const genWarning = genInvalid
+            ? `<div class="cw-error" style="display:block;margin-bottom:12px">${thinBlood
+                ? t('Выбранное поколение недоступно слабокровному — выбери 14, 15 или 16.')
+                : t('14–16 поколение доступно только слабокровным.')}</div>`
+            : '';
         return shell('generation', t('Выбери поколение'), cur ? tf('Выбрано: {cur}-е', { cur }) : '',
-            `<div class="cw-picker-panel">
+            thinHint + genWarning + `<div class="cw-picker-panel">
                 <div class="cw-picker-current">
                     <span class="cw-picker-kicker">${t('Поколение')}</span>
                     <strong>${esc(cur ? tf('{cur}-е', { cur }) : t('Не выбрано'))}</strong>
-                    <p>${esc(info?.note || t('Открой большое окно, чтобы выбрать поколение и тип персонажа по стартовой группе.'))}</p>
+                    <p>${esc(info?.note || (thinBlood
+                        ? t('Для слабокровного открой галерею и выбери птенца 14–16 поколения.')
+                        : t('Открой большое окно, чтобы выбрать поколение и тип персонажа по стартовой группе.')))}</p>
                     ${cur ? `<small>${tf('Сила крови {bp}', { bp: info?.bp ?? (val('val-blood-potency') || 0) })}${typeText ? ` · ${esc(typeText)}` : ''}</small>` : ''}
                 </div>
                 <button type="button" class="cw-btn primary" data-cw="openGenerationGalleryLarge">${t('Открыть галерею поколений')}</button>
@@ -851,6 +932,7 @@
              <div class="cw-section-title">${t('Способ развития навыков')}</div>
              <div class="cw-choice-grid" style="margin-bottom:18px">${pkgButtons}</div>
              <div id="cw-attr-status"></div>
+             <div id="cw-spec-preview"></div>
              <button type="button" class="cw-btn" data-cw="openAttrEditor">${t('Заполнить характеристики')}</button>
              <button type="button" class="cw-btn" data-cw="openSkillEditor">${t('Заполнить навыки')}</button>
              <button type="button" class="cw-btn" data-cw="openSpecEditor">${t('Специализации')}</button>
@@ -876,13 +958,20 @@
             skillBlock = `<div class="cw-counter">` + schemeRemaining(limits, sc).map(r =>
                 `<span class="${r.used === r.max ? 'ok' : 'bad'}">×${r.n}: ${r.used}/${r.max}</span>`).join('') + `</div>`;
         }
+        const specOk = specialtiesValid();
+        const specIssue = specialtyValidationMessage();
+        const specCount = filledSpecialtyCount();
         box.innerHTML = `<div class="cw-section-title">${t('Характеристики')}</div>
             <div class="cw-counter">` + schemeRemaining(ATTR_SCHEME, ac).map(r =>
                 `<span class="${r.used === r.max ? 'ok' : 'bad'}">×${r.n}: ${r.used}/${r.max}</span>`).join('') + `</div>
             <div class="cw-section-title">${t('Навыки')}</div>${skillBlock}
-            <p style="color:${attrOk && skillOk ? '#36d675' : '#ff9500'};font-size:13px;margin-top:10px">
-            ${attrOk && skillOk ? '✓ ' + t('Характеристики и навыки распределены верно.') : t('Распределение ещё не завершено.')}</p>`;
-        if (attrOk && skillOk) markCompleted('attributes'); else markSkipped('attributes');
+            <div class="cw-section-title">${t('Специализации')}</div>
+            <div class="cw-counter"><span class="${specOk ? 'ok' : 'bad'}">${tf('{current} / {max}', { current: specCount, max: VAMPIRE_SPECIALTY_LIMIT })}</span></div>
+            ${specIssue ? `<p class="cw-issue-badge">${esc(specIssue)}</p>` : ''}
+            <p style="color:${attrOk && skillOk && specOk ? '#36d675' : '#ff9500'};font-size:13px;margin-top:10px">
+            ${attrOk && skillOk && specOk ? '✓ ' + t('Характеристики, навыки и специализации в порядке.') : t('Распределение ещё не завершено.')}</p>`;
+        renderSpecialtyPreview();
+        if (attrOk && skillOk && specOk) markCompleted('attributes'); else markSkipped('attributes');
     }
     STEP_ACTIONS.setPkg = function () {};
     STEP_ACTIONS.openAttrEditor = () => openTraitEditor('attr');
@@ -899,6 +988,76 @@
     function getTraitDots(type, name) {
         const checked = dotInputs(type).find(input => input.name === name && input.checked);
         return parseInt(checked?.value || '0', 10) || 0;
+    }
+
+    function collectSpecialties() {
+        const rows = [];
+        document.querySelectorAll('.skill-spec-line').forEach(line => {
+            const input = line.querySelector('input[type="text"]');
+            const skill = input?.dataset?.skill
+                || line.closest('.skill-specs')?.id?.replace('specs-', '')
+                || '';
+            const name = (input?.value || '').trim();
+            rows.push({ skill, name });
+        });
+        return rows;
+    }
+
+    function filledSpecialtyCount() {
+        return collectSpecialties().filter(item => item.name).length;
+    }
+
+    function specialtyValidationMessage() {
+        const rows = collectSpecialties();
+        const filled = rows.filter(item => item.name).length;
+        if (filled < MIN_FILLED_SPECIALTIES) {
+            return tf('Добавь хотя бы {count} специализацию с названием.', { count: MIN_FILLED_SPECIALTIES });
+        }
+        if (rows.some(item => !item.name)) {
+            return t('Заполни названия всех добавленных специализаций или удали пустые строки.');
+        }
+        const perSkill = {};
+        rows.forEach(item => {
+            if (!item.skill || !item.name) return;
+            perSkill[item.skill] = (perSkill[item.skill] || 0) + 1;
+        });
+        const overflow = Object.entries(perSkill).find(([skill, count]) => count > getTraitDots('skill', skill));
+        if (overflow) {
+            return tf('У навыка «{skill}» не может быть больше специализаций, чем точек ({dots}).', {
+                skill: overflow[0],
+                dots: getTraitDots('skill', overflow[0])
+            });
+        }
+        if (filled > VAMPIRE_SPECIALTY_LIMIT) {
+            return tf('Оставь не больше {limit} специализаций.', { limit: VAMPIRE_SPECIALTY_LIMIT });
+        }
+        return '';
+    }
+
+    function specialtiesValid() {
+        return !specialtyValidationMessage();
+    }
+
+    function renderSpecialtyPreview() {
+        const box = el('cw-spec-preview');
+        if (!box) return;
+        const rows = collectSpecialties().filter(item => item.name);
+        const issue = specialtyValidationMessage();
+        if (!rows.length) {
+            box.innerHTML = `<div class="cw-section-title">${t('Специализации')}</div>
+                <p class="cw-spec-empty">${t('Специализации пока не добавлены.')}</p>
+                ${issue ? `<p class="cw-issue-badge">${esc(issue)}</p>` : ''}`;
+            return;
+        }
+        box.innerHTML = `<div class="cw-section-title">${t('Ваши специализации')}</div>
+            <ul class="cw-spec-preview-list">${rows.map(item =>
+                `<li><button type="button" class="cw-spec-preview-item" data-cw-spec-skill="${esc(item.skill)}">
+                    <strong>${esc(t(item.skill))}</strong><span>${esc(item.name)}</span>
+                </button></li>`).join('')}</ul>
+            ${issue ? `<p class="cw-issue-badge">${esc(issue)}</p>` : ''}`;
+        box.querySelectorAll('[data-cw-spec-skill]').forEach(btn => {
+            btn.addEventListener('click', () => openSpecialtyEditor());
+        });
     }
     function setTraitDots(type, name, value) {
         const input = dotInputs(type).find(item => item.name === name && String(item.value) === String(value));
@@ -969,7 +1128,27 @@
         renderTraitEditorContent(modal, type);
     }
     function closeCwEditor() {
-        document.getElementById('cw-editor-modal')?.remove();
+        const modal = document.getElementById('cw-editor-modal');
+        if (modal?.querySelector('.cw-spec-editor')) {
+            const rows = collectSpecialties();
+            if (rows.some(item => !item.name)) {
+                showStepError(t('Заполни названия всех добавленных специализаций или удали пустые строки.'));
+                return;
+            }
+            const overflow = Object.entries(rows.reduce((acc, item) => {
+                if (!item.skill || !item.name) return acc;
+                acc[item.skill] = (acc[item.skill] || 0) + 1;
+                return acc;
+            }, {})).find(([skill, count]) => count > getTraitDots('skill', skill));
+            if (overflow) {
+                showStepError(tf('У навыка «{skill}» не может быть больше специализаций, чем точек ({dots}).', {
+                    skill: overflow[0],
+                    dots: getTraitDots('skill', overflow[0])
+                }));
+                return;
+            }
+        }
+        modal?.remove();
         renderAttrStatus();
     }
     function specInputs(skillName) {
@@ -1002,7 +1181,7 @@
                         <button type="button" data-cw-spec-delete="${index}" data-cw-spec-name="${esc(item.name)}">×</button>
                     </div>`).join('')}
                 </div>
-                <button type="button" class="cw-btn ghost" data-cw-spec-add="${esc(item.name)}" ${item.specs.length >= item.dots ? 'disabled' : ''}>+ ${t('Добавить специализацию')}</button>
+                <button type="button" class="cw-btn ghost" data-cw-spec-add="${esc(item.name)}" ${item.specs.length >= item.dots || specialtyCount() >= VAMPIRE_SPECIALTY_LIMIT ? 'disabled' : ''}>+ ${t('Добавить специализацию')}</button>
             </section>`).join('')}</div>` : `<div class="cw-intro">${t('Сначала поставь хотя бы одну точку в навык, затем здесь появятся специализации.')}</div>`}
         </div>`;
         modal.querySelector('[data-cw-editor-close]')?.addEventListener('click', closeCwEditor);
@@ -1076,20 +1255,41 @@
             total + Object.entries(sources || {}).reduce((sum, [source, dots]) =>
                 source === `${t('Клан')} ${clan}` ? sum + (parseInt(dots, 10) || 0) : sum, 0), 0);
     }
-    function disciplineStepValid() {
-        return getCurrentClanValue() === vtmName('Слабокровные') || clanDisciplineDots() === 3;
-    }
-    RENDERERS.disciplines = () => {
+    function getWizardAllowedDisciplines() {
         const clan = getCurrentClanValue();
-        const cd = clan ? ((rules().clans || {})[clan]?.disciplines || []) : [];
         const pred = val('predator-input');
         const pd = (rules().predator_types || {})[pred];
         const predDisc = pd && pd.disciplines && pd.disciplines.increase
             ? (pd.disciplines.increase.options || []) : [];
-        const allowed = Array.from(new Set([...cd, ...predDisc]));
-        const total = disciplineDotsTotal();
-        return shell('disciplines', t('Дисциплины'), t('Распредели 3 точки по клановым дисциплинам'),
-            `<div class="cw-intro" style="margin-bottom:14px">${tf('Стартовому персонажу доступно <b>3 точки</b> дисциплин: одна дисциплина на 2 точки и одна на 1 (только из клановых и предоставленной типом охоты).\n            Доступные дисциплины: <b>{allowed}</b>. Точки и конкретные силы выбираются в отдельных окнах.', { allowed: esc(allowed.join(', ') || '—') })}</div>
+        if (isThinBloodClan()) {
+            const alchemy = typeof vtmName === 'function' ? vtmName('Алхимия слабокровных') : 'Алхимия слабокровных';
+            return [alchemy];
+        }
+        if (isCaitiffClan()) {
+            const all = typeof window.getStandardDisciplineNames === 'function'
+                ? window.getStandardDisciplineNames(clan)
+                : Object.keys(rules().disciplines || {});
+            return Array.from(new Set([...all, ...predDisc]));
+        }
+        const cd = clan ? ((rules().clans || {})[clan]?.disciplines || []) : [];
+        return Array.from(new Set([...cd, ...predDisc]));
+    }
+
+    function disciplineStepValid() {
+        if (isThinBloodClan()) return true;
+        if (isCaitiffClan()) return disciplineDotsTotal() === 3;
+        return clanDisciplineDots() === 3;
+    }
+    RENDERERS.disciplines = () => {
+        const clan = getCurrentClanValue();
+        const allowed = getWizardAllowedDisciplines();
+        const intro = isThinBloodClan()
+            ? t('Слабокровные используют Алхимию слабокровных и отдельный баланс преимуществ — стандартные клановые дисциплины не требуются.')
+            : isCaitiffClan()
+                ? tf('Каитиф выбирает <b>любые две</b> дисциплины из списка V5 (схема 2 + 1). Доступные: <b>{allowed}</b>.', { allowed: esc(allowed.join(', ') || '—') })
+                : tf('Стартовому персонажу доступно <b>3 точки</b> дисциплин: одна дисциплина на 2 точки и одна на 1 (только из клановых и предоставленной типом охоты).\n            Доступные дисциплины: <b>{allowed}</b>. Точки и конкретные силы выбираются в отдельных окнах.', { allowed: esc(allowed.join(', ') || '—') });
+        return shell('disciplines', t('Дисциплины'), isCaitiffClan() ? t('Любые две дисциплины (2 + 1)') : t('Распредели 3 точки по клановым дисциплинам'),
+            `<div class="cw-intro" style="margin-bottom:14px">${intro}</div>
              <div id="cw-disc-status"></div>
              <button type="button" class="cw-btn" data-cw="openClanDiscEditor">${t('Выбрать стартовые дисциплины')}</button>
              <button type="button" class="cw-btn" data-cw="openPowerEditor">${t('Выбрать способности')}</button>
@@ -1102,11 +1302,17 @@
         if (!box) return;
         const total = disciplineDotsTotal();
         const clanTotal = clanDisciplineDots();
-        const thinBlood = getCurrentClanValue() === vtmName('Слабокровные');
+        const thinBlood = isThinBloodClan();
+        const caitiff = isCaitiffClan();
         const ok = disciplineStepValid();
+        const statusHint = thinBlood
+            ? t('для слабокровного не требуется')
+            : caitiff
+                ? t('нужно 3 точки в любых дисциплинах')
+                : t('нужно выбрать клановые 2 + 1');
         box.innerHTML = `<div class="cw-counter"><span>${tf('Всего точек: <b>{total}</b>', { total })}</span>
-            <span>${tf('От клана: <b>{clanTotal}</b>{note}', { clanTotal, note: thinBlood ? t(' (для слабокровного не требуется)') : ' / 3' })}</span>
-            <span class="${ok ? 'ok' : 'bad'}">${ok ? '✓ ' + t('готово') : t('нужно выбрать клановые 2 + 1')}</span></div>`;
+            <span>${tf('От клана: <b>{clanTotal}</b>{note}', { clanTotal, note: thinBlood ? t(' (для слабокровного не требуется)') : (caitiff ? ' / 3' : ' / 3') })}</span>
+            <span class="${ok ? 'ok' : 'bad'}">${ok ? '✓ ' + t('готово') : statusHint}</span></div>`;
         if (ok) markCompleted('disciplines'); else markSkipped('disciplines');
     }
     STEP_ACTIONS.openClanDiscEditor = () => {
@@ -1181,17 +1387,77 @@
     }
     function meritsLimit() { return typeof window.getMeritsLimit === 'function' ? window.getMeritsLimit() : 7; }
     function flawsLimit() { return typeof window.getFlawsLimit === 'function' ? window.getFlawsLimit() : 2; }
+    function renderMfSelectionList() {
+        const merits = sheetData().merits || [];
+        const flaws = sheetData().flaws || [];
+        const meritRows = merits.map((item, index) => {
+            const locked = item.fromPredator ? ' cw-mf-locked' : '';
+            const remove = item.fromPredator
+                ? `<span class="cw-mf-tag">${t('от охоты')}</span>`
+                : `<button type="button" class="cw-btn ghost cw-mf-remove" data-cw-remove-merit="${index}">×</button>`;
+            return `<div class="cw-mf-row${locked}"><span>${esc(item.name || '')}</span><small>${esc(item.category || '')} · ${itemPoints(item)}</small>${remove}</div>`;
+        }).join('');
+        const flawRows = flaws.map((item, index) => {
+            const locked = item.fromPredator ? ' cw-mf-locked' : '';
+            const remove = item.fromPredator
+                ? `<span class="cw-mf-tag">${t('от охоты')}</span>`
+                : `<button type="button" class="cw-btn ghost cw-mf-remove" data-cw-remove-flaw="${index}">×</button>`;
+            return `<div class="cw-mf-row${locked}"><span>${esc(item.name || '')}</span><small>${esc(item.category || '')} · ${itemPoints(item)}</small>${remove}</div>`;
+        }).join('');
+        return `<div class="cw-mf-selection">
+            <div class="cw-section-title">${t('Выбранные преимущества')}</div>
+            ${meritRows || `<p class="cw-spec-empty">${t('Пока ничего не выбрано.')}</p>`}
+            <div class="cw-section-title">${t('Выбранные недостатки')}</div>
+            ${flawRows || `<p class="cw-spec-empty">${t('Пока ничего не выбрано.')}</p>`}
+        </div>`;
+    }
+
+    function bindMfSelectionActions(root) {
+        root.querySelectorAll('[data-cw-remove-merit]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.getAttribute('data-cw-remove-merit'), 10);
+                if (typeof window.removeMerit === 'function') window.removeMerit(index);
+                renderMfStatus();
+                persist();
+            });
+        });
+        root.querySelectorAll('[data-cw-remove-flaw]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const index = parseInt(btn.getAttribute('data-cw-remove-flaw'), 10);
+                if (typeof window.removeFlaw === 'function') window.removeFlaw(index);
+                renderMfStatus();
+                persist();
+            });
+        });
+    }
+
+    function watchMeritsModalRefresh() {
+        const modal = document.getElementById('merits-flaws-modal');
+        if (!modal || modal.__cwRefreshBound) return;
+        modal.__cwRefreshBound = true;
+        const observer = new MutationObserver(() => {
+            if (activeStep === 'meritsFlaws' && modal.style.display === 'none') renderMfStatus();
+        });
+        observer.observe(modal, { attributes: true, attributeFilter: ['style'] });
+    }
+
     RENDERERS.meritsFlaws = () => {
         return shell('meritsFlaws', t('Преимущества и недостатки'), t('Распредели точки по правилам'),
             `<div class="cw-intro" style="margin-bottom:14px">${tf('Распредели ровно <b>{ml}</b> точек преимуществ и возьми ровно <b>{fl}</b> точки недостатков (бонусы типа охоты уже учтены).', { ml: meritsLimit(), fl: flawsLimit() })}</div>
              <div id="cw-mf-status"></div>
+             <div id="cw-mf-selection"></div>
              <button type="button" class="cw-btn" data-cw="openMfSheet">${t('Открыть список преимуществ / недостатков')}</button>
+             <button type="button" class="cw-btn ghost" data-cw="resetMf" style="margin-left:8px">${t('Сбросить выбор')}</button>
              <button type="button" class="cw-btn ghost" data-cw="recheckMf" style="margin-left:8px">${t('Проверить')}</button>`,
             navBtn(t('Назад'), 'prev') + navBtn(t('Дальше'), 'next', 'primary') + toSheetBtn);
     };
-    AFTER_RENDER.meritsFlaws = () => renderMfStatus();
+    AFTER_RENDER.meritsFlaws = () => {
+        watchMeritsModalRefresh();
+        renderMfStatus();
+    };
     function renderMfStatus() {
         const box = el('cw-mf-status');
+        const list = el('cw-mf-selection');
         if (!box) return;
         const mp = meritPoints(), ml = meritsLimit();
         const fp = flawPoints(), fl = flawsLimit();
@@ -1199,11 +1465,34 @@
         box.innerHTML = `<div class="cw-counter">
             <span>${t('Преимущества:')} <span class="${mp === ml ? 'ok' : 'bad'}">${mp} / ${ml}</span></span>
             <span>${t('Недостатки:')} <span class="${fp === fl ? 'ok' : 'bad'}">${fp} / ${fl}</span></span>
-            </div><p style="color:${ok ? '#36d675' : '#ff9500'};font-size:13px">${ok ? '✓ ' + t('распределено верно') : t('распределение не завершено')}</p>`;
+            </div><p style="color:${ok ? '#36d675' : '#ff9500'};font-size:13px">${ok ? '✓ ' + t('распределено верно') : t('распределение не завершено')}</p>
+            ${!ok ? `<p class="cw-issue-badge">${t('Есть проблемы — исправь счётчики или сними лишние пункты ниже.')}</p>` : ''}`;
+        if (list) {
+            list.innerHTML = renderMfSelectionList();
+            bindMfSelectionActions(list);
+        }
         if (ok) markCompleted('meritsFlaws'); else markSkipped('meritsFlaws');
     }
     STEP_ACTIONS.openMfSheet = () => {
         if (typeof window.openMeritsFlawsModal === 'function') window.openMeritsFlawsModal();
+        watchMeritsModalRefresh();
+    };
+    STEP_ACTIONS.resetMf = () => {
+        if (typeof window.removeMerit !== 'function' || typeof window.removeFlaw !== 'function') return;
+        for (let pass = 0; pass < 40; pass += 1) {
+            const merits = sheetData().merits || [];
+            const meritIndex = merits.findIndex(item => !item?.fromPredator);
+            if (meritIndex < 0) break;
+            window.removeMerit(meritIndex);
+        }
+        for (let pass = 0; pass < 40; pass += 1) {
+            const flaws = sheetData().flaws || [];
+            const flawIndex = flaws.findIndex(item => !item?.fromPredator);
+            if (flawIndex < 0) break;
+            window.removeFlaw(flawIndex);
+        }
+        renderMfStatus();
+        persist();
     };
     STEP_ACTIONS.recheckMf = () => renderMfStatus();
 
@@ -1248,19 +1537,41 @@
         const sc = counts('skill');
         const attrOk = schemeComplete(ATTR_SCHEME, ac);
         const skillOk = pkg && SKILL_SCHEMES[pkg] && schemeComplete(SKILL_SCHEMES[pkg].limits, sc);
+        const specOk = specialtiesValid();
         const discOk = disciplineStepValid();
         const mfOk = meritPoints() === meritsLimit() && flawPoints() === flawsLimit();
         return {
             name: !!val('char-name'),
             clan: !!getCurrentClanValue(),
             predator: !!val('predator-input'),
-            generation: !!val('generation-input') && !!val('type-input'),
+            generation: generationValid(),
             humanity: ['7', '8'].includes(val('base-humanity')),
-            attributes: attrOk,
+            attributes: attrOk && skillOk && specOk,
             skills: skillOk,
+            specialties: specOk,
             disciplines: discOk,
             meritsFlaws: mfOk
         };
+    }
+
+    function getWizardIssuesByStep() {
+        const v = mandatoryValid();
+        return {
+            identity: !v.name,
+            clan: !v.clan,
+            predator: !v.predator,
+            generation: !v.generation,
+            humanity: !v.humanity,
+            attributes: !v.attributes,
+            disciplines: !v.disciplines,
+            meritsFlaws: !v.meritsFlaws
+        };
+    }
+
+    function formatSpecialtySummary() {
+        const rows = collectSpecialties().filter(item => item.name);
+        if (!rows.length) return t('не добавлены');
+        return rows.map(item => `${t(item.skill)}: ${item.name}`).join('; ');
     }
 
     function isGuidedCreationReady() {
@@ -1289,6 +1600,7 @@
                 ${row('Человечность', val('base-humanity') || '7', '')}
                 ${row('Характеристики', yn(v.attributes).t, yn(v.attributes).c)}
                 ${row('Навыки', yn(v.skills).t, yn(v.skills).c)}
+                ${row('Специализации', formatSpecialtySummary(), v.specialties ? '' : 'bad')}
                 ${row('Дисциплины', yn(v.disciplines).t, yn(v.disciplines).c)}
                 ${row('Преимущества и недостатки', yn(v.meritsFlaws).t, yn(v.meritsFlaws).c)}
                 ${row('Инвентарь', inv ? t('заполнен') : t('пропущен'), '')}
@@ -1345,21 +1657,25 @@
             identity: [() => !!val('char-name'), t('Имя обязательно для заполнения.')],
             clan: [() => !!getCurrentClanValue(), t('Сначала выбери клан.')],
             predator: [() => !!val('predator-input'), t('Сначала выбери тип охоты.')],
-            generation: [() => !!val('generation-input') && !!val('type-input'), t('Сначала выбери поколение и тип вампира (птенец, неонат или анцилла).')],
+            generation: [() => generationValid(), isThinBloodClan()
+                ? t('Слабокровному нужно выбрать 14–16 поколение и тип вампира.')
+                : t('Сначала выбери поколение и тип вампира (птенец, неонат или анцилла).')],
             humanity: [() => ['7', '8'].includes(val('base-humanity')), t('Выбери начальную Человечность: 7 или 8.')],
             attributes: [() => {
                 const pkg = val('skill-package');
                 return schemeComplete(ATTR_SCHEME, counts('attr'))
-                    && Boolean(pkg && SKILL_SCHEMES[pkg] && schemeComplete(SKILL_SCHEMES[pkg].limits, counts('skill')));
-            }, t('Заверши строгое распределение характеристик и навыков.')],
+                    && Boolean(pkg && SKILL_SCHEMES[pkg] && schemeComplete(SKILL_SCHEMES[pkg].limits, counts('skill')))
+                    && specialtiesValid();
+            }, () => specialtyValidationMessage() || t('Заверши строгое распределение характеристик, навыков и специализаций.')],
             disciplines: [disciplineStepValid, t('Выбери стартовые клановые дисциплины по схеме 2 + 1.')],
             meritsFlaws: [() => meritPoints() === meritsLimit() && flawPoints() === flawsLimit(),
                 t('Распредели требуемые преимущества и недостатки.')]
         };
         const check = requiredChecks[activeStep];
         if (check && !check[0]()) {
+            const message = typeof check[1] === 'function' ? check[1]() : check[1];
             if (activeStep === 'identity') showIdentityError();
-            else showStepError(check[1]);
+            else showStepError(message);
             return false;
         }
         if (!OPTIONAL_STEPS.has(activeStep)) markCompleted(activeStep);

@@ -6,7 +6,7 @@
 ## Current development focus
 - **Legacy character sheet phase** — iframe sheet (`public/main.js` +
   `old-sheet.html`) stays load-bearing; bridge lives in `modules/character-sheet/`.
-  Work incrementally: parity tests, small extractions to `core/`, wizard validation sync.
+  Creation wizard (`public/creation-wizard.js`) — validation, nav, specialties, thin-blood/Caitiff rules synced.
 - Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines).
 - Run `npm run test:vtm-parity` after health/humanity edits in `core/` or `public/vtm-*.js`.
   Remorse resolution (`applyRemorseCheckResult`) is shared: core ↔ legacy ↔ table.
@@ -54,5 +54,5 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-02 — Legacy sheet phase started: `test:vtm-parity` guards health/humanity sync;
-  bridge docs point to `modules/character-sheet/`.
+2026-07-03 — Creation wizard: clickable progress, specialty validation/list, thin-blood gen limits,
+  Caitiff disciplines, merits remove/reset, step error badges.
