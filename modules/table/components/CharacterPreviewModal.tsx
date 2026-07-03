@@ -340,28 +340,37 @@ export function CharacterPreviewModal({
             <span className="character-preview-subtitle">{subtitle}</span>
           </div>
           <div className="character-preview-header-spacer" aria-hidden="true" />
-          <div className="character-preview-mode-toggle" role="group" aria-label={t('Режим листа')}>
-            <button
-              type="button"
-              className={viewMode === 'simple' ? 'active' : ''}
-              aria-pressed={viewMode === 'simple'}
-              onClick={() => setViewMode('simple')}
+          <div className="character-preview-header-controls">
+            <div className="character-preview-mode-toggle" role="group" aria-label={t('Режим листа')}>
+              <button
+                type="button"
+                className={viewMode === 'simple' ? 'active' : ''}
+                aria-pressed={viewMode === 'simple'}
+                onClick={() => setViewMode('simple')}
+              >
+                {t('Простой')}
+              </button>
+              <button
+                type="button"
+                className={viewMode === 'full' ? 'active' : ''}
+                aria-pressed={viewMode === 'full'}
+                onClick={() => setViewMode('full')}
+              >
+                {t('Полный')}
+              </button>
+            </div>
+            <a
+              className="character-preview-sheet-link"
+              href={characterSheetHref}
+              target="_blank"
+              rel="noreferrer"
+              title={t('Открыть полный лист')}
+              aria-label={t('Открыть полный лист')}
             >
-              {t('Простой')}
-            </button>
-            <button
-              type="button"
-              className={viewMode === 'full' ? 'active' : ''}
-              aria-pressed={viewMode === 'full'}
-              onClick={() => setViewMode('full')}
-            >
-              {t('Полный')}
-            </button>
+              ↗
+            </a>
+            <button type="button" className="character-preview-close" onClick={actions.onClose} aria-label={t('Закрыть')}>✕</button>
           </div>
-          <a className="character-preview-sheet-link" href={characterSheetHref} target="_blank" rel="noreferrer">
-            {t('Полный лист')} ↗
-          </a>
-          <button type="button" className="character-preview-close" onClick={actions.onClose} aria-label={t('Закрыть')}>✕</button>
         </header>
 
         <CharacterPreviewVitals
@@ -434,29 +443,50 @@ export function CharacterPreviewModal({
                   <h3>{t('Навыки')}</h3>
                   <span>{t('показаны только изученные — остальные в полном виде')}</span>
                 </div>
-                <div className="preview-trait-columns skills simple">
-                  {SKILL_GROUPS.flatMap(group => group.traits.map(name => {
-                    const value = resolveSkillValue(character.skills, name)
-                    const dots = getSkillDots(value)
-                    if (dots < 1) return null
-                    const specs = getSkillSpecs(value)
-                    return renderTraitButton(
-                      name,
-                      <>{t(name)}{specs.length ? <small>{specs.join(', ')}</small> : null}</>,
-                      dots,
-                      roll.skill === name,
-                      0,
-                      () => actions.setRollSkill(roll.skill === name ? '' : name),
-                      true,
+                <div className="preview-trait-columns skills columns">
+                  {SKILL_GROUPS.map(group => {
+                    const learnedTraits = group.traits.filter(name => getSkillDots(resolveSkillValue(character.skills, name)) >= 1)
+                    if (!learnedTraits.length) return null
+                    return (
+                      <div className="preview-trait-group" key={group.name}>
+                        <h4>{t(group.name)}</h4>
+                        {learnedTraits.map(name => {
+                          const value = resolveSkillValue(character.skills, name)
+                          const dots = getSkillDots(value)
+                          const specs = getSkillSpecs(value)
+                          return renderTraitButton(
+                            name,
+                            <>{t(name)}{specs.length ? <small>{specs.join(', ')}</small> : null}</>,
+                            dots,
+                            roll.skill === name,
+                            0,
+                            () => actions.setRollSkill(roll.skill === name ? '' : name),
+                            true,
+                          )
+                        })}
+                      </div>
                     )
-                  }))}
-                  {extraSkills.map(name => {
-                    const value = resolveSkillValue(character.skills, name)
-                    const dots = getSkillDots(value)
-                    if (dots < 1) return null
-                    const specs = getSkillSpecs(value)
-                    return renderTraitButton(name, <>{name}{specs.length ? <small>{specs.join(', ')}</small> : null}</>, dots, roll.skill === name, 0, () => actions.setRollSkill(roll.skill === name ? '' : name), true)
                   })}
+                  {extraSkills.some(name => getSkillDots(resolveSkillValue(character.skills, name)) >= 1) ? (
+                    <div className="preview-trait-group">
+                      <h4>{t('Другие')}</h4>
+                      {extraSkills.map(name => {
+                        const value = resolveSkillValue(character.skills, name)
+                        const dots = getSkillDots(value)
+                        if (dots < 1) return null
+                        const specs = getSkillSpecs(value)
+                        return renderTraitButton(
+                          name,
+                          <>{name}{specs.length ? <small>{specs.join(', ')}</small> : null}</>,
+                          dots,
+                          roll.skill === name,
+                          0,
+                          () => actions.setRollSkill(roll.skill === name ? '' : name),
+                          true,
+                        )
+                      })}
+                    </div>
+                  ) : null}
                 </div>
               </section>
 
@@ -523,7 +553,7 @@ export function CharacterPreviewModal({
 
               <section className="preview-trait-section">
                 <div className="preview-section-heading"><h3>{t('Навыки')}</h3><span>{t('все навыки листа')}</span></div>
-                <div className="preview-trait-columns skills">
+                <div className="preview-trait-columns skills columns">
                   {SKILL_GROUPS.map(group => (
                     <div className="preview-trait-group" key={group.name}>
                       <h4>{t(group.name)}</h4>

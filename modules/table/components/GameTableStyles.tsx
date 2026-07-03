@@ -5209,11 +5209,21 @@ export default function GameTableStyles() {
 
         .character-preview-header-spacer {
           flex: 1 1 0%;
+          min-width: 8px;
+        }
+
+        .character-preview-header-controls {
+          display: flex;
+          align-items: center;
+          gap: 8px;
+          flex: 0 0 auto;
+          flex-wrap: nowrap;
         }
 
         .character-preview-mode-toggle {
           display: flex;
           gap: 2px;
+          flex-shrink: 0;
           padding: 2px;
           border: 1px solid var(--vtm-line);
           border-radius: var(--r-sm);
@@ -5221,15 +5231,18 @@ export default function GameTableStyles() {
         }
 
         .character-preview-mode-toggle button {
-          min-height: var(--ctrl-sm);
+          min-height: 28px;
           border: 1px solid transparent;
           border-radius: var(--r-sm);
           background: transparent;
           color: var(--vtm-ink-dim);
-          padding: 4px 8px;
-          font-size: var(--fs-11);
+          padding: 5px 11px;
+          font-size: var(--fs-10);
           font-weight: 700;
-          letter-spacing: var(--ls-label);
+          letter-spacing: 0.02em;
+          line-height: 1.15;
+          white-space: nowrap;
+          flex-shrink: 0;
           cursor: pointer;
           transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
         }
@@ -5241,11 +5254,24 @@ export default function GameTableStyles() {
         }
 
         .character-preview-sheet-link {
+          flex: 0 0 auto;
+          width: var(--ctrl-sm);
+          height: var(--ctrl-sm);
+          display: grid;
+          place-items: center;
+          border: 1px solid transparent;
+          border-radius: var(--r-sm);
           color: var(--vtm-ink-dim);
-          font-size: var(--fs-11);
-          text-decoration: underline;
-          text-underline-offset: 3px;
-          white-space: nowrap;
+          font-size: 15px;
+          line-height: 1;
+          text-decoration: none;
+          transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+        }
+
+        .character-preview-sheet-link:hover {
+          border-color: var(--vtm-line-blood);
+          background: var(--vtm-surface-blood);
+          color: var(--vtm-blood-pale);
         }
 
         .character-preview-close {
@@ -5589,12 +5615,9 @@ export default function GameTableStyles() {
           line-height: var(--lh-snug);
         }
 
-        .preview-trait-columns.attributes {
+        .preview-trait-columns.attributes,
+        .preview-trait-columns.skills.columns {
           grid-template-columns: repeat(3, minmax(0, 1fr));
-        }
-
-        .preview-trait-columns.skills.simple {
-          grid-template-columns: repeat(auto-fill, minmax(196px, 1fr));
         }
 
         .preview-trait-btn {
@@ -6177,7 +6200,7 @@ export default function GameTableStyles() {
           gap: 14px;
         }
 
-        .preview-trait-columns.skills {
+        .preview-trait-columns.skills:not(.columns) {
           grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         }
 
@@ -6621,6 +6644,16 @@ export default function GameTableStyles() {
 
           .character-preview-modal {
             height: calc(100svh - 16px);
+          }
+
+          .character-preview-header {
+            flex-wrap: wrap;
+            row-gap: 10px;
+          }
+
+          .character-preview-header-controls {
+            flex: 1 1 auto;
+            justify-content: flex-end;
           }
 
           .character-preview-summary {
