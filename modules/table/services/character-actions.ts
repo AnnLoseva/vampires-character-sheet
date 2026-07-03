@@ -612,6 +612,68 @@ export function createCharacterActions(deps: CharacterActionsDeps) {
     await updateCharacterHunger(character.id, next, 'Голод утолён')
   }
 
+  const setHungerLevel = async (character: CharacterOption, level: number) => {
+    const current = getCharacterHunger(character)
+    const safeLevel = Math.max(1, Math.min(5, Math.floor(Number(level) || 1)))
+    const next = current === safeLevel ? safeLevel - 1 : safeLevel
+    if (next === current) return
+    await updateCharacterHunger(character.id, next, 'Голод обновлён')
+  }
+
+  const cycleHealthCell = async (character: CharacterOption, index: number) => {
+    const before = getCharacterHealth(character)
+    const statuses = Array.from({ length: before.max }, (_, cellIndex) => {
+      const cell = cellIndex + 1
+      if (cell <= before.aggravated) return 'aggravated'
+      if (cell <= before.aggravated + before.superficial) return 'superficial'
+      return 'empty'
+    })
+    const current = statuses[index - 1] || 'empty'
+    statuses[index - 1] = current === 'empty'
+      ? 'superficial'
+      : current === 'superficial'
+        ? 'aggravated'
+        : 'empty'
+    const nextTracker = tableHealth().normalizeHealthTracker({
+      ...tableHealth().toHealthTracker(before),
+      superficial: statuses.filter(status => status === 'superficial').length,
+      aggravated: statuses.filter(status => status === 'aggravated').length,
+    }, getCharacterHealthStamina(character), getCharacterDamageProfile(character))
+    await updateCharacterHealth(character.id, nextTracker, 'Здоровье сохранено')
+  }
+
+  const cycleWillpowerCell = async (character: CharacterOption, index: number) => {
+    const before = getCharacterWillpower(character)
+    const statuses = Array.from({ length: before.max }, (_, cellIndex) => {
+      const cell = cellIndex + 1
+      if (cell <= before.aggravated) return 'aggravated'
+      if (cell <= before.aggravated + before.superficial) return 'superficial'
+      return 'empty'
+    })
+    const current = statuses[index - 1] || 'empty'
+    statuses[index - 1] = current === 'empty'
+      ? 'superficial'
+      : current === 'superficial'
+        ? 'aggravated'
+        : 'empty'
+    const nextTracker = normalizeWillpowerTracker({
+      superficial: statuses.filter(status => status === 'superficial').length,
+      aggravated: statuses.filter(status => status === 'aggravated').length,
+    }, before.max)
+    await updateCharacterWillpower(character.id, nextTracker, 'Воля сохранена')
+  }
+
+  const removeHumanityStains = async (character: CharacterOption, amount = 1) => {
+    const before = character.humanity || { value: 7, stains: 0 }
+    const removed = Math.min(before.stains, Math.max(0, Math.floor(Number(amount) || 0)))
+    if (!removed) return null
+    return updateCharacterHumanity(
+      character.id,
+      { ...before, stains: before.stains - removed },
+      'Сомнения сохранены',
+    )
+  }
+
   const mendVampireSuperficial = async (character: CharacterOption) => {
     const before = getCharacterHealth(character)
     if (before.superficial < 1) return
@@ -735,6 +797,10 @@ export function createCharacterActions(deps: CharacterActionsDeps) {
     performRouseCheck,
     rollRouseCheck,
     quenchHunger,
+    setHungerLevel,
+    cycleHealthCell,
+    cycleWillpowerCell,
+    removeHumanityStains,
     mendVampireSuperficial,
     mendVampireAggravated,
     recoverMortalHealth,
