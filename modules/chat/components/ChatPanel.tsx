@@ -92,17 +92,6 @@ export default function ChatPanel({
   const outputDevices = voiceDevices.filter(device => device.kind === 'audiooutput')
   const supportsOutputSelection = typeof HTMLAudioElement.prototype.setSinkId === 'function'
 
-  const getParticipantStatus = (participant: VoiceParticipant) => {
-    if (participant.muted) return t('микрофон выключен')
-    if (participant.speaking) return t('говорит')
-    if (participant.connected) {
-      if (participant.connectionQuality === 'poor') return t('слабое соединение')
-      if (participant.connectionQuality === 'fair') return t('соединение нестабильно')
-      return t('слышно')
-    }
-    return t('соединение...')
-  }
-
   useEffect(() => {
     chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight })
   }, [chatMessages, rightRailTab, chatPanelTab])
@@ -240,10 +229,7 @@ export default function ChatPanel({
             <p>{voiceEnabled ? t('Пока никого не слышно.') : t('Войди в голос, чтобы слышать участников.')}</p>
           ) : (
             voiceParticipants.map(participant => (
-              <article
-                className={`voice-participant${participant.speaking ? ' speaking' : ''}${participant.connectionQuality === 'poor' ? ' connection-poor' : ''}`}
-                key={participant.id}
-              >
+              <article className="voice-participant" key={participant.id}>
                 <audio
                   autoPlay
                   playsInline
@@ -265,7 +251,7 @@ export default function ChatPanel({
                 <div className="voice-participant-main">
                   <div>
                     <strong>{participant.characterName}</strong>
-                    <span>{getParticipantStatus(participant)}</span>
+                    <span>{participant.muted ? t('микрофон выключен') : participant.connected ? t('слышно') : t('соединение...')}</span>
                   </div>
                   <label>
                     <span>{t('Громкость')}</span>

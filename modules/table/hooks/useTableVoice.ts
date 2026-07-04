@@ -11,6 +11,12 @@ import type {
   VoiceSignal,
 } from '../types'
 import {
+  createVoiceAudioPipeline,
+  createVoiceDuckingMonitor,
+  type VoiceAudioPipeline,
+  type VoiceDuckingMonitor,
+} from '../utils/voice-audio-pipeline'
+import {
   applyAudioOutputDevice,
   enhanceVoiceDescription,
   enumerateVoiceDevices,
@@ -66,6 +72,8 @@ export function useTableVoice({
   const voiceParticipantsRef = useRef<VoiceParticipant[]>([])
   const voiceMasterVolumeRef = useRef(savedSettings.masterVolume)
   const localVoiceStreamRef = useRef<MediaStream | null>(null)
+  const voicePipelineRef = useRef<VoiceAudioPipeline | null>(null)
+  const voiceDuckingRef = useRef<VoiceDuckingMonitor | null>(null)
   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map())
   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map())
   const voiceAudioRefs = useRef<Map<string, HTMLAudioElement>>(new Map())
@@ -193,6 +201,7 @@ export function useTableVoice({
   const removeVoiceParticipant = (participantId: string) => {
     clearReconnectTimer(participantId)
     reconnectAttemptsRef.current.delete(participantId)
+    voiceDuckingRef.current?.detachRemoteStream(participantId)
 
     const connection = peerConnectionsRef.current.get(participantId)
     connection?.close()
@@ -224,6 +233,7 @@ export function useTableVoice({
 
   const attachRemoteStream = (participantId: string, stream: MediaStream) => {
     remoteStreamsRef.current.set(participantId, stream)
+    voiceDuckingRef.current?.attachRemoteStream(participantId, stream)
     const audio = voiceAudioRefs.current.get(participantId)
     if (audio) {
       audio.srcObject = stream
@@ -371,11 +381,6 @@ export function useTableVoice({
       return
     }
 
-    if (signal.type === 'speaking') {
-      upsertVoiceParticipant(signal, { speaking: Boolean(signal.speaking) })
-      return
-    }
-
     upsertVoiceParticipant(signal)
 
     if (!voiceEnabledRef.current || !currentUser) return
@@ -418,23 +423,49 @@ export function useTableVoice({
   }
   handleVoiceSignalRef.current = handleVoiceSignal
 
-  const replaceLocalVoiceTrack = async () => {
-    if (!voiceEnabledRef.current) return
+  const destroyVoicePipeline = () => {
+    voiceDuckingRef.current?.destroy()
+    voiceDuckingRef.current = null
+    voicePipelineRef.current?.destroy()
+    voicePipelineRef.current = null
+    localVoiceStreamRef.current = null
+  }
 
-    localVoiceStreamRef.current?.getTracks().forEach(track => track.stop())
+  const setupLocalVoiceCapture = async () => {
+    voiceDuckingRef.current?.destroy()
+    voiceDuckingRef.current = null
+    voicePipelineRef.current?.destroy()
+    voicePipelineRef.current = null
+    localVoiceStreamRef.current = null
 
-    const stream = await navigator.mediaDevices.getUserMedia({
+    const rawStream = await navigator.mediaDevices.getUserMedia({
       audio: getVoiceAudioConstraints(voiceQualityRef.current, {
         deviceId: voiceInputDeviceIdRef.current,
         noiseSuppression: voiceNoiseSuppressionRef.current,
       }),
     })
 
-    stream.getAudioTracks().forEach(track => {
+    const pipeline = createVoiceAudioPipeline(rawStream, voiceQualityRef.current)
+    voicePipelineRef.current = pipeline
+    localVoiceStreamRef.current = pipeline.processedStream
+
+    localVoiceStreamRef.current.getAudioTracks().forEach(track => {
       track.enabled = !voiceMutedRef.current
     })
-    localVoiceStreamRef.current = stream
 
+    voiceDuckingRef.current = createVoiceDuckingMonitor(rawStream)
+
+    remoteStreamsRef.current.forEach((stream, participantId) => {
+      voiceDuckingRef.current?.attachRemoteStream(participantId, stream)
+    })
+
+    return localVoiceStreamRef.current
+  }
+
+  const replaceLocalVoiceTrack = async () => {
+    if (!voiceEnabledRef.current) return
+
+    const stream = await setupLocalVoiceCapture()
     const peerEntries = [...peerConnectionsRef.current.entries()]
     await Promise.all(peerEntries.map(async ([participantId, connection]) => {
       const sender = connection.getSenders().find(item => item.track?.kind === 'audio')
@@ -464,8 +495,7 @@ export function useTableVoice({
     peerConnectionsRef.current.clear()
     remoteStreamsRef.current.clear()
     voiceAudioRefs.current.clear()
-    localVoiceStreamRef.current?.getTracks().forEach(track => track.stop())
-    localVoiceStreamRef.current = null
+    destroyVoicePipeline()
     setVoiceEnabled(false)
     setVoiceParticipants([])
     setVoiceStatus('Голос выключен')
@@ -484,16 +514,7 @@ export function useTableVoice({
 
     try {
       await refreshVoiceDevices()
-      const stream = await navigator.mediaDevices.getUserMedia({
-        audio: getVoiceAudioConstraints(voiceQualityRef.current, {
-          deviceId: voiceInputDeviceIdRef.current,
-          noiseSuppression: voiceNoiseSuppressionRef.current,
-        }),
-      })
-      stream.getAudioTracks().forEach(track => {
-        track.enabled = !voiceMutedRef.current
-      })
-      localVoiceStreamRef.current = stream
+      await setupLocalVoiceCapture()
       voiceEnabledRef.current = true
       setVoiceEnabled(true)
       setVoiceStatus('Голос онлайн')

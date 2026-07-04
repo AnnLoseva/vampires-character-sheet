@@ -32,6 +32,8 @@ const MUSIC_UNLOCK_NEEDED_EVENT = 'vtm-music-unlock-needed'
 const MUSIC_UNLOCK_REQUEST_EVENT = 'vtm-music-unlock-request'
 const MUSIC_PLAYER_COMMAND_EVENT = 'vtm-player-command'
 const MUSIC_VOLUME_STORAGE_KEY = 'vtm-youtube-volume'
+const VOICE_DUCK_EVENT = 'vtm-voice-duck'
+const VOICE_DUCK_GAIN = 0.38
 let supportsExtendedMusicLoad = true
 let supportsMusicLibraryAutoplay = true
 
@@ -507,6 +509,39 @@ export default function MusicPlayer({ room, tableRole, channelRef, hidden = fals
       window.removeEventListener('focus', resyncVisibleTab)
     }
   }, [playbackEnabled])
+
+  useEffect(() => {
+    if (!playbackEnabled) return
+
+    let duckingActive = false
+    let volumeBeforeDuck: number | null = null
+
+    const onVoiceDuck = (event: Event) => {
+      const active = Boolean((event as CustomEvent<{ active?: boolean }>).detail?.active)
+      if (active === duckingActive) return
+
+      if (active) {
+        volumeBeforeDuck = localVolume
+        applyPlayerLocalVolume(clampMusicVolume(Math.round(localVolume * VOICE_DUCK_GAIN)))
+        duckingActive = true
+        return
+      }
+
+      if (volumeBeforeDuck !== null) {
+        applyPlayerLocalVolume(volumeBeforeDuck)
+      }
+      volumeBeforeDuck = null
+      duckingActive = false
+    }
+
+    window.addEventListener(VOICE_DUCK_EVENT, onVoiceDuck)
+    return () => {
+      window.removeEventListener(VOICE_DUCK_EVENT, onVoiceDuck)
+      if (duckingActive && volumeBeforeDuck !== null) {
+        applyPlayerLocalVolume(volumeBeforeDuck)
+      }
+    }
+  }, [applyPlayerLocalVolume, localVolume, playbackEnabled])
 
   // Listen for volume changes from the visible (non-playbackEnabled) panel instance
   useEffect(() => {
