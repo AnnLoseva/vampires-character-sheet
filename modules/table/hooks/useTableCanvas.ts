@@ -172,10 +172,8 @@ export function useTableCanvas(options: UseTableCanvasOptions) {
       opts.setLayerSelection([layer.id], layer.id)
       return
     }
-    if (mode === 'move' && layer.layerType === 'video' && target instanceof HTMLVideoElement) {
-      const rect = target.getBoundingClientRect()
-      const controlHeight = Math.min(56, Math.max(36, rect.height * 0.3))
-      if (event.clientY >= rect.bottom - controlHeight) {
+    if (mode === 'move' && layer.layerType === 'video') {
+      if (!target.closest('.embedded-video-drag-handle')) {
         opts.setLayerSelection([layer.id], layer.id)
         return
       }

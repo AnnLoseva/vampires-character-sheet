@@ -5869,6 +5869,7 @@ export default function GameTableStyles() {
           font-size: var(--fs-13);
         }
 
+        .preview-roll-dock-contested,
         .preview-roll-dock-advanced {
           display: flex;
           align-items: center;
@@ -5877,11 +5878,13 @@ export default function GameTableStyles() {
           width: 100%;
         }
 
+        .preview-roll-dock-contested label,
         .preview-roll-dock-advanced label {
           display: grid;
           gap: 3px;
         }
 
+        .preview-roll-dock-contested label > span,
         .preview-roll-dock-advanced label > span {
           color: var(--vtm-ink-muted);
           font-size: var(--fs-10);
@@ -5889,6 +5892,7 @@ export default function GameTableStyles() {
           text-transform: uppercase;
         }
 
+        .preview-roll-dock-contested select,
         .preview-roll-dock-advanced select {
           height: var(--ctrl-md);
           border: 1px solid var(--vtm-line-strong);

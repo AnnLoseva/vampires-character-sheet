@@ -167,39 +167,42 @@ export function CharacterPreviewRollDock({
         </button>
       ) : null}
 
-      {showAdvancedControls ? (
-        <div className="preview-roll-dock-advanced">
+      <div className="preview-roll-dock-contested">
+        <label>
+          <span>{t('Тип броска')}</span>
+          <select
+            value={roll.mode}
+            onChange={event => {
+              const nextMode = event.target.value as RollMode
+              setRollMode(nextMode)
+              if (nextMode === 'normal') setContestedOpponentId('')
+            }}
+          >
+            <option value="normal">{t('Обычный бросок')}</option>
+            <option value="contested">{t('Встречный бросок')}</option>
+          </select>
+        </label>
+        {roll.mode === 'contested' ? (
           <label>
-            <span>{t('Тип броска')}</span>
+            <span>{t('Оппонент')}</span>
             <select
-              value={roll.mode}
-              onChange={event => {
-                const nextMode = event.target.value as RollMode
-                setRollMode(nextMode)
-                if (nextMode === 'normal') setContestedOpponentId('')
-              }}
+              value={roll.contestedOpponentId}
+              onChange={event => setContestedOpponentId(event.target.value)}
+              disabled={contestedOpponentOptions.length === 0}
             >
-              <option value="normal">{t('Обычный бросок')}</option>
-              <option value="contested">{t('Встречный бросок')}</option>
+              <option value="">
+                {contestedOpponentOptions.length ? t('Выбрать оппонента') : t('Нет доступных оппонентов')}
+              </option>
+              {contestedOpponentOptions.map(option => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
             </select>
           </label>
-          {roll.mode === 'contested' ? (
-            <label>
-              <span>{t('Оппонент')}</span>
-              <select
-                value={roll.contestedOpponentId}
-                onChange={event => setContestedOpponentId(event.target.value)}
-                disabled={contestedOpponentOptions.length === 0}
-              >
-                <option value="">
-                  {contestedOpponentOptions.length ? t('Выбрать оппонента') : t('Нет доступных оппонентов')}
-                </option>
-                {contestedOpponentOptions.map(option => (
-                  <option key={option.id} value={option.id}>{option.label}</option>
-                ))}
-              </select>
-            </label>
-          ) : null}
+        ) : null}
+      </div>
+
+      {showAdvancedControls ? (
+        <div className="preview-roll-dock-advanced">
           <div className="quick-roll-grid compact" aria-label={t('Быстрые броски')}>
             {[1, 3, 5, 7].map(count => (
               <button

@@ -1,4 +1,4 @@
-import type { Dispatch, DragEvent, MouseEvent, PointerEvent, RefObject, SetStateAction, TouchEvent, WheelEvent } from 'react'
+import { useRef, type Dispatch, type DragEvent, type MouseEvent, type PointerEvent, type RefObject, type SetStateAction, type TouchEvent, type WheelEvent } from 'react'
 import {
   createEditorState,
   getEditorPreviewStyle,
@@ -99,6 +99,30 @@ export default function TableCanvas({
   commitLayerOpacity,
 }: TableCanvasProps) {
   const { t } = useLang()
+  const embeddedVideoPlayingRef = useRef(new Map<string, boolean>())
+
+  const postEmbeddedVideoCommand = (iframe: HTMLIFrameElement, command: 'playVideo' | 'pauseVideo') => {
+    iframe.contentWindow?.postMessage(JSON.stringify({ event: 'command', func: command, args: '' }), '*')
+  }
+
+  const toggleVideoPlayback = (layer: TableLayer, target: HTMLElement) => {
+    if (target.closest('.embedded-video-drag-handle')) return
+
+    const layerElement = target.closest(`[data-layer-id="${layer.id}"]`)
+    const video = layerElement?.querySelector('video')
+    if (video) {
+      if (video.paused) void video.play()
+      else video.pause()
+      return
+    }
+
+    const iframe = layerElement?.querySelector('iframe')
+    if (iframe) {
+      const isPlaying = embeddedVideoPlayingRef.current.get(layer.id) ?? false
+      postEmbeddedVideoCommand(iframe, isPlaying ? 'pauseVideo' : 'playVideo')
+      embeddedVideoPlayingRef.current.set(layer.id, !isPlaying)
+    }
+  }
 
   const openLayerContextMenu = (event: MouseEvent<HTMLElement>, layer: TableLayer) => {
     event.preventDefault()
@@ -193,6 +217,9 @@ export default function TableCanvas({
                 if (!selectedLayerIds.has(layer.id)) {
                   setLayerSelection([layer.id], layer.id)
                 }
+                if (layer.layerType === 'video') {
+                  toggleVideoPlayback(layer, event.target as HTMLElement)
+                }
               }}
             >
               {layer.layerType === 'video' ? (
@@ -227,6 +254,12 @@ export default function TableCanvas({
                       playsInline
                       draggable={false}
                       style={imageEditor?.layerId === layer.id ? getEditorPreviewStyle(imageEditor.state) : getLayerMediaStyle(layer)}
+                      onClick={event => {
+                        event.stopPropagation()
+                        const video = event.currentTarget
+                        if (video.paused) void video.play()
+                        else video.pause()
+                      }}
                       onContextMenu={event => openLayerContextMenu(event, layer)}
                       onError={event => {
                         event.currentTarget.style.display = 'none'

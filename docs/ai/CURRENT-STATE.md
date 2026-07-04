@@ -43,7 +43,6 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - Gradually extract logic out of `public/main.js` (small steps, explicit tasks).
 - Sync full sheet ↔ quick sheet representations.
 - Character creation wizard improvements.
-- Contested / opposed rolls in the normal roll UI.
 - Humanity / stains / remorse flow.
 - Improve Supabase persistence robustness.
 
@@ -54,5 +53,5 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-03 — Creation wizard: clickable progress, specialty validation/list, thin-blood gen limits,
-  Caitiff disciplines, merits remove/reset, step error badges.
+2026-07-04 — Character preview: attributes in full view, opposed-roll controls in roll dock;
+  table canvas: click-to-play/pause for video layers (native + YouTube embed).

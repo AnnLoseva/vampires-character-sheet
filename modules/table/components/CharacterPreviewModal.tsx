@@ -552,6 +552,42 @@ export function CharacterPreviewModal({
               ) : null}
 
               <section className="preview-trait-section">
+                <div className="preview-section-heading">
+                  <h3>{t('Характеристики')}</h3>
+                  <span>{t('до двух в пул')}</span>
+                </div>
+                <div className="preview-trait-columns attributes">
+                  {ATTRIBUTE_GROUPS.map(group => (
+                    <div className="preview-trait-group" key={group.name}>
+                      <h4>{t(group.name)}</h4>
+                      {group.traits.map(name => {
+                        const dots = getAttributeDots(character.attributes, name)
+                        const poolSlot = getAttributePoolSlot(name, roll.attribute, roll.attributeTwo)
+                        return renderTraitButton(
+                          name,
+                          t(name),
+                          dots,
+                          poolSlot > 0,
+                          poolSlot,
+                          () => actions.toggleRollAttribute(name),
+                        )
+                      })}
+                    </div>
+                  ))}
+                  {extraAttributes.length ? (
+                    <div className="preview-trait-group">
+                      <h4>{t('Другие')}</h4>
+                      {extraAttributes.map(name => {
+                        const dots = getAttributeDots(character.attributes, name)
+                        const poolSlot = getAttributePoolSlot(name, roll.attribute, roll.attributeTwo)
+                        return renderTraitButton(name, name, dots, poolSlot > 0, poolSlot, () => actions.toggleRollAttribute(name))
+                      })}
+                    </div>
+                  ) : null}
+                </div>
+              </section>
+
+              <section className="preview-trait-section">
                 <div className="preview-section-heading"><h3>{t('Навыки')}</h3><span>{t('все навыки листа')}</span></div>
                 <div className="preview-trait-columns skills columns">
                   {SKILL_GROUPS.map(group => (
