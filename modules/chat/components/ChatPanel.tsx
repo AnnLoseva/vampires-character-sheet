@@ -5,6 +5,8 @@ import type { Dispatch, FormEvent, RefObject, SetStateAction } from 'react'
 import type {
   CharacterOption,
   RightRailTab,
+  VoiceDeviceInfo,
+  VoiceNoiseSuppression,
   VoiceParticipant,
   VoiceQuality,
 } from '@/modules/table/types'
@@ -23,6 +25,10 @@ type ChatPanelProps = {
   voiceMuted: boolean
   voiceMasterVolume: number
   voiceQuality: VoiceQuality
+  voiceNoiseSuppression: VoiceNoiseSuppression
+  voiceInputDeviceId: string | null
+  voiceOutputDeviceId: string | null
+  voiceDevices: VoiceDeviceInfo[]
   voiceParticipants: VoiceParticipant[]
   chatDraft: string
   voiceAudioRefs: RefObject<Map<string, HTMLAudioElement>>
@@ -33,7 +39,10 @@ type ChatPanelProps = {
   stopVoice: () => void
   toggleVoiceMuted: () => void
   setVoiceMasterVolume: Dispatch<SetStateAction<number>>
-  setVoiceQuality: Dispatch<SetStateAction<VoiceQuality>>
+  setVoiceQuality: (quality: VoiceQuality) => Promise<void>
+  setVoiceNoiseSuppression: (mode: VoiceNoiseSuppression) => Promise<void>
+  selectVoiceInputDevice: (deviceId: string | null) => Promise<void>
+  selectVoiceOutputDevice: (deviceId: string | null) => Promise<void>
   setVoiceStatus: Dispatch<SetStateAction<string>>
   setVoiceParticipantVolume: (participantId: string, volume: number) => void
   sendChatMessage: (event: FormEvent<HTMLFormElement>) => Promise<void>
@@ -52,6 +61,10 @@ export default function ChatPanel({
   voiceMuted,
   voiceMasterVolume,
   voiceQuality,
+  voiceNoiseSuppression,
+  voiceInputDeviceId,
+  voiceOutputDeviceId,
+  voiceDevices,
   voiceParticipants,
   chatDraft,
   voiceAudioRefs,
@@ -63,6 +76,9 @@ export default function ChatPanel({
   toggleVoiceMuted,
   setVoiceMasterVolume,
   setVoiceQuality,
+  setVoiceNoiseSuppression,
+  selectVoiceInputDevice,
+  selectVoiceOutputDevice,
   setVoiceStatus,
   setVoiceParticipantVolume,
   sendChatMessage,
@@ -72,6 +88,20 @@ export default function ChatPanel({
   const chatListRef = useRef<HTMLDivElement>(null)
   const selectedVoiceCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId)
   const canUseChat = Boolean(chatUser && selectedChatCharacterId && chatCharacters.length > 0)
+  const inputDevices = voiceDevices.filter(device => device.kind === 'audioinput')
+  const outputDevices = voiceDevices.filter(device => device.kind === 'audiooutput')
+  const supportsOutputSelection = typeof HTMLAudioElement.prototype.setSinkId === 'function'
+
+  const getParticipantStatus = (participant: VoiceParticipant) => {
+    if (participant.muted) return t('микрофон выключен')
+    if (participant.speaking) return t('говорит')
+    if (participant.connected) {
+      if (participant.connectionQuality === 'poor') return t('слабое соединение')
+      if (participant.connectionQuality === 'fair') return t('соединение нестабильно')
+      return t('слышно')
+    }
+    return t('соединение...')
+  }
 
   useEffect(() => {
     chatListRef.current?.scrollTo({ top: chatListRef.current.scrollHeight })
@@ -142,13 +172,51 @@ export default function ChatPanel({
             <span>{t('Качество')}</span>
             <select
               value={voiceQuality}
-              onChange={event => setVoiceQuality(event.target.value as VoiceQuality)}
-              disabled={voiceEnabled}
+              onChange={event => void setVoiceQuality(event.target.value as VoiceQuality)}
             >
-              <option value="clear">{t('Чище голос')}</option>
-              <option value="balanced">{t('Шумодав')}</option>
+              <option value="low">{t('Низкое')}</option>
+              <option value="medium">{t('Среднее')}</option>
+              <option value="high">{t('Высокое')}</option>
+              <option value="studio">{t('Студия')}</option>
             </select>
           </label>
+          <label className="voice-quality">
+            <span>{t('Шумоподавление')}</span>
+            <select
+              value={voiceNoiseSuppression}
+              onChange={event => void setVoiceNoiseSuppression(event.target.value as VoiceNoiseSuppression)}
+            >
+              <option value="off">{t('Выкл.')}</option>
+              <option value="light">{t('Лёгкое')}</option>
+              <option value="aggressive">{t('Сильное')}</option>
+            </select>
+          </label>
+          <label className="voice-device">
+            <span>{t('Микрофон')}</span>
+            <select
+              value={voiceInputDeviceId || ''}
+              onChange={event => void selectVoiceInputDevice(event.target.value || null)}
+            >
+              <option value="">{t('По умолчанию')}</option>
+              {inputDevices.map(device => (
+                <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
+              ))}
+            </select>
+          </label>
+          {supportsOutputSelection ? (
+            <label className="voice-device">
+              <span>{t('Вывод звука')}</span>
+              <select
+                value={voiceOutputDeviceId || ''}
+                onChange={event => void selectVoiceOutputDevice(event.target.value || null)}
+              >
+                <option value="">{t('По умолчанию')}</option>
+                {outputDevices.map(device => (
+                  <option key={device.deviceId} value={device.deviceId}>{device.label}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
         </div>
 
         <div className="voice-participants">
@@ -172,7 +240,10 @@ export default function ChatPanel({
             <p>{voiceEnabled ? t('Пока никого не слышно.') : t('Войди в голос, чтобы слышать участников.')}</p>
           ) : (
             voiceParticipants.map(participant => (
-              <article className="voice-participant" key={participant.id}>
+              <article
+                className={`voice-participant${participant.speaking ? ' speaking' : ''}${participant.connectionQuality === 'poor' ? ' connection-poor' : ''}`}
+                key={participant.id}
+              >
                 <audio
                   autoPlay
                   playsInline
@@ -194,7 +265,7 @@ export default function ChatPanel({
                 <div className="voice-participant-main">
                   <div>
                     <strong>{participant.characterName}</strong>
-                    <span>{participant.muted ? t('микрофон выключен') : participant.connected ? t('слышно') : t('соединение...')}</span>
+                    <span>{getParticipantStatus(participant)}</span>
                   </div>
                   <label>
                     <span>{t('Громкость')}</span>

@@ -420,6 +420,29 @@ export type MasterWhisper = {
   createdAt: string
 }
 
+export type VoiceQuality = 'low' | 'medium' | 'high' | 'studio'
+
+/** @deprecated Legacy preset — migrated to `high` on load */
+export type LegacyVoiceQuality = 'balanced' | 'clear'
+
+export type VoiceNoiseSuppression = 'off' | 'light' | 'aggressive'
+
+export type VoiceDeviceInfo = {
+  deviceId: string
+  label: string
+  kind: 'audioinput' | 'audiooutput'
+}
+
+export type VoiceSettings = {
+  quality: VoiceQuality
+  noiseSuppression: VoiceNoiseSuppression
+  inputDeviceId: string | null
+  outputDeviceId: string | null
+  masterVolume: number
+}
+
+export type VoiceConnectionQuality = 'good' | 'fair' | 'poor' | 'unknown'
+
 export type VoiceParticipant = {
   id: string
   username: string
@@ -428,10 +451,12 @@ export type VoiceParticipant = {
   volume: number
   muted: boolean
   connected: boolean
+  speaking?: boolean
+  connectionQuality?: VoiceConnectionQuality
 }
 
 export type VoiceSignal = {
-  type: 'join' | 'offer' | 'answer' | 'ice' | 'leave' | 'mute'
+  type: 'join' | 'offer' | 'answer' | 'ice' | 'leave' | 'mute' | 'speaking' | 'device-change'
   room: string
   from: string
   to?: string
@@ -439,6 +464,7 @@ export type VoiceSignal = {
   characterName?: string
   characterImage?: string
   muted?: boolean
+  speaking?: boolean
   description?: RTCSessionDescriptionInit
   candidate?: RTCIceCandidateInit
 }
@@ -646,6 +672,5 @@ export type LayerDropTarget = {
 export type RightRailTab = 'media' | 'rolls' | 'chat' | 'diary' | 'master'
 export type MediaTab = 'music' | 'layers' | 'library'
 export type LeftToolbarTab = 'scenes' | 'layers' | 'media' | 'music'
-export type VoiceQuality = 'balanced' | 'clear'
 
 export type TableModule = Module<'table', 'vtm5'>

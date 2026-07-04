@@ -501,12 +501,19 @@ export default function VampireTable() {
     voiceStatus,
     voiceMasterVolume,
     voiceQuality,
+    voiceNoiseSuppression,
+    voiceInputDeviceId,
+    voiceOutputDeviceId,
+    voiceDevices,
     voiceParticipants,
     voiceAudioRefs,
     remoteStreamsRef,
     handleVoiceSignalRef,
     setVoiceMasterVolume,
     setVoiceQuality,
+    setVoiceNoiseSuppression,
+    selectVoiceInputDevice,
+    selectVoiceOutputDevice,
     setVoiceStatus,
     setVoiceParticipantVolume,
     startVoice,
@@ -1991,6 +1998,10 @@ export default function VampireTable() {
             voiceMuted={voiceMuted}
             voiceMasterVolume={voiceMasterVolume}
             voiceQuality={voiceQuality}
+            voiceNoiseSuppression={voiceNoiseSuppression}
+            voiceInputDeviceId={voiceInputDeviceId}
+            voiceOutputDeviceId={voiceOutputDeviceId}
+            voiceDevices={voiceDevices}
             voiceParticipants={voiceParticipants}
             chatDraft={chatDraft}
             voiceAudioRefs={voiceAudioRefs}
@@ -2002,6 +2013,9 @@ export default function VampireTable() {
             toggleVoiceMuted={toggleVoiceMuted}
             setVoiceMasterVolume={setVoiceMasterVolume}
             setVoiceQuality={setVoiceQuality}
+            setVoiceNoiseSuppression={setVoiceNoiseSuppression}
+            selectVoiceInputDevice={selectVoiceInputDevice}
+            selectVoiceOutputDevice={selectVoiceOutputDevice}
             setVoiceStatus={setVoiceStatus}
             setVoiceParticipantVolume={setVoiceParticipantVolume}
             sendChatMessage={sendChatMessage}

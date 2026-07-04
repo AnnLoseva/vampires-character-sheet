@@ -4591,7 +4591,8 @@ export default function GameTableStyles() {
           align-items: center;
         }
 
-        .voice-controls .voice-quality {
+        .voice-controls .voice-quality,
+        .voice-controls .voice-device {
           grid-column: 1 / -1;
           grid-template-columns: auto minmax(0, 1fr);
         }
@@ -4643,6 +4644,15 @@ export default function GameTableStyles() {
         .voice-participant.self {
           border-color: rgba(54, 214, 117, 0.34);
           background: #122018;
+        }
+
+        .voice-participant.speaking {
+          border-color: rgba(54, 214, 117, 0.72);
+          box-shadow: 0 0 0 1px rgba(54, 214, 117, 0.2);
+        }
+
+        .voice-participant.connection-poor {
+          border-color: rgba(255, 176, 64, 0.55);
         }
 
         .voice-participant-main,
