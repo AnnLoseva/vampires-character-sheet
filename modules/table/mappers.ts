@@ -2,8 +2,8 @@ import type { CharacterOption, CharacterRow, CharacterType, Die, HealthMetaState
 import { getMusicProvider } from '@/modules/music/utils'
 import type { HumanityStainEvent } from '@/core/systems/vtm5/rules/humanity'
 import { getAttributeDots } from '@/lib/i18n/ruleNames'
+import { tableRulesSubset } from '@/lib/table/rules-subset'
 import { mapperRules } from './mapper-adapters'
-import defaultRules from '@/public/rules.json'
 
 const DIE_KINDS = new Set<Die['kind']>([
   'fail',
@@ -433,7 +433,7 @@ export function getDefaultDamageProfile(characterType: CharacterType): NonNullab
 
 export function mapCharacterRowToOption(
   row: CharacterRow,
-  rules: unknown = defaultRules,
+  rules: unknown = tableRulesSubset,
 ): CharacterOption {
   const data = row.data || {}
   const normalizedDisciplines = mapperRules.normalizeCharacterDisciplines(data)

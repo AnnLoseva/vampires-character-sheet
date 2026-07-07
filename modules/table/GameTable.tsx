@@ -24,7 +24,7 @@ import { ChatPanel, useChat } from '@/modules/chat'
 import type { ChatUser } from '@/modules/chat/types'
 import JournalPanel from '@/modules/journal/components/JournalPanel'
 import MasterPanel from './components/master/MasterPanel'
-import defaultRules from '@/public/rules.json'
+import { tableDefaultDisciplineRules as defaultDisciplineRules } from '@/lib/table/rules-subset'
 
 import {
   ATTRIBUTE_GROUPS,
@@ -84,7 +84,6 @@ import {
   getActiveEffectDescription,
   getActiveEffectTitle,
   getCharacterPoolPartDots,
-  getDefaultDisciplineRules,
   getDisciplineCostLabel,
   getDisciplineManualPrompts,
   getDisciplinePowerDots,
@@ -195,8 +194,6 @@ import type {
 } from '@/modules/table/types'
 
 const DiceRollOverlay = dynamic(() => import('@/modules/rolls/components/DiceRollOverlay'), { ssr: false })
-
-const defaultDisciplineRules = getDefaultDisciplineRules(defaultRules)
 
 function isHydratedCharacter(character?: CharacterOption | null) {
   return Boolean(character && character.hydrated !== false)

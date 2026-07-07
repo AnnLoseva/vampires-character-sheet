@@ -74,7 +74,7 @@ opening code**. Risk levels drive how careful you must be.
 | `core/systems/vtm5/rules/derived-stats/index.ts` | derived stats | high | vtm-mechanics-edit-protocol | |
 | `core/systems/vtm5/rules/disciplines/*` | discipline engine | high | vtm-mechanics-edit-protocol | Run discipline scripts after edits |
 
-## Table libs (`lib/table/*` — utils + shims)
+## Table libs (`lib/table/*` — utils, shims, generated subsets)
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
 | `lib/table/constants.ts` | shim → `modules/table/constants` | low | before-any-change | Prefer `@/modules/table` |
@@ -84,6 +84,7 @@ opening code**. Risk levels drive how careful you must be.
 | `lib/table/layer-utils.ts` | shim → `modules/table/utils/layer-utils` | low | before-any-change | |
 | `lib/table/scene-utils.ts` | shim → `modules/table/utils/scene-utils` | low | before-any-change | |
 | `lib/table/{roll-utils,dice-display}.ts` | shim → `modules/table/utils/*` | low | before-any-change | |
+| `lib/table/rules-subset.ts` | generated compact rules subset for table mappers/fallbacks | medium | rules-data subsystem | Do not edit manually; regenerate from `public/rules.json` with `scripts/generate-table-rules-subset.ts` |
 
 ## i18n & Supabase client
 | Path | Role | Risk | Edit protocol | Notes |
@@ -115,6 +116,7 @@ opening code**. Risk levels drive how careful you must be.
 | `scripts/validate-discipline-mechanics.ts` | `npm run validate:disciplines` | low | before-any-change | Mechanics validation |
 | `scripts/test-discipline-engine.ts` | `npm run test:disciplines` | low | before-any-change | Engine tests |
 | `scripts/test-vtm-legacy-parity.ts` | `npm run test:vtm-parity` | low | vtm-mechanics-edit-protocol | health/humanity legacy ↔ core parity |
+| `scripts/generate-table-rules-subset.ts` | manual generator for `lib/table/rules-subset.ts` | low | rules-data subsystem | Run after passive tracker/damage discipline mechanics change |
 
 > Workflows referenced above live in `docs/ai/workflows/`. "before-any-change" is
 > the general checklist; the others are area-specific protocols.
