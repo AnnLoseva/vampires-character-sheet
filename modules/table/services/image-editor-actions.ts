@@ -98,9 +98,13 @@ export function createImageEditorActions(deps: ImageEditorActionsDeps) {
         { width: layer.width, height: layer.height },
         layer.layerType === 'video' ? 'video' : 'image',
         0,
-        { x: layer.x + 32, y: layer.y + 32 },
+        undefined,
         layer.onTable,
-        patch,
+        {
+          ...patch,
+          x: layer.x + 32,
+          y: layer.y + 32,
+        },
       )
     } else {
       await deps.patchLayer(layer.id, patch)

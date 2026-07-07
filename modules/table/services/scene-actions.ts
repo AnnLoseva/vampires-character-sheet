@@ -215,8 +215,9 @@ export function createSceneActions(deps: SceneActionsDeps) {
         { width: layer.width, height: layer.height },
         layer.layerType === 'folder' ? 'file' : layer.layerType,
         index,
-        { x: layer.x, y: layer.y },
+        undefined,
         false,
+        { x: layer.x, y: layer.y },
       )
       if (createdId) await deps.patchLayer(createdId, { parentId: folderId })
     }

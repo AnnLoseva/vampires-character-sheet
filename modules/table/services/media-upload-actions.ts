@@ -150,11 +150,13 @@ export function createMediaUploadActions(deps: MediaUploadActionsDeps) {
           natural,
           layerType,
           index,
-          options.asBackground ? { x: 0, y: 0 } : options.point,
+          options.asBackground ? undefined : options.point,
           onTable,
           {
             ...(options.asBackground
               ? {
+                x: 0,
+                y: 0,
                 zIndex: -1000 + index,
                 locked: true,
                 parentId: null,

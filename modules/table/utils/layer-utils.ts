@@ -2,6 +2,13 @@ import type { CSSProperties } from 'react'
 import { getFileLayerMeta } from './media-utils'
 import type { ImageEditorState, LayerTreeNode, RollMessage, TableLayer } from '../types'
 
+export function centerLayerOnPoint(point: { x: number; y: number }, size: { width: number; height: number }) {
+  return {
+    x: Math.round(point.x - size.width / 2),
+    y: Math.round(point.y - size.height / 2),
+  }
+}
+
 export function mergeRoll(rolls: RollMessage[], roll: RollMessage) {
   if (rolls.some(item => item.id === roll.id)) return rolls
   return [roll, ...rolls].slice(0, 80)

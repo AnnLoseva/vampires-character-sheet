@@ -24,6 +24,7 @@ import {
 } from '../utils/journal-media'
 import {
   canEditLayer,
+  centerLayerOnPoint,
   getDescendantIds,
   sortLayers,
   upsertLayer,
@@ -141,6 +142,13 @@ export function createLayerActions(deps: LayerActionsDeps) {
     const activeFolder = context.selectedLayer?.layerType === 'folder' && canEdit(context.selectedLayer)
       ? context.selectedLayer
       : null
+    const width = typeof overrides.width === 'number' ? overrides.width : fitWidth
+    const height = typeof overrides.height === 'number' ? overrides.height : fitHeight
+    let x = Math.round((activeFolder?.x ?? 80) + ((deps.layersRef.current.length + index) % 6) * 28)
+    let y = Math.round((activeFolder?.y ?? 70) + ((deps.layersRef.current.length + index) % 6) * 24)
+    if (point) {
+      ({ x, y } = centerLayerOnPoint(point, { width, height }))
+    }
     const layer: TableLayer = {
       id: createTableId(),
       room: deps.room,
@@ -151,10 +159,10 @@ export function createLayerActions(deps: LayerActionsDeps) {
       parentId: activeFolder?.id || null,
       name,
       imageData,
-      x: Math.round(point?.x ?? (activeFolder?.x ?? 80) + ((deps.layersRef.current.length + index) % 6) * 28),
-      y: Math.round(point?.y ?? (activeFolder?.y ?? 70) + ((deps.layersRef.current.length + index) % 6) * 24),
-      width: fitWidth,
-      height: fitHeight,
+      x,
+      y,
+      width,
+      height,
       cropX: null,
       cropY: null,
       cropWidth: null,
@@ -345,12 +353,15 @@ export function createLayerActions(deps: LayerActionsDeps) {
       return
     }
     const maxZ = deps.layersRef.current.reduce((max, item) => Math.max(max, item.zIndex), 0)
+    const position = point
+      ? centerLayerOnPoint(point, { width: layer.width, height: layer.height })
+      : { x: 120, y: 120 }
     await patchLayer(layer.id, {
       onTable: true,
       visible: true,
       parentId: null,
-      x: Math.round(point?.x ?? 120),
-      y: Math.round(point?.y ?? 120),
+      x: position.x,
+      y: position.y,
       zIndex: maxZ + 1,
     })
     setLayerSelection([layer.id], layer.id)
@@ -412,9 +423,11 @@ export function createLayerActions(deps: LayerActionsDeps) {
             ? 'file'
             : 'image',
       0,
-      { x: layer.x + 28, y: layer.y + 28 },
+      undefined,
       layer.onTable,
       {
+        x: layer.x + 28,
+        y: layer.y + 28,
         parentId: layer.parentId,
         cropX: layer.cropX,
         cropY: layer.cropY,
