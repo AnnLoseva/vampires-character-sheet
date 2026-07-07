@@ -24,6 +24,7 @@ import {
 } from '../utils/journal-media'
 import {
   canEditLayer,
+  centerLayerOnPoint,
   getDefaultLayerSpawnPoint,
   getDescendantIds,
   sortLayers,
@@ -142,6 +143,11 @@ export function createLayerActions(deps: LayerActionsDeps) {
     const activeFolder = context.selectedLayer?.layerType === 'folder' && canEdit(context.selectedLayer)
       ? context.selectedLayer
       : null
+    const spawnAnchor = point ?? getDefaultLayerSpawnPoint(
+      deps.layersRef.current.length + index,
+      activeFolder ? { x: activeFolder.x + activeFolder.width / 2, y: activeFolder.y + activeFolder.height / 2 } : undefined,
+    )
+    const spawnPosition = centerLayerOnPoint(spawnAnchor, { width: fitWidth, height: fitHeight })
     const layer: TableLayer = {
       id: createTableId(),
       room: deps.room,
@@ -152,8 +158,8 @@ export function createLayerActions(deps: LayerActionsDeps) {
       parentId: activeFolder?.id || null,
       name,
       imageData,
-      x: Math.round(point?.x ?? getDefaultLayerSpawnPoint(deps.layersRef.current.length + index, activeFolder ? { x: activeFolder.x, y: activeFolder.y } : undefined).x),
-      y: Math.round(point?.y ?? getDefaultLayerSpawnPoint(deps.layersRef.current.length + index, activeFolder ? { x: activeFolder.x, y: activeFolder.y } : undefined).y),
+      x: spawnPosition.x,
+      y: spawnPosition.y,
       width: fitWidth,
       height: fitHeight,
       cropX: null,
@@ -212,6 +218,13 @@ export function createLayerActions(deps: LayerActionsDeps) {
       layer => layer.layerType === 'folder' && layer.parentId === parentId,
     ).length
     const parentFolder = parentId ? deps.layersRef.current.find(layer => layer.id === parentId) : null
+    const folderWidth = 520
+    const folderHeight = 320
+    const folderAnchor = {
+      x: (parentFolder ? parentFolder.x + parentFolder.width / 2 : SCENE_ORIGIN_X) + ((siblingCount % 3) - 1) * 36,
+      y: (parentFolder ? parentFolder.y + parentFolder.height / 2 : SCENE_ORIGIN_Y) + (Math.floor(siblingCount / 3)) * 28,
+    }
+    const folderPosition = centerLayerOnPoint(folderAnchor, { width: folderWidth, height: folderHeight })
     const folder: TableLayer = {
       id: createTableId(),
       room: deps.room,
@@ -222,10 +235,10 @@ export function createLayerActions(deps: LayerActionsDeps) {
       parentId,
       name: name?.trim() || deps.tf('Папка {n}', { n: siblingCount + 1 }),
       imageData: '',
-      x: (parentFolder?.x ?? SCENE_ORIGIN_X) + (siblingCount % 5) * 36,
-      y: (parentFolder?.y ?? SCENE_ORIGIN_Y) + (siblingCount % 5) * 28,
-      width: 520,
-      height: 320,
+      x: folderPosition.x,
+      y: folderPosition.y,
+      width: folderWidth,
+      height: folderHeight,
       cropX: null,
       cropY: null,
       cropWidth: null,
@@ -346,12 +359,17 @@ export function createLayerActions(deps: LayerActionsDeps) {
       return
     }
     const maxZ = deps.layersRef.current.reduce((max, item) => Math.max(max, item.zIndex), 0)
+    const placeAnchor = {
+      x: point?.x ?? SCENE_ORIGIN_X,
+      y: point?.y ?? SCENE_ORIGIN_Y,
+    }
+    const placePosition = centerLayerOnPoint(placeAnchor, { width: layer.width, height: layer.height })
     await patchLayer(layer.id, {
       onTable: true,
       visible: true,
       parentId: null,
-      x: Math.round(point?.x ?? SCENE_ORIGIN_X),
-      y: Math.round(point?.y ?? SCENE_ORIGIN_Y),
+      x: placePosition.x,
+      y: placePosition.y,
       zIndex: maxZ + 1,
     })
     setLayerSelection([layer.id], layer.id)

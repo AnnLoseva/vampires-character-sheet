@@ -7,12 +7,25 @@ export function getSceneDisplayPosition(x: number, y: number) {
   return { x: x - SCENE_ORIGIN_X, y: y - SCENE_ORIGIN_Y }
 }
 
+export function centerLayerOnPoint(point: { x: number; y: number }, size: { width: number; height: number }) {
+  return {
+    x: Math.round(point.x - size.width / 2),
+    y: Math.round(point.y - size.height / 2),
+  }
+}
+
+/** Anchor point in stored scene coords; (0,0) display is the table center. */
 export function getDefaultLayerSpawnPoint(index = 0, base?: { x: number; y: number }) {
   const originX = base?.x ?? SCENE_ORIGIN_X
   const originY = base?.y ?? SCENE_ORIGIN_Y
+  if (index <= 0) return { x: originX, y: originY }
+
+  const slot = index % 6
+  const col = (slot % 3) - 1
+  const row = Math.floor(slot / 3)
   return {
-    x: originX + (index % 6) * 28,
-    y: originY + (index % 6) * 24,
+    x: originX + col * 32,
+    y: originY + row * 28,
   }
 }
 
