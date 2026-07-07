@@ -718,6 +718,7 @@ export default function VampireTable() {
     createTextMaterial,
     handleSceneMediaDrop,
     handleTableLayerPanelDrop,
+    pasteOnTable,
   } = useMediaUploadActions({
     room,
     t,
@@ -1637,6 +1638,7 @@ export default function VampireTable() {
     uploadFiles,
     addRemoteMediaUrls,
     getDroppedMediaUrls,
+    pasteOnTable,
   })
 
   const opposedResponsePool = getOpposedCharacterPool(opposedPoolContext, selectedActiveCharacter, opposedResponseSide)

@@ -180,6 +180,70 @@ export function getMediaUrlsFromText(value: string) {
     .filter((item): item is { url: string; layerType: 'image' | 'video' } => Boolean(item))
 }
 
+export type TablePastePayload =
+  | { kind: 'files'; files: File[] }
+  | { kind: 'media-urls'; items: Array<{ url: string; layerType: 'image' | 'video' }> }
+  | { kind: 'text'; text: string; title: string }
+
+export function isEditablePasteTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false
+  if (target.closest('[contenteditable=""], [contenteditable="true"], [contenteditable="plaintext-only"]')) return true
+  const tag = target.tagName
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return true
+  if (target.closest('.ProseMirror, .je-root, .tiptap, [role="textbox"]')) return true
+  return false
+}
+
+function collectClipboardFiles(clipboardData: DataTransfer) {
+  const files: File[] = []
+  const seen = new Set<string>()
+
+  const pushFile = (file: File | null) => {
+    if (!file) return
+    const key = `${file.name}:${file.size}:${file.lastModified}:${file.type}`
+    if (seen.has(key)) return
+    seen.add(key)
+    files.push(file)
+  }
+
+  Array.from(clipboardData.items || []).forEach(item => {
+    if (item.kind !== 'file') return
+    pushFile(item.getAsFile())
+  })
+  Array.from(clipboardData.files || []).forEach(file => pushFile(file))
+
+  return files
+}
+
+export function getTextNoteTitle(text: string, fallback = 'Текст') {
+  const firstLine = text.split(/\r?\n/).map(line => line.trim()).find(Boolean) || ''
+  if (!firstLine) return fallback
+  return firstLine.length > 48 ? `${firstLine.slice(0, 45)}…` : firstLine
+}
+
+export function parseClipboardForTablePaste(clipboardData: DataTransfer, textTitleFallback = 'Текст'): TablePastePayload | null {
+  const files = collectClipboardFiles(clipboardData)
+  if (files.length > 0) return { kind: 'files', files }
+
+  const mediaUrls = getDroppedMediaUrls(clipboardData)
+  if (mediaUrls.length > 0) return { kind: 'media-urls', items: mediaUrls }
+
+  const plain = clipboardData.getData('text/plain').trim()
+  if (!plain) return null
+
+  const urlOnlyItems = getMediaUrlsFromText(plain)
+  const plainTokens = plain.split(/\s+/).map(item => item.trim()).filter(Boolean)
+  if (urlOnlyItems.length > 0 && urlOnlyItems.length === plainTokens.length) {
+    return { kind: 'media-urls', items: urlOnlyItems }
+  }
+
+  return {
+    kind: 'text',
+    text: plain,
+    title: getTextNoteTitle(plain, textTitleFallback),
+  }
+}
+
 export function isReadableTextFile(file: File) {
   const name = file.name.toLowerCase()
   return file.type.startsWith('text/') || /\.(txt|md|markdown|rtf|html?|css|json|csv|xml|svg)$/i.test(name)

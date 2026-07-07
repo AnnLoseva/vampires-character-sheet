@@ -3,6 +3,7 @@ import type { ChatUser } from '@/modules/chat/types'
 import { uploadTableImageFile } from '../api/layer-api'
 import type { LayerPatch, MediaTab, RightRailTab, TableLayer } from '../types'
 import {
+  escapeHtml,
   getDroppedMediaUrls,
   getFileText,
   getImageNameFromUrl,
@@ -11,6 +12,7 @@ import {
   getTextLayerData,
   isReadableTextFile,
   isWordLikeFile,
+  parseClipboardForTablePaste,
   safeStorageName,
 } from '../utils/media-utils'
 
@@ -264,6 +266,38 @@ export function createMediaUploadActions(deps: MediaUploadActionsDeps) {
     if (mediaUrls.length > 0) await addRemoteMediaUrls(mediaUrls, undefined, false)
   }
 
+  const pasteOnTable = async (
+    clipboardData: DataTransfer,
+    point?: { x: number; y: number },
+  ) => {
+    const payload = parseClipboardForTablePaste(clipboardData, deps.t('Текст'))
+    if (!payload) return false
+
+    if (payload.kind === 'files') {
+      await uploadFiles(payload.files, true, { point, preserveFolders: false })
+      return true
+    }
+
+    if (payload.kind === 'media-urls') {
+      await addRemoteMediaUrls(payload.items, point, true)
+      return true
+    }
+
+    const lineCount = payload.text.split(/\r?\n/).length
+    const height = Math.min(640, Math.max(180, lineCount * 22 + 56))
+    await deps.addMediaLayer(
+      `<pre>${escapeHtml(payload.text)}</pre>`,
+      payload.title,
+      { width: 420, height },
+      'text',
+      0,
+      point,
+      true,
+    )
+    deps.setTableStatus('Сцена онлайн')
+    return true
+  }
+
   const handleTableLayerPanelDrop = async (event: React.DragEvent<HTMLElement>) => {
     event.preventDefault()
     event.stopPropagation()
@@ -286,5 +320,6 @@ export function createMediaUploadActions(deps: MediaUploadActionsDeps) {
     createTextMaterial,
     handleSceneMediaDrop,
     handleTableLayerPanelDrop,
+    pasteOnTable,
   }
 }

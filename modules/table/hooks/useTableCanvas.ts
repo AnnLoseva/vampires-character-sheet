@@ -10,6 +10,7 @@ import type {
   TouchGestureState,
 } from '../types'
 import { getDescendantIds } from '../utils/layer-utils'
+import { isEditablePasteTarget, parseClipboardForTablePaste } from '../utils/media-utils'
 
 export type UseTableCanvasOptions = {
   room: string
@@ -46,6 +47,7 @@ export type UseTableCanvasOptions = {
     onTable?: boolean,
   ) => Promise<boolean>
   getDroppedMediaUrls: (dataTransfer: DataTransfer) => Array<{ url: string; layerType: 'image' | 'video' }>
+  pasteOnTable: (clipboardData: DataTransfer, point?: { x: number; y: number }) => Promise<boolean>
 }
 
 export function useTableCanvas(options: UseTableCanvasOptions) {
@@ -69,6 +71,30 @@ export function useTableCanvas(options: UseTableCanvasOptions) {
 
   useEffect(() => () => {
     if (dragAnimationFrameRef.current !== null) cancelAnimationFrame(dragAnimationFrameRef.current)
+  }, [])
+
+  useEffect(() => {
+    const handlePaste = (event: ClipboardEvent) => {
+      if (!event.clipboardData || isEditablePasteTarget(event.target)) return
+      if (!parseClipboardForTablePaste(event.clipboardData)) return
+
+      event.preventDefault()
+
+      const opts = optionsRef.current
+      const rect = opts.sceneRef.current?.getBoundingClientRect()
+      const zoom = zoomRef.current
+      const point = rect
+        ? {
+          x: (rect.width / 2 - opts.panRef.current.x) / zoom,
+          y: (rect.height / 2 - opts.panRef.current.y) / zoom,
+        }
+        : undefined
+
+      void opts.pasteOnTable(event.clipboardData, point)
+    }
+
+    window.addEventListener('paste', handlePaste)
+    return () => window.removeEventListener('paste', handlePaste)
   }, [])
 
   const previewLayerOpacity = (id: string, opacity: number) => {
