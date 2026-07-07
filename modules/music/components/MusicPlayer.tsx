@@ -6,8 +6,9 @@ import { useLang } from '@/lib/i18n/LanguageProvider'
 import { LocalAudioAdapter } from '../adapters/localAudioAdapter'
 import { YouTubeAdapter } from '../adapters/youtubeAdapter'
 import { GLOBAL_MUSIC_ENGINE_ID } from '../hooks/useMusic'
+import { useRoomMusicState } from '../hooks/useRoomMusicState'
 import { MusicSyncEngine } from '../MusicSyncEngine'
-import type { MusicChannel, MusicChannelRef, MusicDropTarget, MusicLibraryItem, MusicLibraryRow, MusicProvider, MusicState, MusicSyncAdapter, MusicTreeNode } from '../types'
+import type { MusicChannelRef, MusicDropTarget, MusicLibraryItem, MusicProvider, MusicState, MusicSyncAdapter, MusicTreeNode } from '../types'
 import {
   buildMusicTree,
   broadcastMusicChannel,
@@ -15,12 +16,8 @@ import {
   getMusicProvider,
   getStoragePathFromPublicUrl,
   isMissingColumnError,
-  isMissingRelationError,
-  mapMusicLibraryRow,
-  mapMusicRow,
   parseYouTubeUrl,
   safeStorageName,
-  TABLE_MUSIC,
   TABLE_MUSIC_BUCKET,
   TABLE_MUSIC_LIBRARY,
   upsertMusicLibraryItem,
@@ -34,7 +31,6 @@ const MUSIC_PLAYER_COMMAND_EVENT = 'vtm-player-command'
 const MUSIC_VOLUME_STORAGE_KEY = 'vtm-youtube-volume'
 const VOICE_DUCK_EVENT = 'vtm-voice-duck'
 const VOICE_DUCK_GAIN = 0.38
-let supportsExtendedMusicLoad = true
 let supportsMusicLibraryAutoplay = true
 
 type MusicPlayerCommand = {
@@ -70,7 +66,7 @@ const emptyMusicState = (room: string): MusicState => ({
 export default function MusicPlayer({ room, tableRole, channelRef, hidden = false, playbackEnabled = true }: MusicPlayerProps) {
   const { t, tf } = useLang()
   const isMaster = tableRole === 'master'
-  const [musicLibrary, setMusicLibrary] = useState<MusicLibraryItem[]>([])
+  const { musicState: roomMusicState, musicLoaded, library: musicLibrary, setLibrary, libraryRef: musicLibraryRef, musicChannelRef } = useRoomMusicState()
   const [selectedMusicFolderId, setSelectedMusicFolderId] = useState<string | null>(null)
   const [isMusicUploading, setIsMusicUploading] = useState(false)
   const [expandedMusicFolders, setExpandedMusicFolders] = useState<Set<string>>(new Set())
@@ -86,12 +82,10 @@ export default function MusicPlayer({ room, tableRole, channelRef, hidden = fals
   const playerMountRef = useRef<HTMLDivElement>(null)
   const youtubeShellRef = useRef<HTMLDivElement>(null)
   const engineRef = useRef<MusicSyncEngine | null>(null)
-  const musicChannelRef = useRef<MusicChannel | null>(null)
   const adapterRef = useRef<MusicSyncAdapter | null>(null)
   const adapterProviderRef = useRef<MusicProvider>('none')
   const adapterMasterRef = useRef(isMaster)
   const musicStateRef = useRef<MusicState>(emptyMusicState(room))
-  const musicLibraryRef = useRef<MusicLibraryItem[]>([])
   const musicDraftEditingRef = useRef(false)
   const musicDraftDirtyRef = useRef(false)
 
@@ -195,10 +189,6 @@ export default function MusicPlayer({ room, tableRole, channelRef, hidden = fals
   }, [])
 
   useEffect(() => {
-    musicLibraryRef.current = musicLibrary
-  }, [musicLibrary])
-
-  useEffect(() => {
     if (!isMaster || !playbackEnabled) return
     const currentUrl = musicStateRef.current.url
     if (currentUrl) return
@@ -253,153 +243,10 @@ export default function MusicPlayer({ room, tableRole, channelRef, hidden = fals
   }, [room])
 
   useEffect(() => {
-    const supabase = createClient()
-    let cancelled = false
-
-    const loadMusic = async () => {
-      try {
-        if (supportsExtendedMusicLoad) {
-          const extended = await supabase
-            .from(TABLE_MUSIC)
-            .select('room, url, active_uri, is_playing, position_seconds, updated_at, provider, playlist_id, playlist_index, track_id, source_type')
-            .eq('room', room)
-            .maybeSingle()
-
-          if (cancelled) return
-
-          if (!extended.error) {
-            if (extended.data) {
-              engineRef.current?.applyIncoming(mapMusicRow(extended.data))
-            } else setMusicStatus('Музыка не выбрана')
-            return
-          }
-
-          if (isMissingColumnError(extended.error)) {
-            supportsExtendedMusicLoad = false
-          } else {
-            console.warn('Extended music load failed, attempting fallback:', extended.error)
-          }
-        }
-
-        const fallback = await supabase.from(TABLE_MUSIC).select('*').eq('room', room).maybeSingle()
-        if (cancelled) return
-        if (fallback.error) {
-          console.error('Не удалось загрузить музыку комнаты (fallback):', fallback.error)
-          setMusicStatus('Нет общей музыки')
-          return
-        }
-        if (fallback.data) engineRef.current?.applyIncoming(mapMusicRow(fallback.data))
-        else setMusicStatus('Музыка не выбрана')
-      } catch (err) {
-        console.error('Unexpected error loading music:', err)
-        setMusicStatus('Ошибка при загрузке музыки')
-      }
-    }
-
-    void loadMusic()
-
-    const loadMusicLibrary = async () => {
-      const includeAutoplay = supportsMusicLibraryAutoplay
-      const selectColumns = includeAutoplay
-        ? 'id, room, item_type, parent_id, name, url, autoplay, created_at'
-        : 'id, room, item_type, parent_id, name, url, created_at'
-
-      const { data, error } = await supabase
-        .from(TABLE_MUSIC_LIBRARY)
-        .select(selectColumns)
-        .eq('room', room)
-        .order('created_at', { ascending: true })
-        .limit(160)
-
-      if (error && includeAutoplay && isMissingColumnError(error)) {
-        supportsMusicLibraryAutoplay = false
-        await loadMusicLibrary()
-        return
-      }
-
-      if (cancelled) return
-      if (error) {
-        if (isMissingRelationError(error)) {
-          setMusicLibrary([])
-          musicLibraryRef.current = []
-          return
-        }
-        console.error('Не удалось загрузить музыкальную библиотеку:', error)
-        return
-      }
-      const next = (data || []).map(row => mapMusicLibraryRow(row as unknown as MusicLibraryRow))
-      musicLibraryRef.current = next
-      setMusicLibrary(next)
-    }
-
-    void loadMusicLibrary()
-
-    const channelName = `table-music:${room}:${Math.random().toString(36).slice(2)}`
-    const channel = supabase
-      .channel(channelName)
-      .on('broadcast', { event: 'music' }, payload => {
-        const music = payload.payload as MusicState
-        if (!music || music.room !== room) return
-        engineRef.current?.applyIncoming(music)
-      })
-      .on('broadcast', { event: 'music-library' }, payload => {
-        const item = payload.payload as MusicLibraryItem
-        if (!item || item.room !== room) return
-        setMusicLibrary(prev => {
-          const next = upsertMusicLibraryItem(prev, item)
-          musicLibraryRef.current = next
-          return next
-        })
-      })
-      .on('broadcast', { event: 'music-library-delete' }, payload => {
-        const deleted = payload.payload as { room?: string; ids?: string[] }
-        if (deleted.room !== room || !deleted.ids) return
-        setMusicLibrary(prev => {
-          const idSet = new Set(deleted.ids)
-          const next = prev.filter(item => !idSet.has(item.id))
-          musicLibraryRef.current = next
-          return next
-        })
-      })
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: TABLE_MUSIC, filter: `room=eq.${room}` },
-        payload => {
-          const next = (payload.new || payload.old) as Parameters<typeof mapMusicRow>[0]
-          engineRef.current?.applyIncoming(mapMusicRow(next))
-        }
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: TABLE_MUSIC_LIBRARY, filter: `room=eq.${room}` },
-        payload => {
-          if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as { id?: string }
-            if (!deleted.id) return
-            setMusicLibrary(prev => {
-              const next = prev.filter(item => item.id !== deleted.id)
-              musicLibraryRef.current = next
-              return next
-            })
-            return
-          }
-          const row = payload.new as MusicLibraryRow
-          setMusicLibrary(prev => {
-            const next = upsertMusicLibraryItem(prev, mapMusicLibraryRow(row))
-            musicLibraryRef.current = next
-            return next
-          })
-        }
-      )
-      .subscribe()
-
-    musicChannelRef.current = channel
-    return () => {
-      cancelled = true
-      musicChannelRef.current = null
-      supabase.removeChannel(channel)
-    }
-  }, [room])
+    if (!musicLoaded || !roomMusicState || roomMusicState.room !== room) return
+    engineRef.current?.applyIncoming(roomMusicState)
+    if (!roomMusicState.url) setMusicStatus('Музыка не выбрана')
+  }, [musicLoaded, room, roomMusicState])
 
   useEffect(() => {
     if (!playbackEnabled) {
@@ -763,7 +610,7 @@ export default function MusicPlayer({ room, tableRole, channelRef, hidden = fals
 
     const next = upsertMusicLibraryItem(musicLibraryRef.current, folder)
     musicLibraryRef.current = next
-    setMusicLibrary(next)
+    setLibrary(next)
     setSelectedMusicFolderId(folder.id)
     if (folder.parentId) setExpandedMusicFolders(prev => new Set(prev).add(folder.parentId as string))
     broadcast('music-library', folder)
@@ -842,7 +689,7 @@ export default function MusicPlayer({ room, tableRole, channelRef, hidden = fals
 
         const next = upsertMusicLibraryItem(musicLibraryRef.current, item)
         musicLibraryRef.current = next
-        setMusicLibrary(next)
+        setLibrary(next)
         broadcast('music-library', item)
 
         if (error) {
@@ -884,7 +731,7 @@ export default function MusicPlayer({ room, tableRole, channelRef, hidden = fals
     const nextItem = { ...item, parentId }
     const nextLibrary = musicLibraryRef.current.map(entry => (entry.id === itemId ? nextItem : entry))
     musicLibraryRef.current = nextLibrary
-    setMusicLibrary(nextLibrary)
+    setLibrary(nextLibrary)
     if (parentId) setExpandedMusicFolders(prev => new Set(prev).add(parentId))
     broadcast('music-library', nextItem)
 
@@ -903,7 +750,7 @@ export default function MusicPlayer({ room, tableRole, channelRef, hidden = fals
 
     const nextLibrary = musicLibraryRef.current.filter(item => !deleteIds.has(item.id))
     musicLibraryRef.current = nextLibrary
-    setMusicLibrary(nextLibrary)
+    setLibrary(nextLibrary)
     setSelectedMusicFolderId(prev => (prev && deleteIds.has(prev) ? null : prev))
     broadcast('music-library-delete', { room, ids: [...deleteIds] })
 

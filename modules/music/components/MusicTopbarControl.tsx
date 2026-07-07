@@ -1,10 +1,9 @@
 'use client'
 
 import { ChangeEvent, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
-import { createClient } from '@/lib/supabase'
 import { useLang } from '@/lib/i18n/LanguageProvider'
-import type { MusicLibraryItem, MusicLibraryRow, MusicState } from '../types'
-import { mapMusicLibraryRow, mapMusicRow, TABLE_MUSIC, TABLE_MUSIC_LIBRARY, upsertMusicLibraryItem } from '../utils'
+import { useRoomMusicState } from '../hooks/useRoomMusicState'
+import type { MusicLibraryItem, MusicState } from '../types'
 
 const MUSIC_VOLUME_STORAGE_KEY = 'vtm-youtube-volume'
 const MUSIC_PLAYER_COMMAND_EVENT = 'vtm-player-command'
@@ -29,14 +28,9 @@ function getTrackLabel(state: MusicState, library: MusicLibraryItem[]) {
   }
 }
 
-export type MusicTopbarControlProps = {
-  room: string
-}
-
-export default function MusicTopbarControl({ room }: MusicTopbarControlProps) {
+export default function MusicTopbarControl() {
   const { t } = useLang()
-  const [musicState, setMusicState] = useState<MusicState | null>(null)
-  const [library, setLibrary] = useState<MusicLibraryItem[]>([])
+  const { room, musicState, library } = useRoomMusicState()
   const [volume, setVolume] = useState(70)
   const [muted, setMuted] = useState(false)
   const volumeBeforeMuteRef = useRef(70)
@@ -58,74 +52,6 @@ export default function MusicTopbarControl({ room }: MusicTopbarControlProps) {
     volumeBeforeMuteRef.current = clamped
     setMuted(clamped === 0)
   }, [])
-
-  useEffect(() => {
-    const onState = (event: Event) => {
-      const detail = (event as CustomEvent<MusicState>).detail
-      if (!detail || detail.room !== room) return
-      setMusicState(detail)
-    }
-
-    window.addEventListener('vtm-music-state', onState)
-    return () => window.removeEventListener('vtm-music-state', onState)
-  }, [room])
-
-  useEffect(() => {
-    const supabase = createClient()
-    let cancelled = false
-
-    const loadMusicState = async () => {
-      const { data } = await supabase.from(TABLE_MUSIC).select('*').eq('room', room).maybeSingle()
-      if (cancelled || !data) return
-      setMusicState(mapMusicRow(data))
-    }
-
-    const loadLibrary = async () => {
-      const { data } = await supabase
-        .from(TABLE_MUSIC_LIBRARY)
-        .select('id, room, item_type, parent_id, name, url, created_at')
-        .eq('room', room)
-        .order('created_at', { ascending: true })
-        .limit(160)
-
-      if (cancelled || !data) return
-      setLibrary(data.map(row => mapMusicLibraryRow(row as MusicLibraryRow)))
-    }
-
-    void loadMusicState()
-    void loadLibrary()
-
-    const channel = supabase
-      .channel(`music-topbar:${room}:${Math.random().toString(36).slice(2)}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: TABLE_MUSIC, filter: `room=eq.${room}` },
-        payload => {
-          const next = (payload.new || payload.old) as Parameters<typeof mapMusicRow>[0]
-          if (next?.room) setMusicState(mapMusicRow(next))
-        },
-      )
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: TABLE_MUSIC_LIBRARY, filter: `room=eq.${room}` },
-        payload => {
-          if (payload.eventType === 'DELETE') {
-            const deleted = payload.old as { id?: string }
-            if (!deleted.id) return
-            setLibrary(prev => prev.filter(item => item.id !== deleted.id))
-            return
-          }
-          const row = payload.new as MusicLibraryRow
-          setLibrary(prev => upsertMusicLibraryItem(prev, mapMusicLibraryRow(row)))
-        },
-      )
-      .subscribe()
-
-    return () => {
-      cancelled = true
-      supabase.removeChannel(channel)
-    }
-  }, [room])
 
   const trackLabel = useMemo(() => {
     if (!musicState?.url) return t('Музыка не выбрана')

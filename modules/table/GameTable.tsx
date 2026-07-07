@@ -11,6 +11,7 @@ import { ATTRIBUTE_NAME_EN, findCrossLanguageName, getAttributeDots, resolveSkil
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import MusicPlayer from '@/modules/music/components/MusicPlayer'
 import MusicTopbarControl from '@/modules/music/components/MusicTopbarControl'
+import { RoomMusicStateProvider } from '@/modules/music/hooks/useRoomMusicState'
 import PlayerTopbarCharacter from '@/modules/table/components/topbar/PlayerTopbarCharacter'
 import type { DiceOverlayRoll } from '@/modules/rolls/components/DiceRollOverlay'
 import GameTableStyles from './components/GameTableStyles'
@@ -1642,6 +1643,7 @@ export default function VampireTable() {
   const canAnswerOpposedProposal = Boolean(incomingOpposedProposal && selectedActiveCharacter && opposedResponsePool.diceCount > 0)
 
   return (
+    <RoomMusicStateProvider room={room}>
     <main className="table-page-shell">
       <section className="table-topbar">
         <div className="table-brand">
@@ -1649,7 +1651,7 @@ export default function VampireTable() {
           <h1>{activeScene?.name || room}</h1>
         </div>
         <div className="table-topbar-right">
-          <MusicTopbarControl room={room} />
+          <MusicTopbarControl />
           {!isMaster ? (
             <button
               type="button"
@@ -2545,5 +2547,6 @@ export default function VampireTable() {
 
       <GameTableStyles />
     </main>
+    </RoomMusicStateProvider>
   )
 }
