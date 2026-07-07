@@ -479,9 +479,10 @@ async function fetchMyCharacters({ force = false } = {}) {
     if (!client || !currentUser) return [];
     if (!force && charactersListCache) return charactersListCache;
 
+    // Лёгкий select: для списка нужен только URL портрета, не весь data
     const { data, error } = await client
         .from('characters')
-        .select('id, name, clan, created_at, data')
+        .select('id, name, clan, created_at, characterImage:data->>characterImage')
         .eq('user_id', currentUser.id)
         .order('created_at', { ascending: false });
     if (error) {
@@ -526,7 +527,7 @@ async function showMyCharacters() {
 
     data.forEach(char => {
         const date = new Date(char.created_at).toLocaleString('ru-RU');
-        const image = char.data?.characterImage || '';
+        const image = char.characterImage || char.data?.characterImage || '';
         html += `
             <tr style="border-bottom:1px solid #333;">
                 <td style="padding:12px;">

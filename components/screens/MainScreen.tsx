@@ -140,7 +140,8 @@ export default function MainScreen() {
     let cancelled = false
     createClient()
       .from('characters')
-      .select('id, name, clan, data')
+      // лёгкий select: тянем только URL портрета, а не весь data (в ~90 раз меньше)
+      .select('id, name, clan, image:data->>characterImage')
       .eq('user_id', chatUser.id)
       .order('created_at', { ascending: false })
       .then(({ data, error }) => {
@@ -152,12 +153,12 @@ export default function MainScreen() {
         }
 
         const nextCharacters = (data || []).map(row => {
-          const character = row as CharacterRow
+          const character = row as { id: string; name: string; clan: string | null; image: string | null }
           return {
             id: character.id,
             name: character.name,
             clan: character.clan,
-            image: character.data?.characterImage || character.data?.image || character.data?.portrait || '',
+            image: character.image || '',
           }
         })
         setCharacters(nextCharacters)

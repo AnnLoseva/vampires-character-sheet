@@ -6,6 +6,28 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-07 — Performance pass: light list selects + static caching
+
+**Area:** Supabase persistence / static assets
+**Decision:** (1) Character *lists* select only `id, name, clan,
+image:data->>characterImage` (PostgREST JSON-field select) — full `data` is
+fetched only when a sheet is actually opened. Applied in `MainScreen.tsx` and
+legacy `fetchMyCharacters` (`public/supabase.js`). (2) Heavy legacy statics
+(`rules*.json`, `main.js`, etc.) get `Cache-Control: max-age=300,
+stale-while-revalidate=604800` via `vercel.json` headers. (3) Storage portraits
+are uploaded/served with `max-age=31536000` (migrated objects' metadata updated
+in-place). (4) `preconnect` to Supabase in `app/layout.tsx` + `old-sheet.html`.
+**Reason:** List queries pulled ~273 KB where 3 KB suffices; rules.json (1.8 MB)
+and portraits re-validated/re-downloaded on every visit.
+**Consequences:** New list-consuming code must not expect full `data` from list
+queries. Legacy statics may be up to 5 min stale after a deploy (SWR refreshes in
+background).
+**Affected files:** `components/screens/MainScreen.tsx`, `public/supabase.js`,
+`vercel.json`, `app/layout.tsx`, `public/old-sheet.html`
+**Status:** active
+
+---
+
 ## 2026-07-07 — Voice chat uses Cloudflare TURN (server-issued credentials)
 
 **Area:** Game table / voice (WebRTC)

@@ -18,6 +18,11 @@ export default function RootLayout({
 }) {
   return (
     <html lang="ru" className="dark">
+      <head>
+        {/* ранний preconnect: все данные и портреты идут с Supabase */}
+        <link rel="preconnect" href="https://klhxbaagarqxaqnrvurr.supabase.co" crossOrigin="anonymous" />
+        <link rel="dns-prefetch" href="https://klhxbaagarqxaqnrvurr.supabase.co" />
+      </head>
       <body>
         <LanguageProvider>{children}</LanguageProvider>
         <GlobalMusicEngineMount />
