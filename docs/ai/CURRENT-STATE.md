@@ -53,7 +53,9 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-07 — Character/touchstone images moved to Storage bucket `character-portraits`
-  (URLs in JSON instead of base64); existing rows + chat history migrated, payloads
-  dropped ~20×. See DECISIONS 2026-07-07. Backup tables `*_backup_20260707` can be
-  dropped after verification.
+2026-07-07 — (1) Character/touchstone images moved to Storage bucket
+  `character-portraits` (URLs instead of base64); rows + chat migrated, payloads
+  dropped ~20×. (2) Voice: Cloudflare TURN via `/api/turn-credentials` (needs
+  `CLOUDFLARE_TURN_KEY_*` env on Vercel) + ICE candidate queueing fix.
+  (3) Cloudflare zone: ECH disabled — RF users couldn't open the site.
+  See DECISIONS 2026-07-07. Backup tables `*_backup_20260707` droppable after check.

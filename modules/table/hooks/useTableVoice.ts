@@ -79,6 +79,10 @@ export function useTableVoice({
   const voiceAudioRefs = useRef<Map<string, HTMLAudioElement>>(new Map())
   const reconnectAttemptsRef = useRef<Map<string, number>>(new Map())
   const reconnectTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map())
+  // ICE-кандидаты, пришедшие до setRemoteDescription, копим и применяем позже
+  const pendingIceCandidatesRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map())
+  // TURN-креды с сервера (/api/turn-credentials); null — ещё не запрашивали
+  const voiceIceServersRef = useRef<{ servers: RTCIceServer[]; fetchedAt: number } | null>(null)
 
   const persistVoiceSettings = useCallback(() => {
     saveVoiceSettings({
@@ -198,9 +202,47 @@ export function useTableVoice({
     }
   }
 
+  const flushPendingIceCandidates = async (participantId: string, connection: RTCPeerConnection) => {
+    const queue = pendingIceCandidatesRef.current.get(participantId)
+    if (!queue?.length) return
+    pendingIceCandidatesRef.current.delete(participantId)
+    for (const candidate of queue) {
+      try {
+        await connection.addIceCandidate(candidate)
+      } catch (error) {
+        console.warn('Не удалось применить отложенный ICE-кандидат:', error)
+      }
+    }
+  }
+
+  // TURN-креды краткоживущие: обновляем не реже раза в 12 часов
+  const TURN_REFRESH_MS = 12 * 60 * 60 * 1000
+
+  const ensureVoiceIceServers = async () => {
+    const cached = voiceIceServersRef.current
+    if (cached && Date.now() - cached.fetchedAt < TURN_REFRESH_MS) return
+    try {
+      const res = await fetch('/api/turn-credentials', { method: 'POST' })
+      if (!res.ok) return
+      const data = await res.json() as { iceServers?: RTCIceServer | RTCIceServer[] | null }
+      const extra = Array.isArray(data?.iceServers)
+        ? data.iceServers
+        : data?.iceServers?.urls ? [data.iceServers] : []
+      if (extra.length) {
+        voiceIceServersRef.current = {
+          servers: [...getVoiceIceServers(), ...extra],
+          fetchedAt: Date.now(),
+        }
+      }
+    } catch (error) {
+      console.warn('TURN-креды недоступны, используем только STUN:', error)
+    }
+  }
+
   const removeVoiceParticipant = (participantId: string) => {
     clearReconnectTimer(participantId)
     reconnectAttemptsRef.current.delete(participantId)
+    pendingIceCandidatesRef.current.delete(participantId)
     voiceDuckingRef.current?.detachRemoteStream(participantId)
 
     const connection = peerConnectionsRef.current.get(participantId)
@@ -295,8 +337,9 @@ export function useTableVoice({
       peerConnectionsRef.current.delete(participantId)
     }
 
+    await ensureVoiceIceServers()
     const connection = new RTCPeerConnection({
-      iceServers: getVoiceIceServers(),
+      iceServers: voiceIceServersRef.current?.servers ?? getVoiceIceServers(),
       iceTransportPolicy: 'all',
     })
 
@@ -394,6 +437,7 @@ export function useTableVoice({
       if (signal.type === 'offer' && signal.description) {
         const connection = await createVoicePeer(signal.from, false)
         await connection.setRemoteDescription(signal.description)
+        await flushPendingIceCandidates(signal.from, connection)
         const answer = await connection.createAnswer()
         await connection.setLocalDescription(enhanceVoiceDescription(answer, voiceQualityRef.current))
         broadcastVoiceSignal({
@@ -408,13 +452,21 @@ export function useTableVoice({
         const connection = peerConnectionsRef.current.get(signal.from)
         if (connection && connection.signalingState !== 'stable') {
           await connection.setRemoteDescription(signal.description)
+          await flushPendingIceCandidates(signal.from, connection)
         }
         return
       }
 
       if (signal.type === 'ice' && signal.candidate) {
         const connection = peerConnectionsRef.current.get(signal.from)
-        if (connection?.remoteDescription) await connection.addIceCandidate(signal.candidate)
+        if (connection?.remoteDescription) {
+          await connection.addIceCandidate(signal.candidate)
+        } else {
+          // remote description ещё не установлена — откладываем кандидата
+          const queue = pendingIceCandidatesRef.current.get(signal.from) ?? []
+          queue.push(signal.candidate)
+          pendingIceCandidatesRef.current.set(signal.from, queue)
+        }
       }
     } catch (error) {
       console.error('Не удалось обработать голосовой сигнал:', error)
@@ -493,6 +545,7 @@ export function useTableVoice({
     voiceEnabledRef.current = false
     peerConnectionsRef.current.forEach(connection => connection.close())
     peerConnectionsRef.current.clear()
+    pendingIceCandidatesRef.current.clear()
     remoteStreamsRef.current.clear()
     voiceAudioRefs.current.clear()
     destroyVoicePipeline()
@@ -515,6 +568,7 @@ export function useTableVoice({
     try {
       await refreshVoiceDevices()
       await setupLocalVoiceCapture()
+      await ensureVoiceIceServers()
       voiceEnabledRef.current = true
       setVoiceEnabled(true)
       setVoiceStatus('Голос онлайн')

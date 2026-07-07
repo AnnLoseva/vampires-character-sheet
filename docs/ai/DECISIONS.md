@@ -6,6 +6,28 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-07 — Voice chat uses Cloudflare TURN (server-issued credentials)
+
+**Area:** Game table / voice (WebRTC)
+**Decision:** `app/api/turn-credentials/route.ts` issues short-lived Cloudflare TURN
+credentials (key `vtm-voice-turn`, env `CLOUDFLARE_TURN_KEY_ID` +
+`CLOUDFLARE_TURN_KEY_API_TOKEN` on Vercel, server-side only). `useTableVoice`
+fetches them on voice start (`ensureVoiceIceServers`, 12h cache) and merges with
+the default STUN list; without env vars it degrades to STUN-only as before.
+Also fixed: ICE candidates arriving before `setRemoteDescription` are now queued
+(`pendingIceCandidatesRef`) and flushed, instead of being silently dropped.
+**Reason:** P2P voice failed between real players (VPN, RF CGNAT) while
+self-testing worked; STUN alone cannot traverse symmetric NAT. Cloudflare TURN
+includes `turns:...:443?transport=tcp`, which passes almost any network.
+**Consequences:** The TURN secret must never reach the client (no `NEXT_PUBLIC_`).
+Rotating the key = create new TURN key in Cloudflare (Realtime → TURN) + update
+both Vercel env vars.
+**Affected files:** `app/api/turn-credentials/route.ts`,
+`modules/table/hooks/useTableVoice.ts`
+**Status:** active
+
+---
+
 ## 2026-07-07 — Character images live in Storage, not in JSON
 
 **Area:** Supabase persistence / legacy character sheet / chat
