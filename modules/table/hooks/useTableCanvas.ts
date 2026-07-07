@@ -242,10 +242,9 @@ export function useTableCanvas(options: UseTableCanvasOptions) {
     if (event.button !== 2 && event.button !== 0) return
     const target = event.target as HTMLElement
     const emptySceneTarget = target.classList.contains('scene') || target.classList.contains('scene-world')
-    const onSceneLayer = Boolean(target.closest('.scene-layer'))
     if (event.button === 0 && !emptySceneTarget) return
-    // Right-click on a layer is reserved for the layer context menu — don't pan or preventDefault.
-    if (event.button === 2 && onSceneLayer) return
+    // Right-click drag pans the table; context menu opens only on click without movement
+    // (see suppressNextContextMenuRef in updateLayerDrag + openLayerContextMenu).
     event.preventDefault()
     event.currentTarget.setPointerCapture(event.pointerId)
     opts.suppressNextContextMenuRef.current = false
