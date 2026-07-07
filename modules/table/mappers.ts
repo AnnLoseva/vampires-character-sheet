@@ -475,6 +475,7 @@ export function mapCharacterRowToOption(
     name: row.name,
     clan: row.clan,
     image: data.characterImage || data.image || data.portrait || '',
+    hydrated: true,
     concept: data.concept || '',
     predator: data.predator || '',
     generation: data.generation || '',

@@ -1,8 +1,15 @@
 import { createClient } from '@/lib/supabase'
-import { TABLE_CHAT_MESSAGES } from '@/modules/table/constants'
+import { CHARACTERS, TABLE_CHAT_MESSAGES } from '@/modules/table/constants'
 import { mapCharacterRow } from '@/modules/table/mappers'
-import type { CharacterOption, CharacterRow } from '@/modules/table/types'
+import type { CharacterOption } from '@/modules/table/types'
 import type { ChatMessage, ChatMessageRow, ChatUser } from '../types'
+
+type ChatCharacterLightRow = {
+  id: string
+  name: string
+  clan: string | null
+  image: string | null
+}
 
 export function hashChatPassword(password: string) {
   try {
@@ -65,14 +72,30 @@ export async function saveChatMessage(message: ChatMessage) {
 }
 
 export async function loadChatCharacters(userId: string): Promise<CharacterOption[]> {
+  return loadChatCharactersLight(userId)
+}
+
+export async function loadChatCharactersLight(userId: string): Promise<CharacterOption[]> {
   const { data, error } = await createClient()
-    .from('characters')
-    .select('id, name, clan, data')
+    .from(CHARACTERS)
+    .select('id, name, clan, image:data->>characterImage')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 
   if (error) throw error
-  return (data || []).map(row => mapCharacterRow(row as CharacterRow))
+  return (data || []).map(row => {
+    const character = row as ChatCharacterLightRow
+    return {
+      ...mapCharacterRow({
+        id: character.id,
+        name: character.name,
+        clan: character.clan,
+        data: { characterImage: character.image || '' },
+      }),
+      image: character.image || '',
+      hydrated: false,
+    }
+  })
 }
 
 export async function registerChatUser(username: string, password: string): Promise<ChatUser> {

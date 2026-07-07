@@ -165,7 +165,7 @@ export function useTableVoice({
   const getVoiceIdentity = () => {
     const user = chatUserRef.current
     const character = chatCharactersRef.current.find(item => item.id === selectedChatCharacterIdRef.current)
-    if (!user || !character) return null
+    if (!user || !character || character.hydrated === false) return null
     return {
       id: user.id,
       username: user.username,

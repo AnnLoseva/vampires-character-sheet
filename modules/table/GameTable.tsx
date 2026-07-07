@@ -198,6 +198,10 @@ const DiceRollOverlay = dynamic(() => import('@/modules/rolls/components/DiceRol
 
 const defaultDisciplineRules = getDefaultDisciplineRules(defaultRules)
 
+function isHydratedCharacter(character?: CharacterOption | null) {
+  return Boolean(character && character.hydrated !== false)
+}
+
 export default function VampireTable() {
   const { t, tf, lang } = useLang()
   const d10 = (n: number) => lang === 'en' ? `${n}d10` : `${n}к10`
@@ -464,7 +468,13 @@ export default function VampireTable() {
     chatDraft,
     setChatDraft,
     sendChatMessage,
+    hydrateChatCharacter,
   } = useChat({ chronicleId: room })
+  const hydratedChatCharacters = useMemo(
+    () => chatCharacters.filter(isHydratedCharacter),
+    [chatCharacters],
+  )
+  const selectedActiveCharacter = hydratedChatCharacters.find(item => item.id === selectedChatCharacterId) || null
 
   useEffect(() => {
     imageEditorRef.current = imageEditor
@@ -533,20 +543,20 @@ export default function VampireTable() {
       setSelectedMasterRollCharacterId('')
       return
     }
-    if (!chatCharacters.length) {
+    if (!hydratedChatCharacters.length) {
       setSelectedMasterRollCharacterId('')
       return
     }
 
     const savedMasterRollId = window.localStorage.getItem(`vtm-master-roll-character:${chatUser.id}:${room}`)
       || window.localStorage.getItem(`vtm-master-roll-character:${chatUser.id}`)
-    const savedIsValid = Boolean(savedMasterRollId && chatCharacters.some(character => character.id === savedMasterRollId))
-    const fallbackId = selectedChatCharacterId && chatCharacters.some(character => character.id === selectedChatCharacterId)
+    const savedIsValid = Boolean(savedMasterRollId && hydratedChatCharacters.some(character => character.id === savedMasterRollId))
+    const fallbackId = selectedChatCharacterId && hydratedChatCharacters.some(character => character.id === selectedChatCharacterId)
       ? selectedChatCharacterId
-      : chatCharacters[0]?.id || ''
+      : hydratedChatCharacters[0]?.id || ''
 
     setSelectedMasterRollCharacterId(current => {
-      const currentIsValid = Boolean(current && chatCharacters.some(character => character.id === current))
+      const currentIsValid = Boolean(current && hydratedChatCharacters.some(character => character.id === current))
       const nextId = currentIsValid ? current : savedIsValid ? savedMasterRollId || '' : fallbackId
       if (nextId) {
         window.localStorage.setItem(`vtm-master-roll-character:${chatUser.id}:${room}`, nextId)
@@ -554,7 +564,7 @@ export default function VampireTable() {
       }
       return nextId
     })
-  }, [chatCharacters, chatUser, room, selectedChatCharacterId])
+  }, [hydratedChatCharacters, chatUser, room, selectedChatCharacterId])
 
   useEffect(() => {
     if (!layerContextMenu) return
@@ -819,7 +829,7 @@ export default function VampireTable() {
     setPreviewCharacter,
     setConnectionText,
     broadcast,
-    getChatCharacters: () => chatCharactersRef.current,
+    getChatCharacters: () => hydratedChatCharacters,
     publishRollRef,
     rollQuickDiceRef,
   })
@@ -892,7 +902,7 @@ export default function VampireTable() {
     d10,
     chatUser,
     disciplineRules,
-    selectedActiveCharacter: chatCharacters.find(item => item.id === selectedChatCharacterId) || null,
+    selectedActiveCharacter,
     opposedResponseSide,
     incomingOpposedProposal,
     setRolls,
@@ -909,7 +919,7 @@ export default function VampireTable() {
     t,
     isMaster,
     disciplineRules,
-    selectedActiveCharacter: chatCharacters.find(item => item.id === selectedChatCharacterId) || null,
+    selectedActiveCharacter,
     createQuickRollRef,
     rollQuickDiceRef,
     performRouseCheck,
@@ -922,7 +932,7 @@ export default function VampireTable() {
   } = useRollDamageActions({
     t,
     tf,
-    chatCharacters,
+    chatCharacters: hydratedChatCharacters,
     getRollCharacter,
     applyCharacterHealthDamage,
   })
@@ -1040,8 +1050,6 @@ export default function VampireTable() {
 
   const characterSheetHref = (characterId?: string | null) => getCharacterSheetHref(room, tableRole, characterId)
 
-  const selectedActiveCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId) || null
-
   const {
     chooseMasterRollCharacter,
     openCharacterPreview,
@@ -1057,19 +1065,20 @@ export default function VampireTable() {
     setPreviewCharacter,
     setSelectedMasterRollCharacterId,
     setChatCharacters,
+    hydrateChatCharacter,
   })
 
   const contestedOpponentContext = {
     isMaster,
     chatUserId: chatUser?.id,
     roomParticipants,
-    chatCharacters,
+    chatCharacters: hydratedChatCharacters,
     t,
     tf,
   }
   const opposedPoolContext = { t, d10, disciplineRules }
 
-  const selectedMasterRollCharacter = chatCharacters.find(item => item.id === selectedMasterRollCharacterId) || selectedActiveCharacter
+  const selectedMasterRollCharacter = hydratedChatCharacters.find(item => item.id === selectedMasterRollCharacterId) || selectedActiveCharacter
   const journalStorageKey = chatUser ? `vtm-journal:${chatUser.id}:${room}` : ''
   const selectedJournalEntry = journalEntries.find(entry => entry.id === selectedJournalEntryId) || journalEntries[0] || null
 

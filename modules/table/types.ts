@@ -266,6 +266,7 @@ export type CharacterOption = {
   name: string
   clan: string | null
   image: string
+  hydrated?: boolean
   username?: string
   userId?: string
   concept?: string

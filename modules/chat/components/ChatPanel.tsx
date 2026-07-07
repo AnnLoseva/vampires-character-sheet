@@ -87,7 +87,8 @@ export default function ChatPanel({
   const { t, tf } = useLang()
   const chatListRef = useRef<HTMLDivElement>(null)
   const selectedVoiceCharacter = chatCharacters.find(item => item.id === selectedChatCharacterId)
-  const canUseChat = Boolean(chatUser && selectedChatCharacterId && chatCharacters.length > 0)
+  const selectedCharacterReady = Boolean(selectedVoiceCharacter && selectedVoiceCharacter.hydrated !== false)
+  const canUseChat = Boolean(chatUser && selectedChatCharacterId && selectedCharacterReady)
   const inputDevices = voiceDevices.filter(device => device.kind === 'audioinput')
   const outputDevices = voiceDevices.filter(device => device.kind === 'audiooutput')
   const supportsOutputSelection = typeof HTMLAudioElement.prototype.setSinkId === 'function'
@@ -100,6 +101,8 @@ export default function ChatPanel({
     ? t('Войди на главной, чтобы писать')
     : !selectedChatCharacterId || chatCharacters.length === 0
       ? t('Выбери персонажа вверху справа')
+      : !selectedCharacterReady
+        ? t('Персонаж загружается...')
       : t('Сообщение в сцену...')
 
   return (

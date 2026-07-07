@@ -53,6 +53,7 @@ export default function PlayerTopbarCharacter({
           disabled={!chatUser || chatCharacters.length === 0}
           title={t('Смена персонажа')}
         >
+          {!selectedChatCharacterId && chatCharacters.length > 0 ? <option value="">{t('Выбери персонажа')}</option> : null}
           {chatCharacters.length === 0 ? <option value="">{t('Нет сохранённых персонажей')}</option> : null}
           {chatCharacters.map(character => (
             <option value={character.id} key={character.id}>

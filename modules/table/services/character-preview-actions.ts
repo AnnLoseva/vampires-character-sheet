@@ -15,6 +15,7 @@ export type CharacterPreviewActionsDeps = {
   setPreviewCharacter: Dispatch<SetStateAction<CharacterOption | null>>
   setSelectedMasterRollCharacterId: Dispatch<SetStateAction<string>>
   setChatCharacters: Dispatch<SetStateAction<CharacterOption[]>>
+  hydrateChatCharacter?: (characterId: string) => Promise<CharacterOption | null>
 }
 
 function buildFallbackPreview(
@@ -51,10 +52,13 @@ export function createCharacterPreviewActions(deps: CharacterPreviewActionsDeps)
     if (!deps.chatUser) return
     window.localStorage.setItem(`vtm-master-roll-character:${deps.chatUser.id}:${deps.room}`, characterId)
     window.localStorage.setItem(`vtm-master-roll-character:${deps.chatUser.id}`, characterId)
+    void deps.hydrateChatCharacter?.(characterId)
   }
 
   const openCharacterPreview = async (character: CharacterOption, username?: string) => {
-    deps.setPreviewCharacter({ ...character, username: username || character.username })
+    if (character.hydrated !== false) {
+      deps.setPreviewCharacter({ ...character, username: username || character.username })
+    }
     if (!character.id) return
     const { row, error } = await fetchCharacterById(character.id)
     if (error || !row) return

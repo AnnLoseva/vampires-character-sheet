@@ -3,10 +3,12 @@
 import { FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { TABLE_CHAT_MESSAGES } from '@/modules/table/constants'
+import { fetchCharacterById } from '@/modules/table/api/character-api'
+import { mapCharacterRow } from '@/modules/table/mappers'
 import type { CharacterOption } from '@/modules/table/types'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import {
-  loadChatCharacters,
+  loadChatCharactersLight,
   loadChatMessages,
   loginChatUser,
   mapChatRow,
@@ -39,6 +41,10 @@ function rememberChatUser(user: ChatUser) {
   window.localStorage.setItem('vtm-sheet-user', JSON.stringify(user))
 }
 
+function isHydratedCharacter(character?: CharacterOption | null) {
+  return Boolean(character && character.hydrated !== false)
+}
+
 export function useChat({ chronicleId }: UseChatOptions) {
   const { t } = useLang()
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([])
@@ -53,11 +59,18 @@ export function useChat({ chronicleId }: UseChatOptions) {
   const [isChatBusy, setIsChatBusy] = useState(false)
   const [chatPanelTab, setChatPanelTab] = useState<ChatPanelTab>('text')
   const chatChannelRef = useRef<ReturnType<ReturnType<typeof createClient>['channel']> | null>(null)
+  const chatCharactersRef = useRef<CharacterOption[]>([])
+  const hydrationPromisesRef = useRef<Map<string, Promise<CharacterOption | null>>>(new Map())
+  const activeCharacterSelectionRef = useRef(0)
 
   useEffect(() => {
     const saved = readStoredChatUser()
     if (saved) setChatUser(saved)
   }, [])
+
+  useEffect(() => {
+    chatCharactersRef.current = chatCharacters
+  }, [chatCharacters])
 
   useEffect(() => {
     let cancelled = false
@@ -107,20 +120,62 @@ export function useChat({ chronicleId }: UseChatOptions) {
     }
   }, [chronicleId])
 
+  const hydrateChatCharacter = useCallback(async (characterId: string): Promise<CharacterOption | null> => {
+    if (!chatUser || !characterId) return null
+
+    const existing = chatCharactersRef.current.find(character => character.id === characterId)
+    if (isHydratedCharacter(existing)) return existing || null
+
+    const inFlight = hydrationPromisesRef.current.get(characterId)
+    if (inFlight) return inFlight
+
+    const promise = (async () => {
+      setChatStatus('Загружаю персонажа...')
+      const { row, error } = await fetchCharacterById(characterId, { userId: chatUser.id })
+
+      if (error || !row) {
+        console.error('Не удалось дозагрузить персонажа:', error)
+        setChatStatus('Персонаж не загрузился — выбери его ещё раз')
+        return null
+      }
+
+      const hydrated = mapCharacterRow(row)
+      setChatCharacters(current => current.map(character => (
+        character.id === characterId
+          ? { ...hydrated, username: character.username || hydrated.username }
+          : character
+      )))
+      return hydrated
+    })()
+
+    hydrationPromisesRef.current.set(characterId, promise)
+    try {
+      return await promise
+    } finally {
+      if (hydrationPromisesRef.current.get(characterId) === promise) {
+        hydrationPromisesRef.current.delete(characterId)
+      }
+    }
+  }, [chatUser])
+
   useEffect(() => {
     if (!chatUser) {
       setChatCharacters([])
       setSelectedChatCharacterId('')
+      chatCharactersRef.current = []
+      hydrationPromisesRef.current.clear()
       return
     }
 
     let cancelled = false
+    hydrationPromisesRef.current.clear()
 
-    loadChatCharacters(chatUser.id)
+    loadChatCharactersLight(chatUser.id)
       .then(characters => {
         if (cancelled) return
 
         setChatCharacters(characters)
+        chatCharactersRef.current = characters
         const savedId = window.localStorage.getItem(`vtm-chat-character:${chatUser.id}:${chronicleId}`)
           || window.localStorage.getItem(`vtm-chat-character:${chatUser.id}`)
         const nextId = savedId && characters.some(character => character.id === savedId)
@@ -129,8 +184,19 @@ export function useChat({ chronicleId }: UseChatOptions) {
 
         setSelectedChatCharacterId(nextId)
         if (nextId) {
+          const selectionRequest = activeCharacterSelectionRef.current + 1
+          activeCharacterSelectionRef.current = selectionRequest
           window.localStorage.setItem(`vtm-chat-character:${chatUser.id}:${chronicleId}`, nextId)
           window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, nextId)
+          void hydrateChatCharacter(nextId).then(character => {
+            if (cancelled || activeCharacterSelectionRef.current !== selectionRequest) return
+            if (!character) {
+              setSelectedChatCharacterId('')
+              setChatStatus('Персонаж не загрузился — выбери его ещё раз')
+              return
+            }
+            setChatStatus('Персонаж готов')
+          })
         }
       })
       .catch(error => {
@@ -142,16 +208,28 @@ export function useChat({ chronicleId }: UseChatOptions) {
     return () => {
       cancelled = true
     }
-  }, [chatUser, chronicleId])
+  }, [chatUser, chronicleId, hydrateChatCharacter])
 
   const chooseActiveCharacter = useCallback((characterId: string) => {
     setSelectedChatCharacterId(characterId)
     if (!chatUser) return
 
+    const selectionRequest = activeCharacterSelectionRef.current + 1
+    activeCharacterSelectionRef.current = selectionRequest
     window.localStorage.setItem(`vtm-chat-character:${chatUser.id}:${chronicleId}`, characterId)
     window.localStorage.setItem(`vtm-chat-character:${chatUser.id}`, characterId)
     window.localStorage.setItem(`vtm-home-character:${chatUser.id}`, characterId)
-  }, [chatUser, chronicleId])
+
+    void hydrateChatCharacter(characterId).then(character => {
+      if (activeCharacterSelectionRef.current !== selectionRequest) return
+      if (!character) {
+        setSelectedChatCharacterId('')
+        setChatStatus('Персонаж не загрузился — выбери его ещё раз')
+        return
+      }
+      setChatStatus('Персонаж готов')
+    })
+  }, [chatUser, chronicleId, hydrateChatCharacter])
 
   const handleChatAuth = useCallback(async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -212,6 +290,12 @@ export function useChat({ chronicleId }: UseChatOptions) {
       window.alert(t('Выбери персонажа вверху справа.'))
       return
     }
+    if (!isHydratedCharacter(character)) {
+      setChatStatus('Персонаж ещё загружается...')
+      void hydrateChatCharacter(character.id)
+      window.alert(t('Персонаж ещё загружается. Попробуй снова через секунду.'))
+      return
+    }
     if (!text) return
 
     const message: ChatMessage = {
@@ -266,5 +350,6 @@ export function useChat({ chronicleId }: UseChatOptions) {
     handleChatAuth,
     logoutChat,
     sendChatMessage,
+    hydrateChatCharacter,
   }
 }
