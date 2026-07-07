@@ -30,8 +30,15 @@ Tables (from `lib/table/constants.ts` and `supabase/*.sql`):
 | `table_music_library` | table | Saved music library entries |
 | `media_studio_layers` | table | Layer definitions for media |
 
-Storage buckets: `table-images` (constant `TABLE_IMAGE_BUCKET`) and a music
-bucket. RLS/permissions in `supabase/{users_characters_rls,media_storage_permissions}.sql`.
+Storage buckets: `table-images` (constant `TABLE_IMAGE_BUCKET`), a music bucket,
+and `character-portraits` (portraits + touchstone images; see
+`supabase/character_portraits_storage.sql`). RLS/permissions in
+`supabase/{users_characters_rls,media_storage_permissions,character_portraits_storage}.sql`.
+
+**Images are never embedded as base64 in rows.** Portraits/touchstone images go
+through `uploadPortraitDataUrl` (`public/supabase.js`) into `character-portraits`;
+`characters.data` and `table_chat_messages.character_image` hold public URLs
+(base64 only as upload-failure fallback). See the 2026-07-07 DECISIONS entry.
 
 ## Character persistence
 Handled by the **legacy** `public/supabase.js` against the `characters` table

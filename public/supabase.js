@@ -76,6 +76,44 @@ function ensureSupabase() {
     return initSupabase();
 }
 
+// ==================== ПОРТРЕТЫ В STORAGE ====================
+// Портреты и изображения опор храним как файлы в bucket'е character-portraits,
+// а в characters.data — только публичный URL (раньше base64 раздувал JSON).
+const PORTRAIT_BUCKET = 'character-portraits';
+
+function dataUrlToBlob(dataUrl) {
+    const [meta, base64] = String(dataUrl).split(',');
+    const mime = (meta.match(/data:([^;]+)/) || [])[1] || 'image/jpeg';
+    const binary = atob(base64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+}
+
+async function uploadPortraitDataUrl(dataUrl, prefix = 'portrait') {
+    if (typeof dataUrl !== 'string' || !dataUrl.startsWith('data:image/')) return null;
+    if (!supabaseClient && !window.supabase) return null;
+    const client = supabaseClient || initSupabase();
+    try {
+        const blob = dataUrlToBlob(dataUrl);
+        const ext = blob.type === 'image/png' ? 'png' : blob.type === 'image/webp' ? 'webp' : 'jpg';
+        const owner = currentUser?.id || 'shared';
+        const path = `${owner}/${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error } = await client.storage.from(PORTRAIT_BUCKET).upload(path, blob, {
+            contentType: blob.type,
+            cacheControl: '31536000',
+            upsert: false
+        });
+        if (error) throw error;
+        const { data } = client.storage.from(PORTRAIT_BUCKET).getPublicUrl(path);
+        return data?.publicUrl || null;
+    } catch (error) {
+        console.warn('Портрет не загрузился в Storage, оставляем base64:', error);
+        return null;
+    }
+}
+window.uploadPortraitDataUrl = uploadPortraitDataUrl;
+
 function setButtonBusy(selector, busy, text) {
     const button = typeof selector === 'string' ? document.querySelector(selector) : selector;
     if (!button) return;

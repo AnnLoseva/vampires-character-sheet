@@ -6970,8 +6970,15 @@ async function uploadCharacterImage(event) {
     if (!file) return;
 
     try {
-        characterImageData = await readImageAsCompressedDataURL(file);
+        const dataUrl = await readImageAsCompressedDataURL(file);
+        characterImageData = dataUrl;
         renderCharacterImage();
+        // Переносим портрет в Storage: в данных листа остаётся только URL.
+        const storageUrl = await window.uploadPortraitDataUrl?.(dataUrl, 'portrait');
+        if (storageUrl) {
+            characterImageData = storageUrl;
+            renderCharacterImage();
+        }
     } catch (err) {
         alert(err.message || t('Ошибка загрузки изображения.'));
     } finally {
@@ -7076,7 +7083,10 @@ function removeTouchstone(index) {
 async function setTouchstoneImageFromFile(index, file) {
     const item = ensureTouchstone(index);
     if (!file || !item) return;
-    item.image = await readImageAsCompressedDataURL(file, 700, 0.8);
+    const dataUrl = await readImageAsCompressedDataURL(file, 700, 0.8);
+    // Изображение опоры тоже уходит в Storage; base64 — только запасной вариант.
+    const storageUrl = await window.uploadPortraitDataUrl?.(dataUrl, 'touchstone');
+    item.image = storageUrl || dataUrl;
     renderTouchstones();
     autoSaveVitalState();
 }

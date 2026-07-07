@@ -53,5 +53,7 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-04 — Character preview: attributes in full view, opposed-roll controls in roll dock;
-  table canvas: click-to-play/pause for video layers (native + YouTube embed).
+2026-07-07 — Character/touchstone images moved to Storage bucket `character-portraits`
+  (URLs in JSON instead of base64); existing rows + chat history migrated, payloads
+  dropped ~20×. See DECISIONS 2026-07-07. Backup tables `*_backup_20260707` can be
+  dropped after verification.

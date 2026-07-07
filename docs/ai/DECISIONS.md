@@ -6,6 +6,30 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-07 — Character images live in Storage, not in JSON
+
+**Area:** Supabase persistence / legacy character sheet / chat
+**Decision:** Portraits and touchstone images are uploaded to the public Storage
+bucket `character-portraits` (`public/supabase.js: uploadPortraitDataUrl`);
+`characters.data` and `table_chat_messages.character_image` store only the public
+URL. Base64 data-URLs remain a fallback when the upload fails, and old base64
+values still render (any `<img src>` accepts both).
+**Reason:** Base64 images were embedded up to 4× per sheet (`characterImage`,
+`touchstones[].image`, `sheetLock.snapshot`, `sheetLock.baseState`), bloating rows
+to 300–840 KB; chat rows carried ~110 KB each. Loading the character list pulled
+~7 MB, chat history ~4 MB — the "Supabase is slow" symptom. After migration: avg
+character row 13 KB, chat history ~9 KB.
+**Consequences:** All existing rows were migrated on 2026-07-07 (backups:
+`characters_backup_20260707`, `table_chat_messages_backup_20260707` — drop after
+verification). New image code paths must upload to Storage and store URLs, never
+embed base64. Bucket + policies: `supabase/character_portraits_storage.sql`.
+Replacing an image orphans the old Storage file (acceptable for now).
+**Affected files:** `public/supabase.js`, `public/main.js`,
+`supabase/character_portraits_storage.sql`
+**Status:** active
+
+---
+
 ## 2026-07-02 — VTM legacy parity test (`test:vtm-parity`)
 
 **Area:** VTM mechanics / legacy character sheet
