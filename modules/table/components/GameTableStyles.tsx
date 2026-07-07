@@ -1199,7 +1199,33 @@ export default function GameTableStyles() {
           pointer-events: none;
         }
 
-        .scene-layer .embedded-video-drag-handle {
+        .interactive-layer.video-layer iframe,
+        .interactive-layer.video-layer video {
+          pointer-events: auto;
+          position: relative;
+          z-index: 1;
+        }
+
+        .interactive-layer.file-layer .scene-file-material.embedded-document iframe {
+          pointer-events: auto;
+          position: relative;
+          z-index: 1;
+        }
+
+        .interactive-layer .scene-text-material,
+        .interactive-layer.file-layer .scene-file-material {
+          pointer-events: auto;
+          position: relative;
+          z-index: 1;
+        }
+
+        .interactive-layer .layer-drag-handle,
+        .interactive-layer .resize-handle,
+        .interactive-layer .inline-opacity-control {
+          z-index: 4;
+        }
+
+        .scene-layer .layer-drag-handle {
           pointer-events: auto;
         }
 
@@ -1448,7 +1474,7 @@ export default function GameTableStyles() {
           background: #111;
         }
 
-        .embedded-video-drag-handle {
+        .layer-drag-handle {
           position: absolute;
           left: 8px;
           top: 8px;
@@ -1467,8 +1493,8 @@ export default function GameTableStyles() {
           z-index: 2;
         }
 
-        .embedded-video-drag-handle:hover,
-        .scene-layer.selected .embedded-video-drag-handle {
+        .layer-drag-handle:hover,
+        .scene-layer.selected .layer-drag-handle {
           opacity: 1;
         }
 

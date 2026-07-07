@@ -9,7 +9,7 @@ import type {
   TableLayer,
   TouchGestureState,
 } from '../types'
-import { getDescendantIds } from '../utils/layer-utils'
+import { getDescendantIds, layerUsesInteractiveDragHandle } from '../utils/layer-utils'
 import { isEditablePasteTarget, parseClipboardForTablePaste } from '../utils/media-utils'
 
 export type UseTableCanvasOptions = {
@@ -194,12 +194,8 @@ export function useTableCanvas(options: UseTableCanvasOptions) {
     if (!opts.canEditLayer(layer)) return
     if (layer.locked) return
     const target = event.target as HTMLElement
-    if (layer.layerType === 'text' && target.closest('.scene-text-material')) {
-      opts.setLayerSelection([layer.id], layer.id)
-      return
-    }
-    if (mode === 'move' && layer.layerType === 'video') {
-      if (!target.closest('.embedded-video-drag-handle')) {
+    if (mode === 'move' && layerUsesInteractiveDragHandle(layer)) {
+      if (!target.closest('.layer-drag-handle')) {
         opts.setLayerSelection([layer.id], layer.id)
         return
       }

@@ -253,6 +253,7 @@ export const dictionary: Record<string, string> = {
   'Поднять руку': 'Raise hand',
   'Добавь первый слой': 'Add the first layer',
   'Перетащи картинки прямо на стол или нажми «Добавить слой».': 'Drag images right onto the table, or click "Add layer".',
+  'Переместить': 'Move',
   'Переместить видео': 'Move the video',
   'Открыть файл': 'Open the file',
   'Изменить обрезку': 'Adjust the crop',

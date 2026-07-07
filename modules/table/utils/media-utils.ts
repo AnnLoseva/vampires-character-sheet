@@ -107,7 +107,7 @@ export function getYouTubeId(url: string) {
 export function getEmbeddableVideoUrl(url: string) {
   const youtubeId = getYouTubeId(url)
   if (!youtubeId) return ''
-  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtubeId)}?rel=0&enablejsapi=1`
+  return `https://www.youtube-nocookie.com/embed/${encodeURIComponent(youtubeId)}?rel=0&enablejsapi=1&controls=1&fs=1`
 }
 
 export function getMediaUrlCandidate(url: string) {

@@ -150,6 +150,19 @@ export function getLayerShareUrl(layer: TableLayer) {
   return ''
 }
 
+/** Video, text, and file layers expose native content; move only via the drag handle. */
+export function layerUsesInteractiveDragHandle(layer: TableLayer) {
+  return layer.layerType === 'video' || layer.layerType === 'text' || layer.layerType === 'file'
+}
+
+export function isInteractiveLayerContentTarget(layer: TableLayer, target: EventTarget | null) {
+  if (!(target instanceof Element)) return false
+  if (layer.layerType === 'video') return Boolean(target.closest('iframe, video'))
+  if (layer.layerType === 'text') return Boolean(target.closest('.scene-text-material div, .scene-text-material pre'))
+  if (layer.layerType === 'file') return Boolean(target.closest('.scene-file-material a, .scene-file-material iframe'))
+  return false
+}
+
 export function getLayerClipboardText(layer: TableLayer) {
   const url = getLayerShareUrl(layer)
   if (layer.layerType === 'image' && url) return `![${layer.name}](${url})`

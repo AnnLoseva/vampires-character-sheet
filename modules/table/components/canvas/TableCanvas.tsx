@@ -1,9 +1,11 @@
-import { useRef, type Dispatch, type DragEvent, type MouseEvent, type PointerEvent, type RefObject, type SetStateAction, type TouchEvent, type WheelEvent } from 'react'
+import { type Dispatch, type DragEvent, type MouseEvent, type PointerEvent, type RefObject, type SetStateAction, type TouchEvent, type WheelEvent } from 'react'
 import {
   createEditorState,
   getEditorPreviewStyle,
   getLayerCrop,
   getLayerMediaStyle,
+  isInteractiveLayerContentTarget,
+  layerUsesInteractiveDragHandle,
 } from '@/modules/table/utils/layer-utils'
 import {
   getDocumentEmbedUrl,
@@ -99,30 +101,6 @@ export default function TableCanvas({
   commitLayerOpacity,
 }: TableCanvasProps) {
   const { t } = useLang()
-  const embeddedVideoPlayingRef = useRef(new Map<string, boolean>())
-
-  const postEmbeddedVideoCommand = (iframe: HTMLIFrameElement, command: 'playVideo' | 'pauseVideo') => {
-    iframe.contentWindow?.postMessage(JSON.stringify({ event: 'command', func: command, args: '' }), '*')
-  }
-
-  const toggleVideoPlayback = (layer: TableLayer, target: HTMLElement) => {
-    if (target.closest('.embedded-video-drag-handle')) return
-
-    const layerElement = target.closest(`[data-layer-id="${layer.id}"]`)
-    const video = layerElement?.querySelector('video')
-    if (video) {
-      if (video.paused) void video.play()
-      else video.pause()
-      return
-    }
-
-    const iframe = layerElement?.querySelector('iframe')
-    if (iframe) {
-      const isPlaying = embeddedVideoPlayingRef.current.get(layer.id) ?? false
-      postEmbeddedVideoCommand(iframe, isPlaying ? 'pauseVideo' : 'playVideo')
-      embeddedVideoPlayingRef.current.set(layer.id, !isPlaying)
-    }
-  }
 
   const openLayerContextMenu = (event: MouseEvent<HTMLElement>, layer: TableLayer) => {
     event.preventDefault()
@@ -134,6 +112,25 @@ export default function TableCanvas({
     if (!selectedLayerIds.has(layer.id)) setLayerSelection([layer.id], layer.id)
     else setSelectedLayerId(layer.id)
     setLayerContextMenu({ layerId: layer.id, x: event.clientX, y: event.clientY })
+  }
+
+  const renderLayerDragHandle = (layer: TableLayer) => {
+    if (!layerUsesInteractiveDragHandle(layer)) return null
+    return (
+      <button
+        type="button"
+        className="layer-drag-handle"
+        onPointerDown={event => {
+          event.stopPropagation()
+          startLayerDrag(event, layer, 'move')
+        }}
+        onContextMenu={event => openLayerContextMenu(event, layer)}
+        title={t('Переместить')}
+        aria-label={t('Переместить')}
+      >
+        ⠿
+      </button>
+    )
   }
 
   return (
@@ -189,9 +186,11 @@ export default function TableCanvas({
             </div>
           ) : null}
 
-          {visibleLayers.map(layer => (
+          {visibleLayers.map(layer => {
+            const youtubeEmbedUrl = layer.layerType === 'video' ? getEmbeddableVideoUrl(layer.imageData) : ''
+            return (
             <div
-              className={`scene-layer ${layer.layerType === 'image' ? 'image-layer' : ''} ${layer.layerType === 'video' ? 'video-layer' : ''} ${layer.layerType === 'text' ? 'text-layer' : ''} ${getLayerCrop(layer).cropped ? 'cropped-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || !canEditLayer(layer) ? 'locked' : ''}`}
+              className={`scene-layer ${layer.layerType === 'image' ? 'image-layer' : 'interactive-layer'} ${layer.layerType === 'video' ? 'video-layer' : ''} ${layer.layerType === 'file' ? 'file-layer' : ''} ${layer.layerType === 'text' ? 'text-layer' : ''} ${getLayerCrop(layer).cropped ? 'cropped-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || !canEditLayer(layer) ? 'locked' : ''}`}
               key={layer.id}
               data-layer-id={layer.id}
               style={{
@@ -211,41 +210,24 @@ export default function TableCanvas({
                 if (!['image', 'video'].includes(layer.layerType)) revealLayerInTableManager(layer)
               }}
               onClick={event => {
+                if (isInteractiveLayerContentTarget(layer, event.target)) return
                 event.stopPropagation()
                 // Always select on single click — even locked/non-editable layers
                 // so right-click "Добавить в дневник" is reachable without drag-selection
                 if (!selectedLayerIds.has(layer.id)) {
                   setLayerSelection([layer.id], layer.id)
                 }
-                if (layer.layerType === 'video') {
-                  toggleVideoPlayback(layer, event.target as HTMLElement)
-                }
               }}
             >
               {layer.layerType === 'video' ? (
                 <>
-                  {getEmbeddableVideoUrl(layer.imageData) ? (
-                    <>
-                      <iframe
-                        src={getEmbeddableVideoUrl(layer.imageData)}
-                        title={layer.name}
-                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                        allowFullScreen
-                        onContextMenu={event => openLayerContextMenu(event, layer)}
-                      />
-                      <button
-                        type="button"
-                        className="embedded-video-drag-handle"
-                        onPointerDown={event => {
-                          event.stopPropagation()
-                          startLayerDrag(event, layer, 'move')
-                        }}
-                        title={t('Переместить видео')}
-                        aria-label={t('Переместить видео')}
-                      >
-                        ⠿
-                      </button>
-                    </>
+                  {youtubeEmbedUrl ? (
+                    <iframe
+                      src={youtubeEmbedUrl}
+                      title={layer.name}
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
                   ) : (
                     <video
                       src={layer.imageData}
@@ -254,41 +236,41 @@ export default function TableCanvas({
                       playsInline
                       draggable={false}
                       style={imageEditor?.layerId === layer.id ? getEditorPreviewStyle(imageEditor.state) : getLayerMediaStyle(layer)}
-                      onClick={event => {
-                        event.stopPropagation()
-                        const video = event.currentTarget
-                        if (video.paused) void video.play()
-                        else video.pause()
-                      }}
-                      onContextMenu={event => openLayerContextMenu(event, layer)}
                       onError={event => {
                         event.currentTarget.style.display = 'none'
                         event.currentTarget.parentElement?.classList.add('image-load-error')
                       }}
                     />
                   )}
+                  {renderLayerDragHandle(layer)}
                   <span className="broken-image-label">{layer.name}</span>
                 </>
               ) : layer.layerType === 'text' ? (
-                <article className="scene-text-material">
-                  <strong>{layer.name}</strong>
-                  <div dangerouslySetInnerHTML={{ __html: layer.imageData }} />
-                </article>
+                <>
+                  <article className="scene-text-material">
+                    <strong>{layer.name}</strong>
+                    <div dangerouslySetInnerHTML={{ __html: layer.imageData }} />
+                  </article>
+                  {renderLayerDragHandle(layer)}
+                </>
               ) : layer.layerType === 'file' ? (() => {
                 const meta = getFileLayerMeta(layer.imageData, layer.name)
                 const embedUrl = getDocumentEmbedUrl(meta)
                 return (
-                  <article className={`scene-file-material ${embedUrl ? 'embedded-document' : ''}`}>
-                    <strong>{layer.name}</strong>
-                    {embedUrl ? (
-                      <iframe src={embedUrl} title={layer.name} onContextMenu={event => openLayerContextMenu(event, layer)} />
-                    ) : (
-                      <>
-                        <span>{meta.type}</span>
-                        <a href={meta.url} target="_blank" rel="noreferrer">{t('Открыть файл')}</a>
-                      </>
-                    )}
-                  </article>
+                  <>
+                    <article className={`scene-file-material ${embedUrl ? 'embedded-document' : ''}`}>
+                      <strong>{layer.name}</strong>
+                      {embedUrl ? (
+                        <iframe src={embedUrl} title={layer.name} />
+                      ) : (
+                        <>
+                          <span>{meta.type}</span>
+                          <a href={meta.url} target="_blank" rel="noreferrer">{t('Открыть файл')}</a>
+                        </>
+                      )}
+                    </article>
+                    {renderLayerDragHandle(layer)}
+                  </>
                 )
               })() : (
                 <>
@@ -376,7 +358,7 @@ export default function TableCanvas({
                 </>
               ) : null}
             </div>
-          ))}
+          )})}
           {selectionRect ? (
             <div
               className="selection-rect"
