@@ -6,6 +6,28 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-07 — Character autosave patches `data` through RPC
+
+**Area:** Supabase persistence / legacy character sheet
+**Decision:** Legacy `autoSaveCharacterPatch` now attempts
+`rpc('vtm_patch_character_data', { p_id, p_user_id, p_patch })` before falling
+back to the old read-merge-write path. The RPC is defined in
+`supabase/patch_character_data.sql` and uses `vtm_jsonb_deep_merge`: nested
+objects merge recursively, while arrays, scalars, and JSON `null` replace the
+previous value. The RPC filters by both `characters.id` and `characters.user_id`
+and returns the updated `data` JSON.
+**Reason:** Autosave was downloading and uploading the whole character `data`
+blob on each small change, which wasted bandwidth and let concurrent tabs
+overwrite unrelated keys.
+**Consequences:** Deploy `supabase/patch_character_data.sql` to enable the light
+atomic path. Until then, the browser logs a warning and uses the old
+select+merge+update fallback. Full `saveCharacter` and `updateCurrentCharacterData`
+still use their existing full-data paths.
+**Affected files:** `public/supabase.js`, `supabase/patch_character_data.sql`
+**Status:** pending SQL deploy
+
+---
+
 ## 2026-07-07 — Performance pass: light list selects + static caching
 
 **Area:** Supabase persistence / static assets

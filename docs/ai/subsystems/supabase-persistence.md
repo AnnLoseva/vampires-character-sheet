@@ -13,6 +13,7 @@ the legacy sheet — undocumented drift breaks save/load and sync everywhere.
 - `lib/table/constants.ts` — centralizes table + bucket names + keys.
 - `lib/table/mappers.ts` — maps Supabase rows ↔ app objects.
 - `supabase/*.sql` — table definitions, RLS policies, and storage bucket setup.
+  `supabase/patch_character_data.sql` defines the character autosave patch RPC.
 
 ## Tables and buckets
 Tables (from `lib/table/constants.ts` and `supabase/*.sql`):
@@ -46,6 +47,12 @@ Handled by the **legacy** `public/supabase.js` against the `characters` table
 `vtm-character-saved` postMessage back to the bridge (see
 `character-sheet-bridge.md`). Changing the character row shape affects both
 layers.
+
+Legacy autosave patching uses the `vtm_patch_character_data(p_id, p_user_id,
+p_patch)` RPC when deployed. The RPC deep-merges object keys atomically in
+Postgres and replaces arrays/scalars/nulls whole, matching `mergeCharacterPatch`
+in `public/supabase.js`; the browser keeps a select+merge+update fallback while
+the SQL is not deployed.
 
 ## Table persistence
 `GameTable.tsx` reads/writes most `table_*` tables and subscribes to a per-room

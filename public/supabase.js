@@ -58,6 +58,27 @@ function syncLoadedCharacterData(nextData) {
     }
 }
 
+async function autoSaveCharacterPatchFallback(client, patchWithTimestamp) {
+    const { data, error } = await client
+        .from('characters')
+        .select('data')
+        .eq('id', currentCharacterRecordId)
+        .eq('user_id', currentUser.id)
+        .single();
+    if (error) throw error;
+
+    const nextData = mergeCharacterPatch(data?.data || {}, patchWithTimestamp);
+
+    const { error: updateError } = await client
+        .from('characters')
+        .update({ data: nextData })
+        .eq('id', currentCharacterRecordId)
+        .eq('user_id', currentUser.id);
+    if (updateError) throw updateError;
+
+    return nextData;
+}
+
 function initSupabase() {
     if (supabaseClient) return supabaseClient;
     
@@ -403,25 +424,24 @@ async function autoSaveCharacterPatch(patch = {}, options = {}) {
 
     try {
         if (!options.silent) setAutoSaveStatus('Сохраняю...', 'saving');
-        const { data, error } = await client
-            .from('characters')
-            .select('data')
-            .eq('id', currentCharacterRecordId)
-            .eq('user_id', currentUser.id)
-            .single();
-        if (error) throw error;
-
-        const nextData = mergeCharacterPatch(data?.data || {}, {
+        const patchWithTimestamp = {
             ...patch,
             timestamp: new Date().toISOString()
-        });
+        };
+        let nextData = null;
 
-        const { error: updateError } = await client
-            .from('characters')
-            .update({ data: nextData })
-            .eq('id', currentCharacterRecordId)
-            .eq('user_id', currentUser.id);
-        if (updateError) throw updateError;
+        try {
+            const { data, error } = await client.rpc('vtm_patch_character_data', {
+                p_id: currentCharacterRecordId,
+                p_user_id: currentUser.id,
+                p_patch: patchWithTimestamp
+            });
+            if (error) throw error;
+            nextData = data;
+        } catch (rpcError) {
+            console.warn('RPC автосохранения недоступен, используем старый путь:', rpcError);
+            nextData = await autoSaveCharacterPatchFallback(client, patchWithTimestamp);
+        }
 
         charactersListCache = null;
         syncLoadedCharacterData(nextData);
