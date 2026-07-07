@@ -1,4 +1,3 @@
-import { SCENE_ORIGIN_X, SCENE_ORIGIN_Y } from './constants'
 import type { CharacterOption, CharacterRow, CharacterType, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
 import { getMusicProvider } from '@/modules/music/utils'
 import type { HumanityStainEvent } from '@/core/systems/vtm5/rules/humanity'
@@ -524,8 +523,8 @@ export function mapLayerRow(row: TableLayerRow): TableLayer {
     parentId: row.parent_id ?? null,
     name: row.name,
     imageData: row.image_data,
-    x: row.x ?? SCENE_ORIGIN_X,
-    y: row.y ?? SCENE_ORIGIN_Y,
+    x: row.x ?? 80,
+    y: row.y ?? 80,
     width: row.width ?? 420,
     height: row.height ?? 280,
     cropX: row.crop_x ?? null,

@@ -190,7 +190,7 @@ export function createMediaUploadActions(deps: MediaUploadActionsDeps) {
           natural,
           item.layerType,
           index,
-          point ? { x: point.x + ((index % 3) - 1) * 32, y: point.y + Math.floor(index / 3) * 28 } : undefined,
+          point ? { x: point.x + index * 28, y: point.y + index * 24 } : undefined,
           onTable,
         )
       }

@@ -1093,9 +1093,7 @@ export default function GameTableStyles() {
 
         .scene-empty {
           position: absolute;
-          left: 0;
-          top: 0;
-          transform: translate(-50%, -50%);
+          inset: 0;
           z-index: 1;
           pointer-events: none;
           border: 1px dashed var(--vtm-line-strong);
@@ -1103,8 +1101,9 @@ export default function GameTableStyles() {
           padding: 26px 34px;
           text-align: center;
           display: grid;
+          place-items: center;
           gap: 6px;
-          max-width: 380px;
+          max-width: none;
         }
 
         .scene-empty h2 {

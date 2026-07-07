@@ -4,7 +4,6 @@ import {
   getLayerCrop,
   getEditorPreviewStyle,
   getLayerMediaStyle,
-  getSceneDisplayPosition,
   isInteractiveLayerContentTarget,
   layerUsesInteractiveDragHandle,
 } from '@/modules/table/utils/layer-utils'
@@ -189,15 +188,14 @@ export default function TableCanvas({
 
           {visibleLayers.map(layer => {
             const youtubeEmbedUrl = layer.layerType === 'video' ? getEmbeddableVideoUrl(layer.imageData) : ''
-            const displayPosition = getSceneDisplayPosition(layer.x, layer.y)
             return (
             <div
               className={`scene-layer ${layer.layerType === 'image' ? 'image-layer' : 'interactive-layer'} ${layer.layerType === 'video' ? 'video-layer' : ''} ${layer.layerType === 'file' ? 'file-layer' : ''} ${layer.layerType === 'text' ? 'text-layer' : ''} ${getLayerCrop(layer).cropped ? 'cropped-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || !canEditLayer(layer) ? 'locked' : ''}`}
               key={layer.id}
               data-layer-id={layer.id}
               style={{
-                left: displayPosition.x,
-                top: displayPosition.y,
+                left: layer.x,
+                top: layer.y,
                 width: layer.width,
                 height: layer.height,
                 zIndex: layer.zIndex,
@@ -361,20 +359,17 @@ export default function TableCanvas({
               ) : null}
             </div>
           )})}
-          {selectionRect ? (() => {
-            const rectOrigin = getSceneDisplayPosition(selectionRect.x, selectionRect.y)
-            return (
+          {selectionRect ? (
             <div
               className="selection-rect"
               style={{
-                left: rectOrigin.x,
-                top: rectOrigin.y,
+                left: selectionRect.x,
+                top: selectionRect.y,
                 width: selectionRect.width,
                 height: selectionRect.height,
               }}
             />
-            )
-          })() : null}
+          ) : null}
         </div>
       </div>
     </section>
