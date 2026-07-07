@@ -1,9 +1,10 @@
 import { type Dispatch, type DragEvent, type MouseEvent, type PointerEvent, type RefObject, type SetStateAction, type TouchEvent, type WheelEvent } from 'react'
 import {
   createEditorState,
-  getEditorPreviewStyle,
   getLayerCrop,
+  getEditorPreviewStyle,
   getLayerMediaStyle,
+  getSceneDisplayPosition,
   isInteractiveLayerContentTarget,
   layerUsesInteractiveDragHandle,
 } from '@/modules/table/utils/layer-utils'
@@ -188,14 +189,15 @@ export default function TableCanvas({
 
           {visibleLayers.map(layer => {
             const youtubeEmbedUrl = layer.layerType === 'video' ? getEmbeddableVideoUrl(layer.imageData) : ''
+            const displayPosition = getSceneDisplayPosition(layer.x, layer.y)
             return (
             <div
               className={`scene-layer ${layer.layerType === 'image' ? 'image-layer' : 'interactive-layer'} ${layer.layerType === 'video' ? 'video-layer' : ''} ${layer.layerType === 'file' ? 'file-layer' : ''} ${layer.layerType === 'text' ? 'text-layer' : ''} ${getLayerCrop(layer).cropped ? 'cropped-layer' : ''} ${selectedLayerIds.has(layer.id) ? 'selected' : ''} ${layer.locked || !canEditLayer(layer) ? 'locked' : ''}`}
               key={layer.id}
               data-layer-id={layer.id}
               style={{
-                left: layer.x,
-                top: layer.y,
+                left: displayPosition.x,
+                top: displayPosition.y,
                 width: layer.width,
                 height: layer.height,
                 zIndex: layer.zIndex,
@@ -359,17 +361,20 @@ export default function TableCanvas({
               ) : null}
             </div>
           )})}
-          {selectionRect ? (
+          {selectionRect ? (() => {
+            const rectOrigin = getSceneDisplayPosition(selectionRect.x, selectionRect.y)
+            return (
             <div
               className="selection-rect"
               style={{
-                left: selectionRect.x,
-                top: selectionRect.y,
+                left: rectOrigin.x,
+                top: rectOrigin.y,
                 width: selectionRect.width,
                 height: selectionRect.height,
               }}
             />
-          ) : null}
+            )
+          })() : null}
         </div>
       </div>
     </section>

@@ -1,6 +1,6 @@
 import type { Dispatch, MutableRefObject, SetStateAction } from 'react'
 import type { ChatUser } from '@/modules/chat/types'
-import { ROOT_LAYER_DROP_ID } from '../constants'
+import { ROOT_LAYER_DROP_ID, SCENE_ORIGIN_X, SCENE_ORIGIN_Y } from '../constants'
 import {
   deleteLayerRecords,
   insertLayer,
@@ -24,6 +24,7 @@ import {
 } from '../utils/journal-media'
 import {
   canEditLayer,
+  getDefaultLayerSpawnPoint,
   getDescendantIds,
   sortLayers,
   upsertLayer,
@@ -151,8 +152,8 @@ export function createLayerActions(deps: LayerActionsDeps) {
       parentId: activeFolder?.id || null,
       name,
       imageData,
-      x: Math.round(point?.x ?? (activeFolder?.x ?? 80) + ((deps.layersRef.current.length + index) % 6) * 28),
-      y: Math.round(point?.y ?? (activeFolder?.y ?? 70) + ((deps.layersRef.current.length + index) % 6) * 24),
+      x: Math.round(point?.x ?? getDefaultLayerSpawnPoint(deps.layersRef.current.length + index, activeFolder ? { x: activeFolder.x, y: activeFolder.y } : undefined).x),
+      y: Math.round(point?.y ?? getDefaultLayerSpawnPoint(deps.layersRef.current.length + index, activeFolder ? { x: activeFolder.x, y: activeFolder.y } : undefined).y),
       width: fitWidth,
       height: fitHeight,
       cropX: null,
@@ -221,8 +222,8 @@ export function createLayerActions(deps: LayerActionsDeps) {
       parentId,
       name: name?.trim() || deps.tf('Папка {n}', { n: siblingCount + 1 }),
       imageData: '',
-      x: (parentFolder?.x ?? 120) + (siblingCount % 5) * 36,
-      y: (parentFolder?.y ?? 120) + (siblingCount % 5) * 28,
+      x: (parentFolder?.x ?? SCENE_ORIGIN_X) + (siblingCount % 5) * 36,
+      y: (parentFolder?.y ?? SCENE_ORIGIN_Y) + (siblingCount % 5) * 28,
       width: 520,
       height: 320,
       cropX: null,
@@ -349,8 +350,8 @@ export function createLayerActions(deps: LayerActionsDeps) {
       onTable: true,
       visible: true,
       parentId: null,
-      x: Math.round(point?.x ?? 120),
-      y: Math.round(point?.y ?? 120),
+      x: Math.round(point?.x ?? SCENE_ORIGIN_X),
+      y: Math.round(point?.y ?? SCENE_ORIGIN_Y),
       zIndex: maxZ + 1,
     })
     setLayerSelection([layer.id], layer.id)

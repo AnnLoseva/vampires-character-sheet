@@ -9,7 +9,7 @@ import type {
   TableLayer,
   TouchGestureState,
 } from '../types'
-import { getDescendantIds, layerUsesInteractiveDragHandle } from '../utils/layer-utils'
+import { getDescendantIds, getSceneDisplayPosition, getViewportPanForSceneOrigin, layerUsesInteractiveDragHandle } from '../utils/layer-utils'
 import { isEditablePasteTarget, parseClipboardForTablePaste } from '../utils/media-utils'
 
 export type UseTableCanvasOptions = {
@@ -72,6 +72,34 @@ export function useTableCanvas(options: UseTableCanvasOptions) {
   useEffect(() => () => {
     if (dragAnimationFrameRef.current !== null) cancelAnimationFrame(dragAnimationFrameRef.current)
   }, [])
+
+  const viewportCenteredRef = useRef(false)
+
+  useEffect(() => {
+    viewportCenteredRef.current = false
+  }, [options.room])
+
+  useEffect(() => {
+    const scene = optionsRef.current.sceneRef.current
+    if (!scene) return
+
+    let cancelled = false
+    const centerViewportOnOrigin = () => {
+      if (cancelled || viewportCenteredRef.current) return
+      const rect = scene.getBoundingClientRect()
+      if (rect.width <= 0 || rect.height <= 0) return
+      viewportCenteredRef.current = true
+      optionsRef.current.setPan(getViewportPanForSceneOrigin(rect.width, rect.height, zoomRef.current))
+    }
+
+    centerViewportOnOrigin()
+    const observer = new ResizeObserver(() => centerViewportOnOrigin())
+    observer.observe(scene)
+    return () => {
+      cancelled = true
+      observer.disconnect()
+    }
+  }, [options.room])
 
   useEffect(() => {
     const handlePaste = (event: ClipboardEvent) => {
@@ -177,8 +205,9 @@ export function useTableCanvas(options: UseTableCanvasOptions) {
 
     const element = dragLayerElementsRef.current.get(drag.id)
     if (!element) return
-    element.style.left = `${x}px`
-    element.style.top = `${y}px`
+    const display = getSceneDisplayPosition(x, y)
+    element.style.left = `${display.x}px`
+    element.style.top = `${display.y}px`
     element.style.width = `${width}px`
     element.style.height = `${height}px`
   }
@@ -371,8 +400,9 @@ export function useTableCanvas(options: UseTableCanvasOptions) {
       dragLayerElementsRef.current.forEach((element, id) => {
         const position = positions.get(id)
         if (position) {
-          element.style.left = `${position.x}px`
-          element.style.top = `${position.y}px`
+          const display = getSceneDisplayPosition(position.x, position.y)
+          element.style.left = `${display.x}px`
+          element.style.top = `${display.y}px`
         }
         element.style.transform = ''
         element.style.willChange = ''

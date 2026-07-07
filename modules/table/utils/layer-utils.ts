@@ -1,6 +1,27 @@
 import type { CSSProperties } from 'react'
+import { SCENE_ORIGIN_X, SCENE_ORIGIN_Y } from '../constants'
 import { getFileLayerMeta } from './media-utils'
 import type { ImageEditorState, LayerTreeNode, RollMessage, TableLayer } from '../types'
+
+export function getSceneDisplayPosition(x: number, y: number) {
+  return { x: x - SCENE_ORIGIN_X, y: y - SCENE_ORIGIN_Y }
+}
+
+export function getDefaultLayerSpawnPoint(index = 0, base?: { x: number; y: number }) {
+  const originX = base?.x ?? SCENE_ORIGIN_X
+  const originY = base?.y ?? SCENE_ORIGIN_Y
+  return {
+    x: originX + (index % 6) * 28,
+    y: originY + (index % 6) * 24,
+  }
+}
+
+export function getViewportPanForSceneOrigin(viewportWidth: number, viewportHeight: number, zoom: number) {
+  return {
+    x: Math.round(viewportWidth / 2 - SCENE_ORIGIN_X * zoom),
+    y: Math.round(viewportHeight / 2 - SCENE_ORIGIN_Y * zoom),
+  }
+}
 
 export function mergeRoll(rolls: RollMessage[], roll: RollMessage) {
   if (rolls.some(item => item.id === roll.id)) return rolls
