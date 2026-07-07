@@ -2317,7 +2317,7 @@ export default function GameTableStyles() {
           background: #111;
         }
 
-        .character-preview-modal header button {
+        .character-preview-modal header .character-preview-close {
           width: 34px;
           height: 34px;
           border: 1px solid #3a3a3a;
@@ -5263,18 +5263,23 @@ export default function GameTableStyles() {
         }
 
         .character-preview-mode-toggle button {
+          width: auto;
+          height: auto;
           min-height: 28px;
           border: 1px solid transparent;
           border-radius: var(--r-sm);
           background: transparent;
           color: var(--vtm-ink-dim);
-          padding: 5px 11px;
+          padding: 5px 10px;
           font-size: var(--fs-10);
           font-weight: 700;
           letter-spacing: 0.02em;
-          line-height: 1.15;
+          line-height: 1.2;
           white-space: nowrap;
-          flex-shrink: 0;
+          flex: 0 0 auto;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
           cursor: pointer;
           transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
         }
@@ -5495,7 +5500,7 @@ export default function GameTableStyles() {
           cursor: not-allowed;
         }
 
-        .character-preview-modal > header > button {
+        .character-preview-modal > header .character-preview-close {
           flex: 0 0 auto;
           width: var(--ctrl-sm);
           height: var(--ctrl-sm);
@@ -5509,7 +5514,7 @@ export default function GameTableStyles() {
           transition: border-color var(--dur-fast) var(--ease), background var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
         }
 
-        .character-preview-modal > header > button:hover {
+        .character-preview-modal > header .character-preview-close:hover {
           border-color: var(--vtm-line-blood);
           background: var(--vtm-surface-blood);
           color: var(--vtm-blood-pale);
