@@ -2189,8 +2189,9 @@ export default function GameTableStyles() {
         .opposed-proposal-modal > header span,
         .opposed-proposal-summary span,
         .opposed-proposal-active span {
-          color: #9c9c9c;
-          font-size: 10px;
+          color: var(--vtm-ink-muted);
+          font-size: var(--fs-10);
+          letter-spacing: var(--ls-label);
           text-transform: uppercase;
         }
 
@@ -2256,8 +2257,8 @@ export default function GameTableStyles() {
         }
 
         .opposed-proposal-summary b {
-          color: #36d675;
-          font-size: 14px;
+          color: var(--vtm-success);
+          font-size: var(--fs-14);
           white-space: nowrap;
         }
 
@@ -2284,8 +2285,8 @@ export default function GameTableStyles() {
         }
 
         .opposed-proposal-actions button.primary {
-          border-color: #2f7650;
-          background: #164b2b;
+          border-color: #9a3838;
+          background: #6f2020;
           color: #fff;
         }
 
@@ -2780,7 +2781,7 @@ export default function GameTableStyles() {
         }
 
         .contested-opponent-field select {
-          border-color: #2f7650;
+          border-color: var(--vtm-line-blood);
         }
 
         .quick-roll-grid {
@@ -3997,8 +3998,9 @@ export default function GameTableStyles() {
         .opposed-side-heading span,
         .opposed-side-builder label > span,
         .opposed-side-status {
-          color: #9c9c9c;
-          font-size: 10px;
+          color: var(--vtm-ink-muted);
+          font-size: var(--fs-10);
+          letter-spacing: var(--ls-label);
           text-transform: uppercase;
         }
 
@@ -4006,9 +4008,9 @@ export default function GameTableStyles() {
           min-width: 0;
           display: grid;
           gap: 8px;
-          border: 1px solid #303030;
-          border-radius: 7px;
-          background: #151515;
+          border: 1px solid var(--vtm-line-blood-deep);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-blood);
           padding: 8px;
         }
 
@@ -4020,8 +4022,8 @@ export default function GameTableStyles() {
         }
 
         .opposed-side-heading strong {
-          color: #36d675;
-          font-size: 13px;
+          color: var(--vtm-success);
+          font-size: var(--fs-13);
           white-space: nowrap;
         }
 
@@ -4072,26 +4074,26 @@ export default function GameTableStyles() {
           display: grid;
           gap: 6px;
           margin-top: 10px;
-          border: 1px solid #2f7650;
-          border-radius: 6px;
-          background: rgba(22, 75, 43, 0.22);
+          border: 1px solid var(--vtm-line-blood);
+          border-radius: var(--r-sm);
+          background: var(--vtm-surface-blood);
           padding: 10px;
         }
 
         .contested-request-result strong {
-          color: #77e4a2;
-          font-size: 13px;
+          color: var(--vtm-blood-bright);
+          font-size: var(--fs-13);
         }
 
         .contested-request-result span {
-          color: #e8e8e8;
-          font-size: 12px;
-          line-height: 1.35;
+          color: var(--vtm-ink);
+          font-size: var(--fs-12);
+          line-height: var(--lh-snug);
         }
 
         .contested-request-result small {
-          color: #aaa;
-          font-size: 11px;
+          color: var(--vtm-ink-dim);
+          font-size: var(--fs-11);
         }
 
         .roll-meta,
@@ -4282,11 +4284,11 @@ export default function GameTableStyles() {
         .opposed-result-badge {
           width: fit-content;
           border: 1px solid rgba(54, 214, 117, 0.42);
-          border-radius: 999px;
+          border-radius: var(--r-pill);
           background: #102017;
-          color: #6df0a0;
+          color: var(--vtm-success-soft);
           padding: 4px 9px;
-          font-size: 11px;
+          font-size: var(--fs-11);
         }
 
         .opposed-result-badge.outcome-tie {
