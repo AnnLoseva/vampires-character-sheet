@@ -1,13 +1,5 @@
-import MainScreen from '@/components/screens/MainScreen'
-import { SpeedInsights } from '@vercel/speed-insights/next';
+import HomeRoute from '@/modules/home/HomeRoute'
 
-
-export default function Home() {
-  return(
-    <>
-  
-  <MainScreen />
-  <SpeedInsights />
-  </> 
-  )
+export default function HomePage() {
+  return <HomeRoute />
 }

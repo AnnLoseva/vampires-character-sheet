@@ -13,12 +13,19 @@ opening code**. Risk levels drive how careful you must be.
 ## Routes & screens
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
-| `app/page.tsx` | `/` route → MainScreen | low | before-any-change | Thin wrapper |
+| `app/page.tsx` | `/` route → `modules/home/HomeRoute` | low | before-any-change | Thin wrapper |
 | `app/character-sheet/page.tsx` | `/character-sheet` route | low | before-any-change | Thin wrapper |
 | `app/table/page.tsx` | `/table` route | low | before-any-change | Thin wrapper |
 | `app/old/page.tsx` | legacy redirect | low | before-any-change | Redirects to `/character-sheet` |
-| `components/screens/MainScreen.tsx` | landing / entry | medium | react-table-edit-protocol | Character/room selection |
 | `components/screens/CharacterSheetScreen.tsx` | iframe bridge shell | **high** | legacy-edit-protocol | Owns room/role/characterId/new + postMessage |
+
+## Home module (`modules/home/*`)
+| Path | Role | Risk | Edit protocol | Notes |
+|---|---|---|---|---|
+| `modules/home/HomeRoute.tsx` | `/` entry | low | before-any-change | Thin wrapper over home screen |
+| `modules/home/components/MainScreen.tsx` | landing / entry | medium | react-table-edit-protocol | Character/room selection |
+| `modules/home/module-definition.ts` | home Hub module contract | low | before-any-change | `users`, `characters`, home localStorage |
+| `components/screens/MainScreen.tsx` | shim → module | low | before-any-change | Deprecated |
 
 ## Game table (React) — legacy shims
 | Path | Role | Risk | Edit protocol | Notes |
@@ -37,6 +44,7 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/table/types.ts` | table data model (canonical) | high | react-table-edit-protocol | Chat types re-exported from `modules/chat/types` |
 | `modules/table/constants.ts` | table/bucket names, keys (canonical) | **critical** | supabase-edit-protocol | Includes `constants/roll-traits.ts` |
 | `modules/table/mappers.ts` | DB ↔ app mapping (canonical) | high | supabase-edit-protocol | |
+| `modules/table/rules-subset.ts` | generated compact rules subset for table mappers/fallbacks | medium | rules-data subsystem | Do not edit manually; regenerate from `public/rules.json` with `scripts/generate-table-rules-subset.ts` |
 | `modules/table/utils/*` | scene/layer/media/roll helpers (canonical) | medium | react-table-edit-protocol | `lib/table/*-utils.ts` shims |
 | `modules/table/api/*` | Supabase API (scene/layer/roll/character) | high | supabase-edit-protocol | Wired from `GameTable.tsx` |
 | `modules/table/hooks/*` | room/rolls/scenes/layers/realtime | high | react-table-edit-protocol | Wired in `GameTable.tsx` |
@@ -55,9 +63,11 @@ opening code**. Risk levels drive how careful you must be.
 ## Chat, music, journal, reference
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
+| `modules/chat/module-definition.ts` | chat Hub module contract | low | before-any-change | `table_chat_messages` persistence |
 | `modules/chat/components/ChatPanel.tsx` | chat UI | medium | react-table-edit-protocol | `table_chat_messages` |
 | `modules/chat/hooks/useChat.ts` | chat state/auth/realtime | high | react-table-edit-protocol + supabase-edit-protocol | Supabase realtime + localStorage user |
 | `modules/chat/api/chat-api.ts` | chat Supabase API/mappers | high | supabase-edit-protocol | Do not rename `table_chat_messages` |
+| `modules/music/module-definition.ts` | music Hub module contract | low | before-any-change | `table_music`, `table_music_library`, `table_scene_music`, `table-music` |
 | `modules/music/components/MusicPlayer.tsx` | music UI | medium | react-table-edit-protocol | |
 | `modules/music/components/GlobalMusicEngineMount.tsx` | persistent hidden music mount | medium | react-table-edit-protocol | Root layout mount; keep stable across navigation |
 | `modules/music/MusicSyncEngine.ts` | music sync | high | react-table-edit-protocol | Realtime sync + autoplay limits |
@@ -74,7 +84,7 @@ opening code**. Risk levels drive how careful you must be.
 | `core/systems/vtm5/rules/derived-stats/index.ts` | derived stats | high | vtm-mechanics-edit-protocol | |
 | `core/systems/vtm5/rules/disciplines/*` | discipline engine | high | vtm-mechanics-edit-protocol | Run discipline scripts after edits |
 
-## Table libs (`lib/table/*` — utils, shims, generated subsets)
+## Table libs (`lib/table/*` — utils, shims)
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
 | `lib/table/constants.ts` | shim → `modules/table/constants` | low | before-any-change | Prefer `@/modules/table` |
@@ -84,7 +94,6 @@ opening code**. Risk levels drive how careful you must be.
 | `lib/table/layer-utils.ts` | shim → `modules/table/utils/layer-utils` | low | before-any-change | |
 | `lib/table/scene-utils.ts` | shim → `modules/table/utils/scene-utils` | low | before-any-change | |
 | `lib/table/{roll-utils,dice-display}.ts` | shim → `modules/table/utils/*` | low | before-any-change | |
-| `lib/table/rules-subset.ts` | generated compact rules subset for table mappers/fallbacks | medium | rules-data subsystem | Do not edit manually; regenerate from `public/rules.json` with `scripts/generate-table-rules-subset.ts` |
 
 ## i18n & Supabase client
 | Path | Role | Risk | Edit protocol | Notes |
@@ -116,7 +125,7 @@ opening code**. Risk levels drive how careful you must be.
 | `scripts/validate-discipline-mechanics.ts` | `npm run validate:disciplines` | low | before-any-change | Mechanics validation |
 | `scripts/test-discipline-engine.ts` | `npm run test:disciplines` | low | before-any-change | Engine tests |
 | `scripts/test-vtm-legacy-parity.ts` | `npm run test:vtm-parity` | low | vtm-mechanics-edit-protocol | health/humanity legacy ↔ core parity |
-| `scripts/generate-table-rules-subset.ts` | manual generator for `lib/table/rules-subset.ts` | low | rules-data subsystem | Run after passive tracker/damage discipline mechanics change |
+| `scripts/generate-table-rules-subset.ts` | manual generator for `modules/table/rules-subset.ts` | low | rules-data subsystem | Run after passive tracker/damage discipline mechanics change |
 
 > Workflows referenced above live in `docs/ai/workflows/`. "before-any-change" is
 > the general checklist; the others are area-specific protocols.

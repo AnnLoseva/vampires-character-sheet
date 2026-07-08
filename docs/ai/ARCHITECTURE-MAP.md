@@ -4,7 +4,7 @@ How the app fits together at runtime. For per-file risk/protocol see `FILE-MAP.m
 For a prose RU overview see `../architecture.md`.
 
 ## Runtime overview
-Next.js App Router serves React routes. The **game table, journal and reference**
+Next.js App Router serves React routes. The **home screen, game table, journal and reference**
 are modern React/TypeScript. The **full character sheet** is a legacy vanilla
 HTML/JS app served from `public/` and embedded via an `<iframe>`. Both layers
 persist to the same Supabase project.
@@ -12,7 +12,7 @@ persist to the same Supabase project.
 ## Routes
 | Route | Component | Layer |
 |---|---|---|
-| `/` | `components/screens/MainScreen.tsx` | React |
+| `/` | `modules/home/HomeRoute` → `MainScreen.tsx` | React |
 | `/character-sheet` | `modules/character-sheet/*` | React shell → legacy iframe |
 | `/table` | `modules/table/TableRoute` → `GameTable.tsx` | React |
 | `/journal` | `modules/journal/JournalRoute` | React |
@@ -44,6 +44,15 @@ persist to the same Supabase project.
  → Supabase tables + storage buckets (realtime room sync)
 ```
 
+## Flow: home
+```text
+/
+ → HomeRoute
+ → modules/home/components/MainScreen.tsx
+ → Supabase `users` + light `characters` list
+ → links to /character-sheet, /table, /journal, /reference
+```
+
 ## Legacy layer (`public/`)
 Vanilla, no build step. `old-sheet.html` (markup/styles) + `main.js` (logic) +
 `supabase.js` (data) + `creation-wizard.js` (creation) + `vtm-health.js` /
@@ -52,11 +61,11 @@ Vanilla, no build step. `old-sheet.html` (markup/styles) + `main.js` (logic) +
 shell only through URL params, localStorage, and `postMessage`.
 
 ## React / Next layer (`app/`, `components/`)
-App Router routes render screen/table components. `components/screens/*` are
-entry screens; `components/table/*` is the room; `modules/chat/*`,
-`modules/music/*`,
-`components/journal/*`, `components/reference/*` are feature areas. Shared state
-and Supabase I/O for the table currently concentrate in `GameTable.tsx`.
+App Router route files are thin wrappers over `modules/*Route` entries.
+`modules/home/*` owns the entry screen; `components/screens/*` are compatibility
+shims for moved screens. `components/table/*` is legacy table compatibility;
+canonical table/chat/music/journal/reference code lives in `modules/*`. Shared
+state and Supabase I/O for the table currently concentrate in `GameTable.tsx`.
 
 ## VTM mechanics layer (`core/systems/vtm5/rules/*`)
 Pure, framework-independent rules: `health/index.ts`, `humanity/index.ts`,

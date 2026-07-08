@@ -6,7 +6,7 @@ type JsonObject = Record<string, unknown>
 
 const ROOT_DIR = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const INPUT_FILE = resolve(ROOT_DIR, 'public/rules.json')
-const OUTPUT_FILE = resolve(ROOT_DIR, 'lib/table/rules-subset.ts')
+const OUTPUT_FILE = resolve(ROOT_DIR, 'modules/table/rules-subset.ts')
 const INCLUDED_PASSIVE_EFFECT_TYPES = new Set([
   'tracker_modifier',
   'damage_modifier',

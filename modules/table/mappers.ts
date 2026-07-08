@@ -2,7 +2,7 @@ import type { CharacterOption, CharacterRow, CharacterType, Die, HealthMetaState
 import { getMusicProvider } from '@/modules/music/utils'
 import type { HumanityStainEvent } from '@/core/systems/vtm5/rules/humanity'
 import { getAttributeDots } from '@/lib/i18n/ruleNames'
-import { tableRulesSubset } from '@/lib/table/rules-subset'
+import { tableRulesSubset } from './rules-subset'
 import { mapperRules } from './mapper-adapters'
 
 const DIE_KINDS = new Set<Die['kind']>([

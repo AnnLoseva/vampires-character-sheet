@@ -63,7 +63,8 @@
 
 ```text
 createVtm5ChronicleHub()
-  → регистрирует Vtm5System + tableModuleDefinition + rollsModuleDefinition
+  → регистрирует Vtm5System + module definitions
+    (home, table, chat, music, rolls, character-sheet, journal, reference)
 
 bootstrapChronicleRuntime(hub, chronicle)
   → hub.resolveModulesForChronicle(chronicle)
@@ -117,6 +118,7 @@ Hub не содержит VTM-правил и не делает Supabase-зап�
 
 | Модуль | Путь | Lifecycle | Что перенесено |
 |--------|------|-----------|----------------|
+| **home** | `modules/home/` | active | HomeRoute, MainScreen, module-definition |
 | **table** | `modules/table/` | active | types, constants, mappers, utils, api/*, hooks/*, components (modals, controls), system-adapter, configure |
 | **chat** | `modules/chat/` | active | api, hooks, ChatPanel |
 | **music** | `modules/music/` | active | player, sync engine, adapters (YouTube, local audio), global mount |
@@ -201,6 +203,7 @@ modules/my-feature/
 | Table Supabase | все table-запросы вынесены из `GameTable.tsx` в `modules/table/api/` |
 | Chat module | api, hooks, ChatPanel |
 | Music module | player, sync, adapters, global engine mount |
+| Home module | HomeRoute, MainScreen, module-definition |
 | Rolls scaffold | types, adapter contract, configure, module-definition |
 | lib/table shims | re-export `@/modules/table/*` |
 | Сборка | `npm run build` и `npm run lint` проходят |
@@ -213,7 +216,7 @@ modules/my-feature/
 | Прямые импорты VTM5 в GameTable | только `import type`; runtime — через adapters |
 | Character state helpers | ✅ `modules/table/utils/character-state.ts` |
 | Rolls factory | ✅ `modules/rolls/hooks/useQuickRollFactory.ts` |
-| Hub preset | ✅ table + rolls + character-sheet + journal + reference |
+| Hub preset | ✅ home + table + chat + music + rolls + character-sheet + journal + reference |
 | Infrastructure | `core/infrastructure/` — placeholder |
 | Legacy iframe (`public/main.js`) | не мигрирован; bridge в `modules/character-sheet/legacy/` |
 

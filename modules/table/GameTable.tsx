@@ -25,7 +25,7 @@ import { ChatPanel, useChat } from '@/modules/chat'
 import type { ChatUser } from '@/modules/chat/types'
 import JournalPanel from '@/modules/journal/components/JournalPanel'
 import MasterPanel from './components/master/MasterPanel'
-import { tableDefaultDisciplineRules as defaultDisciplineRules } from '@/lib/table/rules-subset'
+import { tableDefaultDisciplineRules as defaultDisciplineRules } from './rules-subset'
 
 import {
   ATTRIBUTE_GROUPS,

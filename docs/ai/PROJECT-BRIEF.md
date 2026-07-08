@@ -39,7 +39,7 @@ sheet and table**, carrying `room`, `role`, `characterId`.
 ## Core routes
 | Route | Renders | Notes |
 |---|---|---|
-| `/` | `MainScreen` | Landing / entry (character & room selection) |
+| `/` | `HomeRoute` → `MainScreen` | Landing / entry (character & room selection) |
 | `/character-sheet` | `CharacterSheetScreen` → iframe `/old-sheet.html` | The full legacy sheet |
 | `/table` | `GameTable` | The shared campaign room |
 | `/journal` | Journal editor | Rich-text journal |

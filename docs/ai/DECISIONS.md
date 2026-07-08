@@ -40,7 +40,7 @@ stale-while-revalidate=604800` via `vercel.json` headers. (3) Storage portraits
 are uploaded/served with `max-age=31536000` (migrated objects' metadata updated
 in-place). (4) `preconnect` to Supabase in `app/layout.tsx` + `old-sheet.html`.
 (5) The React table no longer statically imports `public/rules.json`; mappers and
-table damage fallback use generated `lib/table/rules-subset.ts`, built from the
+table damage fallback use generated `modules/table/rules-subset.ts`, built from the
 passive tracker/damage mechanics in `public/rules.json`.
 **Reason:** List queries pulled ~273 KB where 3 KB suffices; rules.json (1.8 MB)
 was bundled into Next client chunks; portraits re-validated/re-downloaded on
@@ -49,10 +49,10 @@ every visit.
 queries. Legacy statics may be up to 5 min stale after a deploy (SWR refreshes in
 background). If passive discipline mechanics that affect tracker max or damage
 fallback change, rerun `node --import tsx scripts/generate-table-rules-subset.ts`.
-**Affected files:** `components/screens/MainScreen.tsx`, `public/supabase.js`,
+**Affected files:** `modules/home/components/MainScreen.tsx`, `public/supabase.js`,
 `vercel.json`, `app/layout.tsx`, `public/old-sheet.html`,
 `modules/table/mappers.ts`, `modules/table/GameTable.tsx`,
-`lib/table/rules-subset.ts`, `scripts/generate-table-rules-subset.ts`
+`modules/table/rules-subset.ts`, `scripts/generate-table-rules-subset.ts`
 **Status:** active
 
 ---

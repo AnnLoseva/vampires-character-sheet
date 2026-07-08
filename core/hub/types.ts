@@ -1,6 +1,7 @@
 export type GameSystemId = 'vtm5' | (string & {})
 
 export type ModuleId =
+  | 'home'
   | 'table'
   | 'chat'
   | 'music'
@@ -15,6 +16,7 @@ export type ChronicleRole = 'master' | 'player' | 'observer'
 export type ModuleLifecycle = 'planned' | 'active' | 'legacy-bridge' | 'deprecated'
 
 export type ModuleCapability =
+  | 'home'
   | 'table'
   | 'chat'
   | 'music'

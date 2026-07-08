@@ -1,4 +1,5 @@
 export { default as ChatPanel } from './components/ChatPanel'
 export { useChat } from './hooks/useChat'
 export * from './api/chat-api'
+export { chatModuleDefinition } from './module-definition'
 export type * from './types'
