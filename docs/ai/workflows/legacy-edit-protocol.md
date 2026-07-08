@@ -3,7 +3,7 @@
 Applies to: `public/main.js`, `public/old-sheet.html`, `public/supabase.js`,
 `public/creation-wizard.js`, `public/vtm-health.js`, `public/vtm-humanity.js`,
 `public/i18n-runtime.js`, `public/i18n-dictionary.js`, and the bridge shell
-`components/screens/CharacterSheetScreen.tsx`.
+`modules/character-sheet/components/CharacterSheetScreen.tsx`.
 
 Read `../subsystems/legacy-character-sheet.md` and
 `../subsystems/character-sheet-bridge.md` first.

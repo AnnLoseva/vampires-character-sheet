@@ -12,22 +12,22 @@ From `package.json`. Run the relevant checks after edits (see
 - **When:** manual/interactive testing of routes and UI.
 - **Failure means:** build/runtime error in an App Router route or a client
   component.
-- **Usual culprits:** `app/*/page.tsx`, `components/screens/*`,
-  `components/table/GameTable.tsx`, client/server component boundaries.
+- **Usual culprits:** `app/*/page.tsx`, `modules/*/*Route`,
+  `modules/table/GameTable.tsx`, client/server component boundaries.
 
 ## `npm run build`
 - **What:** full production build (`next build`) — the strongest local gate.
 - **When:** before considering a non-trivial change done.
 - **Failure means:** type error, invalid import, or a route that fails to compile.
-- **Usual culprits:** `lib/*`, `components/table/*`, type mismatches from
-  `lib/table/types.ts` or `core/systems/vtm5/rules/*`.
+- **Usual culprits:** `lib/*`, `modules/table/*`, type mismatches from
+  `modules/table/types.ts` or `core/systems/vtm5/rules/*`.
 
 ## `npm run lint`
 - **What:** `tsc --noEmit --incremental false` — a full TypeScript type check
   (this is the "lint" here; it is a type check, not ESLint).
 - **When:** after almost any TS/TSX edit.
 - **Failure means:** a type error somewhere in the graph.
-- **Usual culprits:** changed shapes in `lib/table/types.ts`, `core/systems/vtm5/rules/*`,
+- **Usual culprits:** changed shapes in `modules/table/types.ts`, `core/systems/vtm5/rules/*`,
   `lib/i18n/ruleNames.ts`, or component props.
 
 ## `npm run audit:structure`

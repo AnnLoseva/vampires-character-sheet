@@ -35,11 +35,10 @@ persist to the same Supabase project.
 ```text
 /table
  → GameTable                         (orchestrator: room state + Supabase I/O)
- → components/table/*                (Canvas, panels, dice, scenes, media, journal)
+ → modules/table/components/*        (Canvas, panels, dice, scenes, media, journal)
  → modules/chat/*                    (chat UI, auth, history, realtime)
  → modules/music/*                   (music UI, playback adapters, global engine)
- → modules/table/*                   (types, constants, mappers; api scaffolds)
- → lib/table/*                       (media/layer/scene utils; shims for moved files)
+ → modules/table/*                   (types, constants, mappers, api, hooks, utils)
  → core/systems/vtm5/rules/*        (pure rules: health, humanity, damage, disciplines)
  → Supabase tables + storage buckets (realtime room sync)
 ```
@@ -62,10 +61,10 @@ shell only through URL params, localStorage, and `postMessage`.
 
 ## React / Next layer (`app/`, `components/`)
 App Router route files are thin wrappers over `modules/*Route` entries.
-`modules/home/*` owns the entry screen; `components/screens/*` are compatibility
-shims for moved screens. `components/table/*` is legacy table compatibility;
-canonical table/chat/music/journal/reference code lives in `modules/*`. Shared
-state and Supabase I/O for the table currently concentrate in `GameTable.tsx`.
+`modules/home/*` owns the entry screen. Canonical table/chat/music/journal/reference
+code lives in `modules/*`; deprecated component and `lib/table/*` re-export shims
+have been removed. Shared state and Supabase I/O for the table currently
+concentrate in `GameTable.tsx`.
 
 ## VTM mechanics layer (`core/systems/vtm5/rules/*`)
 Pure, framework-independent rules: `health/index.ts`, `humanity/index.ts`,
@@ -87,13 +86,12 @@ maps display names ↔ stable identifiers.
   `table_images`, `table_scenes`, `table_scene_music`, `table_music`,
   `table_music_library`, `media_studio_layers`.
 - Buckets: `table-images` and a music bucket.
-- Table names centralized in `lib/table/constants.ts`.
+- Table names centralized in `modules/table/constants.ts`.
 - Schema/policies live in `supabase/*.sql`.
 
 ## Media / table layer
 Images, video, files and layers on the table canvas (tldraw). Utilities in
-`lib/table/media-utils.ts`, `layer-utils.ts`, `scene-utils.ts`; UI in
-`components/table/{TableCanvas,LayerManager,MediaLibrary,SceneManager}.tsx`.
+`modules/table/utils/*`; UI in `modules/table/components/*`.
 Music in `modules/music/*` with local-audio and YouTube adapters. The root
 layout mounts `GlobalMusicEngineMount` so playback survives route navigation.
 
@@ -105,6 +103,6 @@ layout mounts `GlobalMusicEngineMount` so playback survives route navigation.
 - Rules names duplicated RU/EN across the two rules JSON files.
 
 ## Direction of future refactor
-Extract legacy logic into `core/systems/vtm5/rules/*` and `lib/table/*` in small, verified steps;
+Extract legacy logic into `core/systems/vtm5/rules/*` and `modules/table/*` in small, verified steps;
 keep the iframe until a dedicated migration task exists; never regress the UI or
 change VTM rules content during a refactor. See `ROADMAP.md` and `DECISIONS.md`.

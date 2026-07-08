@@ -22,7 +22,7 @@
   root engine mount.
 - `modules/table/*` owns table orchestrator, data layer, APIs, hooks, utils,
   panels/modals (`RollHistoryPanel`, `LayerContextMenuPanel`, `MediaPreviewModal`,
-  etc.); `components/table/*` are compatibility shims only.
+  etc.); deprecated component and `lib/table/*` shims have been removed.
 
 ## What is fragile
 - `public/main.js` (~11k lines) — legacy sheet logic monolith.
@@ -53,7 +53,8 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-07 — (1) Character/touchstone images moved to Storage bucket
+2026-07-08 — Deprecated compatibility shims removed; feature imports should use
+  `modules/*` directly. 2026-07-07 — (1) Character/touchstone images moved to Storage bucket
   `character-portraits` (URLs instead of base64); rows + chat migrated, payloads
   dropped ~20×. (2) Voice: Cloudflare TURN via `/api/turn-credentials` (needs
   `CLOUDFLARE_TURN_KEY_*` env on Vercel) + ICE candidate queueing fix.

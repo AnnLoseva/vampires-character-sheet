@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import rules from '../public/rules.json'
-import { mapCharacterRowToOption } from '../lib/table/mappers'
+import { mapCharacterRowToOption } from '../modules/table/mappers'
 import { getDerivedStats } from '../core/systems/vtm5/rules/derived-stats'
 import {
   expireActiveEffects,

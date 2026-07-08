@@ -23,8 +23,8 @@
 Дополнительные зоны (не слои Hub, но важны):
 
 - **`app/`** — тонкие route shells Next.js App Router.
-- **`components/`** — экраны и оркестраторы на переходном этапе (`GameTable.tsx`).
-- **`lib/`** — shared infra (`supabase`, `i18n`) и compatibility shims (`lib/table/*`).
+- **`components/`** — переходная зона; runtime-модули живут в `modules/*`.
+- **`lib/`** — shared infra (`supabase`, `i18n`).
 - **`public/`** — legacy character sheet (vanilla JS, iframe).
 
 ---
@@ -157,7 +157,7 @@ configureRollsModule(adapter: RollsSystemAdapter)
 5. **React state** — в `modules/{id}/hooks/`, не в route shells.
 6. **UI** — в `modules/{id}/components/`; route shell импортирует один entry-компонент.
 7. **Не импортировать** `@/core/systems/vtm5/rules/*` напрямую, если есть адаптер (целевое правило; table пока на переходе).
-8. **Compatibility shims** — при переносе путей оставлять re-export в старом месте (`lib/table/*`).
+8. **Удалённые старые пути** — после переноса не добавлять новые re-export shim’ы без отдельной задачи на совместимость.
 9. **Проверки** — `npm run lint` + `npm run build` после каждого значимого шага.
 10. **Не менять** Supabase table/bucket names и shape сохранённых данных без migration note.
 
@@ -205,7 +205,6 @@ modules/my-feature/
 | Music module | player, sync, adapters, global engine mount |
 | Home module | HomeRoute, MainScreen, module-definition |
 | Rolls scaffold | types, adapter contract, configure, module-definition |
-| lib/table shims | re-export `@/modules/table/*` |
 | Сборка | `npm run build` и `npm run lint` проходят |
 
 ### 🟡 В процессе / переходное

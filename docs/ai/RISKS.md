@@ -15,5 +15,5 @@ when a new systemic risk appears (per `UPDATE-RULES.md`).
 | Music autoplay & browser limits | Music/media | Browsers block autoplay; YouTube embeds have their own constraints; sync is realtime | Gate playback on user gesture; handle adapter errors; `subsystems/music-and-media.md` |
 | Large rules JSON | Rules data | `rules.json` ~34k lines; hard to hand-edit safely; easy to desync EN | Edit narrowly; run `audit:disciplines`; keep RU/EN structurally parallel |
 | Changing VTM mechanics without tests | VTM mechanics | Rules regressions are subtle and player-facing | Run `validate:disciplines` / `test:disciplines`; keep `core/systems/vtm5/rules/*` pure and covered |
-| Media/layer/scene model coupling | Table | Scenes, layers and media reference each other and Supabase rows | Use `lib/table/{scene,layer,media}-utils.ts`; verify scene/layer visibility after edits |
+| Media/layer/scene model coupling | Table | Scenes, layers and media reference each other and Supabase rows | Use `modules/table/utils/{scene,layer,media}-utils.ts`; verify scene/layer visibility after edits |
 | Two Supabase clients | Persistence | `lib/supabase.ts` (React) and `public/supabase.js` (legacy) can diverge in behavior/keys | Keep env/config consistent; document any divergence |

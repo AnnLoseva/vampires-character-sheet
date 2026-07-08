@@ -772,7 +772,7 @@ export const dictionary: Record<string, string> = {
   'Шкала Сомнений заполнена. Следующая проверка мук совести почти наверняка приведёт к потере Человечности.':
     'The Stains track is full. The next Conscience check will almost certainly cause a loss of Humanity.',
 
-  // lib/table/constants.ts: DEFAULT_SCENE_NAME
+  // modules/table/constants.ts: DEFAULT_SCENE_NAME
   'Основная сцена': 'Main scene',
 
   // GameTable.tsx: quick-roll default poolName, willpower reroll

@@ -13,9 +13,8 @@ local-audio and YouTube sources, synced across the room.
   `modules/music/components/GlobalMusicEngineMount.tsx` in `app/layout.tsx`.
 - Music adapters: `modules/music/adapters/localAudioAdapter.ts`,
   `modules/music/adapters/youtubeAdapter.ts`.
-- Table media/layers: `components/table/{TableCanvas,MediaLibrary,LayerManager,
-  SceneManager}.tsx`.
-- Media/layer/scene helpers: `lib/table/{media-utils,layer-utils,scene-utils}.ts`.
+- Table media/layers: `modules/table/components/{canvas,media,layers,scenes}/*`.
+- Media/layer/scene helpers: `modules/table/utils/{media-utils,layer-utils,scene-utils}.ts`.
 - Data: `table_images`, `table_music`, `table_music_library`,
   `table_scene_music`, `media_studio_layers`; buckets `table-images` + music
   bucket (see `supabase-persistence.md`).
@@ -24,8 +23,8 @@ local-audio and YouTube sources, synced across the room.
 - Media items live on the tldraw canvas (`TableCanvas.tsx`) and are grouped into
   **layers** inside a **scene**. Visibility is scene/layer driven.
 - Root layer drop target id is `ROOT_LAYER_DROP_ID` (`__root__`) in
-  `lib/table/constants.ts`.
-- Use `lib/table/{layer,scene,media}-utils.ts` for placement/visibility logic —
+  `modules/table/constants.ts`.
+- Use `modules/table/utils/{layer,scene,media}-utils.ts` for placement/visibility logic —
   don't reimplement inline in `GameTable.tsx`.
 
 ## Music system
@@ -54,7 +53,7 @@ local-audio and YouTube sources, synced across the room.
 ## Safe edit protocol
 1. Read `../workflows/react-table-edit-protocol.md`.
 2. Keep source-specific logic inside the adapters; keep placement logic in
-   `lib/table/*`.
+   `modules/table/utils/*`.
 3. Preserve gesture-gated playback.
 4. Verify: open the music panel in `/table`, load local + YouTube, confirm
    play/seek and that scene switching shows the right media/layers.

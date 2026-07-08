@@ -39,7 +39,7 @@ what each command does.
 | Changed area | Minimum checks |
 |---|---|
 | `core/systems/vtm5/rules/*` / disciplines | lint + discipline scripts + affected mechanic |
-| `components/table/*` / `lib/table/*` | lint (+ build) + table smoke tests |
+| `modules/table/*` | lint (+ build) + table smoke tests |
 | Legacy `public/*` | iframe flow smoke tests |
 | Supabase schema | build + master/player room flow + character save/load |
 | Rules JSON | `audit:disciplines` (+ `validate:disciplines`) |

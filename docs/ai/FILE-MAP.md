@@ -17,7 +17,6 @@ opening code**. Risk levels drive how careful you must be.
 | `app/character-sheet/page.tsx` | `/character-sheet` route | low | before-any-change | Thin wrapper |
 | `app/table/page.tsx` | `/table` route | low | before-any-change | Thin wrapper |
 | `app/old/page.tsx` | legacy redirect | low | before-any-change | Redirects to `/character-sheet` |
-| `components/screens/CharacterSheetScreen.tsx` | iframe bridge shell | **high** | legacy-edit-protocol | Owns room/role/characterId/new + postMessage |
 
 ## Home module (`modules/home/*`)
 | Path | Role | Risk | Edit protocol | Notes |
@@ -25,14 +24,6 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/home/HomeRoute.tsx` | `/` entry | low | before-any-change | Thin wrapper over home screen |
 | `modules/home/components/MainScreen.tsx` | landing / entry | medium | react-table-edit-protocol | Character/room selection |
 | `modules/home/module-definition.ts` | home Hub module contract | low | before-any-change | `users`, `characters`, home localStorage |
-| `components/screens/MainScreen.tsx` | shim → module | low | before-any-change | Deprecated |
-
-## Game table (React) — legacy shims
-| Path | Role | Risk | Edit protocol | Notes |
-|---|---|---|---|---|
-| `components/table/GameTable.tsx` | shim → `modules/table/GameTable` | low | before-any-change | Do not edit; use `modules/table` |
-| `components/table/VampireTable.tsx`, `components/VampireTable.tsx` | shims → `modules/table/GameTable` | low | before-any-change | |
-| `components/CharacterSheet.tsx` | unused shim | low | before-any-change | Audit marks as unused |
 
 ## Table module (`modules/table/*`)
 | Path | Role | Risk | Edit protocol | Notes |
@@ -45,12 +36,11 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/table/constants.ts` | table/bucket names, keys (canonical) | **critical** | supabase-edit-protocol | Includes `constants/roll-traits.ts` |
 | `modules/table/mappers.ts` | DB ↔ app mapping (canonical) | high | supabase-edit-protocol | |
 | `modules/table/rules-subset.ts` | generated compact rules subset for table mappers/fallbacks | medium | rules-data subsystem | Do not edit manually; regenerate from `public/rules.json` with `scripts/generate-table-rules-subset.ts` |
-| `modules/table/utils/*` | scene/layer/media/roll helpers (canonical) | medium | react-table-edit-protocol | `lib/table/*-utils.ts` shims |
+| `modules/table/utils/*` | scene/layer/media/roll helpers (canonical) | medium | react-table-edit-protocol | |
 | `modules/table/api/*` | Supabase API (scene/layer/roll/character) | high | supabase-edit-protocol | Wired from `GameTable.tsx` |
 | `modules/table/hooks/*` | room/rolls/scenes/layers/realtime | high | react-table-edit-protocol | Wired in `GameTable.tsx` |
 | `modules/table/components/*` | modals + roll UI slices | medium | react-table-edit-protocol | See `components/README.md` |
 | `modules/table/index.ts` | public module barrel | low | before-any-change | |
-| `lib/table/{types,constants,mappers,*-utils}.ts` | compatibility shims | low | before-any-change | Re-export `@/modules/table/*` |
 
 ## Character sheet module (`modules/character-sheet/*`)
 | Path | Role | Risk | Edit protocol | Notes |
@@ -58,7 +48,6 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/character-sheet/CharacterSheetRoute.tsx` | `/character-sheet` entry | low | before-any-change | Thin wrapper |
 | `modules/character-sheet/components/CharacterSheetScreen.tsx` | iframe shell + nav | **high** | legacy-edit-protocol | Bridge contract owner |
 | `modules/character-sheet/legacy/{params,events,bridge}.ts` | bridge contract (canonical) | **high** | legacy-edit-protocol | Params, postMessage, localStorage |
-| `components/screens/CharacterSheetScreen.tsx` | shim → module | low | before-any-change | Deprecated |
 
 ## Chat, music, journal, reference
 | Path | Role | Risk | Edit protocol | Notes |
@@ -72,8 +61,8 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/music/components/GlobalMusicEngineMount.tsx` | persistent hidden music mount | medium | react-table-edit-protocol | Root layout mount; keep stable across navigation |
 | `modules/music/MusicSyncEngine.ts` | music sync | high | react-table-edit-protocol | Realtime sync + autoplay limits |
 | `modules/music/adapters/{localAudioAdapter,youtubeAdapter}.ts` | playback adapters | medium | react-table-edit-protocol | Browser/YouTube limits |
-| `modules/journal/*` | TipTap journal (canonical) | medium | before-any-change | `components/journal/*` is shim |
-| `modules/reference/*` | markdown reference (canonical) | low | before-any-change | `components/reference/*` is shim |
+| `modules/journal/*` | TipTap journal (canonical) | medium | before-any-change | |
+| `modules/reference/*` | markdown reference (canonical) | low | before-any-change | |
 
 ## VTM mechanics (`core/systems/vtm5/rules/*`)
 | Path | Role | Risk | Edit protocol | Notes |
@@ -83,17 +72,6 @@ opening code**. Risk levels drive how careful you must be.
 | `core/systems/vtm5/rules/damage/index.ts` | damage helpers | high | vtm-mechanics-edit-protocol | |
 | `core/systems/vtm5/rules/derived-stats/index.ts` | derived stats | high | vtm-mechanics-edit-protocol | |
 | `core/systems/vtm5/rules/disciplines/*` | discipline engine | high | vtm-mechanics-edit-protocol | Run discipline scripts after edits |
-
-## Table libs (`lib/table/*` — utils, shims)
-| Path | Role | Risk | Edit protocol | Notes |
-|---|---|---|---|---|
-| `lib/table/constants.ts` | shim → `modules/table/constants` | low | before-any-change | Prefer `@/modules/table` |
-| `lib/table/types.ts` | shim → `modules/table/types` | low | before-any-change | Prefer `@/modules/table` |
-| `lib/table/mappers.ts` | shim → `modules/table/mappers` | low | before-any-change | Prefer `@/modules/table` |
-| `lib/table/media-utils.ts` | shim → `modules/table/utils/media-utils` | low | before-any-change | |
-| `lib/table/layer-utils.ts` | shim → `modules/table/utils/layer-utils` | low | before-any-change | |
-| `lib/table/scene-utils.ts` | shim → `modules/table/utils/scene-utils` | low | before-any-change | |
-| `lib/table/{roll-utils,dice-display}.ts` | shim → `modules/table/utils/*` | low | before-any-change | |
 
 ## i18n & Supabase client
 | Path | Role | Risk | Edit protocol | Notes |

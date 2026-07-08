@@ -1,5 +1,4 @@
 # Reference Module
 
-Future module boundary for the rules/reference reader.
-
-Current runtime code still lives in `components/reference/*`.
+Runtime module for the rules/reference reader. `ReferenceRoute` owns the
+`/reference` entry and renders `components/ReferencePage` inside this module.

@@ -7,7 +7,7 @@ rolls and rouse checks. Rolls are shared in the room and can originate from the
 character sheet or the table.
 
 ## Main files
-- `components/table/DiceRollOverlay.tsx` — the roll UI / results overlay.
+- `modules/rolls/components/DiceRollOverlay.tsx` — the roll UI / results overlay.
 - Roll state persistence: `table_rolls` (see `supabase-persistence.md`).
 - `GameTable.tsx` — wires rolls into room state and realtime.
 - Mechanics live in `core/systems/vtm5/rules/*` (successes, hunger, margins); disciplines can

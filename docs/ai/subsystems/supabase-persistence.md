@@ -10,13 +10,13 @@ the legacy sheet — undocumented drift breaks save/load and sync everywhere.
 - `lib/supabase.ts` — the React/Next Supabase client.
 - `public/supabase.js` — the legacy client + `characters` CRUD (create/update/
   load/list, with `charactersListCache`).
-- `lib/table/constants.ts` — centralizes table + bucket names + keys.
-- `lib/table/mappers.ts` — maps Supabase rows ↔ app objects.
+- `modules/table/constants.ts` — centralizes table + bucket names + keys.
+- `modules/table/mappers.ts` — maps Supabase rows ↔ app objects.
 - `supabase/*.sql` — table definitions, RLS policies, and storage bucket setup.
   `supabase/patch_character_data.sql` defines the character autosave patch RPC.
 
 ## Tables and buckets
-Tables (from `lib/table/constants.ts` and `supabase/*.sql`):
+Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 
 | Table | Used by | Purpose |
 |---|---|---|
@@ -57,7 +57,7 @@ the SQL is not deployed.
 ## Table persistence
 `GameTable.tsx` reads/writes most `table_*` tables and subscribes to a per-room
 realtime channel (`table-room:{room}`). Chat is handled by `modules/chat/*`
-against `table_chat_messages`. Names must come from `lib/table/constants.ts`;
+against `table_chat_messages`. Names must come from `modules/table/constants.ts`;
 row mapping belongs in the relevant module/API.
 
 ## Music / media persistence

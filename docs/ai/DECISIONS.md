@@ -6,6 +6,26 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-08 — Deprecated module compatibility shims removed
+
+**Area:** Architecture / module migration
+**Decision:** Deprecated re-export shims under `components/*` and `lib/table/*`
+were removed after their runtime code moved into `modules/*`. Imports should use
+canonical module paths directly, such as `@/modules/table`,
+`@/modules/home`, `@/modules/journal`, `@/modules/reference`, and
+`@/modules/character-sheet`.
+**Reason:** The app routes now follow the thin `app/*/page.tsx` →
+`modules/*Route` pattern, and repo-wide imports no longer need the old
+compatibility layer.
+**Consequences:** Do not add new imports from deleted `components/*` shims or
+`@/lib/table/*`. Use `modules/table/constants.ts`, `modules/table/mappers.ts`,
+and `modules/table/utils/*` directly.
+**Affected files:** `components/*`, `lib/table/*`, `modules/*`,
+`docs/ai/FILE-MAP.md`, `docs/ai/CURRENT-STATE.md`
+**Status:** active
+
+---
+
 ## 2026-07-07 — Character autosave patches `data` through RPC
 
 **Area:** Supabase persistence / legacy character sheet

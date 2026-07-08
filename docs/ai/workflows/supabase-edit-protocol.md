@@ -1,7 +1,7 @@
 # Supabase Edit Protocol
 
 Applies to: anything touching Supabase — `lib/supabase.ts`, `public/supabase.js`,
-`lib/table/constants.ts`, `lib/table/mappers.ts`, `supabase/*.sql`, and any
+`modules/table/constants.ts`, `modules/table/mappers.ts`, `supabase/*.sql`, and any
 `GameTable.tsx` read/write.
 
 Read `../subsystems/supabase-persistence.md` first.
@@ -9,9 +9,9 @@ Read `../subsystems/supabase-persistence.md` first.
 ## Rules
 1. **Do not rename table or bucket names casually.** They are a contract shared by
    the React table and the legacy sheet. A rename must update, together:
-   - `lib/table/constants.ts`,
+   - `modules/table/constants.ts`,
    - both clients (`lib/supabase.ts`, `public/supabase.js`) where relevant,
-   - `lib/table/mappers.ts`,
+   - `modules/table/mappers.ts`,
    - `supabase/*.sql`,
    - and a `../DECISIONS.md` entry with a migration note.
 2. **Do not change storage buckets** (`table-images`, the music bucket) without

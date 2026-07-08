@@ -1,8 +1,7 @@
 # Table Components
 
-UI slices extracted from `GameTable.tsx`. Existing panel shells live in
-`components/table/*`; this folder holds orchestration-heavy modals and inline
-flows.
+UI slices extracted from `GameTable.tsx`. Table panel shells and orchestration-heavy
+modals now live under `modules/table/components/*`.
 
 | Component | Status | Responsibility |
 |---|---|---|
@@ -14,5 +13,5 @@ flows.
 | `RollModifierControls` | implemented | Discipline roll modifier toggles |
 | `VoiceControls` | planned | WebRTC voice (still in `GameTable` + `ChatPanel`) |
 
-Do not grow `GameTable.tsx` when adding features — add here or extend
-`components/table/*` instead.
+Do not grow `GameTable.tsx` when adding features — add or extend components under
+`modules/table/components/*` instead.

@@ -11,7 +11,7 @@ Working list of directions — not a fantasy plan. Keep it realistic and current
 - Do **not** add chaos to `modules/table/GameTable.tsx` or `public/main.js`.
 
 ## Next
-- Gradually extract logic from `public/main.js` into `core/systems/vtm5/rules/*` / `lib/table/*`
+- Gradually extract logic from `public/main.js` into `core/systems/vtm5/rules/*` / `modules/table/*`
   (small, verified steps; one explicit task each).
 - Sync the full sheet and the quick/summary sheet representations.
 - Improve the character creation wizard (`public/creation-wizard.js`).

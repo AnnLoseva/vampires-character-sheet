@@ -8,7 +8,6 @@ rolls, characters-at-table, and room orchestration.
 ### Data layer (canonical)
 - `types.ts`, `constants.ts`, `constants/roll-traits.ts`, `mappers.ts`
 - `utils/*` — scene, layer, media, room-session, dice-display, roll-utils
-- `lib/table/*` — compatibility shims re-exporting `@/modules/table/*`
 
 ### API (`api/*`)
 - `scene-api.ts` — scenes + scene music Supabase I/O
@@ -30,7 +29,7 @@ rolls, characters-at-table, and room orchestration.
 - `RollModifierControls`
 
 Runtime orchestration (roll builders, health/willpower actions, voice WebRTC,
-layer drag, master panel) still lives in `components/table/GameTable.tsx`
+layer drag, master panel) still lives in `modules/table/GameTable.tsx`
 (~7.4k lines, down from ~9k). Chat and music are separate modules.
 
 ## Responsibility zones still in GameTable
@@ -48,9 +47,6 @@ layer drag, master panel) still lives in `components/table/GameTable.tsx`
 ```ts
 import { TABLE_SCENES, mapSceneRow, useTableScenes, CharacterPreviewModal } from '@/modules/table'
 import type { TableScene, RollMessage } from '@/modules/table'
-
-// Legacy shims still work
-import { TABLE_SCENES } from '@/lib/table/constants'
 ```
 
 VTM mechanics: `core/systems/vtm5/rules/*` (pure, framework-independent).
