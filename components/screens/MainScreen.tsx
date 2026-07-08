@@ -496,8 +496,7 @@ export default function MainScreen() {
           position: relative;
           min-height: 100vh;
           min-height: 100dvh;
-          overflow-x: hidden;
-          overflow-y: auto;
+          overflow-x: clip;
           color: #eee8df;
           background: #030303;
           font-family: Inter, system-ui, sans-serif;
