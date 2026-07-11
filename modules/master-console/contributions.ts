@@ -1,5 +1,6 @@
 import { actorsMasterContribution } from '@/modules/actors/contribution'
 import { overviewMasterContribution } from '@/modules/master-overview/contribution'
+import { scenesMasterContribution } from '@/modules/master-scenes/contribution'
 import type { MasterConsoleContribution } from './types'
 
 /**
@@ -9,6 +10,7 @@ import type { MasterConsoleContribution } from './types'
 export const MASTER_CONSOLE_CONTRIBUTIONS: readonly MasterConsoleContribution[] = [
   overviewMasterContribution,
   actorsMasterContribution,
+  scenesMasterContribution,
 ].slice().sort((a, b) => a.order - b.order)
 
 export function getMasterContribution(id: string): MasterConsoleContribution | undefined {

@@ -12,6 +12,7 @@ export type ModuleId =
   | 'master-console'
   | 'master-rolls'
   | 'master-overview'
+  | 'master-scenes'
   | 'actors'
   | (string & {})
 
@@ -33,6 +34,7 @@ export type ModuleCapability =
   | 'master-console'
   | 'master-rolls'
   | 'master-overview'
+  | 'master-scenes'
   | 'actors'
   | (string & {})
 

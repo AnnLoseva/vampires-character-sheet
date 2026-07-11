@@ -8,9 +8,9 @@
   `old-sheet.html`) stays load-bearing; bridge lives in `modules/character-sheet/`.
   Creation wizard (`public/creation-wizard.js`) — validation, nav, specialties, thin-blood/Caitiff rules synced.
 - Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines).
-- `/master?room=...` hosts **Обзор ночи** (default), **НПС**, permanent **master
-  roller**. Overview aggregates actors/scenes/action log without copying sheets.
-  Notes/plots: `master_session_notes` / `master_plot_hooks` (+ local fallback).
+- `/master?room=...` hosts **Обзор ночи**, **НПС**, **Сцены и слои**, permanent
+  roller. Scenes shell reuses `table_scenes`/`table_images` (no second engine);
+  publish = `is_active` + `scene-active` broadcast; GM layers filtered for players.
   Auth/SQL deploy still pending.
 - Run `npm run test:vtm-parity` after health/humanity edits in `core/` or `public/vtm-*.js`.
   Remorse resolution (`applyRemorseCheckResult`) is shared: core ↔ legacy ↔ table.
@@ -57,7 +57,7 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-11 — Master **Обзор ночи** (`modules/master-overview`): coterie, scene
-  NPCs, plots, session notes autosave, consequences timeline, macros. Earlier
-  same day: master-rolls, NPC module, actors domain, shell. 2026-07-08 shims;
-  2026-07-07 portraits/TURN/ECH.
+2026-07-11 — Master **Сцены и слои** (`modules/master-scenes`): draft preview vs
+  publish, layer categories GM/fog/players, light presets data, interactives,
+  scene music via table_music. Earlier: overview, rolls, NPC, actors, shell.
+  2026-07-08 shims; 2026-07-07 portraits/TURN/ECH.

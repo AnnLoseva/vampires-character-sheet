@@ -191,8 +191,19 @@ export function useTableRealtime(options: UseTableRealtimeOptions) {
         })
       })
       .on('broadcast', { event: 'scene-active' }, payload => {
-        const scene = payload.payload as { room?: string; sceneId?: string }
+        const scene = payload.payload as { room?: string; sceneId?: string; fade?: boolean }
         if (scene.room !== currentRoom || !scene.sceneId) return
+        // Optional smooth fade when master publishes from /master shell.
+        if (scene.fade && typeof document !== 'undefined') {
+          const root = document.querySelector('.scene-viewport, .table-scene, [data-table-canvas]') as HTMLElement | null
+          if (root) {
+            root.style.transition = 'opacity 0.45s ease'
+            root.style.opacity = '0.35'
+            window.setTimeout(() => {
+              root.style.opacity = '1'
+            }, 120)
+          }
+        }
         setActiveSceneId(scene.sceneId)
         setSelectedSceneId(scene.sceneId)
         setScenes(prev => prev.map(item => ({ ...item, isActive: item.id === scene.sceneId })))

@@ -26,6 +26,9 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 | `master_hidden_rolls` | master-rolls | Master-only hidden rolls until reveal |
 | `master_session_notes` | master-overview | Private session notes (autosave) |
 | `master_plot_hooks` | master-overview | Active plot hooks and heat status |
+| `master_scene_meta` | master-scenes | Draft light preset, encounter marker, archive order |
+| `master_scene_objects` | master-scenes | Master interactives (private config) |
+| `master_scene_objects_public` | master-scenes | Revealed interactives without secrets |
 | `table_chat_messages` | table | Room chat |
 | `table_images` | table | Images/media placed on the table |
 | `table_scenes` | table | Scenes |

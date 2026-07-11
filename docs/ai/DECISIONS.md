@@ -6,6 +6,27 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-11 — Master scenes shell reuses table scene engine
+
+**Area:** Master console / scenes / layers
+**Decision:** `modules/master-scenes` is a master UI shell over
+`table_scenes` / `table_images` / `table_scene_music` APIs. Preview selects a
+scene without activating it; **Publish** sets `is_active`, deactivates others,
+broadcasts one `scene-active` event (`fade: true`) on the existing `table-room`
+channel, and logs `scenes.publish`. Light presets are pure data applied to
+master preview only until publish. Interactives live in master-only
+`master_scene_objects` with a public projection table that omits
+`private_config`. Player canvas filters out `owner_role=master` layers.
+Music uses `table_music` / global engine only.
+**Reason:** One scene engine for table and master; no GameTable fork.
+**Consequences:** Deploy `supabase/master_scenes.sql` for meta/interactives.
+Reorder of scene list is meta-local until sort_order is provisioned.
+**Affected files:** `modules/master-scenes/*`, `supabase/master_scenes.sql`,
+`modules/table/GameTable.tsx` (GM layer filter), `useTableRealtime.ts` (fade)
+**Status:** active
+
+---
+
 ## 2026-07-11 — Night overview aggregates; does not copy domain data
 
 **Area:** Master console / overview

@@ -1578,8 +1578,12 @@ export default function VampireTable() {
   }
 
   const visibleLayers = useMemo(
-    () => sortLayers(layers).filter(layer => isLayerEffectivelyVisible(layer, layers)),
-    [layers],
+    () => sortLayers(layers).filter(layer => {
+      // GM-owned layers never render on player table canvas.
+      if (!isMaster && layer.ownerRole === 'master') return false
+      return isLayerEffectivelyVisible(layer, layers)
+    }),
+    [layers, isMaster],
   )
   const checkLayerEffectivelyVisible = (layer: TableLayer) => isLayerEffectivelyVisible(layer, layers)
   const managerLayers = useMemo(
