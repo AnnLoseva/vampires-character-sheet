@@ -9,6 +9,7 @@ export type ModuleId =
   | 'character-sheet'
   | 'journal'
   | 'reference'
+  | 'master-console'
   | (string & {})
 
 export type ChronicleRole = 'master' | 'player' | 'observer'
@@ -26,6 +27,7 @@ export type ModuleCapability =
   | 'reference'
   | 'media'
   | 'rules'
+  | 'master-console'
   | (string & {})
 
 export type ModuleRoute = {

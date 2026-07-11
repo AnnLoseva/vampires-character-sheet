@@ -1,5 +1,6 @@
 @import "../modules/ui/vtm-theme/tokens.css";
 @import "../modules/ui/vtm-theme/controls.css";
+@import "../modules/master-console/master-console.css";
 
 :root {
   --v-red: #ff3131;

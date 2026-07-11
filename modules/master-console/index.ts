@@ -1,0 +1,5 @@
+export { default as MasterConsoleRoute } from './MasterConsoleRoute'
+export { default as MasterConsoleShell } from './MasterConsoleShell'
+export { bootstrapMasterConsoleForRoom } from './bootstrap'
+export { masterConsoleModuleDefinition } from './module-definition'
+export type { MasterConsoleModule, MasterConsoleRouteState } from './types'

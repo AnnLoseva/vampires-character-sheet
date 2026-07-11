@@ -1,4 +1,7 @@
 import type { TableRole } from '../types'
+import { MASTER_PASSWORD_KEY } from '../constants'
+
+const DEFAULT_MASTER_PASSWORD = '1234'
 
 export function getRoomFromLocation() {
   if (typeof window === 'undefined') return 'campaign-666'
@@ -23,4 +26,13 @@ export function rememberTableRole(role: TableRole) {
 
 export function clearTableRole() {
   window.localStorage.removeItem('vtm-table-role')
+}
+
+export function getStoredMasterPassword() {
+  if (typeof window === 'undefined') return DEFAULT_MASTER_PASSWORD
+  return window.localStorage.getItem(MASTER_PASSWORD_KEY) || DEFAULT_MASTER_PASSWORD
+}
+
+export function verifyMasterPassword(candidate: string) {
+  return candidate === getStoredMasterPassword()
 }

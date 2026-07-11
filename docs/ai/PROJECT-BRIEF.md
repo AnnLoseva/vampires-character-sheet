@@ -25,6 +25,8 @@ Single app, two roles, driven by a `role` (`master` | `player`) parameter.
    layers, dice, chat, journal, music.
 3. **Journal** — `/journal`, a TipTap-based rich journal.
 4. **Reference** — `/reference`, a markdown rules reference.
+5. **Master console** — `/master?room=...`, a desktop shell for future
+   Storyteller modules; currently protected by the compatibility master-password gate.
 
 Typical flow: **main screen → pick/create character → open room → jump between
 sheet and table**, carrying `room`, `role`, `characterId`.
@@ -44,6 +46,7 @@ sheet and table**, carrying `room`, `role`, `characterId`.
 | `/table` | `GameTable` | The shared campaign room |
 | `/journal` | Journal editor | Rich-text journal |
 | `/reference` | Reference pages | Markdown rules reference |
+| `/master?room=<room-id>` | `MasterConsoleRoute` → `MasterConsoleShell` | Desktop Storyteller workspace shell; room is required |
 | `/old` | redirect | Legacy redirect → `/character-sheet` |
 
 ## Main data sources

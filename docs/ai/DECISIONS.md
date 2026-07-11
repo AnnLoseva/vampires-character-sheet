@@ -6,6 +6,26 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-11 — Master console is a separate Hub module, not a second GameTable
+
+**Area:** Master console / routing / Hub
+**Decision:** `/master?room=...` mounts `modules/master-console` as a VTM5 Hub
+module. It bootstraps the same chronicle runtime and canonical room resolver as
+the table, composes its own desktop shell, and does not import `GameTable`.
+The current local master-password contract is shared through
+`modules/table/utils/room-session.ts` and is always required regardless of URL role.
+**Reason:** Establish a reviewable shell and module boundary without duplicating
+table orchestration, persistence, scenes, rolls or music.
+**Consequences:** Business contributions and Supabase data are deferred. The
+compatibility gate blocks URL-only access but does not provide real privacy;
+Auth/RLS remains a prerequisite for master secrets.
+**Affected files:** `app/master/page.tsx`, `modules/master-console/*`,
+`core/hub/{types,presets}.ts`, `modules/table/hooks/useRoomSession.ts`,
+`modules/table/utils/room-session.ts`
+**Status:** active
+
+---
+
 ## 2026-07-11 — Shared VTM UI tokens have one canonical owner
 
 **Area:** UI architecture / game table / master console

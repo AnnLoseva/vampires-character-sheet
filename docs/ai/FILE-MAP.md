@@ -16,6 +16,7 @@ opening code**. Risk levels drive how careful you must be.
 | `app/page.tsx` | `/` route → `modules/home/HomeRoute` | low | before-any-change | Thin wrapper |
 | `app/character-sheet/page.tsx` | `/character-sheet` route | low | before-any-change | Thin wrapper |
 | `app/table/page.tsx` | `/table` route | low | before-any-change | Thin wrapper |
+| `app/master/page.tsx` | `/master` route | low | before-any-change | Thin wrapper; explicit `room` required |
 | `app/old/page.tsx` | legacy redirect | low | before-any-change | Redirects to `/character-sheet` |
 
 ## Home module (`modules/home/*`)
@@ -41,6 +42,15 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/table/hooks/*` | room/rolls/scenes/layers/realtime | high | react-table-edit-protocol | Wired in `GameTable.tsx` |
 | `modules/table/components/*` | modals + roll UI slices | medium | react-table-edit-protocol | See `components/README.md` |
 | `modules/table/index.ts` | public module barrel | low | before-any-change | |
+
+## Master console (`modules/master-console/*`)
+
+| Path | Role | Risk | Edit protocol | Notes |
+|---|---|---|---|---|
+| `modules/master-console/MasterConsoleRoute.tsx` | room validation, Hub bootstrap and compatibility access gate | medium | before-any-change | URL role never bypasses gate |
+| `modules/master-console/MasterConsoleShell.tsx` | desktop shell composition | medium | before-any-change | Does not import `GameTable` |
+| `modules/master-console/components/*` | topbar, rails, empty module host and size guard | low | before-any-change | Business modules intentionally absent |
+| `modules/master-console/{types,module-definition,bootstrap}.ts` | Hub contract and VTM5 room runtime | medium | before-any-change | No Supabase persistence yet |
 
 ## Character sheet module (`modules/character-sheet/*`)
 | Path | Role | Risk | Edit protocol | Notes |

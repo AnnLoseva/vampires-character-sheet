@@ -7,8 +7,10 @@ import {
   clearTableRole,
   getRoleFromLocation,
   getRoomFromLocation,
+  getStoredMasterPassword,
   rememberRoom,
   rememberTableRole,
+  verifyMasterPassword,
 } from '../utils/room-session'
 
 type UseRoomSessionOptions = {
@@ -33,7 +35,7 @@ export function useRoomSession({ t }: UseRoomSessionOptions) {
   }, [])
 
   useEffect(() => {
-    const savedMasterPassword = window.localStorage.getItem(MASTER_PASSWORD_KEY) || '1234'
+    const savedMasterPassword = getStoredMasterPassword()
     setMasterPasswordEdit(savedMasterPassword)
     const savedRole = window.localStorage.getItem('vtm-table-role')
     const urlRole = getRoleFromLocation()
@@ -54,8 +56,7 @@ export function useRoomSession({ t }: UseRoomSessionOptions) {
 
   const enterAsMaster = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
-    const currentPassword = window.localStorage.getItem(MASTER_PASSWORD_KEY) || '1234'
-    if (masterPasswordDraft !== currentPassword) {
+    if (!verifyMasterPassword(masterPasswordDraft)) {
       window.alert(t('Пароль мастера не подошёл.'))
       return
     }

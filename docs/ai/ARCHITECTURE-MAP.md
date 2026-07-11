@@ -17,6 +17,7 @@ persist to the same Supabase project.
 | `/table` | `modules/table/TableRoute` → `GameTable.tsx` | React |
 | `/journal` | `modules/journal/JournalRoute` | React |
 | `/reference` | `modules/reference/ReferenceRoute` | React |
+| `/master` | `modules/master-console/MasterConsoleRoute` → `MasterConsoleShell` | React |
 | `/old` | `app/old/page.tsx` | redirect → `/character-sheet` |
 
 ## Flow: character sheet
@@ -51,6 +52,21 @@ persist to the same Supabase project.
  → Supabase `users` + light `characters` list
  → links to /character-sheet, /table, /journal, /reference
 ```
+
+## Flow: master console
+
+```text
+/master?room=<room-id>
+ → MasterConsoleRoute (requires explicit valid room + compatibility master gate)
+ → bootstrapMasterConsoleForRoom
+ → createVtm5ChronicleHub / bootstrapChronicleRuntime
+ → MasterConsoleShell (topbar + sidebar + empty module host + right rail)
+```
+
+The shell reuses the canonical table room resolver and master-password storage
+contract, but does not import or render `GameTable`. It has no Supabase tables or
+business-module runtime yet. The client password prevents URL-only role bypass;
+it is not a substitute for the Auth/RLS security model.
 
 ## Legacy layer (`public/`)
 Vanilla, no build step. `old-sheet.html` (markup/styles) + `main.js` (logic) +
