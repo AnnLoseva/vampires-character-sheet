@@ -6,6 +6,25 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-11 — Night overview aggregates; does not copy domain data
+
+**Area:** Master console / overview
+**Decision:** `modules/master-overview` is a read-model + light master-only
+writes module. Coterie/NPC cards are selectors over `modules/actors` + active
+`table_scenes`; timeline merges `master_action_log` and public `table_rolls`;
+macros call actors hunger APIs and `master-rolls` services. Session notes and
+plot hooks use `master_session_notes` / `master_plot_hooks` (master RLS) with
+localStorage fallback when Auth/SQL are undeployed. No demo seed data.
+**Reason:** Command center must stay current with source entities and must not
+fork character/scene/roll storage.
+**Consequences:** Cards deep-link to actors module or full sheet; lore deep-link
+is a stub until the lore module exists. Deploy `supabase/master_overview.sql`.
+**Affected files:** `modules/master-overview/*`, `supabase/master_overview.sql`,
+`modules/master-console/contributions.ts`
+**Status:** active
+
+---
+
 ## 2026-07-11 — Master roller reuses RollMessage; hidden rolls are not table_rolls
 
 **Area:** Master console / rolls / privacy

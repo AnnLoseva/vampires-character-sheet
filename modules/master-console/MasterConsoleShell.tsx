@@ -30,6 +30,16 @@ export default function MasterConsoleShell({ room, onLock }: MasterConsoleShellP
     setActiveModuleId(readModuleFromUrl())
   }, [])
 
+  useEffect(() => {
+    const onNavigate = (event: Event) => {
+      const detail = (event as CustomEvent<{ moduleId?: string }>).detail
+      if (!detail?.moduleId || !getMasterContribution(detail.moduleId)) return
+      setActiveModuleId(detail.moduleId)
+    }
+    window.addEventListener('master-console:navigate', onNavigate)
+    return () => window.removeEventListener('master-console:navigate', onNavigate)
+  }, [])
+
   const onSelectModule = useCallback((id: string) => {
     if (!getMasterContribution(id)) return
     setActiveModuleId(id)

@@ -24,6 +24,8 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 | `users` | app | User records |
 | `table_rolls` | table + master public rolls | Dice rolls per room (player-visible) |
 | `master_hidden_rolls` | master-rolls | Master-only hidden rolls until reveal |
+| `master_session_notes` | master-overview | Private session notes (autosave) |
+| `master_plot_hooks` | master-overview | Active plot hooks and heat status |
 | `table_chat_messages` | table | Room chat |
 | `table_images` | table | Images/media placed on the table |
 | `table_scenes` | table | Scenes |

@@ -1,4 +1,5 @@
 import { actorsMasterContribution } from '@/modules/actors/contribution'
+import { overviewMasterContribution } from '@/modules/master-overview/contribution'
 import type { MasterConsoleContribution } from './types'
 
 /**
@@ -6,6 +7,7 @@ import type { MasterConsoleContribution } from './types'
  * IDs are allow-listed; URL module params never become dynamic import paths.
  */
 export const MASTER_CONSOLE_CONTRIBUTIONS: readonly MasterConsoleContribution[] = [
+  overviewMasterContribution,
   actorsMasterContribution,
 ].slice().sort((a, b) => a.order - b.order)
 
@@ -13,4 +15,4 @@ export function getMasterContribution(id: string): MasterConsoleContribution | u
   return MASTER_CONSOLE_CONTRIBUTIONS.find(item => item.id === id)
 }
 
-export const DEFAULT_MASTER_MODULE_ID = 'actors'
+export const DEFAULT_MASTER_MODULE_ID = 'overview'

@@ -6,6 +6,7 @@ import { journalModuleDefinition } from '@/modules/journal/module-definition'
 import { musicModuleDefinition } from '@/modules/music/module-definition'
 import { masterConsoleModuleDefinition } from '@/modules/master-console/module-definition'
 import { masterRollsModuleDefinition } from '@/modules/master-rolls/module-definition'
+import { masterOverviewModuleDefinition } from '@/modules/master-overview/module-definition'
 import { actorsModuleDefinition } from '@/modules/actors/module-definition'
 import { referenceModuleDefinition } from '@/modules/reference/module-definition'
 import { rollsModuleDefinition } from '@/modules/rolls/module-definition'
@@ -26,6 +27,7 @@ export function createVtm5ChronicleHub(): ChronicleHub {
       { module: musicModuleDefinition, enabledByDefault: true },
       { module: masterConsoleModuleDefinition, enabledByDefault: true },
       { module: masterRollsModuleDefinition, enabledByDefault: true },
+      { module: masterOverviewModuleDefinition, enabledByDefault: true },
       { module: actorsModuleDefinition, enabledByDefault: true },
       { module: rollsModuleDefinition, enabledByDefault: true },
       { module: characterSheetModuleDefinition, enabledByDefault: true },

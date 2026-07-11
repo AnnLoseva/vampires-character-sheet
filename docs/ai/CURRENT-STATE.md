@@ -8,9 +8,10 @@
   `old-sheet.html`) stays load-bearing; bridge lives in `modules/character-sheet/`.
   Creation wizard (`public/creation-wizard.js`) — validation, nav, specialties, thin-blood/Caitiff rules synced.
 - Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines).
-- `/master?room=...` shell hosts **НПС и SPC** + permanent **master roller** right
-  rail (`modules/master-rolls`). Hidden rolls use `master_hidden_rolls` (or local
-  fallback) — never `table_rolls`/player realtime. Auth/SQL deploy still pending.
+- `/master?room=...` hosts **Обзор ночи** (default), **НПС**, permanent **master
+  roller**. Overview aggregates actors/scenes/action log without copying sheets.
+  Notes/plots: `master_session_notes` / `master_plot_hooks` (+ local fallback).
+  Auth/SQL deploy still pending.
 - Run `npm run test:vtm-parity` after health/humanity edits in `core/` or `public/vtm-*.js`.
   Remorse resolution (`applyRemorseCheckResult`) is shared: core ↔ legacy ↔ table.
 
@@ -56,7 +57,7 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-11 — Permanent master right-rail roller (`modules/master-rolls`): public
-  rolls reuse `table_rolls`/`RollMessage`; hidden rolls master-only storage +
-  reveal; undo via inverse ops + Ctrl+Z. Earlier: NPC module, actors domain,
-  master shell/Auth foundation. 2026-07-08 — shims removed. 2026-07-07 — portraits/TURN/ECH.
+2026-07-11 — Master **Обзор ночи** (`modules/master-overview`): coterie, scene
+  NPCs, plots, session notes autosave, consequences timeline, macros. Earlier
+  same day: master-rolls, NPC module, actors domain, shell. 2026-07-08 shims;
+  2026-07-07 portraits/TURN/ECH.

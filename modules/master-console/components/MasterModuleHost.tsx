@@ -72,6 +72,11 @@ export default function MasterModuleHost({
 
   useEffect(() => {
     setDeepLinkParams(readDeepLinkParams(contribution?.deepLinks))
+    const onNavigate = () => {
+      setDeepLinkParams(readDeepLinkParams(contribution?.deepLinks))
+    }
+    window.addEventListener('master-console:navigate', onNavigate)
+    return () => window.removeEventListener('master-console:navigate', onNavigate)
   }, [contribution?.deepLinks, contribution?.id])
 
   if (!contribution || !LazyModule) {

@@ -1,0 +1,412 @@
+/* Night overview — feature-local styles */
+
+.mo-module {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  color: var(--vtm-ink);
+  background: var(--vtm-bg);
+}
+
+.mo-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  padding: var(--sp-5) var(--sp-6);
+  border-bottom: 1px solid var(--vtm-line);
+  background: var(--vtm-surface-1);
+}
+
+.mo-header h1 {
+  margin: var(--sp-2) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-18);
+}
+
+.mo-kicker {
+  color: var(--vtm-blood-bright);
+  font-size: var(--fs-10);
+  font-weight: 700;
+  letter-spacing: var(--ls-kicker);
+  text-transform: uppercase;
+}
+
+.mo-muted {
+  margin: var(--sp-2) 0 0;
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-11);
+}
+
+.mo-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(280px, 0.85fr);
+  gap: var(--sp-4);
+  min-height: 0;
+  padding: var(--sp-4);
+  overflow: auto;
+}
+
+.mo-col {
+  display: grid;
+  gap: var(--sp-4);
+  align-content: start;
+  min-width: 0;
+}
+
+.mo-panel {
+  border: 1px solid var(--vtm-line);
+  border-radius: var(--r-md);
+  background: var(--vtm-surface-1);
+  box-shadow: var(--shadow-1);
+  overflow: hidden;
+}
+
+.mo-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--vtm-line-soft);
+}
+
+.mo-panel-head h2 {
+  margin: 0;
+  font-size: var(--fs-12);
+}
+
+.mo-panel-body {
+  padding: var(--sp-4) var(--sp-5);
+}
+
+.mo-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+}
+
+.mo-stat {
+  padding: var(--sp-3);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  background: var(--vtm-surface-2);
+}
+
+.mo-stat span {
+  display: block;
+  color: var(--vtm-ink-faint);
+  font-size: 10px;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.mo-stat strong {
+  display: block;
+  margin-top: 4px;
+  font-size: var(--fs-14);
+}
+
+.mo-stat[data-warn="true"] strong {
+  color: var(--vtm-gold-warn);
+}
+
+.mo-card-grid {
+  display: grid;
+  gap: var(--sp-3);
+}
+
+.mo-card {
+  display: grid;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
+  gap: var(--sp-3);
+  padding: var(--sp-3);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-sm);
+  background: var(--vtm-surface-2);
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.mo-card:hover {
+  border-color: var(--vtm-line-blood);
+  background: rgba(34, 20, 20, 0.55);
+}
+
+.mo-card[data-critical="true"] {
+  border-color: var(--vtm-line-blood);
+}
+
+.mo-avatar {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  overflow: hidden;
+  border-radius: var(--r-xs);
+  border: 1px solid var(--vtm-line-soft);
+  background: var(--vtm-void);
+  color: var(--vtm-blood-soft);
+  font-size: var(--fs-10);
+  font-weight: 700;
+}
+
+.mo-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.mo-card strong {
+  display: block;
+  font-size: var(--fs-12);
+}
+
+.mo-card small {
+  display: block;
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-10);
+}
+
+.mo-vitals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin-top: 4px;
+  color: var(--vtm-ink-dim);
+  font-size: 10px;
+}
+
+.mo-warn {
+  margin-top: 4px;
+  color: var(--vtm-gold-warn);
+  font-size: 10px;
+}
+
+.mo-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.mo-actions button,
+.mo-panel-head button,
+.mo-macros button,
+.mo-note-toolbar button,
+.mo-plot-actions button {
+  height: var(--ctrl-sm);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  color: var(--vtm-ink-dim);
+  background: var(--vtm-surface-3);
+  font-size: 10px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.mo-actions button:hover,
+.mo-panel-head button:hover,
+.mo-macros button:hover {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-pale);
+}
+
+.mo-macros {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-2);
+}
+
+.mo-macros button {
+  height: auto;
+  min-height: var(--ctrl-md);
+  padding: var(--sp-3);
+  text-align: left;
+  line-height: 1.3;
+}
+
+.mo-macros button em {
+  display: block;
+  margin-top: 2px;
+  color: var(--vtm-ink-faint);
+  font-style: normal;
+  font-size: 10px;
+}
+
+.mo-macros button[data-danger="true"] {
+  border-color: var(--vtm-line-blood);
+}
+
+.mo-heat {
+  display: inline-flex;
+  padding: 1px 6px;
+  border-radius: var(--r-pill);
+  border: 1px solid var(--vtm-line-soft);
+  font-size: 10px;
+  text-transform: lowercase;
+}
+
+.mo-heat[data-heat="background"] { color: var(--vtm-ink-faint); }
+.mo-heat[data-heat="smoldering"] { color: var(--vtm-gold-soft); border-color: var(--vtm-gold-line); }
+.mo-heat[data-heat="boiling"] { color: var(--vtm-blood-soft); border-color: var(--vtm-line-blood); }
+.mo-heat[data-heat="critical"] {
+  color: var(--vtm-blood-pale);
+  border-color: var(--vtm-blood);
+  background: var(--vtm-surface-blood);
+}
+
+.mo-plot {
+  display: grid;
+  gap: var(--sp-2);
+  padding: var(--sp-3);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-sm);
+  background: var(--vtm-surface-2);
+  margin-bottom: var(--sp-3);
+}
+
+.mo-plot:last-child { margin-bottom: 0; }
+
+.mo-plot input,
+.mo-plot select,
+.mo-entity-select,
+.mo-add-plot input {
+  width: 100%;
+  height: var(--ctrl-sm);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--vtm-line-strong);
+  border-radius: var(--r-xs);
+  color: var(--vtm-ink);
+  background: var(--vtm-void);
+  font-size: var(--fs-11);
+}
+
+.mo-plot-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.mo-note-status {
+  color: var(--vtm-ink-faint);
+  font-size: 10px;
+}
+
+.mo-note-status[data-status="dirty"],
+.mo-note-status[data-status="saving"] { color: var(--vtm-gold-soft); }
+.mo-note-status[data-status="saved"] { color: var(--vtm-success-soft); }
+.mo-note-status[data-status="error"] { color: var(--vtm-blood-bright); }
+.mo-note-status[data-status="local"] { color: var(--vtm-gold-warn); }
+
+.mo-note-editor {
+  min-height: 160px;
+  max-height: 280px;
+  overflow: auto;
+  padding: var(--sp-3);
+  border: 1px solid var(--vtm-line-strong);
+  border-radius: var(--r-sm);
+  background: var(--vtm-void);
+  color: var(--vtm-ink);
+  font-size: var(--fs-12);
+  line-height: 1.5;
+}
+
+.mo-note-editor:empty:before {
+  content: attr(data-placeholder);
+  color: var(--vtm-ink-faint);
+}
+
+.mo-note-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: var(--sp-3);
+}
+
+.mo-timeline {
+  display: grid;
+  gap: var(--sp-3);
+  max-height: 420px;
+  overflow: auto;
+}
+
+.mo-timeline-item {
+  padding: var(--sp-3);
+  border-left: 2px solid var(--vtm-line-soft);
+  background: var(--vtm-surface-2);
+  border-radius: 0 var(--r-xs) var(--r-xs) 0;
+}
+
+.mo-timeline-item[data-hidden="true"] {
+  border-left-color: var(--vtm-gold-line);
+  background: var(--vtm-gold-bg);
+}
+
+.mo-timeline-item time {
+  display: block;
+  color: var(--vtm-ink-faint);
+  font-size: 10px;
+}
+
+.mo-timeline-item strong {
+  display: block;
+  margin-top: 2px;
+  font-size: var(--fs-11);
+}
+
+.mo-timeline-item p {
+  margin: 4px 0 0;
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-10);
+  line-height: 1.4;
+}
+
+.mo-timeline-item .mo-consequence {
+  color: var(--vtm-blood-soft);
+}
+
+.mo-empty {
+  padding: var(--sp-5);
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-11);
+  line-height: 1.5;
+  text-align: center;
+  border: 1px dashed var(--vtm-line-soft);
+  border-radius: var(--r-sm);
+}
+
+.mo-add-plot {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.mo-badge {
+  padding: 1px 6px;
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-pill);
+  color: var(--vtm-ink-faint);
+  font-size: 10px;
+}
+
+.mo-badge[data-tone="private"] {
+  border-color: var(--vtm-gold-line);
+  color: var(--vtm-gold-soft);
+}
+
+.mo-status-line {
+  margin: 0;
+  padding: 0 var(--sp-6) var(--sp-3);
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-10);
+}
+
+.mo-status-line[data-tone="error"] {
+  color: var(--vtm-blood-bright);
+}
