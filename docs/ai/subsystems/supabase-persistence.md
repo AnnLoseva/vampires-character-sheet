@@ -29,6 +29,12 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 | `master_scene_meta` | master-scenes | Draft light preset, encounter marker, archive order |
 | `master_scene_objects` | master-scenes | Master interactives (private config) |
 | `master_scene_objects_public` | master-scenes | Revealed interactives without secrets |
+| `chronicle_lore_categories` | lore | Custom + chronicle category rows |
+| `chronicle_lore_entries` | lore | Chronicle lore entries (no system rules) |
+| `chronicle_lore_entry_private` | lore | GM-only private notes |
+| `chronicle_random_tables` | lore | Weighted random tables |
+| `blood_bonds` | blood-bonds | Active thrall→regnant bonds (master) |
+| `blood_bond_events` | blood-bonds | Append-only bond history |
 | `table_chat_messages` | table | Room chat |
 | `table_images` | table | Images/media placed on the table |
 | `table_scenes` | table | Scenes |

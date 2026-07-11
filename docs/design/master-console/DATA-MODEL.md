@@ -18,7 +18,8 @@ UUID из Supabase Auth membership, а не строка из URL, опреде�
 | `EntityLink` | typed source/target within chronicle | visibility наследуется от обеих сторон, иначе private | master; public projection only | target validation + no cross-chronicle links; RLS existence checks |
 | `BloodBond` | regnant/thrall actor refs | private by default; optional revealed summary | master only | unique active pair/direction rules; master RLS |
 | `BloodBondEvent` | append-only child of bond/session | private | master only | immutable insert, corrective event; same chronicle RLS |
-| `SessionLogEntry` | session + typed source ref | master body private; explicit player summary projection | master; published feed separately | append/update policy by type; sanitize exports |
+| `SessionLogEntry` | `session_log_entries` (master draft: title/body/tags/visibility/status/version) | body private by default; players never SELECT this table | master only (RLS) | optimistic concurrency via `version`; separate from player `vtm-journal:*` |
+| `SessionLogPublished` | `session_log_published` projection of published shared entries | only published body at publish time; no private drafts | members read by visibility (`shared_all` / `shared_selected`) | unpublish/archive deletes projection |
 | `MasterActionLog` | actor/member + command + target + correlation id | private; no secret copied into shared payload | master only | append-only, retention, undo metadata; no client-forged actor id |
 | `SceneInteractiveObject` | existing `table_scenes`/`table_images` ids | trigger/secret/outcome private; revealed effect becomes shared table action | master only until execute/reveal | FK strategy for current text ids; master RLS and transactional execute RPC |
 

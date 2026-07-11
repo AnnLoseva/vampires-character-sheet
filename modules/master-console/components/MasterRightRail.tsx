@@ -7,6 +7,8 @@ type MasterRightRailProps = {
   room: string
   rollRequest: MasterRollRequest | null
   onClearRollRequest?: () => void
+  /** Bumped when command palette asks to focus the roller. */
+  focusToken?: number
 }
 
 /**
@@ -16,9 +18,15 @@ export default function MasterRightRail({
   room,
   rollRequest,
   onClearRollRequest,
+  focusToken = 0,
 }: MasterRightRailProps) {
   return (
-    <aside className="master-right-rail" aria-label="Инструменты рассказчика">
+    <aside
+      className="master-right-rail"
+      aria-label="Инструменты рассказчика"
+      tabIndex={-1}
+      data-focus-token={focusToken || undefined}
+    >
       <MasterRoller
         room={room}
         rollRequest={rollRequest}

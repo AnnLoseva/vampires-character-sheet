@@ -17,8 +17,19 @@ persist to the same Supabase project.
 | `/table` | `modules/table/TableRoute` → `GameTable.tsx` | React |
 | `/journal` | `modules/journal/JournalRoute` | React |
 | `/reference` | `modules/reference/ReferenceRoute` | React |
-| `/master` | `modules/master-console/MasterConsoleRoute` → `MasterConsoleShell` | React |
+| `/master` | `modules/master-console/MasterConsoleRoute` → `MasterConsoleShell` | React master console (6 modules, search, detached windows) |
 | `/old` | `app/old/page.tsx` | redirect → `/character-sheet` |
+
+## Flow: master console
+```text
+/master?room=
+ → MasterConsoleRoute (room validate + master password gate — not security)
+ → MasterConsoleShell (topbar, sidebar|detached, host, right rail roller)
+ → contributions.ts allow-list → lazy module loaders
+ → modules/{overview,actors,scenes,lore,blood-bonds,session-log}
+ → search providers + multi-window bus + master_layouts
+ → Supabase master tables (RLS) + shared table APIs (scenes/rolls) where reused
+```
 
 ## Flow: character sheet
 ```text

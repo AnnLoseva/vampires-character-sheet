@@ -1,8 +1,69 @@
 # Decisions
 
+## 2026-07-11 — Master multi-window and session log
+
+- **Detached display**: `?display=detached` uses the same `/master` route with a
+  minimal shell (no sidebar chrome). Opened via `window.open`; popup-blocked is
+  a first-class error message. Closing a detached window does not remove the
+  module from the primary shell.
+- **Sync stack**: Supabase Realtime for domain tables; `BroadcastChannel` +
+  `localStorage` events for *small* cross-window signals only (navigate/layout
+  hints, hello/bye). Never full state snapshots on the bus.
+- **Layouts**: `master_layouts.layout_json` stores module composition
+  (`schemaVersion`, `activeModuleId`, …) — **not** window geometry. Optimistic
+  concurrency via `layout_version`; conflicts offer keep / take / save-copy.
+- **Session log vs player journal**: separate tables and keys
+  (`session_log_*` / `vtm-session-log:*` vs `vtm-journal:*`). Publish copies body
+  into `session_log_published`; players never SELECT drafts.
+- **Search**: module-owned providers on contributions; shell only fans out.
+  Role-scoped fetches (no "download private then hide on client").
+
+---
+
 Long-term architectural decisions. One entry per real decision (not per bug).
 Use `templates/decision-entry-template.md`. Newest at the top. When a decision is
 replaced, set the old one to `superseded` and link the new one.
+
+---
+
+## 2026-07-11 — Blood bonds use VTM5 adapter + append-only events
+
+**Area:** Master console / blood bonds / VTM rules
+**Decision:** Bond level, drink progression, warnings and resist difficulties
+live in pure `core/systems/vtm5/rules/blood-bonds` and
+`createVtm5BloodBondAdapter()`. Direction is thrall→regnant. Active pair is
+unique; self-bond forbidden. UI is graph (SVG layout utility) + keyboard list +
+detail. Break/deactivate sets status and inserts `blood_bond_events` — no
+DELETE of history. Tables are master RLS only (private by default).
+**Reason:** Mechanics stay testable and RU UI does not hardcode V5 text paths;
+audit requires immutable events.
+**Consequences:** Deploy `supabase/blood_bonds.sql`. Clients have no DELETE on
+`blood_bond_events`. LocalStorage fallback when Auth/SQL undeployed.
+**Affected files:** `core/systems/vtm5/rules/blood-bonds/*`,
+`core/systems/vtm5/adapters/blood-bonds.ts`, `modules/blood-bonds/*`,
+`supabase/blood_bonds.sql`
+**Status:** active
+
+---
+
+## 2026-07-11 — Chronicle lore is separate from system reference
+
+**Area:** Master console / lore
+**Decision:** `modules/lore` stores only chronicle-authored content in
+`chronicle_lore_categories`, `chronicle_lore_entries`,
+`chronicle_lore_entry_private`, and `chronicle_random_tables`. System VTM rules
+are surfaced via `modules/reference` adapter hits and never copied from
+`public/rules.json` into Supabase. Entity relations use
+`chronicle_entity_links`. Private GM notes are physically separate and omitted
+from shared select policies / public mappers. Random tables support weighted
+rows; rolls append `lore.random_table.roll` to `master_action_log`.
+**Reason:** Avoid rules-data drift and secret leakage while allowing campaign
+compendium + cross-module chips.
+**Consequences:** Deploy `supabase/chronicle_lore.sql`. Player-facing search
+must call `searchLoreCompendium({ includeMasterOnly: false })`.
+**Affected files:** `modules/lore/*`, `supabase/chronicle_lore.sql`,
+`modules/master-console/contributions.ts`
+**Status:** active
 
 ---
 

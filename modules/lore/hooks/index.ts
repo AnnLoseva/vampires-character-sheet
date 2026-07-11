@@ -1,0 +1,1 @@
+export { useLoreCompendium } from './useLoreCompendium'

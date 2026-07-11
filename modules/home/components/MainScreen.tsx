@@ -181,6 +181,7 @@ export default function MainScreen() {
 
   const room = useMemo(() => sanitizeRoom(roomDraft) || DEFAULT_ROOM, [roomDraft])
   const tableHref = `/table?room=${encodeURIComponent(room)}&role=${role}`
+  const masterHref = `/master?room=${encodeURIComponent(room)}`
   const sheetHref = `/character-sheet?room=${encodeURIComponent(room)}&role=${role}${selectedCharacterId ? `&characterId=${encodeURIComponent(selectedCharacterId)}` : ''}`
   const newSheetHref = `/character-sheet?room=${encodeURIComponent(room)}&role=${role}&new=1`
 
@@ -450,6 +451,16 @@ export default function MainScreen() {
                 <button type="submit" className="card-action">
                   {t('Войти в игру')}
                 </button>
+                {role === 'master' ? (
+                  <Link
+                    href={masterHref}
+                    onClick={() => rememberTableChoice('master')}
+                    className="ghost-action"
+                    style={{ marginTop: 8, display: 'inline-flex' }}
+                  >
+                    {t('Пульт рассказчика')}
+                  </Link>
+                ) : null}
               </form>
             }
           >

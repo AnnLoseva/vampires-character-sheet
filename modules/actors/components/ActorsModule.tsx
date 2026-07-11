@@ -82,10 +82,21 @@ export default function ActorsModule({
     setSavedFilters(loadSavedActorFilters(room))
   }, [room])
 
+  const deepLinkActorId = deepLinkParams?.actor || deepLinkParams?.entity || null
+  const [missingEntity, setMissingEntity] = useState<string | null>(null)
+
   useEffect(() => {
-    const actorId = deepLinkParams?.actor
-    if (actorId) setSelectedId(actorId)
-  }, [deepLinkParams?.actor])
+    if (!deepLinkActorId) {
+      setMissingEntity(null)
+      return
+    }
+    setSelectedId(deepLinkActorId)
+  }, [deepLinkActorId])
+
+  useEffect(() => {
+    if (!deepLinkActorId || loading) return
+    setMissingEntity(actors.some(actor => actor.id === deepLinkActorId) ? null : deepLinkActorId)
+  }, [deepLinkActorId, actors, loading])
 
   const mastersById = useMemo(() => {
     const map = new Map<string, MasterActor>()
@@ -319,6 +330,11 @@ export default function ActorsModule({
 
   return (
     <section className="actors-module" aria-label="НПС и SPC">
+      {missingEntity ? (
+        <p className="master-entity-missing" role="status">
+          Актор не найден или удалён: <code>{missingEntity}</code>
+        </p>
+      ) : null}
       <div className="actors-module-main">
         <header className="actors-header">
           <div>

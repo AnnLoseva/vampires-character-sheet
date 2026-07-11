@@ -13,7 +13,24 @@ export type {
   MasterConsoleRouteState,
   MasterModuleProps,
   MasterRollRequest,
+  MasterSearchProvider,
+  MasterCommandProvider,
+  MasterSearchHit,
+  MasterCommand,
 } from './types'
 export * from './api'
 export * from './hooks'
 export * from './persistence'
+export {
+  collectSearchProviders,
+  parseMasterDeepLink,
+  navigateMasterDeepLink,
+  buildBuiltInCommands,
+} from './search'
+export { openDetachedMasterWindow, createMasterWindowBus } from './multi-window'
+export {
+  migrateLayoutJson,
+  defaultLayoutState,
+  saveLayoutWithVersion,
+  listLayouts,
+} from './layouts'

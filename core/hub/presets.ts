@@ -8,6 +8,9 @@ import { masterConsoleModuleDefinition } from '@/modules/master-console/module-d
 import { masterRollsModuleDefinition } from '@/modules/master-rolls/module-definition'
 import { masterOverviewModuleDefinition } from '@/modules/master-overview/module-definition'
 import { masterScenesModuleDefinition } from '@/modules/master-scenes/module-definition'
+import { loreModuleDefinition } from '@/modules/lore/module-definition'
+import { bloodBondsModuleDefinition } from '@/modules/blood-bonds/module-definition'
+import { sessionLogModuleDefinition } from '@/modules/session-log/module-definition'
 import { actorsModuleDefinition } from '@/modules/actors/module-definition'
 import { referenceModuleDefinition } from '@/modules/reference/module-definition'
 import { rollsModuleDefinition } from '@/modules/rolls/module-definition'
@@ -30,6 +33,9 @@ export function createVtm5ChronicleHub(): ChronicleHub {
       { module: masterRollsModuleDefinition, enabledByDefault: true },
       { module: masterOverviewModuleDefinition, enabledByDefault: true },
       { module: masterScenesModuleDefinition, enabledByDefault: true },
+      { module: loreModuleDefinition, enabledByDefault: true },
+      { module: bloodBondsModuleDefinition, enabledByDefault: true },
+      { module: sessionLogModuleDefinition, enabledByDefault: true },
       { module: actorsModuleDefinition, enabledByDefault: true },
       { module: rollsModuleDefinition, enabledByDefault: true },
       { module: characterSheetModuleDefinition, enabledByDefault: true },

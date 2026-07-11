@@ -1,4 +1,5 @@
 import type { MasterConsoleContribution } from '@/modules/master-console/types'
+import { actorsSearchProvider } from './search-provider'
 
 /** Master-console UI contribution for the NPC/SPC module. */
 export const actorsMasterContribution: MasterConsoleContribution = {
@@ -15,4 +16,5 @@ export const actorsMasterContribution: MasterConsoleContribution = {
   detachable: true,
   loader: () => import('./components/ActorsModule'),
   deepLinks: ['actor'],
+  searchProvider: actorsSearchProvider,
 }

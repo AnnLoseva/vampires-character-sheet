@@ -48,16 +48,23 @@ opening code**. Risk levels drive how careful you must be.
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
 | `modules/master-console/MasterConsoleRoute.tsx` | room validation, Hub bootstrap and compatibility access gate | medium | before-any-change | URL role never bypasses gate |
-| `modules/master-console/MasterConsoleShell.tsx` | desktop shell composition | medium | before-any-change | Does not import `GameTable` |
-| `modules/master-console/components/*` | topbar, permanent right rail, lazy module host | low | before-any-change | Right rail mounts master-rolls |
+| `modules/master-console/MasterConsoleShell.tsx` | desktop shell + detached mode | medium | before-any-change | Does not import `GameTable` |
+| `modules/master-console/components/*` | topbar, sidebar, palette, right rail, host | low | before-any-change | Right rail mounts master-rolls |
+| `modules/master-console/search/*` | deep-link parser, search fan-out, commands | medium | before-any-change | Providers live in modules |
+| `modules/master-console/multi-window/*` | BroadcastChannel bus, openDetached | medium | before-any-change | No state snapshots on bus |
+| `modules/master-console/layouts/*` | layout schema migration + version conflict | high | supabase-edit-protocol | Geometry not in layout_json |
 | `modules/master-rolls/*` | permanent master roller, hidden roll API, undo | high | supabase-edit-protocol | Same RollMessage as `/table` |
 | `modules/master-overview/*` | Night overview command center | medium | before-any-change | Aggregates actors/scenes/logs |
 | `modules/master-scenes/*` | Master scenes/layers shell | high | supabase-edit-protocol | Reuses table scene APIs; no GameTable |
+| `modules/lore/*` | Chronicle lore + random tables | high | supabase-edit-protocol | System ref via modules/reference |
+| `modules/blood-bonds/*` | Blood bond graph/list/detail | high | supabase-edit-protocol | VTM rules in core adapter |
+| `modules/session-log/*` | Master session journal (not player diary) | high | supabase-edit-protocol | Draft vs published tables |
+| `core/systems/vtm5/rules/blood-bonds/*` | Pure bond level/drink/warning rules | high | vtm-mechanics-edit-protocol | No React |
 | `modules/master-console/contributions.ts` | static contribution registry | medium | before-any-change | Allow-listed module ids only |
 | `modules/master-console/{types,module-definition,bootstrap}.ts` | Hub + UI contribution contracts | medium | before-any-change | Contribution types not in core/hub |
 | `modules/master-console/persistence/*` | master table constants, types, mappers and validation | high | supabase-edit-protocol | Canonical persistence contract |
 | `modules/master-console/api/*` | membership-gated Supabase reads/writes | high | supabase-edit-protocol | RLS is the authority |
-| `modules/master-console/hooks/*` | room-filtered master-only Realtime state | high | supabase-edit-protocol | Always remove channels on teardown |
+| `modules/master-console/hooks/*` | room-filtered master-only Realtime state | high | supabase-edit-protocol | Stable channel keys; cleanup on teardown |
 
 ## Character sheet module (`modules/character-sheet/*`)
 | Path | Role | Risk | Edit protocol | Notes |
@@ -125,6 +132,8 @@ opening code**. Risk levels drive how careful you must be.
 | `supabase/master_hidden_rolls.sql` | master-only hidden roll storage + reveal | **critical** | supabase-edit-protocol | Not on player realtime; not table_rolls |
 | `supabase/master_overview.sql` | session notes + plot hooks (master RLS) | **critical** | supabase-edit-protocol | Local fallback when undeployed |
 | `supabase/master_scenes.sql` | scene meta, interactives, public projection | **critical** | supabase-edit-protocol | Does not replace table_scenes |
+| `supabase/chronicle_lore.sql` | lore categories/entries/private notes/tables | **critical** | supabase-edit-protocol | No rules.json copy |
+| `supabase/blood_bonds.sql` | blood_bonds + append-only events | **critical** | supabase-edit-protocol | Master RLS; no event DELETE |
 
 ## Legacy (`public/`)
 | Path | Role | Risk | Edit protocol | Notes |

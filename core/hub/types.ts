@@ -13,6 +13,9 @@ export type ModuleId =
   | 'master-rolls'
   | 'master-overview'
   | 'master-scenes'
+  | 'lore'
+  | 'blood-bonds'
+  | 'session-log'
   | 'actors'
   | (string & {})
 
@@ -35,6 +38,9 @@ export type ModuleCapability =
   | 'master-rolls'
   | 'master-overview'
   | 'master-scenes'
+  | 'lore'
+  | 'blood-bonds'
+  | 'session-log'
   | 'actors'
   | (string & {})
 

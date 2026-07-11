@@ -1,4 +1,5 @@
 import type { MasterConsoleContribution } from '@/modules/master-console/types'
+import { layersSearchProvider, scenesSearchProvider } from './search-provider'
 
 export const scenesMasterContribution: MasterConsoleContribution = {
   id: 'scenes',
@@ -14,4 +15,5 @@ export const scenesMasterContribution: MasterConsoleContribution = {
   detachable: true,
   loader: () => import('./components/MasterScenesModule'),
   deepLinks: ['scene'],
+  searchProviders: [scenesSearchProvider, layersSearchProvider],
 }

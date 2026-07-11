@@ -1,4 +1,5 @@
 import type { MasterConsoleContribution } from '@/modules/master-console/types'
+import { notesSearchProvider } from './search-provider'
 
 export const overviewMasterContribution: MasterConsoleContribution = {
   id: 'overview',
@@ -14,4 +15,5 @@ export const overviewMasterContribution: MasterConsoleContribution = {
   detachable: true,
   loader: () => import('./components/NightOverviewModule'),
   deepLinks: ['focus'],
+  searchProvider: notesSearchProvider,
 }

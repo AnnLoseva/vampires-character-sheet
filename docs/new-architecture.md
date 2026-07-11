@@ -44,8 +44,8 @@
              │                               │
 ┌────────────▼────────────┐    ┌─────────────▼────────────────────┐
 │  core/systems/vtm5/     │    │  modules/                        │
-│  rules/*  (pure TS)     │    │  table, chat, music, rolls, …    │
-│  adapters/*             │───►│  configure*Module(adapter)       │
+│  rules/*  (pure TS)     │    │  table, chat, music, rolls,      │
+│  adapters/*             │───►│  master-console + 6 feature mods │
 │  createVtm5SystemCore() │    │  api/, hooks/, components/       │
 └─────────────────────────┘    └──────────────┬───────────────────┘
                                               │

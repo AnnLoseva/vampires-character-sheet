@@ -9,8 +9,16 @@ VTM V5 character sheet and online campaign table (Next.js + Supabase + legacy if
 | `/` | Main screen |
 | `/character-sheet` | Character sheet (React shell → legacy iframe) |
 | `/table` | Campaign table (scenes, layers, rolls, chat, music) |
-| `/journal` | Chronicle journal |
+| `/master` | Master console (desktop; requires `?room=` + master gate) |
+| `/journal` | Player personal journal (localStorage) |
 | `/reference` | Rules reference |
+
+Master console deep links:
+
+```text
+/master?room=<room>&module=<id>&entity=<id>
+/master?room=<room>&layout=second-screen&display=detached
+```
 
 ## Development
 
@@ -19,6 +27,8 @@ npm install
 npm run dev      # http://localhost:3000
 npm run lint     # TypeScript check (tsc --noEmit)
 npm run build    # production build
+npm run audit:structure
+npm run test:master-console
 ```
 
 Discipline mechanics audits:
@@ -27,6 +37,7 @@ Discipline mechanics audits:
 npm run audit:disciplines
 npm run validate:disciplines
 npm run test:disciplines
+npm run test:vtm-parity
 ```
 
 ## Architecture

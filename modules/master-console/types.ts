@@ -1,5 +1,9 @@
 import type { ComponentType } from 'react'
 import type { Module } from '@/core/hub'
+import type {
+  MasterCommandProvider,
+  MasterSearchProvider,
+} from './search/types'
 
 export type MasterConsoleModule = Module<'master-console', 'vtm5'>
 
@@ -26,17 +30,9 @@ export type MasterModuleProps = {
   role: 'master' | 'observer'
   instanceId?: string
   deepLinkParams?: Readonly<Record<string, string>>
+  /** When deep-linked entity id is set but module could not resolve it. */
+  entityMissing?: boolean
   onRequestRoll?: (request: MasterRollRequest) => void
-}
-
-export type MasterSearchProvider = {
-  id: string
-  search: (query: string) => Promise<readonly { id: string; title: string; href?: string }[]>
-}
-
-export type MasterCommandProvider = {
-  id: string
-  commands: readonly { id: string; title: string; run: () => void | Promise<void> }[]
 }
 
 export type MasterExportProvider = {
@@ -47,6 +43,9 @@ export type MasterExportProvider = {
 /**
  * UI contribution contract for master-console modules.
  * Lives here (not in core/hub): loader/sizes/export are React shell concerns.
+ *
+ * Search: export `searchProvider` and/or `searchProviders` — shell fans out only.
+ * No giant global hook that knows all tables.
  */
 export type MasterConsoleContribution = {
   id: string
@@ -62,7 +61,18 @@ export type MasterConsoleContribution = {
   detachable?: boolean
   loader: () => Promise<{ default: ComponentType<MasterModuleProps> }>
   searchProvider?: MasterSearchProvider
+  /** Prefer this when a module owns multiple entity indexes (e.g. scenes + layers). */
+  searchProviders?: readonly MasterSearchProvider[]
   commandProvider?: MasterCommandProvider
   exportProvider?: MasterExportProvider
+  /** Legacy module-specific deep-link keys; unified format uses `entity`. */
   deepLinks?: readonly string[]
 }
+
+// Re-export search contracts for module authors
+export type {
+  MasterSearchProvider,
+  MasterCommandProvider,
+  MasterSearchHit,
+  MasterCommand,
+} from './search/types'

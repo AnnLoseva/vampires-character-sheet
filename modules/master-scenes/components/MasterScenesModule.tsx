@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useMemo, useState, type CSSProperties } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from 'react'
 import type { MasterModuleProps } from '@/modules/master-console/types'
 import { getMasterMembership } from '@/modules/master-console/api'
 import type { TableLayer } from '@/modules/table/types'
@@ -45,12 +45,29 @@ function layerPreviewStyle(layer: TableLayer): CSSProperties {
   }
 }
 
-export default function MasterScenesModule({ room, role }: MasterModuleProps) {
+export default function MasterScenesModule({ room, role, deepLinkParams }: MasterModuleProps) {
   const scenes = useMasterScenes(room)
   const [newName, setNewName] = useState('')
   const [objectName, setObjectName] = useState('')
   const [objectType, setObjectType] = useState<InteractiveObjectType>('door')
   const [confirmPublish, setConfirmPublish] = useState(false)
+  const [missingEntity, setMissingEntity] = useState<string | null>(null)
+
+  const deepLinkSceneId = deepLinkParams?.scene || deepLinkParams?.entity || null
+
+  useEffect(() => {
+    if (!deepLinkSceneId) {
+      setMissingEntity(null)
+      return
+    }
+    scenes.setSelectedSceneId(deepLinkSceneId)
+  }, [deepLinkSceneId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (!deepLinkSceneId || scenes.loading) return
+    const found = scenes.listItems.some(item => item.scene.id === deepLinkSceneId)
+    setMissingEntity(found ? null : deepLinkSceneId)
+  }, [deepLinkSceneId, scenes.listItems, scenes.loading])
 
   const selected = useMemo(
     () => scenes.listItems.find(item => item.scene.id === scenes.selectedSceneId) || null,
@@ -153,6 +170,11 @@ export default function MasterScenesModule({ room, role }: MasterModuleProps) {
 
       {scenes.status ? <p className="ms-status">{scenes.status}</p> : null}
       {scenes.error ? <p className="ms-status" data-tone="error">{scenes.error}</p> : null}
+      {missingEntity ? (
+        <p className="master-entity-missing" role="status">
+          Сцена не найдена или удалена: <code>{missingEntity}</code>
+        </p>
+      ) : null}
 
       <div className="ms-layout">
         {/* Scene list ≈266px */}

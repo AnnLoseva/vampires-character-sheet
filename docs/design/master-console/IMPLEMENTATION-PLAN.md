@@ -41,9 +41,10 @@
     corrective entries and redacted export.
 16. **Macro/command/undo layer.** Typed registry, shortcuts/conflict handling,
     confirmations, transactional action log and per-command compensation. Не
-    обещать generic undo.
+    обещать generic undo. *(command palette MVP + dangerous confirm: done in PROMPT 13)*
 17. **Search/export hardening.** Provider aggregation filters permissions before
     indexing/rendering; exports default to redacted, secret export explicit.
+    *(global search providers + deep links: done in PROMPT 13; export hardening later)*
 18. **Desktop QA and rollout.** 1920×1080/1440×900/<1400, keyboard/a11y,
     reconnect/conflict, two-window tests, performance budgets and staged flag.
 

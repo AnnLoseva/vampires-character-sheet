@@ -4,16 +4,16 @@
 > Delete stale lines. Long-term decisions go to `DECISIONS.md`, not here.
 
 ## Current development focus
+- **Master console (PROMPT 6–15)** — six modules live under `/master`: overview,
+  actors, scenes, lore, blood-bonds, session-log. Search/commands (`⌘K`), deep
+  links, detached second-monitor windows (`display=detached`), layout versioning.
+  Auth/SQL deploy for production RLS still operator-owned.
 - **Legacy character sheet phase** — iframe sheet (`public/main.js` +
-  `old-sheet.html`) stays load-bearing; bridge lives in `modules/character-sheet/`.
-  Creation wizard (`public/creation-wizard.js`) — validation, nav, specialties, thin-blood/Caitiff rules synced.
-- Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines).
-- `/master?room=...` hosts **Обзор ночи**, **НПС**, **Сцены и слои**, permanent
-  roller. Scenes shell reuses `table_scenes`/`table_images` (no second engine);
-  publish = `is_active` + `scene-active` broadcast; GM layers filtered for players.
-  Auth/SQL deploy still pending.
-- Run `npm run test:vtm-parity` after health/humanity edits in `core/` or `public/vtm-*.js`.
-  Remorse resolution (`applyRemorseCheckResult`) is shared: core ↔ legacy ↔ table.
+  `old-sheet.html`) stays load-bearing; bridge in `modules/character-sheet/`.
+- Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines —
+  do not grow for master features).
+- Run `npm run test:vtm-parity` after health/humanity edits; `npm run test:master-console`
+  for layout/deep-link/registry/privacy unit checks.
 
 ## What is stable enough
 - Routes `/`, `/character-sheet`, `/table`, `/journal`, `/reference`, `/master` — all thin
@@ -57,7 +57,7 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-11 — Master **Сцены и слои** (`modules/master-scenes`): draft preview vs
-  publish, layer categories GM/fog/players, light presets data, interactives,
-  scene music via table_music. Earlier: overview, rolls, NPC, actors, shell.
-  2026-07-08 shims; 2026-07-07 portraits/TURN/ECH.
+2026-07-11 — PROMPT 14–15: detached windows (`display=detached`), BroadcastChannel
+  bus, layout schema v1 + conflict copy, home → `/master` for master role,
+  `test:master-console`, search/command palette, session-log. Six modules active.
+  Earlier same day: bonds, lore, scenes, overview, rolls, NPC.

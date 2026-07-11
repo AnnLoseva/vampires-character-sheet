@@ -1,16 +1,36 @@
 # Master Console
 
-Desktop-first shell for `/master?room=<room-id>`. It bootstraps the same VTM5
-Hub runtime and canonical room resolver as the table, but does not import or
-render `GameTable`.
+Desktop-first shell for `/master?room=<room-id>`. Bootstraps the same VTM5 Hub
+runtime as the table, but never imports `GameTable`.
 
-Business modules register as static `MasterConsoleContribution` entries in
-`contributions.ts` and are lazy-loaded by `MasterModuleHost`. First live module:
-**actors** (НПС и SPC). URL `?module=<id>` only resolves allow-listed ids.
+## Live modules (lazy-loaded)
 
-Persistence contracts live in `persistence/`, browser APIs in `api/`, and
-room-filtered Realtime subscriptions in `hooks/`. SQL:
-`supabase/master_console_persistence.sql`.
+overview · actors · scenes · lore · blood-bonds · session-log
 
-The localStorage password is compatibility behavior, not server authorization.
-Master tables require Supabase Auth + `chronicle_members.role = 'master'`.
+Register in `contributions.ts` only (allow-listed ids).
+
+## Deep links & display
+
+```text
+/master?room=<room>&module=<id>&entity=<id>
+/master?room=<room>&layout=second-screen&display=detached
+```
+
+Parser: `search/deep-link.ts`. Detached windows: `multi-window/open-detached.ts`.
+
+## Sync
+
+| Channel | Use |
+|---|---|
+| Supabase Realtime | Domain tables (stable channel keys) |
+| BroadcastChannel + storage event | Tiny window signals (hello/layout-hint) |
+| master_layouts | Saved compositions (not window geometry) |
+
+## Search / commands
+
+`⌘K` → `MasterCommandPalette`. Providers on each contribution; shell fans out.
+
+## Security
+
+Local password gate is compatibility only. Real authorization = Supabase Auth +
+`chronicle_members.role = 'master'` + RLS.

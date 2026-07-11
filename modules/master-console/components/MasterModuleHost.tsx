@@ -6,6 +6,7 @@ import {
   getMasterContribution,
   MASTER_CONSOLE_CONTRIBUTIONS,
 } from '../contributions'
+import { parseMasterDeepLink, readModuleDeepLinkParams } from '../search/deep-link'
 import type { MasterModuleProps, MasterRollRequest } from '../types'
 
 type MasterModuleHostProps = {
@@ -43,17 +44,6 @@ class ModuleErrorBoundary extends Component<{ children: ReactNode; resetKey: str
   }
 }
 
-function readDeepLinkParams(contributionDeepLinks: readonly string[] | undefined) {
-  if (typeof window === 'undefined' || !contributionDeepLinks?.length) return {}
-  const params = new URLSearchParams(window.location.search)
-  const result: Record<string, string> = {}
-  for (const key of contributionDeepLinks) {
-    const value = params.get(key)
-    if (value) result[key] = value
-  }
-  return result
-}
-
 export default function MasterModuleHost({
   room,
   activeModuleId,
@@ -69,15 +59,32 @@ export default function MasterModuleHost({
   }, [contribution])
 
   const [deepLinkParams, setDeepLinkParams] = useState<Record<string, string>>({})
+  const [entityId, setEntityId] = useState<string | null>(null)
 
   useEffect(() => {
-    setDeepLinkParams(readDeepLinkParams(contribution?.deepLinks))
-    const onNavigate = () => {
-      setDeepLinkParams(readDeepLinkParams(contribution?.deepLinks))
+    const sync = () => {
+      if (!contribution) return
+      const parsed = parseMasterDeepLink(window.location.search)
+      // Always use central parser — never raw URLSearchParams in modules.
+      const params = readModuleDeepLinkParams(contribution.id)
+      // If URL module differs but we're showing this contribution, still map entity.
+      if (parsed.moduleId === contribution.id || parsed.entityId) {
+        setDeepLinkParams(params)
+        setEntityId(parsed.entityId)
+      } else {
+        setDeepLinkParams({})
+        setEntityId(null)
+      }
     }
+    sync()
+    const onNavigate = () => sync()
     window.addEventListener('master-console:navigate', onNavigate)
-    return () => window.removeEventListener('master-console:navigate', onNavigate)
-  }, [contribution?.deepLinks, contribution?.id])
+    window.addEventListener('popstate', onNavigate)
+    return () => {
+      window.removeEventListener('master-console:navigate', onNavigate)
+      window.removeEventListener('popstate', onNavigate)
+    }
+  }, [contribution])
 
   if (!contribution || !LazyModule) {
     return (
@@ -100,7 +107,13 @@ export default function MasterModuleHost({
 
   return (
     <main className="master-module-host master-module-host--filled" aria-label="Рабочая область мастерского пульта">
-      <ModuleErrorBoundary resetKey={contribution.id}>
+      {entityId ? (
+        <p className="master-deep-link-hint" data-entity={entityId}>
+          deep link · entity <code>{entityId.slice(0, 12)}{entityId.length > 12 ? '…' : ''}</code>
+          {deepLinkParams.entityType ? ` · ${deepLinkParams.entityType}` : ''}
+        </p>
+      ) : null}
+      <ModuleErrorBoundary resetKey={`${contribution.id}:${entityId || ''}`}>
         <Suspense
           fallback={(
             <section className="master-module-empty">
@@ -109,7 +122,7 @@ export default function MasterModuleHost({
             </section>
           )}
         >
-          <LazyModule {...moduleProps} />
+          <LazyModule {...moduleProps} key={`${contribution.id}:${entityId || 'none'}`} />
         </Suspense>
       </ModuleErrorBoundary>
     </main>
