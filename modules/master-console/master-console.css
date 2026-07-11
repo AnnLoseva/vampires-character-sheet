@@ -107,6 +107,31 @@ body:has(.master-console-state) {
   padding: var(--sp-5);
 }
 
+.master-right-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+}
+
+.master-right-rail .mr-roller,
+.master-right-rail .mr-history,
+.master-right-rail .mr-actions {
+  flex: 0 0 auto;
+}
+
+.master-right-rail .mr-history {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.master-right-rail .mr-history-list {
+  flex: 1 1 auto;
+}
+
 .master-console-sidebar section,
 .master-right-rail section {
   padding: var(--sp-5) 0;

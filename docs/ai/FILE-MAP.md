@@ -49,7 +49,8 @@ opening code**. Risk levels drive how careful you must be.
 |---|---|---|---|---|
 | `modules/master-console/MasterConsoleRoute.tsx` | room validation, Hub bootstrap and compatibility access gate | medium | before-any-change | URL role never bypasses gate |
 | `modules/master-console/MasterConsoleShell.tsx` | desktop shell composition | medium | before-any-change | Does not import `GameTable` |
-| `modules/master-console/components/*` | topbar, rails, lazy module host and size guard | low | before-any-change | Hosts registered contributions |
+| `modules/master-console/components/*` | topbar, permanent right rail, lazy module host | low | before-any-change | Right rail mounts master-rolls |
+| `modules/master-rolls/*` | permanent master roller, hidden roll API, undo | high | supabase-edit-protocol | Same RollMessage as `/table` |
 | `modules/master-console/contributions.ts` | static contribution registry | medium | before-any-change | Allow-listed module ids only |
 | `modules/master-console/{types,module-definition,bootstrap}.ts` | Hub + UI contribution contracts | medium | before-any-change | Contribution types not in core/hub |
 | `modules/master-console/persistence/*` | master table constants, types, mappers and validation | high | supabase-edit-protocol | Canonical persistence contract |
@@ -119,6 +120,7 @@ opening code**. Risk levels drive how careful you must be.
 |---|---|---|---|---|
 | `supabase/master_console_persistence.sql` | Auth membership and master-only persistence/RLS | **critical** | supabase-edit-protocol | Pending deploy; no client room self-claim |
 | `supabase/chronicle_actors.sql` | linked/compact actor schema, private fields and bulk RPC | **critical** | supabase-edit-protocol | Depends on master console foundation |
+| `supabase/master_hidden_rolls.sql` | master-only hidden roll storage + reveal | **critical** | supabase-edit-protocol | Not on player realtime; not table_rolls |
 
 ## Legacy (`public/`)
 | Path | Role | Risk | Edit protocol | Notes |

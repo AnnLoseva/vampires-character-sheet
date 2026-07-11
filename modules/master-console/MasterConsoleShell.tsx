@@ -52,6 +52,7 @@ export default function MasterConsoleShell({ room, onLock }: MasterConsoleShellP
           onRequestRoll={setRollRequest}
         />
         <MasterRightRail
+          room={room}
           rollRequest={rollRequest}
           onClearRollRequest={() => setRollRequest(null)}
         />

@@ -10,6 +10,7 @@ export type ModuleId =
   | 'journal'
   | 'reference'
   | 'master-console'
+  | 'master-rolls'
   | 'actors'
   | (string & {})
 
@@ -29,6 +30,7 @@ export type ModuleCapability =
   | 'media'
   | 'rules'
   | 'master-console'
+  | 'master-rolls'
   | 'actors'
   | (string & {})
 

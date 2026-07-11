@@ -22,7 +22,8 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 |---|---|---|
 | `characters` | legacy sheet + table | Character records (save/load) |
 | `users` | app | User records |
-| `table_rolls` | table | Dice rolls per room |
+| `table_rolls` | table + master public rolls | Dice rolls per room (player-visible) |
+| `master_hidden_rolls` | master-rolls | Master-only hidden rolls until reveal |
 | `table_chat_messages` | table | Room chat |
 | `table_images` | table | Images/media placed on the table |
 | `table_scenes` | table | Scenes |

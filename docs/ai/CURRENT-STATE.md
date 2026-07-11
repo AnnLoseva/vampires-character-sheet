@@ -8,9 +8,9 @@
   `old-sheet.html`) stays load-bearing; bridge lives in `modules/character-sheet/`.
   Creation wizard (`public/creation-wizard.js`) — validation, nav, specialties, thin-blood/Caitiff rules synced.
 - Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines).
-- `/master?room=...` shell + contribution registry host the **НПС и SPC** module
-  (`modules/actors` UI). Auth-membership persistence and actor SQL remain pending
-  deploy; without Auth the module shows load/create errors instead of leaking data.
+- `/master?room=...` shell hosts **НПС и SPC** + permanent **master roller** right
+  rail (`modules/master-rolls`). Hidden rolls use `master_hidden_rolls` (or local
+  fallback) — never `table_rolls`/player realtime. Auth/SQL deploy still pending.
 - Run `npm run test:vtm-parity` after health/humanity edits in `core/` or `public/vtm-*.js`.
   Remorse resolution (`applyRemorseCheckResult`) is shared: core ↔ legacy ↔ table.
 
@@ -56,8 +56,7 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-11 — Master console contribution registry + **НПС и SPC** UI module
-  (table/detail, filters, bulk actions, templates, roller handoff). Actor domain
-  and master Auth/SQL still pending deploy. Earlier same day: empty `/master`
-  shell, persistence foundation, actors domain. 2026-07-08 — Deprecated shims
-  removed. 2026-07-07 — portraits Storage, TURN, ECH; see DECISIONS.
+2026-07-11 — Permanent master right-rail roller (`modules/master-rolls`): public
+  rolls reuse `table_rolls`/`RollMessage`; hidden rolls master-only storage +
+  reveal; undo via inverse ops + Ctrl+Z. Earlier: NPC module, actors domain,
+  master shell/Auth foundation. 2026-07-08 — shims removed. 2026-07-07 — portraits/TURN/ECH.

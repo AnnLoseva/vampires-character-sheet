@@ -1,0 +1,300 @@
+/* Permanent master right-rail roller */
+
+.master-right-rail {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  gap: 0;
+  overflow: hidden;
+}
+
+.master-right-rail > section {
+  min-height: 0;
+}
+
+.mr-roller,
+.mr-history,
+.mr-actions {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4) 0;
+  border-bottom: 1px solid var(--vtm-line-soft);
+}
+
+.mr-actions {
+  border-bottom: 0;
+}
+
+.mr-kicker {
+  color: var(--vtm-blood-bright);
+  font-size: var(--fs-10);
+  font-weight: 700;
+  letter-spacing: var(--ls-kicker);
+  text-transform: uppercase;
+}
+
+.mr-roller h2,
+.mr-history h2,
+.mr-actions h2 {
+  margin: 0;
+  color: var(--vtm-ink);
+  font-size: var(--fs-12);
+}
+
+.mr-actor-select,
+.mr-field select,
+.mr-field input[type="number"] {
+  width: 100%;
+  height: var(--ctrl-sm);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--vtm-line-strong);
+  border-radius: var(--r-xs);
+  color: var(--vtm-ink);
+  background: var(--vtm-void);
+  font-size: var(--fs-11);
+}
+
+.mr-field {
+  display: grid;
+  gap: 4px;
+}
+
+.mr-field > span {
+  color: var(--vtm-ink-faint);
+  font-size: 10px;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.mr-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--sp-3);
+}
+
+.mr-selected {
+  padding: var(--sp-3);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  background: var(--vtm-surface-2);
+}
+
+.mr-selected strong {
+  display: block;
+  color: var(--vtm-ink);
+  font-size: var(--fs-12);
+}
+
+.mr-selected small {
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-10);
+}
+
+.mr-preview {
+  display: grid;
+  gap: 4px;
+  padding: var(--sp-3);
+  border: 1px solid var(--vtm-line-blood);
+  border-radius: var(--r-xs);
+  background: var(--vtm-surface-blood);
+}
+
+.mr-preview strong {
+  color: var(--vtm-blood-pale);
+  font-size: var(--fs-14);
+}
+
+.mr-preview span {
+  color: var(--vtm-ink-dim);
+  font-size: var(--fs-10);
+}
+
+.mr-toggles {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.mr-toggles label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-pill);
+  color: var(--vtm-ink-dim);
+  background: var(--vtm-surface-2);
+  font-size: var(--fs-10);
+  cursor: pointer;
+}
+
+.mr-toggles label[data-on="true"] {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-pale);
+  background: var(--vtm-surface-blood);
+}
+
+.mr-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+}
+
+.mr-buttons button,
+.mr-history button,
+.mr-actions button,
+.mr-card button {
+  height: var(--ctrl-sm);
+  padding: 0 var(--sp-3);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  color: var(--vtm-ink-dim);
+  background: var(--vtm-surface-2);
+  font-size: var(--fs-10);
+  cursor: pointer;
+}
+
+.mr-buttons button[data-primary="true"] {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-pale);
+  background: var(--vtm-surface-blood);
+}
+
+.mr-buttons button:disabled,
+.mr-card button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.mr-warnings {
+  display: grid;
+  gap: 4px;
+}
+
+.mr-warnings p {
+  margin: 0;
+  color: var(--vtm-gold-warn);
+  font-size: var(--fs-10);
+  line-height: 1.35;
+}
+
+.mr-history-list,
+.mr-action-list {
+  display: grid;
+  gap: var(--sp-2);
+  max-height: 220px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.mr-card {
+  padding: var(--sp-3);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  background: var(--vtm-surface-2);
+}
+
+.mr-card[data-hidden="true"] {
+  border-color: var(--vtm-gold-line);
+  background: var(--vtm-gold-bg);
+}
+
+.mr-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.mr-card-head strong {
+  color: var(--vtm-ink);
+  font-size: var(--fs-11);
+}
+
+.mr-card-head time,
+.mr-card-head span {
+  color: var(--vtm-ink-faint);
+  font-size: 10px;
+}
+
+.mr-card-pool {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-10);
+}
+
+.mr-dice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.mr-die {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: 4px;
+  color: var(--vtm-ink);
+  background: var(--vtm-void);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.mr-die[data-kind*="hunger"] {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-soft);
+  background: var(--vtm-surface-blood);
+}
+
+.mr-die[data-kind*="critical"] {
+  border-color: var(--vtm-gold-line);
+  color: var(--vtm-gold-soft);
+}
+
+.mr-consequences {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.mr-consequences button {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-soft);
+}
+
+.mr-empty {
+  margin: 0;
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-11);
+}
+
+.mr-status {
+  margin: 0;
+  color: var(--vtm-success-soft);
+  font-size: var(--fs-10);
+}
+
+.mr-status[data-tone="error"] {
+  color: var(--vtm-blood-bright);
+}
+
+.mr-history-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+}
+
+.mr-badge {
+  padding: 1px 6px;
+  border: 1px solid var(--vtm-gold-line);
+  border-radius: var(--r-pill);
+  color: var(--vtm-gold-soft);
+  background: var(--vtm-gold-bg);
+  font-size: 10px;
+}

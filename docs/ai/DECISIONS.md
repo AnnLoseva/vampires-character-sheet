@@ -6,6 +6,28 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-11 — Master roller reuses RollMessage; hidden rolls are not table_rolls
+
+**Area:** Master console / rolls / privacy
+**Decision:** The permanent `/master` right rail mounts `modules/master-rolls`
+and does not unmount on central module change. Public rolls use the same
+`RollMessage` + `insertRollRecord` / `table_rolls` path as `/table`. Hidden rolls
+never broadcast and never insert into `table_rolls` until explicit reveal; they
+persist in `master_hidden_rolls` (master RLS only) or a master-local fallback if
+Auth/schema is undeployed. Actor pools/hunger come from `modules/actors`
+(`actorToRollCharacter` + `normalizeActor`). Undo uses typed inverse operations
+on a session stack (Ctrl/Cmd+Z skips focused editors), not state snapshots.
+**Reason:** One roll format for table compatibility; physical separation so
+players cannot SELECT or realtime-subscribe to hidden results.
+**Consequences:** Deploy `supabase/master_hidden_rolls.sql` with master
+membership. Contested rolls against chronicle actors resolve both sides on the
+master client; live player opposed proposals remain table-owned.
+**Affected files:** `modules/master-rolls/*`, `supabase/master_hidden_rolls.sql`,
+`modules/master-console/components/MasterRightRail.tsx`, `core/hub/{types,presets}.ts`
+**Status:** active (SQL/Auth pending for durable hidden storage)
+
+---
+
 ## 2026-07-11 — Master NPC module is a contribution over the actors domain
 
 **Area:** Master console / actors UI

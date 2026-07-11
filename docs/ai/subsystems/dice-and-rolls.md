@@ -8,7 +8,10 @@ character sheet or the table.
 
 ## Main files
 - `modules/rolls/components/DiceRollOverlay.tsx` — the roll UI / results overlay.
+- `modules/rolls/utils/*` — quick/rouse/opposed/willpower builders (canonical).
 - Roll state persistence: `table_rolls` (see `supabase-persistence.md`).
+- `modules/master-rolls/*` — permanent `/master` right-rail roller; public rolls
+  reuse `table_rolls`/`RollMessage`; hidden rolls use `master_hidden_rolls`.
 - `GameTable.tsx` — wires rolls into room state and realtime.
 - Mechanics live in `core/systems/vtm5/rules/*` (successes, hunger, margins); disciplines can
   trigger rolls/costs via `core/systems/vtm5/rules/disciplines/*`.
