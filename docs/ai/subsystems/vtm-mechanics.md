@@ -20,7 +20,13 @@ of truth as logic migrates out of the legacy sheet.
     powers.
   - `character-disciplines/index.ts` — a character's disciplines.
   - `active-effects/index.ts` — currently active effects.
-  - `legacy-cost-parser/index.ts` — parses legacy cost strings.
+- `legacy-cost-parser/index.ts` — parses legacy cost strings.
+
+## Actor adapter
+
+`core/systems/vtm5/adapters/actors.ts` normalizes display vitals and simple
+trait-based roll pools for linked and compact actors. It remains pure and does
+not know about React, Supabase or master-console UI.
 
 ## Health
 `health/index.ts` exposes typed trackers (`HealthTracker`, `NormalizedHealth`) and

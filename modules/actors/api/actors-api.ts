@@ -1,0 +1,141 @@
+import { createClient } from '@/lib/supabase'
+import { fetchCharactersByIds } from '@/modules/table/api/character-api'
+import { mapCharacterRow } from '@/modules/table/mappers'
+import { CHRONICLE_ACTORS, CHRONICLE_ACTOR_PRIVATE } from '../constants'
+import { mapActorPrivateRow, mapChronicleActorRow, toActorBulkPatch } from '../mappers'
+import type {
+  ActorBulkPatch,
+  ActorPrivateRow,
+  ChronicleActor,
+  ChronicleActorRow,
+  CreateCompactActorInput,
+  MasterActor,
+  ActorPrivateFields,
+} from '../types'
+
+const ACTOR_SELECT = 'id, chronicle_id, room, kind, character_id, name, faction, actor_role, status, tags, current_scene_id, compact_stats, image_url, manual_overrides, created_by, created_at, updated_at'
+const PRIVATE_SELECT = 'actor_id, chronicle_id, room, secrets, motivation, plans, notes, private_data, created_at, updated_at'
+
+export async function loadActorsByRoom(room: string): Promise<ChronicleActor[]> {
+  const { data, error } = await createClient()
+    .from(CHRONICLE_ACTORS)
+    .select(ACTOR_SELECT)
+    .eq('room', room)
+    .order('name', { ascending: true })
+  if (error) throw error
+  return (data || []).map((row: unknown) => mapChronicleActorRow(row as ChronicleActorRow))
+}
+
+export async function loadMasterActorsByRoom(room: string): Promise<MasterActor[]> {
+  const actors = await loadActorsByRoom(room)
+  const linkedIds = actors.flatMap(actor => actor.characterId ? [actor.characterId] : [])
+  const [{ rows: characters, error: characterError }, privateResult] = await Promise.all([
+    fetchCharactersByIds(linkedIds),
+    createClient().from(CHRONICLE_ACTOR_PRIVATE).select(PRIVATE_SELECT).eq('room', room),
+  ])
+  if (characterError) throw characterError
+  if (privateResult.error) throw privateResult.error
+
+  const charactersById = new Map(characters.map(row => [row.id, mapCharacterRow(row)]))
+  const privateByActorId = new Map(
+    (privateResult.data || []).map(row => {
+      const privateRow = row as ActorPrivateRow
+      return [privateRow.actor_id, mapActorPrivateRow(privateRow)] as const
+    }),
+  )
+
+  return actors.map(actor => ({
+    ...actor,
+    linkedCharacter: actor.characterId ? charactersById.get(actor.characterId) || null : null,
+    privateFields: privateByActorId.get(actor.id) || null,
+  }))
+}
+
+export async function createCompactActor(input: CreateCompactActorInput): Promise<ChronicleActor> {
+  const client = createClient()
+  const { data, error } = await client.from(CHRONICLE_ACTORS).insert({
+    chronicle_id: input.chronicleId,
+    room: input.room,
+    kind: input.kind,
+    character_id: null,
+    name: input.name,
+    faction: input.faction,
+    actor_role: input.actorRole,
+    status: input.status,
+    tags: input.tags,
+    current_scene_id: input.currentSceneId,
+    compact_stats: input.compactStats,
+    image_url: input.imageUrl,
+    manual_overrides: input.manualOverrides,
+  }).select(ACTOR_SELECT).single()
+  if (error || !data) throw error || new Error('Compact actor was not created')
+
+  const actor = mapChronicleActorRow(data as ChronicleActorRow)
+  if (input.privateFields) {
+    try {
+      await updateActorPrivateFields(actor, input.privateFields)
+    } catch (privateError) {
+      await client.from(CHRONICLE_ACTORS).delete().eq('id', actor.id)
+      throw privateError
+    }
+  }
+  return actor
+}
+
+export async function updateCompactActor(
+  actorId: string,
+  patch: Partial<Pick<ChronicleActor, 'name' | 'faction' | 'actorRole' | 'status' | 'tags' | 'currentSceneId' | 'compactStats' | 'imageUrl' | 'manualOverrides'>>,
+) {
+  const { data, error } = await createClient().from(CHRONICLE_ACTORS).update({
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...toActorBulkPatch(patch),
+    updated_at: new Date().toISOString(),
+  }).eq('id', actorId).is('character_id', null).select('id').maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('Compact actor was not found or is linked to a full sheet')
+}
+
+export async function bulkUpdateActors(room: string, actorIds: readonly string[], patch: ActorBulkPatch) {
+  const { data, error } = await createClient().rpc('bulk_update_chronicle_actors', {
+    p_room: room,
+    p_actor_ids: [...new Set(actorIds)],
+    p_patch: toActorBulkPatch(patch),
+  })
+  if (error) throw error
+  return (data || []).map((row: unknown) => mapChronicleActorRow(row as ChronicleActorRow))
+}
+
+export async function linkExistingCharacter(actorId: string, characterId: string, kind?: ChronicleActor['kind']) {
+  const { error } = await createClient().from(CHRONICLE_ACTORS).update({
+    character_id: characterId,
+    ...(kind ? { kind } : {}),
+    updated_at: new Date().toISOString(),
+  }).eq('id', actorId)
+  if (error) throw error
+}
+
+export async function unlinkCharacter(actorId: string) {
+  const { error } = await createClient().from(CHRONICLE_ACTORS).update({
+    character_id: null,
+    updated_at: new Date().toISOString(),
+  }).eq('id', actorId)
+  if (error) throw error
+}
+
+export async function updateActorPrivateFields(
+  actor: Pick<ChronicleActor, 'id' | 'chronicleId' | 'room'>,
+  fields: ActorPrivateFields,
+) {
+  const { error } = await createClient().from(CHRONICLE_ACTOR_PRIVATE).upsert({
+    actor_id: actor.id,
+    chronicle_id: actor.chronicleId,
+    room: actor.room,
+    secrets: fields.secrets,
+    motivation: fields.motivation,
+    plans: fields.plans,
+    notes: fields.notes,
+    private_data: fields.privateData,
+    updated_at: new Date().toISOString(),
+  }, { onConflict: 'actor_id' })
+  if (error) throw error
+}

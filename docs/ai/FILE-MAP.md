@@ -62,6 +62,15 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/character-sheet/components/CharacterSheetScreen.tsx` | iframe shell + nav | **high** | legacy-edit-protocol | Bridge contract owner |
 | `modules/character-sheet/legacy/{params,events,bridge}.ts` | bridge contract (canonical) | **high** | legacy-edit-protocol | Params, postMessage, localStorage |
 
+## Actors (`modules/actors/*`)
+
+| Path | Role | Risk | Edit protocol | Notes |
+|---|---|---|---|---|
+| `modules/actors/types.ts` | actor kinds, compact/linked and public/private contracts | high | supabase-edit-protocol | `characters` remains linked source of truth |
+| `modules/actors/api/*` | actor CRUD, hydration, link/unlink and bulk RPC | high | supabase-edit-protocol | UI-independent |
+| `modules/actors/services/*` | normalization, vitals/pools and conversion flow | high | vtm-mechanics-edit-protocol | Must strip GM-private fields |
+| `modules/actors/hooks/*` | room/linked-sheet Realtime hydration | high | supabase-edit-protocol | Cleanup every channel |
+
 ## Chat, music, journal, reference
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
@@ -105,6 +114,7 @@ opening code**. Risk levels drive how careful you must be.
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
 | `supabase/master_console_persistence.sql` | Auth membership and master-only persistence/RLS | **critical** | supabase-edit-protocol | Pending deploy; no client room self-claim |
+| `supabase/chronicle_actors.sql` | linked/compact actor schema, private fields and bulk RPC | **critical** | supabase-edit-protocol | Depends on master console foundation |
 
 ## Legacy (`public/`)
 | Path | Role | Risk | Edit protocol | Notes |

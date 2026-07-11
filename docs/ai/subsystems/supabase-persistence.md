@@ -37,6 +37,8 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 | `master_macros` | master console | Shared or owner-scoped macro definitions |
 | `chronicle_entity_links` | master console | Validated generic entity relations |
 | `master_action_log` | master console | Append-only master action history |
+| `chronicle_actors` | actors | Chronicle actor metadata, compact stat blocks and character links |
+| `chronicle_actor_private` | actors | Physically separate GM-only actor fields |
 
 Storage buckets: `table-images` (constant `TABLE_IMAGE_BUCKET`), a music bucket,
 and `character-portraits` (portraits + touchstone images; see
@@ -77,6 +79,13 @@ teardown. These tables revoke anon access and require Supabase Auth plus a
 `chronicle_members` master role. They are deliberately not connected to the
 legacy localStorage password gate. Initial chronicle/master provisioning is an
 administrator/service-role operation.
+
+Actor persistence is defined separately in `supabase/chronicle_actors.sql` and
+depends on the master foundation. A partial unique index prevents linking the
+same `characters.id` twice within one chronicle. Linked character data is loaded
+from `characters` on hydration and is never copied wholesale into the actor row.
+GM-only fields use `chronicle_actor_private`; both actor tables require master
+membership. Bulk actor changes use one whitelisted, room-scoped RPC.
 
 ## Music / media persistence
 Images/media → `table_images` + `table-images` bucket; music → `table_music`,

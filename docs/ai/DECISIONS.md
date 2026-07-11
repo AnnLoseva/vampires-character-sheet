@@ -6,6 +6,27 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-11 — Actors reference character sheets instead of copying them
+
+**Area:** Actors / character persistence / VTM adapters
+**Decision:** `chronicle_actors` is the unified identity for PC, full NPC and
+compact SPC records. A linked actor stores only `character_id`; every hydration
+loads the canonical `characters` row. Compact actors store a small stat block.
+GM-only fields live in `chronicle_actor_private`, and normalized/public actor
+payloads cannot contain that object. VTM vitals and simple pools are computed in
+`core/systems/vtm5/adapters/actors.ts`.
+**Reason:** Copying `characters.data` would create drift and could leak secrets.
+A separate compact representation is still needed for SPCs without full sheets.
+**Consequences:** A partial unique index prevents duplicate character links per
+chronicle. Unlink never deletes a character. Compact-to-full conversion creates
+a sheet through the canonical ownership flow and links its returned ID. Bulk
+updates use one room-scoped, whitelisted RPC.
+**Affected files:** `supabase/chronicle_actors.sql`, `modules/actors/*`,
+`modules/table/api/character-api.ts`, `core/systems/vtm5/adapters/actors.ts`
+**Status:** pending SQL deploy and Auth provisioning
+
+---
+
 ## 2026-07-11 — Master persistence requires Auth membership and has no room self-claim
 
 **Area:** Master console / Supabase / security

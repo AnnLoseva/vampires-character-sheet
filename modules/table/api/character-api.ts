@@ -23,6 +23,17 @@ export async function fetchCharacterById(
   return { row: (data as CharacterRow | null) ?? null, error }
 }
 
+export async function fetchCharactersByIds(characterIds: readonly string[]) {
+  if (characterIds.length === 0) return { rows: [] as CharacterRow[], error: null }
+
+  const { data, error } = await createClient()
+    .from(CHARACTERS)
+    .select(CHARACTER_SELECT_FULL)
+    .in('id', [...new Set(characterIds)])
+
+  return { rows: (data as CharacterRow[] | null) ?? [], error }
+}
+
 export async function updateCharacterData(
   characterId: string,
   nextData: NonNullable<CharacterRow['data']> | Record<string, unknown>,

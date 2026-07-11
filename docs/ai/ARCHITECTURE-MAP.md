@@ -102,7 +102,8 @@ maps display names ↔ stable identifiers.
   `table_images`, `table_scenes`, `table_scene_music`, `table_music`,
   `table_music_library`, `media_studio_layers`; master foundation:
   `chronicles`, `chronicle_members`, `chronicle_sessions`, `master_layouts`,
-  `master_macros`, `chronicle_entity_links`, `master_action_log`.
+  `master_macros`, `chronicle_entity_links`, `master_action_log`; actor domain:
+  `chronicle_actors`, `chronicle_actor_private`.
 - Buckets: `table-images` and a music bucket.
 - Table names centralized in `modules/table/constants.ts`.
 - Schema/policies live in `supabase/*.sql`.
@@ -112,6 +113,15 @@ Images, video, files and layers on the table canvas (tldraw). Utilities in
 `modules/table/utils/*`; UI in `modules/table/components/*`.
 Music in `modules/music/*` with local-audio and YouTube adapters. The root
 layout mounts `GlobalMusicEngineMount` so playback survives route navigation.
+
+## Actor domain
+
+`modules/actors/*` is the UI-independent abstraction for PC, full NPC and
+compact SPC records. Linked actors hydrate the canonical `characters` row via
+the table character API; compact actors use their own small stat block. VTM
+vitals and roll pools are calculated by
+`core/systems/vtm5/adapters/actors.ts`. Realtime actor/private subscriptions are
+filtered by room; linked character subscriptions are filtered by their IDs.
 
 ## Known duplication
 - Health logic: `core/systems/vtm5/rules/health/index.ts` ↔ `public/vtm-health.js`.
