@@ -1,3 +1,6 @@
+@import "../modules/ui/vtm-theme/tokens.css";
+@import "../modules/ui/vtm-theme/controls.css";
+
 :root {
   --v-red: #ff3131;
   --v-orange: #ff9500;

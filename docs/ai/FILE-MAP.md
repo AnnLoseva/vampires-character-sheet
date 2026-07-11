@@ -64,6 +64,12 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/journal/*` | TipTap journal (canonical) | medium | before-any-change | |
 | `modules/reference/*` | markdown reference (canonical) | low | before-any-change | |
 
+## Shared UI theme
+
+| Path | Role | Risk | Edit protocol | Notes |
+|---|---|---|---|---|
+| `modules/ui/vtm-theme/*` | Canonical VTM UI tokens and scoped shared controls | medium | before-any-change | Apply `VTM_THEME_CLASS`; keep feature selectors in their owning module |
+
 ## VTM mechanics (`core/systems/vtm5/rules/*`)
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|

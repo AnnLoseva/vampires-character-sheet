@@ -24,6 +24,7 @@ import MediaLibrary from './components/media/MediaLibrary'
 import { ChatPanel, useChat } from '@/modules/chat'
 import type { ChatUser } from '@/modules/chat/types'
 import JournalPanel from '@/modules/journal/components/JournalPanel'
+import { VTM_THEME_CLASS } from '@/modules/ui/vtm-theme'
 import MasterPanel from './components/master/MasterPanel'
 import { tableDefaultDisciplineRules as defaultDisciplineRules } from './rules-subset'
 
@@ -1646,7 +1647,7 @@ export default function VampireTable() {
 
   return (
     <RoomMusicStateProvider room={room}>
-    <main className="table-page-shell">
+    <main className={`table-page-shell ${VTM_THEME_CLASS}`}>
       <section className="table-topbar">
         <div className="table-brand">
           <p className="table-kicker">{t('Игровой стол')} · V5 · {tf('комната {room}', { room })}</p>

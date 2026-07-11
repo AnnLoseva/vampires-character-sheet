@@ -6,6 +6,23 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-11 — Shared VTM UI tokens have one canonical owner
+
+**Area:** UI architecture / game table / master console
+**Decision:** Shared VTM colors, typography, spacing, radii, control heights,
+shadows, glow, grid, focus, scrollbar and reduced-motion rules live in
+`modules/ui/vtm-theme/*`. Feature roots opt into scoped behavior with
+`VTM_THEME_CLASS`; feature-specific selectors remain in their feature module.
+**Reason:** The future master console must reuse the table design system without
+copying the large `GameTableStyles.tsx` block or introducing a second token set.
+**Consequences:** Add or change shared VTM variables only in `tokens.css`. Do not
+move table layout/component selectors into the shared theme.
+**Affected files:** `modules/ui/vtm-theme/*`, `app/globals.css`,
+`modules/table/GameTable.tsx`, `modules/table/components/GameTableStyles.tsx`
+**Status:** active
+
+---
+
 ## 2026-07-08 — Deprecated module compatibility shims removed
 
 **Area:** Architecture / module migration

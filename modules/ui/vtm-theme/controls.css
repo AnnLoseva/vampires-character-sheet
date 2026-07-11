@@ -1,0 +1,40 @@
+.vtm-theme {
+  font-family: var(--font-mono);
+  color: var(--vtm-ink);
+}
+
+.vtm-theme :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid transparent;
+  box-shadow: var(--focus-ring);
+}
+
+.vtm-theme * {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(42, 32, 32) transparent;
+}
+
+.vtm-theme ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.vtm-theme ::-webkit-scrollbar-thumb {
+  background: padding-box rgb(42, 32, 32);
+  border: 2px solid transparent;
+  border-radius: var(--r-sm);
+}
+
+.vtm-theme ::-webkit-scrollbar-thumb:hover {
+  background: padding-box rgb(74, 42, 42);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vtm-theme *,
+  .vtm-theme *::before,
+  .vtm-theme *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
