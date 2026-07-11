@@ -1,9 +1,9 @@
 # Предварительная модель данных
 
-SQL в этой фазе не создаётся. Все сущности используют `chronicle_id` как
-authoritative scope; `room` сохраняется как совместимый внешний ключ/slug только
-после появления таблицы chronicles. UUID actor membership, а не строка из URL,
-определяет право доступа.
+Foundation SQL создан в `supabase/master_console_persistence.sql`. Все master
+сущности используют `chronicle_id` как authoritative scope; `room` сохраняется
+как совместимый индексируемый slug и проверяется trigger-ом против `chronicles`.
+UUID из Supabase Auth membership, а не строка из URL, определяет право доступа.
 
 | Сущность | Источник истины и связи | Public / private | Realtime | Миграция и RLS |
 |---|---|---|---|---|
@@ -42,4 +42,3 @@ or audit require history.
 
 RLS tests must cover anon, unrelated authenticated user, player member,
 observer, master and service role for SELECT/INSERT/UPDATE/DELETE plus realtime.
-

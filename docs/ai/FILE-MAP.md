@@ -50,7 +50,10 @@ opening code**. Risk levels drive how careful you must be.
 | `modules/master-console/MasterConsoleRoute.tsx` | room validation, Hub bootstrap and compatibility access gate | medium | before-any-change | URL role never bypasses gate |
 | `modules/master-console/MasterConsoleShell.tsx` | desktop shell composition | medium | before-any-change | Does not import `GameTable` |
 | `modules/master-console/components/*` | topbar, rails, empty module host and size guard | low | before-any-change | Business modules intentionally absent |
-| `modules/master-console/{types,module-definition,bootstrap}.ts` | Hub contract and VTM5 room runtime | medium | before-any-change | No Supabase persistence yet |
+| `modules/master-console/{types,module-definition,bootstrap}.ts` | Hub contract and VTM5 room runtime | medium | before-any-change | Declares persistence contract |
+| `modules/master-console/persistence/*` | master table constants, types, mappers and validation | high | supabase-edit-protocol | Canonical persistence contract |
+| `modules/master-console/api/*` | membership-gated Supabase reads/writes | high | supabase-edit-protocol | RLS is the authority |
+| `modules/master-console/hooks/*` | room-filtered master-only Realtime state | high | supabase-edit-protocol | Always remove channels on teardown |
 
 ## Character sheet module (`modules/character-sheet/*`)
 | Path | Role | Risk | Edit protocol | Notes |
@@ -96,6 +99,12 @@ opening code**. Risk levels drive how careful you must be.
 | `lib/i18n/dictionary.ts` | UI strings | low | before-any-change | |
 | `lib/i18n/ruleNames.ts` | display name ↔ stable id | high | before-any-change | Compare IDs, not display names |
 | `lib/supabase.ts` | React Supabase client | high | supabase-edit-protocol | |
+
+## Supabase schema
+
+| Path | Role | Risk | Edit protocol | Notes |
+|---|---|---|---|---|
+| `supabase/master_console_persistence.sql` | Auth membership and master-only persistence/RLS | **critical** | supabase-edit-protocol | Pending deploy; no client room self-claim |
 
 ## Legacy (`public/`)
 | Path | Role | Risk | Edit protocol | Notes |

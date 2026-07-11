@@ -9,7 +9,8 @@
   Creation wizard (`public/creation-wizard.js`) — validation, nav, specialties, thin-blood/Caitiff rules synced.
 - Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines).
 - `/master?room=...` has a desktop-only empty shell registered in the VTM5 Hub;
-  business modules and real Auth/RLS-backed master privacy are not implemented yet.
+  its Auth-membership persistence schema/API/hooks are defined but not deployed
+  or connected to the legacy login. Business modules are not implemented yet.
 - Run `npm run test:vtm-parity` after health/humanity edits in `core/` or `public/vtm-*.js`.
   Remorse resolution (`applyRemorseCheckResult`) is shared: core ↔ legacy ↔ table.
 
@@ -56,7 +57,8 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 
 ## Last updated
 2026-07-11 — Added the empty `/master` console shell and VTM5 Hub registration;
-  access still uses the local compatibility password pending Auth/RLS.
+  added pending-deploy Auth/RLS persistence foundation. The shell still uses the
+  local compatibility password and therefore does not mount persistence hooks.
   2026-07-08 — Deprecated compatibility shims removed; feature imports should use
   `modules/*` directly. 2026-07-07 — (1) Character/touchstone images moved to Storage bucket
   `character-portraits` (URLs instead of base64); rows + chat migrated, payloads

@@ -6,6 +6,29 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-11 — Master persistence requires Auth membership and has no room self-claim
+
+**Area:** Master console / Supabase / security
+**Decision:** Master persistence is scoped by `chronicles.id` and protected by
+`chronicle_members(user_id, chronicle_id, role)` using `auth.uid()`. All master
+tables revoke anon privileges. A first master cannot claim a room from the
+browser; the initial chronicle and membership are provisioned by service role or
+an administrator. `room` remains an indexed compatibility slug and is checked
+against `chronicle_id` by triggers.
+**Reason:** The existing localStorage identity and master password cannot enforce
+RLS. Client self-claim would let the first authenticated user take over an
+existing legacy room.
+**Consequences:** The current `/master` shell remains persistence-disabled until
+the login flow supplies a Supabase Auth session and an administrator provisions
+membership. Master Realtime uses separate room-filtered postgres subscriptions;
+players cannot select the rows under RLS. `master_action_log` exposes only
+SELECT/INSERT and is append-only to clients.
+**Affected files:** `supabase/master_console_persistence.sql`,
+`modules/master-console/{persistence,api,hooks}/*`
+**Status:** pending SQL deploy and Auth provisioning
+
+---
+
 ## 2026-07-11 — Master console is a separate Hub module, not a second GameTable
 
 **Area:** Master console / routing / Hub

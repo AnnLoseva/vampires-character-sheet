@@ -30,6 +30,13 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 | `table_music` | table | Music state/playback |
 | `table_music_library` | table | Saved music library entries |
 | `media_studio_layers` | table | Layer definitions for media |
+| `chronicles` | master console security | Authoritative room/chronicle identity |
+| `chronicle_members` | master console security | Supabase Auth membership and role |
+| `chronicle_sessions` | master console | Session/night metadata and master summaries |
+| `master_layouts` | master console | Per-owner versioned desktop layouts |
+| `master_macros` | master console | Shared or owner-scoped macro definitions |
+| `chronicle_entity_links` | master console | Validated generic entity relations |
+| `master_action_log` | master console | Append-only master action history |
 
 Storage buckets: `table-images` (constant `TABLE_IMAGE_BUCKET`), a music bucket,
 and `character-portraits` (portraits + touchstone images; see
@@ -59,6 +66,17 @@ the SQL is not deployed.
 realtime channel (`table-room:{room}`). Chat is handled by `modules/chat/*`
 against `table_chat_messages`. Names must come from `modules/table/constants.ts`;
 row mapping belongs in the relevant module/API.
+
+## Master console persistence
+
+`supabase/master_console_persistence.sql` is the schema/RLS contract;
+`modules/master-console/persistence/*` owns constants, types, validation and
+mappers. APIs and Realtime hooks are in the adjacent `api/` and `hooks/`
+directories. Every subscription is filtered by `room` and cleaned up on effect
+teardown. These tables revoke anon access and require Supabase Auth plus a
+`chronicle_members` master role. They are deliberately not connected to the
+legacy localStorage password gate. Initial chronicle/master provisioning is an
+administrator/service-role operation.
 
 ## Music / media persistence
 Images/media → `table_images` + `table-images` bucket; music → `table_music`,
