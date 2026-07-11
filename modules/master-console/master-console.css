@@ -145,10 +145,7 @@ body:has(.master-console-state) {
 }
 
 .master-console-sidebar li {
-  padding: var(--sp-3) var(--sp-4);
-  border: 1px solid var(--vtm-line-soft);
-  border-radius: var(--r-xs);
-  background: var(--vtm-surface-2);
+  padding: 0;
 }
 
 .master-module-host {
@@ -158,6 +155,62 @@ body:has(.master-console-state) {
   background-color: var(--vtm-bg);
   background-image: var(--bg-canvas-grid);
   background-size: var(--grid-size) var(--grid-size);
+}
+
+.master-module-host--filled {
+  place-items: stretch;
+  padding: 0;
+  overflow: hidden;
+  background-image: none;
+}
+
+.master-console-sidebar li button,
+.master-module-disabled {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--sp-3);
+  width: 100%;
+  min-height: var(--ctrl-md);
+  padding: var(--sp-3) var(--sp-4);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  color: var(--vtm-ink-muted);
+  background: var(--vtm-surface-2);
+  font-size: var(--fs-11);
+  text-align: left;
+  cursor: pointer;
+}
+
+.master-module-disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.master-console-sidebar li[data-active="true"] button {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-pale);
+  background: var(--vtm-surface-blood);
+}
+
+.master-console-sidebar li button em {
+  font-style: normal;
+  color: var(--vtm-ink-faint);
+}
+
+.master-right-rail button {
+  min-height: var(--ctrl-sm);
+  margin-top: var(--sp-3);
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  color: var(--vtm-ink-dim);
+  background: var(--vtm-surface-2);
+  cursor: pointer;
+}
+
+.master-roll-target strong {
+  color: var(--vtm-ink);
 }
 
 .master-module-empty {

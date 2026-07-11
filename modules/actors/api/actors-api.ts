@@ -139,3 +139,59 @@ export async function updateActorPrivateFields(
   }, { onConflict: 'actor_id' })
   if (error) throw error
 }
+
+export async function updateActorMeta(
+  actorId: string,
+  patch: Partial<Pick<ChronicleActor, 'name' | 'faction' | 'actorRole' | 'status' | 'tags' | 'currentSceneId' | 'compactStats' | 'imageUrl' | 'manualOverrides'>>,
+) {
+  const { data, error } = await createClient().from(CHRONICLE_ACTORS).update({
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...toActorBulkPatch(patch),
+    updated_at: new Date().toISOString(),
+  }).eq('id', actorId).select('id').maybeSingle()
+  if (error) throw error
+  if (!data) throw new Error('Actor was not found')
+}
+
+export async function cloneActor(source: MasterActor, nameSuffix = ' (копия)'): Promise<ChronicleActor> {
+  const baseName = source.name || source.linkedCharacter?.name || 'Актор'
+  const kind = source.kind === 'player_character' ? 'full_npc' : source.kind
+  return createCompactActor({
+    chronicleId: source.chronicleId,
+    room: source.room,
+    kind,
+    name: `${baseName}${nameSuffix}`,
+    faction: source.faction,
+    actorRole: source.actorRole,
+    status: source.status === 'archived' ? 'active' : source.status,
+    tags: [...source.tags],
+    currentSceneId: null,
+    compactStats: source.characterId
+      ? {
+          ...source.compactStats,
+          attributes: source.linkedCharacter?.attributes || source.compactStats.attributes || {},
+          skills: source.linkedCharacter?.skills || source.compactStats.skills || {},
+          disciplines: Object.fromEntries(
+            Object.entries(source.linkedCharacter?.disciplines || source.compactStats.disciplines || {}),
+          ),
+          health: source.linkedCharacter?.health || source.compactStats.health,
+          willpower: source.linkedCharacter?.willpower || source.compactStats.willpower,
+          hunger: Number(source.linkedCharacter?.vitalTrackers?.hunger ?? source.compactStats.hunger) || 0,
+          humanity: source.linkedCharacter?.humanity?.value ?? source.compactStats.humanity,
+          bloodPotency: source.linkedCharacter?.bloodPotency ?? source.compactStats.bloodPotency,
+          clan: source.linkedCharacter?.clan || source.compactStats.clan,
+        }
+      : { ...source.compactStats },
+    imageUrl: source.imageUrl || source.linkedCharacter?.image || '',
+    manualOverrides: {},
+    privateFields: source.privateFields
+      ? {
+          secrets: source.privateFields.secrets,
+          motivation: source.privateFields.motivation,
+          plans: source.privateFields.plans,
+          notes: source.privateFields.notes,
+          privateData: { ...source.privateFields.privateData },
+        }
+      : undefined,
+  })
+}

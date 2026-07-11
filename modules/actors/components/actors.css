@@ -1,0 +1,514 @@
+/* Actors / NPC module — feature-local styles; tokens from vtm-theme */
+
+.actors-module {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 316px;
+  gap: var(--sp-4);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  min-width: 0;
+  color: var(--vtm-ink);
+}
+
+.actors-module-main,
+.actors-detail {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--vtm-line);
+  border-radius: var(--r-md);
+  background: var(--vtm-surface-1);
+  box-shadow: var(--shadow-1);
+}
+
+.actors-module-main {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr) auto;
+}
+
+.actors-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--sp-5);
+  padding: var(--sp-5) var(--sp-5) var(--sp-4);
+  border-bottom: 1px solid var(--vtm-line-soft);
+}
+
+.actors-header h1 {
+  margin: var(--sp-2) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-18);
+  font-weight: 600;
+}
+
+.actors-header p,
+.actors-muted {
+  margin: var(--sp-2) 0 0;
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-11);
+  line-height: var(--lh-snug);
+}
+
+.actors-kicker {
+  color: var(--vtm-blood-bright);
+  font-size: var(--fs-10);
+  font-weight: 700;
+  letter-spacing: var(--ls-kicker);
+  text-transform: uppercase;
+}
+
+.actors-count {
+  min-width: 42px;
+  padding: var(--sp-2) var(--sp-4);
+  border: 1px solid var(--vtm-line-blood);
+  border-radius: var(--r-pill);
+  color: var(--vtm-blood-pale);
+  background: var(--vtm-surface-blood);
+  font-size: var(--fs-12);
+  text-align: center;
+}
+
+.actors-toolbar {
+  display: grid;
+  gap: var(--sp-3);
+  padding: var(--sp-4) var(--sp-5);
+  border-bottom: 1px solid var(--vtm-line-soft);
+}
+
+.actors-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+}
+
+.actors-search {
+  flex: 1 1 220px;
+  min-width: 180px;
+  height: var(--ctrl-md);
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--vtm-line-strong);
+  border-radius: var(--r-sm);
+  color: var(--vtm-ink);
+  background: var(--vtm-void);
+  font-size: var(--fs-12);
+}
+
+.actors-select,
+.actors-toolbar button,
+.actors-bulk button,
+.actors-detail button,
+.actors-row-actions button,
+.actors-dialog button {
+  height: var(--ctrl-sm);
+  padding: 0 var(--sp-4);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  color: var(--vtm-ink-dim);
+  background: var(--vtm-surface-2);
+  font-size: var(--fs-11);
+  cursor: pointer;
+}
+
+.actors-select {
+  min-width: 110px;
+  color: var(--vtm-ink);
+}
+
+.actors-toolbar button[data-active="true"],
+.actors-chip[data-active="true"] {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-pale);
+  background: var(--vtm-surface-blood);
+}
+
+.actors-toolbar button:hover,
+.actors-bulk button:hover,
+.actors-detail button:hover,
+.actors-row-actions button:hover {
+  border-color: var(--vtm-line-strong);
+  color: var(--vtm-ink);
+  background: var(--vtm-surface-hover);
+}
+
+.actors-templates {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.actors-templates > span {
+  color: var(--vtm-ink-faint);
+  font-size: var(--fs-10);
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.actors-table-wrap {
+  min-height: 0;
+  overflow: auto;
+}
+
+.actors-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.actors-table th,
+.actors-table td {
+  padding: var(--sp-3) var(--sp-4);
+  border-bottom: 1px solid var(--vtm-line-soft);
+  text-align: left;
+  vertical-align: middle;
+  font-size: var(--fs-11);
+}
+
+.actors-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  color: var(--vtm-ink-faint);
+  background: rgba(16, 16, 16, 0.96);
+  font-size: var(--fs-10);
+  font-weight: 700;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.actors-table th button {
+  height: auto;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  background: transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.actors-table tbody tr {
+  cursor: pointer;
+}
+
+.actors-table tbody tr:hover,
+.actors-table tbody tr[data-selected="true"] {
+  background: rgba(34, 20, 20, 0.55);
+}
+
+.actors-table tbody tr[data-selected="true"] {
+  box-shadow: inset 2px 0 0 var(--vtm-blood);
+}
+
+.actors-col-check { width: 36px; }
+.actors-col-name { width: 22%; }
+.actors-col-sheet { width: 72px; }
+.actors-col-bp { width: 72px; }
+.actors-col-hunger { width: 72px; }
+.actors-col-faction { width: 18%; }
+.actors-col-wp { width: 64px; }
+.actors-col-actions { width: 168px; }
+
+.actors-name-cell {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  min-width: 0;
+}
+
+.actors-avatar {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  color: var(--vtm-blood-soft);
+  background: var(--vtm-surface-2);
+  font-size: var(--fs-10);
+  font-weight: 700;
+}
+
+.actors-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.actors-name-cell strong {
+  display: block;
+  overflow: hidden;
+  color: var(--vtm-ink);
+  font-size: var(--fs-12);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.actors-name-cell span {
+  display: block;
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-10);
+}
+
+.actors-dots {
+  color: var(--vtm-blood-bright);
+  letter-spacing: 0.04em;
+  font-size: var(--fs-10);
+}
+
+.actors-dots[data-warn="true"] {
+  color: var(--vtm-gold-warn);
+}
+
+.actors-badge {
+  display: inline-flex;
+  margin-right: var(--sp-1);
+  padding: 1px 6px;
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-pill);
+  color: var(--vtm-ink-dim);
+  background: var(--vtm-surface-2);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.actors-badge[data-tone="scene"] {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-pale);
+  background: var(--vtm-surface-blood);
+}
+
+.actors-badge[data-tone="private"] {
+  border-color: var(--vtm-gold-line);
+  color: var(--vtm-gold-soft);
+  background: var(--vtm-gold-bg);
+}
+
+.actors-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.actors-row-actions button {
+  padding: 0 6px;
+  font-size: 10px;
+}
+
+.actors-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-3) var(--sp-5);
+  border-top: 1px solid var(--vtm-line-soft);
+  background: rgba(8, 8, 8, 0.72);
+}
+
+.actors-bulk strong {
+  color: var(--vtm-ink);
+  font-size: var(--fs-11);
+}
+
+.actors-bulk button[data-danger="true"] {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-soft);
+}
+
+.actors-empty,
+.actors-error,
+.actors-loading {
+  display: grid;
+  place-content: center;
+  gap: var(--sp-3);
+  min-height: 180px;
+  padding: var(--sp-8);
+  color: var(--vtm-ink-muted);
+  text-align: center;
+  font-size: var(--fs-12);
+}
+
+.actors-error {
+  color: var(--vtm-blood-bright);
+}
+
+.actors-detail {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.actors-detail-head {
+  padding: var(--sp-5);
+  border-bottom: 1px solid var(--vtm-line-soft);
+}
+
+.actors-detail-head h2 {
+  margin: var(--sp-2) 0 0;
+  font-family: var(--font-display);
+  font-size: var(--fs-15);
+}
+
+.actors-detail-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  margin-top: var(--sp-3);
+}
+
+.actors-detail-body {
+  display: grid;
+  gap: var(--sp-4);
+  min-height: 0;
+  overflow: auto;
+  padding: var(--sp-5);
+}
+
+.actors-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--sp-3);
+}
+
+.actors-stat {
+  padding: var(--sp-3);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  background: var(--vtm-surface-2);
+}
+
+.actors-stat span {
+  display: block;
+  color: var(--vtm-ink-faint);
+  font-size: 10px;
+  letter-spacing: var(--ls-label);
+  text-transform: uppercase;
+}
+
+.actors-stat strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--vtm-ink);
+  font-size: var(--fs-13);
+}
+
+.actors-private {
+  padding: var(--sp-4);
+  border: 1px solid var(--vtm-gold-line);
+  border-radius: var(--r-sm);
+  background: var(--vtm-gold-bg);
+}
+
+.actors-private > span {
+  display: block;
+  margin-bottom: var(--sp-3);
+  color: var(--vtm-gold-soft);
+  font-size: var(--fs-10);
+  font-weight: 700;
+  letter-spacing: var(--ls-kicker);
+  text-transform: uppercase;
+}
+
+.actors-field {
+  margin-bottom: var(--sp-3);
+}
+
+.actors-field:last-child {
+  margin-bottom: 0;
+}
+
+.actors-field dt {
+  margin: 0 0 2px;
+  color: var(--vtm-ink-faint);
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: var(--ls-label);
+}
+
+.actors-field dd {
+  margin: 0;
+  color: var(--vtm-ink-2);
+  font-size: var(--fs-12);
+  line-height: 1.45;
+  white-space: pre-wrap;
+}
+
+.actors-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--sp-2);
+  padding: var(--sp-4) var(--sp-5);
+  border-top: 1px solid var(--vtm-line-soft);
+}
+
+.actors-detail-actions button[data-primary="true"] {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-pale);
+  background: var(--vtm-surface-blood);
+}
+
+.actors-dialog-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: var(--sp-8);
+  background: rgba(0, 0, 0, 0.62);
+}
+
+.actors-dialog {
+  width: min(420px, 100%);
+  padding: var(--sp-7);
+  border: 1px solid var(--vtm-line);
+  border-radius: var(--r-md);
+  background: var(--vtm-surface-1);
+  box-shadow: var(--shadow-1), var(--glow-blood);
+}
+
+.actors-dialog h3 {
+  margin: 0 0 var(--sp-3);
+  font-family: var(--font-display);
+  font-size: var(--fs-15);
+}
+
+.actors-dialog p {
+  margin: 0 0 var(--sp-5);
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-12);
+  line-height: 1.5;
+}
+
+.actors-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--sp-3);
+}
+
+.actors-dialog-actions button[data-danger="true"] {
+  border-color: var(--vtm-line-blood);
+  color: var(--vtm-blood-pale);
+  background: var(--vtm-surface-blood);
+}
+
+.actors-hunger-editor {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.actors-hunger-editor input {
+  width: 56px;
+  height: var(--ctrl-sm);
+  padding: 0 var(--sp-2);
+  border: 1px solid var(--vtm-line-strong);
+  border-radius: var(--r-xs);
+  color: var(--vtm-ink);
+  background: var(--vtm-void);
+  text-align: center;
+}

@@ -134,3 +134,77 @@ export type CreateCompactActorInput = Pick<ChronicleActor,
 > & {
   privateFields?: ActorPrivateFields
 }
+
+/** Combined list filters — all fields AND together when set. */
+export type ActorListFilter = {
+  query: string
+  sceneScope: 'all' | 'in_scene' | 'not_in_scene'
+  faction: string | null
+  clan: string | null
+  kind: ActorKind | null
+  status: ActorStatus | null
+  tag: string | null
+}
+
+export type ActorSortKey =
+  | 'name'
+  | 'faction'
+  | 'status'
+  | 'kind'
+  | 'hunger'
+  | 'bloodPotency'
+  | 'willpower'
+  | 'actorRole'
+
+export type ActorSortDir = 'asc' | 'desc'
+
+export type SavedActorFilter = {
+  id: string
+  name: string
+  filter: ActorListFilter
+}
+
+/**
+ * Typed bulk actions for the master NPC list.
+ * Dangerous actions must confirm in UI and append master_action_log.
+ */
+export type ActorBulkAction =
+  | { type: 'add_to_scene'; sceneId: string }
+  | { type: 'remove_from_scene' }
+  | { type: 'increment_hunger'; delta: number }
+  | { type: 'set_faction'; faction: string }
+  | { type: 'set_status'; status: ActorStatus }
+  | { type: 'add_tag'; tag: string }
+  | { type: 'clone' }
+  | { type: 'archive' }
+
+export type ActorTemplateId =
+  | 'sheriff'
+  | 'street_ghoul'
+  | 'si_hunter'
+  | 'mortal'
+  | 'custom'
+
+/** Data-driven create templates — never branch JSX per template id. */
+export type ActorTemplate = {
+  id: ActorTemplateId
+  label: string
+  kind: ActorKind
+  actorRole: string
+  faction: string
+  status: ActorStatus
+  tags: readonly string[]
+  compactStats: CompactActorStats
+  privateFields?: Partial<ActorPrivateFields>
+}
+
+export type ActorQuickAction =
+  | 'open_roller'
+  | 'rouse_check'
+  | 'open_brief'
+  | 'open_full_sheet'
+  | 'add_to_scene'
+  | 'remove_from_scene'
+  | 'clone'
+  | 'set_hunger'
+  | 'archive'

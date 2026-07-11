@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { createClient } from '@/lib/supabase'
 import { CHARACTERS } from '@/modules/table/constants'
 import { loadMasterActorsByRoom } from '../api'
@@ -11,6 +11,19 @@ export function useChronicleActors(room: string) {
   const [actors, setActors] = useState<MasterActor[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const reload = useCallback(async () => {
+    if (!room) return
+    try {
+      const next = await loadMasterActorsByRoom(room)
+      setActors(next)
+      setError(null)
+      setLoading(false)
+    } catch (loadError) {
+      setLoading(false)
+      setError(loadError instanceof Error ? loadError.message : 'Failed to load actors')
+    }
+  }, [room])
 
   useEffect(() => {
     if (!room) return
@@ -78,5 +91,5 @@ export function useChronicleActors(room: string) {
     }
   }, [linkedCharacterFilter, room])
 
-  return { actors, loading, error }
+  return { actors, loading, error, reload }
 }

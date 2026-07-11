@@ -49,8 +49,9 @@ opening code**. Risk levels drive how careful you must be.
 |---|---|---|---|---|
 | `modules/master-console/MasterConsoleRoute.tsx` | room validation, Hub bootstrap and compatibility access gate | medium | before-any-change | URL role never bypasses gate |
 | `modules/master-console/MasterConsoleShell.tsx` | desktop shell composition | medium | before-any-change | Does not import `GameTable` |
-| `modules/master-console/components/*` | topbar, rails, empty module host and size guard | low | before-any-change | Business modules intentionally absent |
-| `modules/master-console/{types,module-definition,bootstrap}.ts` | Hub contract and VTM5 room runtime | medium | before-any-change | Declares persistence contract |
+| `modules/master-console/components/*` | topbar, rails, lazy module host and size guard | low | before-any-change | Hosts registered contributions |
+| `modules/master-console/contributions.ts` | static contribution registry | medium | before-any-change | Allow-listed module ids only |
+| `modules/master-console/{types,module-definition,bootstrap}.ts` | Hub + UI contribution contracts | medium | before-any-change | Contribution types not in core/hub |
 | `modules/master-console/persistence/*` | master table constants, types, mappers and validation | high | supabase-edit-protocol | Canonical persistence contract |
 | `modules/master-console/api/*` | membership-gated Supabase reads/writes | high | supabase-edit-protocol | RLS is the authority |
 | `modules/master-console/hooks/*` | room-filtered master-only Realtime state | high | supabase-edit-protocol | Always remove channels on teardown |
@@ -67,9 +68,12 @@ opening code**. Risk levels drive how careful you must be.
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
 | `modules/actors/types.ts` | actor kinds, compact/linked and public/private contracts | high | supabase-edit-protocol | `characters` remains linked source of truth |
-| `modules/actors/api/*` | actor CRUD, hydration, link/unlink and bulk RPC | high | supabase-edit-protocol | UI-independent |
-| `modules/actors/services/*` | normalization, vitals/pools and conversion flow | high | vtm-mechanics-edit-protocol | Must strip GM-private fields |
+| `modules/actors/api/*` | actor CRUD, hydration, link/unlink, clone and bulk RPC | high | supabase-edit-protocol | UI-independent |
+| `modules/actors/services/*` | normalization, vitals/pools, bulk actions, conversion | high | vtm-mechanics-edit-protocol | Must strip GM-private fields |
 | `modules/actors/hooks/*` | room/linked-sheet Realtime hydration | high | supabase-edit-protocol | Cleanup every channel |
+| `modules/actors/components/*` | Master «НПС и SPC» table + detail card | medium | before-any-change | No GameTable import |
+| `modules/actors/utils/*` | filters, sort, templates, labels, saved filters | low | before-any-change | Templates are data |
+| `modules/actors/contribution.ts` | MasterConsoleContribution for actors | low | before-any-change | Registered in master-console |
 
 ## Chat, music, journal, reference
 | Path | Role | Risk | Edit protocol | Notes |

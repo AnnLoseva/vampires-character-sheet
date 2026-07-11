@@ -6,6 +6,30 @@ replaced, set the old one to `superseded` and link the new one.
 
 ---
 
+## 2026-07-11 — Master NPC module is a contribution over the actors domain
+
+**Area:** Master console / actors UI
+**Decision:** The «НПС и SPC» screen is `modules/actors` UI registered as a
+static `MasterConsoleContribution` in `modules/master-console/contributions.ts`.
+`MasterConsoleContribution` / `MasterModuleProps` live in
+`modules/master-console/types.ts` (not `core/hub`). The module reuses actor
+API/hooks/services, table character-sheet URLs, scene id for “in scene”, and
+master action log append; it never imports `GameTable.tsx`. Quick roll/Rouse
+emit a typed `MasterRollRequest` into the right rail until `master-rolls` owns
+the full roller. Create templates are data in `utils/actor-templates.ts`.
+Linked-sheet hunger edits use `manual_overrides.stats` so master clients do not
+rewrite player-owned `characters.data`.
+**Reason:** Keep one actor domain, one console shell, and a reviewable UI PR
+without a second table orchestrator or JSX-per-template branches.
+**Consequences:** Other master features register the same contribution contract.
+Full roller, multi-window layouts, and Auth-backed create/load still depend on
+later phases and SQL deploy.
+**Affected files:** `modules/actors/{components,utils,contribution,services}/*`,
+`modules/master-console/{types,contributions,components,MasterConsoleShell}.*`
+**Status:** active (SQL/Auth still pending for live persistence)
+
+---
+
 ## 2026-07-11 — Actors reference character sheets instead of copying them
 
 **Area:** Actors / character persistence / VTM adapters
