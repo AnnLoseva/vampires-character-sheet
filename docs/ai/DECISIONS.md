@@ -1,5 +1,33 @@
 # Decisions
 
+## 2026-07-12 — Legacy login migrated to Supabase Auth (synthetic emails)
+
+**Area:** Auth / Supabase persistence
+**Decision:** Site login now creates a real Supabase Auth session. Auth email is
+synthetic and deterministic: first 32 hex chars of `sha256(username)` +
+`@vtm.local`, computed identically in the client (`archiveEmail` in
+`modules/home/components/MainScreen.tsx`) and SQL
+(`public.archive_email_for_username`). Registration goes through the
+security-definer RPC `register_archive_user` (not GoTrue signup), so email
+confirmation settings are irrelevant. `public.users` remains the profile table;
+`users.auth_user_id` links it to `auth.users`. All 15 legacy users were migrated
+in place with their original passwords (legacy `password_hash` was base64 of the
+plaintext). `migrate_legacy_auth` RPC self-heals any stragglers at login.
+Chronicle `campaign-666` provisioned with user Anna as master.
+**Reason:** Master console tables are RLS-locked to `authenticated` +
+`chronicle_members`; the old localStorage/`public.users` login had no
+`auth.uid()`, so nothing on `/master` could persist.
+**Consequences:** Users keep the same username+password UX; characters/chat keep
+referencing `public.users.id`. Already-logged-in browsers must log in once more
+to obtain an auth session. New master memberships are still provisioned by
+admin SQL — no client self-claim. Do not reintroduce direct inserts into
+`public.users` from the client.
+**Affected files:** `modules/home/components/MainScreen.tsx`,
+`supabase/legacy_users_to_supabase_auth.sql`, `lib/supabase.ts` (unchanged keys)
+**Status:** active
+
+---
+
 ## 2026-07-11 — Master multi-window and session log
 
 - **Detached display**: `?display=detached` uses the same `/master` route with a

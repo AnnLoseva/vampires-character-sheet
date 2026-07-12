@@ -200,12 +200,15 @@ export default function MainScreen() {
     enterTable(role)
   }
 
-  const hashPassword = (password: string) => {
-    try {
-      return window.btoa(password)
-    } catch {
-      return window.btoa(unescape(encodeURIComponent(password)))
-    }
+  // Deterministic synthetic email for Supabase Auth: first 32 hex chars of
+  // sha256(username) @vtm.local. Must match public.archive_email_for_username in SQL.
+  const archiveEmail = async (username: string) => {
+    const bytes = new TextEncoder().encode(username)
+    const hashBuffer = await window.crypto.subtle.digest('SHA-256', bytes)
+    const hex = Array.from(new Uint8Array(hashBuffer))
+      .map(byte => byte.toString(16).padStart(2, '0'))
+      .join('')
+    return `${hex.slice(0, 32)}@vtm.local`
   }
 
   const rememberUser = (user: ChatUser) => {
@@ -235,13 +238,11 @@ export default function MainScreen() {
     setAuthStatus(authMode === 'login' ? t('Проверяю доступ...') : t('Создаю запись в архиве...'))
     try {
       const supabase = createClient()
-      const passwordHash = hashPassword(password)
+      const email = await archiveEmail(username)
 
       if (authMode === 'register') {
         const { data, error } = await supabase
-          .from('users')
-          .insert({ username, password_hash: passwordHash })
-          .select('id, username')
+          .rpc('register_archive_user', { p_username: username, p_password: password })
           .single()
 
         if (error || !data) {
@@ -250,7 +251,25 @@ export default function MainScreen() {
           return
         }
 
+        await supabase.auth.signInWithPassword({ email, password })
         rememberUser(data as ChatUser)
+        return
+      }
+
+      let { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+
+      if (signInError) {
+        // Легаси-аккаунт без auth-записи: проверяем пароль и создаём её на лету.
+        const { data: migrated } = await supabase
+          .rpc('migrate_legacy_auth', { p_username: username, p_password: password })
+          .single()
+        if (migrated) {
+          ;({ error: signInError } = await supabase.auth.signInWithPassword({ email, password }))
+        }
+      }
+
+      if (signInError) {
+        setAuthStatus(t('Неверный логин или пароль'))
         return
       }
 
@@ -258,7 +277,6 @@ export default function MainScreen() {
         .from('users')
         .select('id, username')
         .eq('username', username)
-        .eq('password_hash', passwordHash)
         .single()
 
       if (error || !data) {
@@ -273,6 +291,7 @@ export default function MainScreen() {
   }
 
   const logout = () => {
+    void createClient().auth.signOut()
     window.localStorage.removeItem('vtm-chat-user')
     window.localStorage.removeItem('vtm-sheet-user')
     setChatUser(null)
