@@ -11,11 +11,11 @@ type ChronicleLibrarySidebarProps = {
   onSelectDocument: (sourceName: string) => void
   labels: {
     chronicles: string
-    officialDocuments: string
-    personalDocuments: string
+    shortChronicle: string
+    fullText: string
     headings: string
-    noOfficialDocuments: string
-    noPersonalDocuments: string
+    noShortChronicle: string
+    noFullText: string
   }
 }
 
@@ -29,8 +29,8 @@ export default function ChronicleLibrarySidebar({
   onSelectDocument,
   labels,
 }: ChronicleLibrarySidebarProps) {
-  const officialDocuments = documents.filter(document => document.scope === 'official')
-  const personalDocuments = documents.filter(document => document.scope === 'personal')
+  const fullTextDocuments = documents.filter(document => document.kind === 'clean_transcript')
+  const shortChronicleDocuments = documents.filter(document => document.kind !== 'clean_transcript')
 
   const documentLinks = (items: ChronicleDocument[], emptyLabel: string) => (
     <nav className="chronicle-doc-nav">
@@ -70,15 +70,15 @@ export default function ChronicleLibrarySidebar({
 
         {activeChronicle ? (
           <section className="chronicle-sidebar-section">
-            <span>{labels.officialDocuments}</span>
-            {documentLinks(officialDocuments, labels.noOfficialDocuments)}
+            <span>{labels.shortChronicle}</span>
+            {documentLinks(shortChronicleDocuments, labels.noShortChronicle)}
           </section>
         ) : null}
 
         {activeChronicle ? (
           <section className="chronicle-sidebar-section">
-            <span>{labels.personalDocuments}</span>
-            {documentLinks(personalDocuments, labels.noPersonalDocuments)}
+            <span>{labels.fullText}</span>
+            {documentLinks(fullTextDocuments, labels.noFullText)}
           </section>
         ) : null}
 

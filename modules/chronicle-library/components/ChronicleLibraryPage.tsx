@@ -447,11 +447,11 @@ export default function ChronicleLibraryPage() {
                   onSelectDocument={selectDocument}
                   labels={{
                     chronicles: t('Мои хроники'),
-                    officialDocuments: t('Официальная хроника'),
-                    personalDocuments: t('Личные документы'),
+                    shortChronicle: t('Краткая хроника'),
+                    fullText: t('Полный текст'),
                     headings: t('На этой странице'),
-                    noOfficialDocuments: t('Официальные документы ещё не загружены'),
-                    noPersonalDocuments: t('Личных документов пока нет'),
+                    noShortChronicle: t('Краткая хроника пока пуста'),
+                    noFullText: t('Полные тексты пока не загружены'),
                   }}
                 />
                 <MarkdownRenderer
