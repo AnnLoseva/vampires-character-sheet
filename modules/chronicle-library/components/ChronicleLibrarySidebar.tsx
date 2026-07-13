@@ -29,8 +29,12 @@ export default function ChronicleLibrarySidebar({
   onSelectDocument,
   labels,
 }: ChronicleLibrarySidebarProps) {
-  const fullTextDocuments = documents.filter(document => document.kind === 'clean_transcript')
-  const shortChronicleDocuments = documents.filter(document => document.kind !== 'clean_transcript')
+  const isFullText = (document: ChronicleDocument) => (
+    document.kind === 'clean_transcript'
+    || /полный обработанный текст\s*$/iu.test(document.title)
+  )
+  const fullTextDocuments = documents.filter(isFullText)
+  const shortChronicleDocuments = documents.filter(document => !isFullText(document))
 
   const documentLinks = (items: ChronicleDocument[], emptyLabel: string) => (
     <nav className="chronicle-doc-nav">
