@@ -67,6 +67,10 @@ function clip(value: unknown, max: number): string {
 }
 
 function cleanModelContent(value: unknown): string {
+  // Модель иногда возвращает поле массивом строк (особенно списки) — склеиваем.
+  if (Array.isArray(value)) {
+    return value.map(item => cleanModelContent(item)).filter(Boolean).join("\n").trim();
+  }
   const text = typeof value === "string" ? value.trim() : "";
   return text.replace(/^```(?:json|markdown)?\s*/i, "").replace(/\s*```$/i, "").trim();
 }
@@ -180,6 +184,7 @@ async function processChunk(
 
   const system = `Ты — редактор полной расшифровки настольной ролевой игры Vampire: the Masquerade.
 Верни строго один JSON-объект вида {"cleaned_markdown":"...","chunk_summary":"..."}.
+Оба поля — обязательные строки; chunk_summary — один текст с пунктами через перенос строки, а не JSON-массив.
 Слово JSON и пример формата указаны намеренно.
 
 ТРЕБОВАНИЯ К cleaned_markdown:
@@ -214,15 +219,23 @@ ${chunk.raw_content}`;
       throw new ProcessorError(502, "DeepSeek returned invalid JSON");
     }
     const cleaned = cleanModelContent(result.cleaned_markdown);
-    const summary = cleanModelContent(result.chunk_summary);
+    const summary = clip(cleanModelContent(result.chunk_summary), 5000);
     const minimumLength = chunk.raw_content.length >= 1000
       ? Math.floor(chunk.raw_content.length * 0.32)
       : Math.min(200, Math.floor(chunk.raw_content.length * 0.2));
     if (!cleaned || cleaned.length < minimumLength || cleaned.length > 50000) {
+      console.error(
+        "personal chronicle invalid cleaned_markdown",
+        JSON.stringify({ keys: Object.keys(result), cleanedLength: cleaned.length, rawLength: chunk.raw_content.length }),
+      );
       throw new ProcessorError(502, "Processed chunk is incomplete");
     }
-    if (!summary || summary.length > 5000) {
-      throw new ProcessorError(502, "Chunk summary is missing or too long");
+    if (!summary) {
+      console.error(
+        "personal chronicle invalid chunk_summary",
+        JSON.stringify({ keys: Object.keys(result), summaryType: typeof result.chunk_summary }),
+      );
+      throw new ProcessorError(502, "Chunk summary is missing");
     }
 
     const { error: updateError } = await client
