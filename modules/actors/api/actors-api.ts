@@ -126,18 +126,44 @@ export async function updateActorPrivateFields(
   actor: Pick<ChronicleActor, 'id' | 'chronicleId' | 'room'>,
   fields: ActorPrivateFields,
 ) {
-  const { error } = await createClient().from(CHRONICLE_ACTOR_PRIVATE).upsert({
-    actor_id: actor.id,
-    chronicle_id: actor.chronicleId,
-    room: actor.room,
+  const client = createClient()
+  const updatedAt = new Date().toISOString()
+  const mutableFields = {
     secrets: fields.secrets,
     motivation: fields.motivation,
     plans: fields.plans,
     notes: fields.notes,
     private_data: fields.privateData,
-    updated_at: new Date().toISOString(),
-  }, { onConflict: 'actor_id' })
-  if (error) throw error
+    updated_at: updatedAt,
+  }
+
+  // Avoid relying on PostgREST's on_conflict schema cache here: a deployment
+  // whose inferred conflict constraint is stale rejects an otherwise valid
+  // upsert with HTTP 400.
+  const { data: updated, error: updateError } = await client
+    .from(CHRONICLE_ACTOR_PRIVATE)
+    .update(mutableFields)
+    .eq('actor_id', actor.id)
+    .select('actor_id')
+    .maybeSingle()
+  if (updateError) throw actorPrivateWriteError('Не удалось обновить приватные поля актёра', updateError)
+  if (updated) return
+
+  const { error: insertError } = await client.from(CHRONICLE_ACTOR_PRIVATE).insert({
+    actor_id: actor.id,
+    chronicle_id: actor.chronicleId,
+    room: actor.room,
+    ...mutableFields,
+  })
+  if (insertError) throw actorPrivateWriteError('Не удалось создать приватные поля актёра', insertError)
+}
+
+function actorPrivateWriteError(
+  context: string,
+  error: { code?: string; message?: string; details?: string; hint?: string },
+) {
+  const details = [error.code, error.message, error.details, error.hint].filter(Boolean).join(' · ')
+  return new Error(details ? `${context}: ${details}` : context)
 }
 
 export async function updateActorMeta(
