@@ -77,12 +77,18 @@ begin
     raise exception 'room does not match chronicle_id';
   end if;
 
-  if tg_table_name = 'chronicle_actors' and new.current_scene_id is not null then
-    select scenes.room into scene_room
-    from public.table_scenes scenes
-    where scenes.id = new.current_scene_id;
-    if scene_room is null or scene_room <> new.room then
-      raise exception 'current_scene_id does not belong to actor room';
+  -- Nested IF is required: this trigger also runs on chronicle_actor_private,
+  -- whose NEW record has no current_scene_id field, and referencing a missing
+  -- record field inside a combined AND expression raises 42703 (surfaces as
+  -- HTTP 400 from PostgREST).
+  if tg_table_name = 'chronicle_actors' then
+    if new.current_scene_id is not null then
+      select scenes.room into scene_room
+      from public.table_scenes scenes
+      where scenes.id = new.current_scene_id;
+      if scene_room is null or scene_room <> new.room then
+        raise exception 'current_scene_id does not belong to actor room';
+      end if;
     end if;
   end if;
 
