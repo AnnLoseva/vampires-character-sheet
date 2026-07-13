@@ -68,6 +68,7 @@ revoke all on public.library_chronicle_chunks from anon, authenticated;
 grant select on public.library_chronicles to authenticated;
 grant select on public.library_chronicle_members to authenticated;
 grant select on public.library_chronicle_chunks to authenticated;
+grant insert, delete on public.library_chronicle_chunks to authenticated;
 
 drop policy if exists "Members can read their library chronicles" on public.library_chronicles;
 create policy "Members can read their library chronicles"
@@ -98,6 +99,39 @@ on public.library_chronicle_chunks
 for select to authenticated
 using (
   (select auth.uid()) is not null
+  and exists (
+    select 1
+    from public.library_chronicle_members membership
+    where membership.chronicle_id = library_chronicle_chunks.chronicle_id
+      and membership.user_id = (select auth.uid())
+  )
+);
+
+-- Chronicle uploads are limited twice: the caller must be a Storyteller in the
+-- main game subsystem and must already be subscribed to the target library
+-- chronicle. The same checks also protect direct Data API writes.
+drop policy if exists "Subscribed masters can insert library chronicle text" on public.library_chronicle_chunks;
+create policy "Subscribed masters can insert library chronicle text"
+on public.library_chronicle_chunks
+for insert to authenticated
+with check (
+  (select auth.uid()) is not null
+  and (select public.is_any_chronicle_master())
+  and exists (
+    select 1
+    from public.library_chronicle_members membership
+    where membership.chronicle_id = library_chronicle_chunks.chronicle_id
+      and membership.user_id = (select auth.uid())
+  )
+);
+
+drop policy if exists "Subscribed masters can delete library chronicle text" on public.library_chronicle_chunks;
+create policy "Subscribed masters can delete library chronicle text"
+on public.library_chronicle_chunks
+for delete to authenticated
+using (
+  (select auth.uid()) is not null
+  and (select public.is_any_chronicle_master())
   and exists (
     select 1
     from public.library_chronicle_members membership
@@ -282,6 +316,111 @@ $$;
 
 revoke all on function public.search_library_chronicle(uuid, text, integer) from public, anon;
 grant execute on function public.search_library_chronicle(uuid, text, integer) to authenticated;
+
+-- Atomically replaces one uploaded document. SECURITY INVOKER keeps RLS in
+-- force, while the explicit validation prevents oversized or malformed JSON
+-- payloads from reaching the chunk table.
+create or replace function public.replace_library_chronicle_document(
+  p_chronicle_id uuid,
+  p_source_name text,
+  p_document_title text,
+  p_chunks jsonb
+)
+returns table (
+  source_name text,
+  document_title text,
+  inserted_chunks integer
+)
+language plpgsql
+security invoker
+set search_path = public
+as $$
+declare
+  v_source_name text := btrim(coalesce(p_source_name, ''));
+  v_document_title text := btrim(coalesce(p_document_title, ''));
+  v_chunk_count integer;
+  v_total_length bigint;
+begin
+  if (select auth.uid()) is null then
+    raise exception 'Authentication required' using errcode = '28000';
+  end if;
+
+  if not (select public.is_any_chronicle_master()) then
+    raise exception 'Storyteller role required' using errcode = '42501';
+  end if;
+
+  if not exists (
+    select 1
+    from public.library_chronicles chronicle
+    join public.library_chronicle_members membership
+      on membership.chronicle_id = chronicle.id
+    where chronicle.id = p_chronicle_id
+      and chronicle.is_active
+      and membership.user_id = (select auth.uid())
+  ) then
+    raise exception 'Chronicle membership required' using errcode = '42501';
+  end if;
+
+  if length(v_source_name) not between 1 and 240 then
+    raise exception 'Source name must contain 1 to 240 characters' using errcode = '22023';
+  end if;
+  if length(v_document_title) not between 1 and 240 then
+    raise exception 'Document title must contain 1 to 240 characters' using errcode = '22023';
+  end if;
+  if p_chunks is null or jsonb_typeof(p_chunks) <> 'array' then
+    raise exception 'Chunks must be a JSON array' using errcode = '22023';
+  end if;
+
+  v_chunk_count := jsonb_array_length(p_chunks);
+  if v_chunk_count not between 1 and 500 then
+    raise exception 'A document must contain 1 to 500 chunks' using errcode = '22023';
+  end if;
+
+  if exists (
+    select 1
+    from jsonb_array_elements(p_chunks) chunk
+    where jsonb_typeof(chunk) <> 'object'
+      or length(coalesce(chunk ->> 'section_title', '')) > 300
+      or length(btrim(coalesce(chunk ->> 'content', ''))) not between 1 and 50000
+  ) then
+    raise exception 'A chunk is malformed or exceeds its size limit' using errcode = '22023';
+  end if;
+
+  select coalesce(sum(length(chunk ->> 'content')), 0)
+  into v_total_length
+  from jsonb_array_elements(p_chunks) chunk;
+  if v_total_length > 2000000 then
+    raise exception 'Document exceeds the 2 MB text limit' using errcode = '22023';
+  end if;
+
+  delete from public.library_chronicle_chunks chunk
+  where chunk.chronicle_id = p_chronicle_id
+    and chunk.source_name = v_source_name;
+
+  insert into public.library_chronicle_chunks (
+    chronicle_id,
+    source_name,
+    document_title,
+    section_title,
+    chunk_index,
+    content
+  )
+  select
+    p_chronicle_id,
+    v_source_name,
+    v_document_title,
+    left(coalesce(item.value ->> 'section_title', ''), 300),
+    item.ordinality::integer - 1,
+    btrim(item.value ->> 'content')
+  from jsonb_array_elements(p_chunks) with ordinality as item(value, ordinality);
+
+  return query
+  select v_source_name, v_document_title, v_chunk_count;
+end;
+$$;
+
+revoke all on function public.replace_library_chronicle_document(uuid, text, text, jsonb) from public, anon;
+grant execute on function public.replace_library_chronicle_document(uuid, text, text, jsonb) to authenticated;
 
 insert into public.library_chronicles (title, normalized_title, is_active)
 values ('Знамение Геенны 1', 'знамение геенны 1', true)

@@ -541,7 +541,7 @@ export default function MainScreen() {
           <EntryCard
             accent="cyan"
             title={t('Библиотека')}
-            description={t('Знания мира: чат-библиотекарь по книгам правил, справочник и дневники.')}
+            description={t('Знания мира: чат-библиотекарь, справочник, закрытые хроники и дневники.')}
             button={
               <div className="library-actions">
                 <Link href="/library/chat" className="card-action">
@@ -549,6 +549,9 @@ export default function MainScreen() {
                 </Link>
                 <Link href="/reference" className="ghost-action">
                   {t('Справочник')}
+                </Link>
+                <Link href="/library/chronicles" className="ghost-action">
+                  {t('Хроника')}
                 </Link>
                 <Link href="/journal" className="ghost-action">
                   {t('Дневник')}

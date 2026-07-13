@@ -25,7 +25,9 @@ Single app, two roles, driven by a `role` (`master` | `player`) parameter.
    layers, dice, chat, journal, music.
 3. **Journal** — `/journal`, a TipTap-based rich journal.
 4. **Reference** — `/reference`, a markdown rules reference.
-5. **Master console** — `/master?room=...`, a desktop shell for future
+5. **Chronicle library** — `/library/chronicles`, a private Markdown archive
+   available only through per-user chronicle membership.
+6. **Master console** — `/master?room=...`, a desktop shell for future
    Storyteller modules; currently protected by the compatibility master-password gate.
 
 Typical flow: **main screen → pick/create character → open room → jump between
@@ -46,6 +48,7 @@ sheet and table**, carrying `room`, `role`, `characterId`.
 | `/table` | `GameTable` | The shared campaign room |
 | `/journal` | Journal editor | Rich-text journal |
 | `/reference` | Reference pages | Markdown rules reference |
+| `/library/chronicles` | `ChronicleLibraryRoute` | Private membership-scoped chronicle reader and Storyteller upload |
 | `/master?room=<room-id>` | `MasterConsoleRoute` → `MasterConsoleShell` | Desktop Storyteller workspace shell; room is required |
 | `/old` | redirect | Legacy redirect → `/character-sheet` |
 
@@ -54,7 +57,9 @@ sheet and table**, carrying `room`, `role`, `characterId`.
   merits, flaws, predator types (RU + EN). The rules data layer.
 - **Supabase tables** — `characters`, `users`, `table_rolls`,
   `table_chat_messages`, `table_images`, `table_scenes`, `table_scene_music`,
-  `table_music`, `table_music_library`, `media_studio_layers`.
+  `table_music`, `table_music_library`, `media_studio_layers`, plus private
+  `library_chronicles`, `library_chronicle_members` and
+  `library_chronicle_chunks`.
 - **Supabase storage buckets** — `table-images` and a music bucket for uploaded
   table/media assets.
 - **localStorage** — room/role and character-creation drafts (bridge state).

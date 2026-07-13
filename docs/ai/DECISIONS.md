@@ -1,5 +1,31 @@
 # Decisions
 
+## 2026-07-13 — Private Chronicle reader and upload use the library membership boundary
+
+**Area:** Library UI / Supabase persistence / private game history
+**Decision:** `/library/chronicles` is a Reference-style reader over the private
+`library_chronicle_chunks` corpus. Authenticated users see every library
+chronicle they have joined and may join another by its exact active title.
+Storytellers may upload Markdown/TXT only to a target already present in their
+library membership list. The browser cleans and sections the text; the
+`SECURITY INVOKER` `replace_library_chronicle_document(...)` RPC validates the
+payload and atomically replaces one `source_name` under RLS.
+**Reason:** Chronicle history needs the same readable/searchable experience as
+the public rules reference, but its access boundary is per game. Uploading must
+make new text available to all game members and to DeepSeek without exposing a
+general write or query tool.
+**Consequences:** Direct chunk writes and the RPC require both an authoritative
+`chronicle_members` Storyteller role and the caller's own
+`library_chronicle_members` row for the target. Players remain read-only. A
+same-name upload replaces one document in a transaction; a failed upload leaves
+the earlier version intact. Raw chronicle files remain outside Git.
+**Affected files:** `app/library/chronicles/page.tsx`,
+`modules/chronicle-library/*`, `supabase/library_chronicles.sql`,
+`modules/home/components/MainScreen.tsx`, `scripts/test-chronicle-library.ts`
+**Status:** active
+
+---
+
 ## 2026-07-13 — Library chronicles use separate opt-in membership
 
 **Area:** Rules chat / Supabase persistence / private game history
@@ -16,8 +42,9 @@ chronicle text is ingested directly and is not committed to Git.
 on later visits, while library access must never self-grant player/master rights
 to the live game room.
 **Consequences:** All three tables have RLS. Users can select only chronicles,
-memberships and chunks for which `user_id = auth.uid()`; there are no client
-write grants. The narrowly scoped security-definer `open_library_chronicle`
+memberships and chunks for which `user_id = auth.uid()`. Chunk write grants are
+limited by Storyteller-plus-membership RLS policies; ordinary players remain
+read-only. The narrowly scoped security-definer `open_library_chronicle`
 checks `auth.uid()`, normalizes the exact title, has an empty `search_path`, and
 is executable only by `authenticated`. DeepSeek gets the controlled
 `search_my_chronicle(queries)` tool only in the context of the canonical active

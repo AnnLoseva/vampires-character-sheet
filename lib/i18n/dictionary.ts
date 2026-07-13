@@ -35,6 +35,8 @@ export const dictionary: Record<string, string> = {
     'Open character sheets and personal journals saved during play.',
   'Знания мира: чат-библиотекарь по книгам правил, справочник и дневники.':
     'World knowledge: a librarian chat over the rulebooks, reference and journals.',
+  'Знания мира: чат-библиотекарь, справочник, закрытые хроники и дневники.':
+    'World knowledge: the librarian chat, reference, private chronicles, and journals.',
   'Библиотекарь': 'The Librarian',
   'Задай вопрос по правилам — отвечу цитатами из книг с точными страницами.':
     'Ask a rules question — I answer with book quotes and exact page numbers.',
@@ -83,6 +85,45 @@ export const dictionary: Record<string, string> = {
     'No chronicle with that title was found. Check the spelling.',
   'Не удалось открыть хронику. Проверь вход в аккаунт и попробуй ещё раз.':
     'The chronicle failed to open. Make sure you are logged in and try again.',
+  'Навигация хроники': 'Chronicle navigation',
+  'Закрытый архив': 'Private archive',
+  'Войдите в аккаунт, чтобы увидеть доступные вам хроники.':
+    'Log in to see the chronicles available to you.',
+  'Закрытые истории': 'Private stories',
+  'Тексты открываются только участникам выбранной хроники.':
+    'Texts are visible only to members of the selected chronicle.',
+  'Подключиться по точному названию': 'Connect with the exact title',
+  'Подключиться': 'Connect',
+  'Загрузка мастера': 'Storyteller upload',
+  'Добавьте Markdown или TXT в хронику, к которой вы уже подключены.':
+    'Add Markdown or TXT to a chronicle you have already joined.',
+  'Файл с тем же именем заменит прежнюю версию целиком.':
+    'A file with the same name replaces the previous version in full.',
+  'Куда загрузить': 'Upload destination',
+  'Файл хроники': 'Chronicle file',
+  'Загрузить в хронику': 'Upload to chronicle',
+  'Файл слишком большой. Максимум — 1 МБ текста.':
+    'The file is too large. The maximum is 1 MB of text.',
+  'Можно загрузить только Markdown или TXT.': 'Only Markdown or TXT files can be uploaded.',
+  'Файл «{name}» загружен. Его видят все участники хроники.':
+    '“{name}” was uploaded. Every chronicle member can now read it.',
+  'Не удалось загрузить файл хроники.': 'The chronicle file could not be uploaded.',
+  'Не удалось загрузить хроники. Попробуйте ещё раз.':
+    'Chronicles could not be loaded. Please try again.',
+  'Не удалось загрузить текст хроники.': 'The chronicle text could not be loaded.',
+  'Подключённых хроник пока нет': 'No connected chronicles yet',
+  'Введите точное название хроники выше. После первого входа она останется в вашем списке.':
+    'Enter the exact chronicle title above. After the first visit it will remain in your list.',
+  'Открытая хроника': 'Open chronicle',
+  'Документы ещё не загружены': 'No documents uploaded yet',
+  'Поиск по хронике': 'Search the chronicle',
+  'Поиск по всем документам хроники': 'Search every chronicle document',
+  'Например: Бриджет Кит Геенна': 'e.g.: Bridget Kit Gehenna',
+  'Поиск идёт только по открытой вам хронике.':
+    'Search covers only the chronicle available to you.',
+  'Мои хроники': 'My chronicles',
+  'Документы': 'Documents',
+  'Загружаю хронику...': 'Loading chronicle...',
   'Персонажей не найдено. Создай его в «Архиве личности» на главной.':
     'No characters found. Create one in the Identity Archive on the main page.',
   'В дневнике ничего не нашлось.': 'Nothing found in the journal.',

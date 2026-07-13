@@ -13,7 +13,8 @@
     "test:disciplines": "node --import tsx scripts/test-discipline-engine.ts",
     "test:vtm-parity": "node --import tsx scripts/test-vtm-legacy-parity.ts",
     "test:master-console": "node --import tsx scripts/test-master-console.ts",
-    "test:rules-chat": "node --import tsx scripts/test-rules-chat-search.ts"
+    "test:rules-chat": "node --import tsx scripts/test-rules-chat-search.ts",
+    "test:chronicle-library": "node --import tsx scripts/test-chronicle-library.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",

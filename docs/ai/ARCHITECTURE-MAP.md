@@ -4,7 +4,7 @@ How the app fits together at runtime. For per-file risk/protocol see `FILE-MAP.m
 For a prose RU overview see `../architecture.md`.
 
 ## Runtime overview
-Next.js App Router serves React routes. The **home screen, game table, journal and reference**
+Next.js App Router serves React routes. The **home screen, game table, journal, reference and private chronicle reader**
 are modern React/TypeScript. The **full character sheet** is a legacy vanilla
 HTML/JS app served from `public/` and embedded via an `<iframe>`. Both layers
 persist to the same Supabase project.
@@ -17,6 +17,7 @@ persist to the same Supabase project.
 | `/table` | `modules/table/TableRoute` → `GameTable.tsx` | React |
 | `/journal` | `modules/journal/JournalRoute` | React |
 | `/reference` | `modules/reference/ReferenceRoute` | React |
+| `/library/chronicles` | `modules/chronicle-library/ChronicleLibraryRoute` | React + Supabase Auth/RLS |
 | `/master` | `modules/master-console/MasterConsoleRoute` → `MasterConsoleShell` | React master console (6 modules, search, detached windows) |
 | `/old` | `app/old/page.tsx` | redirect → `/character-sheet` |
 
@@ -61,7 +62,18 @@ persist to the same Supabase project.
  → HomeRoute
  → modules/home/components/MainScreen.tsx
  → Supabase `users` + light `characters` list
- → links to /character-sheet, /table, /journal, /reference
+ → links to /character-sheet, /table, /journal, /reference, /library/chronicles
+```
+
+## Flow: private chronicle library
+
+```text
+/library/chronicles
+ → ChronicleLibraryRoute → ChronicleLibraryPage
+ → list/open authorized library chronicle memberships
+ → RLS-scoped `library_chronicle_chunks` reader + client-side document search
+ → Storyteller-only Markdown/TXT parser
+ → `replace_library_chronicle_document(...)` (RLS + membership-gated atomic replace)
 ```
 
 ## Flow: master console
@@ -88,7 +100,7 @@ shell only through URL params, localStorage, and `postMessage`.
 
 ## React / Next layer (`app/`, `components/`)
 App Router route files are thin wrappers over `modules/*Route` entries.
-`modules/home/*` owns the entry screen. Canonical table/chat/music/journal/reference
+`modules/home/*` owns the entry screen. Canonical table/chat/music/journal/reference/chronicle-library
 code lives in `modules/*`; deprecated component and `lib/table/*` re-export shims
 have been removed. Shared state and Supabase I/O for the table currently
 concentrate in `GameTable.tsx`.
@@ -123,7 +135,10 @@ maps display names ↔ stable identifiers.
 - Library game history is selected by exact title once, then restored from the
   caller's last-opened membership. DeepSeek searches it only through the
   membership-scoped RPC using the caller's JWT; this membership never grants a
-  master-console or room role.
+  master-console or room role. `/library/chronicles` renders the same private
+  chunks as readable Markdown. Uploads replace one named document atomically
+  and require both an authoritative Storyteller role and an existing library
+  membership for the target chronicle.
 
 ## Media / table layer
 Images, video, files and layers on the table canvas (tldraw). Utilities in

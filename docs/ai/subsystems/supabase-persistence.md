@@ -123,6 +123,16 @@ the chunk RLS policy and search RPC require the caller's own
 `library_chronicle_members` row. Chronicle source text is private data: ingest
 it directly into Supabase, never into the repository.
 
+`/library/chronicles` reads those same chunks directly under RLS and groups them
+back into Markdown documents. An authenticated user with an authoritative
+`chronicle_members.role = 'master'` may upload Markdown/TXT only into a library
+chronicle they have already joined. `replace_library_chronicle_document(...)`
+is `SECURITY INVOKER`: its delete/insert stays under dedicated chunk write
+policies, validates the JSON/size limits, and atomically replaces rows with the
+same `source_name`. This makes the new text immediately available to every
+member and to the existing DeepSeek chronicle-search tool without giving the
+model or browser any general database capability.
+
 ## Music / media persistence
 Images/media → `table_images` + `table-images` bucket; music → `table_music`,
 `table_music_library`, `table_scene_music` + the music bucket; layers →

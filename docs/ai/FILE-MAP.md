@@ -89,8 +89,9 @@ opening code**. Risk levels drive how careful you must be.
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
 | `modules/rules-chat/*` | Rules assistant UI, library-chronicle selection, local journal/reference context | high | supabase-edit-protocol | DB retrieval is delegated to authenticated Edge tools |
+| `modules/chronicle-library/*` | Private chronicle reader, membership join, client search and Markdown/TXT ingest | high | supabase-edit-protocol | Read/write authority stays in RLS; reuses reference renderer |
 | `supabase/functions/librarian-chat/*` | DeepSeek tool loop over owner sheets, books and authorized game history | **critical** | supabase-edit-protocol | Keep `verify_jwt`; no general SQL tool |
-| `supabase/library_chronicles.sql` | Private library chronicle membership, RLS and FTS RPCs | **critical** | supabase-edit-protocol | Separate from master `chronicle_members`; no private text in Git |
+| `supabase/library_chronicles.sql` | Private library chronicle membership, RLS, FTS and atomic document upload RPC | **critical** | supabase-edit-protocol | Separate from master `chronicle_members`; no private text in Git |
 | `modules/chat/module-definition.ts` | chat Hub module contract | low | before-any-change | `table_chat_messages` persistence |
 | `modules/chat/components/ChatPanel.tsx` | chat UI | medium | react-table-edit-protocol | `table_chat_messages` |
 | `modules/chat/hooks/useChat.ts` | chat state/auth/realtime | high | react-table-edit-protocol + supabase-edit-protocol | Supabase realtime + localStorage user |
