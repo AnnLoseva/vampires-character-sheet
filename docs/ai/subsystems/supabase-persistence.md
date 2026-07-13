@@ -101,8 +101,11 @@ GM-only fields use `chronicle_actor_private`; both actor tables require master
 membership. Bulk actor changes use one whitelisted, room-scoped RPC.
 
 Rules chat book search uses `book_pages` and the authenticated-only
-`search_book_pages(query, source, limit)` RPC. Text is normalized during ingest;
-keep PDF page numbers stable so chat citations remain verifiable.
+`search_book_pages(query, source, limit)` RPC. The client creates several short,
+context-aware query variants and fuses duplicate page hits before passing the
+excerpts to the authenticated `librarian-chat` Edge Function; DeepSeek answers
+from those excerpts but does not search the table itself. Text is normalized
+during ingest; keep PDF page numbers stable so chat citations remain verifiable.
 
 ## Music / media persistence
 Images/media → `table_images` + `table-images` bucket; music → `table_music`,

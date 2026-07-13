@@ -9,26 +9,22 @@ import { useLang } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase'
 import {
   asText,
+  buildBookSearchPlan,
   buildCharacterCards,
   loadMyCharacters,
   loadRules,
   normalizeToken,
   parseQuery,
+  RULEBOOK_LIBRARY,
+  searchBookPages,
   searchJournal,
   searchReference,
+  type BookHit,
   type EntityMatch,
   type JournalHit,
   type PersonalCard,
   type ReferenceSearchHit,
 } from '../engine'
-
-type BookHit = {
-  source: string
-  title: string
-  page: number
-  rank: number
-  snippet: string
-}
 
 type ChatMessage =
   | { role: 'user'; text: string }
@@ -199,6 +195,10 @@ export default function RulesChatPage() {
       const rules = await loadRules()
       const parsed = parseQuery(trimmed, rules)
       const tokens = trimmed.split(/\s+/).map(normalizeToken).filter(Boolean)
+      const previousUserQuestions = messages
+        .filter((message): message is Extract<ChatMessage, { role: 'user' }> => message.role === 'user')
+        .map(message => message.text)
+      const bookPlan = buildBookSearchPlan(trimmed, previousUserQuestions, parsed.source)
 
       // Личный контекст: id легаси-пользователя и активный персонаж — из
       // localStorage этого устройства; сами листы приходят только через
@@ -226,17 +226,15 @@ export default function RulesChatPage() {
         journal = searchJournal(tokens, legacyUserId)
       }
 
-      // Справочник + книги параллельно (личные вопросы книгами не заваливаем).
-      const wantBooks = !parsed.personal
-      const ftsQuery = parsed.ftsQuery || trimmed
-      const [refHits, bookResult] = await Promise.all([
-        parsed.journal ? Promise.resolve([]) : searchReference(ftsQuery),
-        wantBooks
-          ? createClient().rpc('search_book_pages', { p_query: ftsQuery, p_source: parsed.source, p_limit: 5 })
-          : Promise.resolve({ data: [], error: null }),
+      // Для книг строим несколько коротких запросов на языке правил и
+      // объединяем результаты. Так разговорная формулировка или опечатка не
+      // превращают весь запрос в одно слишком строгое FTS-условие.
+      const [refHits, hits] = await Promise.all([
+        parsed.journal || bookPlan.isLibraryQuestion || !bookPlan.referenceQuery
+          ? Promise.resolve([])
+          : searchReference(bookPlan.referenceQuery),
+        parsed.searchBooks ? searchBookPages(bookPlan) : Promise.resolve([]),
       ])
-      if (bookResult.error) console.error('Поиск по книгам не удался:', bookResult.error)
-      const hits = (bookResult.data || []) as BookHit[]
 
       // «Мозг»: DeepSeek через edge-функцию. Отвечает только по нашим
       // материалам; при недоступности — прежний локальный ответ.
@@ -246,6 +244,11 @@ export default function RulesChatPage() {
           .slice(-8)
           .map(message => ({ role: message.role, text: message.text }))
         const context = {
+          library: RULEBOOK_LIBRARY.map(book => ({
+            source: book.source,
+            edition: book.edition,
+            title: book.title,
+          })),
           rules: parsed.entities.map(entity => ({
             name: entity.name,
             body: asText(entity.data) || '',
@@ -285,7 +288,8 @@ export default function RulesChatPage() {
         console.error('librarian-chat не ответил:', error)
       }
 
-      const hasAnything = aiAnswer.length > 0 || personal.length > 0 || journal.length > 0
+      const hasAnything = aiAnswer.length > 0 || bookPlan.isLibraryQuestion
+        || personal.length > 0 || journal.length > 0
         || parsed.entities.length > 0 || refHits.length > 0 || hits.length > 0
       setMessages(prev => [
         ...prev,
@@ -293,7 +297,9 @@ export default function RulesChatPage() {
           ? {
               role: 'assistant',
               text: aiAnswer
-                || (personal.length || journal.length
+                || (bookPlan.isLibraryQuestion
+                  ? t('В библиотеке доступны VTM V5 и VTM V20 на русском языке.')
+                  : personal.length || journal.length
                   ? t('Вот что нашлось в твоём архиве:')
                   : parsed.entities.length
                     ? t('Вот что я знаю об этом:')
@@ -309,7 +315,7 @@ export default function RulesChatPage() {
               role: 'assistant',
               text: parsed.journal
                 ? t('В дневнике ничего не нашлось.')
-                : t('В книгах ничего не нашлось. Попробуй переформулировать — например, назови дисциплину, ритуал или термин из правил.'),
+                : t('Не удалось найти подходящий фрагмент. Попробуй уточнить редакцию или назвать термин из правил.'),
             },
       ])
     } catch (error) {

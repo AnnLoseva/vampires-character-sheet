@@ -103,7 +103,28 @@ export type ParsedQuery = {
   source: string | null
   personal: boolean
   journal: boolean
+  searchBooks: boolean
 }
+
+export type BookHit = {
+  source: string
+  title: string
+  page: number
+  rank: number
+  snippet: string
+}
+
+export type BookSearchPlan = {
+  queries: string[]
+  referenceQuery: string
+  source: string | null
+  isLibraryQuestion: boolean
+}
+
+export const RULEBOOK_LIBRARY = [
+  { source: 'v5-corebook-ru', edition: 'V5', title: 'VTM v5: Книга правил (RU)' },
+  { source: 'v20-corebook-ru', edition: 'V20', title: 'VTM V20: Юбилейное издание (RU)' },
+] as const
 
 // Карточка личного ответа (лист персонажа / дневник).
 export type PersonalCard = {
@@ -134,6 +155,8 @@ const FILLER_WORDS = new Set([
   'что', 'чем', 'кто', 'такое', 'такой', 'такая', 'такие', 'это', 'эта', 'этот',
   'как', 'работает', 'работают', 'значит', 'означает', 'мне', 'нам',
   'пожалуйста', 'плз', 'инфа', 'инфо', 'информация', 'подробнее', 'про', 'насчет', 'насчёт',
+  'если', 'тогда', 'потом', 'вообще', 'теории', 'происходит', 'произойдет', 'произойдёт',
+  'будет', 'будут', 'нужно', 'можно', 'каждый', 'каждая', 'каждое', 'каждую',
 ])
 
 export function normalizeToken(raw: string): string {
@@ -154,16 +177,28 @@ function nameMatches(tokens: string[], name: string): boolean {
   return words.every(word => tokens.some(token => stemEquals(token, word)))
 }
 
-const V5_HINTS = ['v5', 'в5', '5', 'пятерка', 'пятерке', 'пятой', 'пятая']
-const V20_HINTS = ['v20', 'в20', '20', 'двадцатка', 'двадцатке', 'двадцатой']
+const V5_HINTS = ['v5', 'в5', 'пятерка', 'пятерке', 'пятой', 'пятая']
+const V20_HINTS = ['v20', 'в20', 'двадцатка', 'двадцатке', 'двадцатой']
 
 // Маркеры «вопрос о моём»: лист, персонаж, дневник, сессии.
 const MY_MARKERS = new Set([
   'мой', 'моя', 'мое', 'моё', 'мои', 'моего', 'моей', 'моих', 'моем', 'моём',
   'меня', 'мне', 'я', 'свой', 'своя', 'своего', 'своей', 'свои', 'своих',
 ])
+const POSSESSIVE_MARKERS = new Set([
+  'мой', 'моя', 'мое', 'моё', 'мои', 'моего', 'моей', 'моих', 'моем', 'моём',
+  'свой', 'своя', 'свое', 'своё', 'своего', 'своей', 'свои', 'своих',
+])
 const PERSONAL_HINTS = ['персонаж', 'лист', 'предыстор', 'бэкстор', 'бекстор']
+const PERSONAL_DATA_HINTS = [
+  'клан', 'поколени', 'концепт', 'натур', 'маска', 'сир', 'хищник', 'внешност',
+  'атрибут', 'навык', 'дисциплин', 'преимуществ', 'недостат', 'инвентар', 'замет',
+]
 const JOURNAL_HINTS = ['дневник', 'сесси', 'запис', 'заметк', 'было']
+const RULE_QUESTION_HINTS = [
+  'если', 'произойд', 'случ', 'последств', 'правил', 'механик', 'теори', 'почему',
+  'означ', 'работа', 'кажд', 'голод', 'кров', 'пробуж', 'просып', 'пит', 'ярост',
+]
 
 // Темы правил из rules.json: здоровье, сила воли, человечность, броски.
 const TOPIC_KEYWORDS: Array<{ keys: string[]; field: keyof RulesData | string; title: string }> = [
@@ -184,9 +219,16 @@ export function parseQuery(question: string, rules: RulesData | null): ParsedQue
     tokens.push(token)
   }
 
-  const hasMyMarker = tokens.some(token => MY_MARKERS.has(token))
+  const normalizedQuestion = question.toLowerCase().replace(/ё/g, 'е')
+  const hasPersonalOwner = tokens.some(token => POSSESSIVE_MARKERS.has(token))
+    || normalizedQuestion.includes('у меня')
   const journal = tokens.some(token => JOURNAL_HINTS.some(hint => token.startsWith(hint)))
-  const personal = hasMyMarker || journal || tokens.some(token => PERSONAL_HINTS.some(hint => token.startsWith(hint)))
+  const hasPersonalSubject = tokens.some(token =>
+    PERSONAL_HINTS.some(hint => token.startsWith(hint))
+    || PERSONAL_DATA_HINTS.some(hint => token.startsWith(hint)))
+  const hasRulesIntent = tokens.some(token => RULE_QUESTION_HINTS.some(hint => token.startsWith(hint)))
+  const personal = journal || (hasPersonalOwner && (hasPersonalSubject || !hasRulesIntent))
+  const searchBooks = !journal && (!personal || hasRulesIntent)
 
   const entities: EntityMatch[] = []
   if (rules) {
@@ -243,7 +285,172 @@ export function parseQuery(question: string, rules: RulesData | null): ParsedQue
   const meaningful = tokens.filter(token => !FILLER_WORDS.has(token) && token.length > 1)
   const ftsQuery = meaningful.join(' ')
 
-  return { entities: entities.slice(0, 3), ftsQuery, source, personal, journal }
+  return { entities: entities.slice(0, 3), ftsQuery, source, personal, journal, searchBooks }
+}
+
+// ─── Поисковый план по книгам ───────────────────────────────────────────────
+
+const SEARCH_STOP_WORDS = new Set([
+  ...FILLER_WORDS,
+  ...MY_MARKERS,
+  'и', 'а', 'но', 'или', 'либо', 'не', 'ни', 'ну', 'вот', 'же', 'бы',
+  'в', 'во', 'на', 'у', 'с', 'со', 'к', 'ко', 'от', 'до', 'по', 'для', 'за',
+  'из', 'при', 'через', 'после', 'перед', 'между', 'тебя', 'тебе', 'есть',
+  'какие', 'какой', 'какая', 'какое', 'персонаж', 'персонажа', 'вампир', 'вампира',
+])
+
+const FOLLOW_UP_HINTS = new Set([
+  'это', 'этот', 'эта', 'так', 'тогда', 'потом', 'дальше', 'еще', 'ещё', 'теории',
+])
+
+function canonicalSearchToken(token: string): string {
+  if (token.startsWith('голод')) return 'голод'
+  if (token.startsWith('кров')) return 'кровь'
+  if (token.startsWith('ноч')) return 'ночь'
+  if (token.startsWith('пробуж') || token.startsWith('просып') || token.startsWith('просну')) return 'пробуждение'
+  if (token.startsWith('проверк') || token.startsWith('испыт')) return 'испытание'
+  if (token.startsWith('насыщ') || token.startsWith('корм') || token.startsWith('питан')) return 'насыщение'
+  if (token.startsWith('воздерж')) return 'воздерживаться'
+  if (token.startsWith('ярост')) return 'ярость'
+  if (['пил', 'пила', 'пили', 'пить', 'пью', 'пьешь', 'пьеш', 'пьет', 'пьют'].includes(token)) return 'пить'
+  return token
+}
+
+function uniqueTokens(tokens: string[]): string[] {
+  return [...new Set(tokens)]
+}
+
+function getRuleSearchTokens(question: string): string[] {
+  return uniqueTokens(
+    question
+      .split(/\s+/)
+      .map(normalizeToken)
+      .filter(token => token && !SEARCH_STOP_WORDS.has(token))
+      .filter(token => !V5_HINTS.includes(token) && !V20_HINTS.includes(token))
+      .filter(token => token.length > 2 && !/^\d+$/.test(token))
+      .map(canonicalSearchToken),
+  ).slice(0, 8)
+}
+
+function sourceFromQuestion(question: string): string | null {
+  const tokens = question.split(/\s+/).map(normalizeToken).filter(Boolean)
+  if (tokens.some(token => V5_HINTS.includes(token))) return 'v5-corebook-ru'
+  if (tokens.some(token => V20_HINTS.includes(token))) return 'v20-corebook-ru'
+  return null
+}
+
+function isLikelyFollowUp(question: string, tokens: string[]): boolean {
+  const rawTokens = question.split(/\s+/).map(normalizeToken).filter(Boolean)
+  return tokens.length < 2
+    || rawTokens.some(token => FOLLOW_UP_HINTS.has(token))
+    || rawTokens[0] === 'а'
+    || rawTokens[0] === 'ну'
+}
+
+export function isLibraryInventoryQuestion(question: string): boolean {
+  const normalized = question.toLowerCase().replace(/ё/g, 'е')
+  const tokens = normalized.split(/\s+/).map(normalizeToken).filter(Boolean)
+  const mentionsLibrary = tokens.some(token =>
+    token.startsWith('материал')
+    || token.startsWith('книг')
+    || token.startsWith('библиотек')
+    || token.startsWith('источник'))
+  const asksAvailability = normalized.includes('у тебя')
+    || normalized.includes('у вас')
+    || tokens.some(token => token.startsWith('доступ') || token.startsWith('имеющ'))
+    || (tokens.some(token => token === 'какие') && tokens.some(token => token === 'есть'))
+  return mentionsLibrary && asksAvailability
+}
+
+export function buildBookSearchPlan(
+  question: string,
+  previousUserQuestions: string[] = [],
+  explicitSource: string | null = null,
+): BookSearchPlan {
+  const isLibraryQuestion = isLibraryInventoryQuestion(question)
+  const currentTokens = getRuleSearchTokens(question)
+  const followUp = isLikelyFollowUp(question, currentTokens)
+  const previousQuestion = previousUserQuestions.at(-1) || ''
+  const previousTokens = followUp ? getRuleSearchTokens(previousQuestion) : []
+  const tokens = uniqueTokens([...currentTokens, ...previousTokens]).slice(0, 8)
+  const source = explicitSource || (followUp ? sourceFromQuestion(previousQuestion) : null)
+
+  if (isLibraryQuestion) {
+    return { queries: [], referenceQuery: '', source, isLibraryQuestion: true }
+  }
+
+  const queries: string[] = []
+  const has = (...values: string[]) => values.some(value => tokens.includes(value))
+  const hungerTopic = has('голод')
+    || (has('кровь') && has('ночь', 'пить', 'пробуждение', 'насыщение', 'воздерживаться'))
+  const abstinenceTopic = has('воздерживаться') || (has('пить', 'кровь') && has('ночь'))
+
+  if (hungerTopic && source !== 'v20-corebook-ru') {
+    // Эти формулировки намеренно повторяют терминологию V5: первая находит
+    // результат испытания Крови, вторая — обязательную проверку при
+    // пробуждении, третья — правило роста Голода.
+    queries.push(
+      'испытание крови голод',
+      'каждый пробуждение испытание крови',
+      'голод закат',
+      'утоление голода',
+    )
+  }
+
+  if (abstinenceTopic && source !== 'v5-corebook-ru') {
+    queries.push('воздерживаться пища', 'запас крови ночь')
+  }
+
+  if (tokens.length) {
+    queries.push(tokens.join(' '))
+    if (!hungerTopic && tokens.length > 1) queries.push(tokens.join(' OR '))
+  }
+
+  return {
+    queries: [...new Set(queries)].slice(0, 7),
+    referenceQuery: hungerTopic && source !== 'v20-corebook-ru' ? 'голод' : tokens.join(' '),
+    source,
+    isLibraryQuestion: false,
+  }
+}
+
+export function mergeBookHitLists(hitLists: BookHit[][], maxHits = 8): BookHit[] {
+  const merged = new Map<string, { hit: BookHit; score: number; bestPosition: number }>()
+  hitLists.forEach(hits => {
+    hits.forEach((hit, position) => {
+      const key = `${hit.source}:${hit.page}`
+      const score = 1 / (60 + position + 1)
+      const current = merged.get(key)
+      if (current) {
+        current.score += score
+        current.bestPosition = Math.min(current.bestPosition, position)
+      } else {
+        merged.set(key, { hit, score, bestPosition: position })
+      }
+    })
+  })
+
+  return [...merged.values()]
+    .sort((a, b) => b.score - a.score || a.bestPosition - b.bestPosition || a.hit.page - b.hit.page)
+    .slice(0, maxHits)
+    .map(({ hit, score }) => ({ ...hit, rank: score }))
+}
+
+export async function searchBookPages(plan: BookSearchPlan): Promise<BookHit[]> {
+  if (plan.queries.length === 0) return []
+  const client = createClient()
+  const results = await Promise.all(
+    plan.queries.map(async query => {
+      const result = await client.rpc('search_book_pages', {
+        p_query: query,
+        p_source: plan.source,
+        p_limit: 5,
+      })
+      if (result.error) console.error(`Поиск по книгам не удался (${query}):`, result.error)
+      return (result.data || []) as BookHit[]
+    }),
+  )
+  return mergeBookHitLists(results)
 }
 
 // ─── Персонажи владельца (изоляция обеспечена на сервере) ───────────────────

@@ -1,5 +1,31 @@
 # Decisions
 
+## 2026-07-13 — Rules chat retrieval is context-aware; DeepSeek is answer-only
+
+**Area:** Rules chat / Supabase / external LLM
+**Decision:** The browser builds several short rule-language queries from the
+current question (and, for a follow-up, the previous user question), searches
+them through the existing authenticated `search_book_pages` RPC, and combines
+duplicate pages with reciprocal-rank fusion. Conversational forms and common
+RU inflections/typos around Hunger, Blood, feeding and awakening are normalized
+before search. DeepSeek receives only the fused excerpts and does not decide
+what exists in the database. The available V5/V20 titles are passed separately
+as inventory metadata. Empty retrieval must be described as "no exact answer in
+the found fragments", never as proof that the rule is absent from the books.
+**Reason:** A single `websearch_to_tsquery` over a whole conversational sentence
+required every meaningful word to occur on one page. It also lost the subject
+of follow-up turns and let previous assistant wording outweigh current source
+text.
+**Consequences:** The `book_pages` schema and RPC contract stay unchanged. Core
+rules questions may issue several small RPCs in parallel. Book excerpts outrank
+site/reference text in the answer prompt; V5 and V20 mechanics remain separate.
+**Affected files:** `modules/rules-chat/engine.ts`,
+`modules/rules-chat/components/RulesChatPage.tsx`,
+`supabase/functions/librarian-chat/index.ts`, `scripts/test-rules-chat-search.ts`
+**Status:** active
+
+---
+
 ## 2026-07-13 — Rules chat personal data: owner-only via `get_my_characters`
 
 **Area:** Supabase persistence / rules chat
@@ -37,8 +63,8 @@ be checked against the real book. Book text is NOT committed to the repo
 (copyright); it is ingested by a master via `/master/ingest-books` from locally
 generated JSONL files. RLS: read — authenticated only; write — masters only
 (`is_any_chronicle_master`). The site must show only short snippets publicly.
-**Reason:** Foundation for the offline-friendly VTM rules chat (no external AI
-APIs, works from RF): Postgres FTS answers "where in the book" queries.
+**Reason:** Foundation for grounded VTM rules answers: Postgres FTS answers
+"where in the book" queries before any answer model receives context.
 **Consequences:** Re-ingest by re-uploading JSONL (upsert on source+page). New
 books = new `source` slug. The pre-cleanup rows are retained for rollback in
 `private.book_pages_backup_20260713` with no app-role grants. Do not add anon

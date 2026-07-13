@@ -12,7 +12,8 @@
     "validate:disciplines": "node --import tsx scripts/validate-discipline-mechanics.ts",
     "test:disciplines": "node --import tsx scripts/test-discipline-engine.ts",
     "test:vtm-parity": "node --import tsx scripts/test-vtm-legacy-parity.ts",
-    "test:master-console": "node --import tsx scripts/test-master-console.ts"
+    "test:master-console": "node --import tsx scripts/test-master-console.ts",
+    "test:rules-chat": "node --import tsx scripts/test-rules-chat-search.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.10.3",
