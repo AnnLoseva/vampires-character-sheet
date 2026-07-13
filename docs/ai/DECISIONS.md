@@ -1,5 +1,26 @@
 # Decisions
 
+## 2026-07-13 — Rulebook pages in Supabase (`book_pages`) for the rules assistant
+
+**Area:** Supabase persistence / rules reference
+**Decision:** Full text of the RU rulebooks (V5 corebook RU — OCR'd, V20 RU —
+extracted) lives in `public.book_pages`, one row per PDF page, with a generated
+`tsvector` (russian/english config by `lang`) and `search_book_pages(query,
+source, limit)` RPC returning ranked `ts_headline` snippets with page numbers.
+Page numbers are PDF pages of the exact files the group owns, so citations can
+be checked against the real book. Book text is NOT committed to the repo
+(copyright); it is ingested by a master via `/master/ingest-books` from locally
+generated JSONL files. RLS: read — authenticated only; write — masters only
+(`is_any_chronicle_master`). The site must show only short snippets publicly.
+**Reason:** Foundation for the offline-friendly VTM rules chat (no external AI
+APIs, works from RF): Postgres FTS answers "where in the book" queries.
+**Consequences:** Re-ingest by re-uploading JSONL (upsert on source+page). New
+books = new `source` slug. Do not add anon read policies.
+**Affected files:** `supabase/book_pages.sql`, `app/master/ingest-books/page.tsx`
+**Status:** active
+
+---
+
 ## 2026-07-12 — Legacy login migrated to Supabase Auth (synthetic emails)
 
 **Area:** Auth / Supabase persistence
