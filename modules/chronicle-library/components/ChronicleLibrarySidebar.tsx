@@ -11,9 +11,11 @@ type ChronicleLibrarySidebarProps = {
   onSelectDocument: (sourceName: string) => void
   labels: {
     chronicles: string
-    documents: string
+    officialDocuments: string
+    personalDocuments: string
     headings: string
-    noDocuments: string
+    noOfficialDocuments: string
+    noPersonalDocuments: string
   }
 }
 
@@ -27,6 +29,26 @@ export default function ChronicleLibrarySidebar({
   onSelectDocument,
   labels,
 }: ChronicleLibrarySidebarProps) {
+  const officialDocuments = documents.filter(document => document.scope === 'official')
+  const personalDocuments = documents.filter(document => document.scope === 'personal')
+
+  const documentLinks = (items: ChronicleDocument[], emptyLabel: string) => (
+    <nav className="chronicle-doc-nav">
+      {items.length === 0 ? <small>{emptyLabel}</small> : null}
+      {items.map(document => (
+        <button
+          type="button"
+          className={`chronicle-doc-link ${activeDocument?.sourceName === document.sourceName ? 'active' : ''}`}
+          key={document.sourceName}
+          onClick={() => onSelectDocument(document.sourceName)}
+        >
+          <strong>{document.title}</strong>
+          <small>{document.downloadName || document.sourceName}</small>
+        </button>
+      ))}
+    </nav>
+  )
+
   return (
     <aside className="chronicle-sidebar" aria-label={labels.chronicles}>
       <div className="chronicle-sidebar-inner">
@@ -48,21 +70,15 @@ export default function ChronicleLibrarySidebar({
 
         {activeChronicle ? (
           <section className="chronicle-sidebar-section">
-            <span>{labels.documents}</span>
-            <nav className="chronicle-doc-nav">
-              {documents.length === 0 ? <small>{labels.noDocuments}</small> : null}
-              {documents.map(document => (
-                <button
-                  type="button"
-                  className={`chronicle-doc-link ${activeDocument?.sourceName === document.sourceName ? 'active' : ''}`}
-                  key={document.sourceName}
-                  onClick={() => onSelectDocument(document.sourceName)}
-                >
-                  <strong>{document.title}</strong>
-                  <small>{document.sourceName}</small>
-                </button>
-              ))}
-            </nav>
+            <span>{labels.officialDocuments}</span>
+            {documentLinks(officialDocuments, labels.noOfficialDocuments)}
+          </section>
+        ) : null}
+
+        {activeChronicle ? (
+          <section className="chronicle-sidebar-section">
+            <span>{labels.personalDocuments}</span>
+            {documentLinks(personalDocuments, labels.noPersonalDocuments)}
           </section>
         ) : null}
 

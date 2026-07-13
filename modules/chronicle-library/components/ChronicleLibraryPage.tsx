@@ -8,6 +8,7 @@ import { createClient } from '@/lib/supabase'
 import MarkdownRenderer from '@/modules/reference/components/MarkdownRenderer'
 import { collectHeadings, getSearchTerms } from '@/modules/reference/utils/markdown'
 import type { ChronicleDocument, ChronicleSearchHit, LibraryChronicle } from '../types'
+import { loadPersonalChronicleDocuments } from '../api/personal-chronicle-api'
 import {
   buildChronicleDocuments,
   isLibraryChronicle,
@@ -15,6 +16,7 @@ import {
   searchChronicleDocuments,
 } from '../utils/chronicle-markdown'
 import ChronicleLibrarySidebar from './ChronicleLibrarySidebar'
+import PersonalChroniclePanel from './PersonalChroniclePanel'
 
 const MAX_UPLOAD_BYTES = 1_000_000
 
@@ -112,15 +114,21 @@ export default function ChronicleLibraryPage() {
     setDocuments([])
     void (async () => {
       try {
-        const { data, error } = await createClient()
-          .from('library_chronicle_chunks')
-          .select('source_name, document_title, section_title, chunk_index, content')
-          .eq('chronicle_id', activeChronicle.id)
-          .order('source_name', { ascending: true })
-          .order('chunk_index', { ascending: true })
-        if (error) throw error
+        const [officialResult, personalDocuments] = await Promise.all([
+          createClient()
+            .from('library_chronicle_chunks')
+            .select('source_name, document_title, section_title, chunk_index, content')
+            .eq('chronicle_id', activeChronicle.id)
+            .order('source_name', { ascending: true })
+            .order('chunk_index', { ascending: true }),
+          loadPersonalChronicleDocuments(activeChronicle.id),
+        ])
+        if (officialResult.error) throw officialResult.error
         if (cancelled) return
-        setDocuments(buildChronicleDocuments(Array.isArray(data) ? data : []))
+        setDocuments([
+          ...buildChronicleDocuments(Array.isArray(officialResult.data) ? officialResult.data : []),
+          ...personalDocuments,
+        ])
       } catch (error) {
         console.error('library_chronicle_chunks:', error)
         if (!cancelled) setPageError(t('Не удалось загрузить текст хроники.'))
@@ -199,6 +207,17 @@ export default function ChronicleLibraryPage() {
 
   const openSearchHit = (hit: ChronicleSearchHit) => {
     selectDocument(hit.sourceName, hit.slug)
+  }
+
+  const downloadActiveDocument = () => {
+    if (!activeDocument || activeDocument.scope !== 'personal') return
+    const blob = new Blob([activeDocument.markdown], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = activeDocument.downloadName || `${activeDocument.title}.md`
+    link.click()
+    URL.revokeObjectURL(url)
   }
 
   const joinChronicle = async () => {
@@ -343,6 +362,17 @@ export default function ChronicleLibraryPage() {
             </section>
           ) : null}
 
+          {chronicles.length > 0 ? (
+            <PersonalChroniclePanel
+              chronicles={chronicles}
+              activeChronicleId={activeChronicle?.id || chronicles[0].id}
+              onCompleted={chronicleId => {
+                if (chronicleId !== activeChronicle?.id) selectChronicle(chronicleId)
+                setReloadKey(value => value + 1)
+              }}
+            />
+          ) : null}
+
           {chronicles.length === 0 ? (
             <section className="chronicle-empty">
               <h2>{t('Подключённых хроник пока нет')}</h2>
@@ -355,7 +385,13 @@ export default function ChronicleLibraryPage() {
                   <p>{t('Открытая хроника')}</p>
                   <h2>{activeChronicle?.title}</h2>
                 </div>
-                <span>{activeDocument?.title || t('Документы ещё не загружены')}</span>
+                <div className="chronicle-doc-current">
+                  <span>{activeDocument?.scope === 'personal' ? t('Личный документ') : t('Официальная хроника')}</span>
+                  <strong>{activeDocument?.title || t('Документы ещё не загружены')}</strong>
+                  {activeDocument?.scope === 'personal' ? (
+                    <button type="button" onClick={downloadActiveDocument}>{t('Скачать .md')}</button>
+                  ) : null}
+                </div>
               </section>
 
               <section className="chronicle-searchbar" aria-label={t('Поиск по хронике')}>
@@ -373,7 +409,7 @@ export default function ChronicleLibraryPage() {
                       <strong>{tf('Найдено разделов: {count}', { count: searchHits.length })}</strong>
                       <button type="button" onClick={() => setQuery('')}>{t('Сбросить')}</button>
                     </>
-                  ) : <span>{t('Поиск идёт только по открытой вам хронике.')}</span>}
+                  ) : <span>{t('Поиск идёт по официальной хронике и вашим личным документам.')}</span>}
                 </div>
               </section>
 
@@ -411,9 +447,11 @@ export default function ChronicleLibraryPage() {
                   onSelectDocument={selectDocument}
                   labels={{
                     chronicles: t('Мои хроники'),
-                    documents: t('Документы'),
+                    officialDocuments: t('Официальная хроника'),
+                    personalDocuments: t('Личные документы'),
                     headings: t('На этой странице'),
-                    noDocuments: t('Документы ещё не загружены'),
+                    noOfficialDocuments: t('Официальные документы ещё не загружены'),
+                    noPersonalDocuments: t('Личных документов пока нет'),
                   }}
                 />
                 <MarkdownRenderer
@@ -449,10 +487,10 @@ export default function ChronicleLibraryPage() {
         .chronicle-kicker { margin: 0 0 5px; color: #ff3131; letter-spacing: .16em; text-transform: uppercase; font-size: 12px; }
         .chronicle-topbar h1 { margin: 0; color: #fff7ed; font-size: clamp(34px, 5vw, 58px); }
         .chronicle-topbar nav { display: flex; flex-wrap: wrap; gap: 10px; justify-content: flex-end; }
-        .chronicle-topbar a, .chronicle-access-panel button, .chronicle-upload-panel button, .chronicle-searchbar button, .chronicle-locked a {
+        .chronicle-topbar a, .chronicle-access-panel button, .chronicle-upload-panel button, .chronicle-searchbar button, .chronicle-locked a, .chronicle-doc-current button {
           border: 1px solid #773030; border-radius: 6px; color: #f5f5f5; text-decoration: none; padding: 10px 14px; background: #141414; font: inherit; font-size: 14px; cursor: pointer;
         }
-        .chronicle-topbar a:hover, .chronicle-access-panel button:hover:not(:disabled), .chronicle-upload-panel button:hover:not(:disabled), .chronicle-searchbar button:hover, .chronicle-locked a:hover { border-color: #ff3131; background: #221111; }
+        .chronicle-topbar a:hover, .chronicle-access-panel button:hover:not(:disabled), .chronicle-upload-panel button:hover:not(:disabled), .chronicle-searchbar button:hover, .chronicle-locked a:hover, .chronicle-doc-current button:hover { border-color: #ff3131; background: #221111; }
         button:disabled { opacity: .45; cursor: default; }
         .chronicle-access-panel, .chronicle-upload-panel, .chronicle-doc-header, .chronicle-locked, .chronicle-empty {
           display: grid; gap: 12px; margin-bottom: 16px; padding: 14px 16px; border: 1px solid rgba(151, 44, 44, .34); border-radius: 8px; background: rgba(12, 8, 9, .76);
@@ -474,7 +512,10 @@ export default function ChronicleLibraryPage() {
         .chronicle-doc-header { grid-template-columns: 1fr auto; align-items: end; }
         .chronicle-doc-header p { margin: 0 0 5px; }
         .chronicle-doc-header h2 { margin: 0; color: #fff7ed; font-size: clamp(24px, 3vw, 34px); }
-        .chronicle-doc-header > span { color: #cdbfb0; }
+        .chronicle-doc-current { display: grid; justify-items: end; gap: 5px; text-align: right; }
+        .chronicle-doc-current span { color: #d6aa65; font-size: 12px; text-transform: uppercase; letter-spacing: .08em; }
+        .chronicle-doc-current strong { color: #cdbfb0; }
+        .chronicle-doc-current button { padding: 7px 10px; }
         .chronicle-searchbar {
           position: sticky; top: 0; z-index: 20; display: grid; grid-template-columns: minmax(0, 680px) minmax(220px, 1fr); gap: 12px; align-items: end; margin: 0 0 20px; padding: 12px; border: 1px solid rgba(151, 44, 44, .42); border-radius: 8px; background: rgba(10, 7, 8, .96); box-shadow: 0 16px 44px rgba(0, 0, 0, .34); backdrop-filter: blur(12px);
         }
@@ -538,6 +579,7 @@ export default function ChronicleLibraryPage() {
           .chronicle-access-panel, .chronicle-upload-panel, .chronicle-searchbar { grid-template-columns: 1fr; }
           .chronicle-access-panel form { grid-template-columns: 1fr; }
           .chronicle-doc-header { display: flex; }
+          .chronicle-doc-current { justify-items: start; text-align: left; }
           .chronicle-searchbar { position: static; }
         }
       `}</style>

@@ -89,9 +89,11 @@ opening code**. Risk levels drive how careful you must be.
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
 | `modules/rules-chat/*` | Rules assistant UI, library-chronicle selection, local journal/reference context | high | supabase-edit-protocol | DB retrieval is delegated to authenticated Edge tools |
-| `modules/chronicle-library/*` | Private chronicle reader, membership join, client search and Markdown/TXT ingest | high | supabase-edit-protocol | Read/write authority stays in RLS; reuses reference renderer |
-| `supabase/functions/librarian-chat/*` | DeepSeek tool loop over owner sheets, books and authorized game history | **critical** | supabase-edit-protocol | Keep `verify_jwt`; no general SQL tool |
+| `modules/chronicle-library/*` | Private official/personal chronicle reader, membership, resumable player transcript pipeline and Storyteller ingest | high | supabase-edit-protocol | Personal jobs/documents stay owner-only; reuses reference renderer |
+| `supabase/functions/librarian-chat/*` | DeepSeek tool loop over owner sheets, books and authorized official/personal game history | **critical** | supabase-edit-protocol | Keep `verify_jwt`; no general SQL tool |
+| `supabase/functions/personal-chronicle-processor/*` | Bounded DeepSeek cleanup/summary operations for owner transcript jobs | **critical** | supabase-edit-protocol | Keep `verify_jwt`; caller JWT + RLS only; every chunk must persist |
 | `supabase/library_chronicles.sql` | Private library chronicle membership, RLS, FTS and atomic document upload RPC | **critical** | supabase-edit-protocol | Separate from master `chronicle_members`; no private text in Git |
+| `supabase/personal_chronicles.sql` | Owner-only transcript jobs, final documents, RLS, FTS and atomic completion RPC | **critical** | supabase-edit-protocol | Chronicle ID groups data but never grants other members access |
 | `modules/chat/module-definition.ts` | chat Hub module contract | low | before-any-change | `table_chat_messages` persistence |
 | `modules/chat/components/ChatPanel.tsx` | chat UI | medium | react-table-edit-protocol | `table_chat_messages` |
 | `modules/chat/hooks/useChat.ts` | chat state/auth/realtime | high | react-table-edit-protocol + supabase-edit-protocol | Supabase realtime + localStorage user |

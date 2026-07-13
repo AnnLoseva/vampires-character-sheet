@@ -26,6 +26,10 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 | `library_chronicles` | rules chat | Private library chronicle titles/availability |
 | `library_chronicle_members` | rules chat | Owner-scoped subscriptions and last-opened order |
 | `library_chronicle_chunks` | rules chat | Section-addressed private game text + Russian FTS |
+| `personal_chronicle_jobs` | chronicle library | Owner-only resumable transcript processing state |
+| `personal_chronicle_job_chunks` | chronicle library | Owner-only raw, cleaned and summary parts |
+| `personal_chronicle_documents` | chronicle library + rules chat | Owner-only full/short final document metadata |
+| `personal_chronicle_document_chunks` | chronicle library + rules chat | Owner-only final Markdown chunks + Russian FTS |
 | `table_rolls` | table + master public rolls | Dice rolls per room (player-visible) |
 | `master_hidden_rolls` | master-rolls | Master-only hidden rolls until reveal |
 | `master_session_notes` | master-overview | Private session notes (autosave) |
@@ -132,6 +136,17 @@ policies, validates the JSON/size limits, and atomically replaces rows with the
 same `source_name`. This makes the new text immediately available to every
 member and to the existing DeepSeek chronicle-search tool without giving the
 model or browser any general database capability.
+
+Player uploads use the separate `supabase/personal_chronicles.sql` contract.
+The browser stores the entire normalized source as ordered raw chunks before AI
+work starts. `personal-chronicle-processor` performs one authenticated DeepSeek
+operation per request, writes each cleaned chunk immediately, then creates a
+full speaker-labelled transcript plus a shorter player-perspective chronicle
+through `complete_personal_chronicle_job(...)`. Interrupted jobs are resumable.
+All four personal tables enforce `user_id = auth.uid()`; Chronicle membership
+only validates the grouping target and never expands read access. The
+Librarian's fixed Chronicle tool combines `search_library_chronicle(...)` with
+`search_my_personal_chronicle(...)`, both under the caller's JWT.
 
 ## Music / media persistence
 Images/media → `table_images` + `table-images` bucket; music → `table_music`,

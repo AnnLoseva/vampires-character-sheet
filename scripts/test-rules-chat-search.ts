@@ -174,4 +174,22 @@ test('chronicle chunks confirmed by several queries are deduplicated and promote
   assert.equal(merged.filter(item => item.document_title === 'Хроника 4').length, 1)
 })
 
+test('official and personal chronicle chunks remain separate sources', () => {
+  const base: LibrarianChronicleHit = {
+    chronicle_id: 'chronicle',
+    chronicle_title: 'Знамение Геенны 1',
+    document_title: 'Сессия 4',
+    section_title: 'Сцена 1',
+    chunk_index: 0,
+    rank: 1,
+    snippet: 'Встреча у ворот',
+  }
+  const merged = mergeChronicleToolHits([[
+    { ...base, source_scope: 'official' },
+    { ...base, source_scope: 'personal' },
+  ]])
+  assert.equal(merged.length, 2)
+  assert.deepEqual(new Set(merged.map(item => item.source_scope)), new Set(['official', 'personal']))
+})
+
 console.log(`\n${passed} tests passed`)

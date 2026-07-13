@@ -1,5 +1,39 @@
 # Decisions
 
+## 2026-07-13 — Player transcripts use an owner-only resumable AI pipeline
+
+**Area:** Chronicle library / Supabase persistence / external LLM
+**Decision:** A library member may upload a complete TXT/Markdown/SRT/VTT
+transcript as a private player source. The browser normalizes subtitle noise,
+splits without truncation, persists every raw chunk, and invokes the
+`personal-chronicle-processor` Edge Function for one bounded DeepSeek operation
+at a time. Completion atomically creates two owner-only documents: the full
+speaker-labelled clean transcript and a shorter player-perspective chronicle.
+The active library chronicle is a grouping key only; membership does not grant
+other members access to personal documents.
+**Reason:** Large automatic transcripts cannot safely fit in one Edge/LLM
+request, and players need visible progress, restart safety, full source
+preservation and a concise game record without exposing private notes to the
+rest of the group.
+**Consequences:** `personal_chronicle_jobs`,
+`personal_chronicle_job_chunks`, `personal_chronicle_documents` and
+`personal_chronicle_document_chunks` are protected by owner RLS and have no
+anon grants. Raw and processed chunks persist after completion. The browser may
+resume any unfinished job; final document creation uses the security-invoker
+`complete_personal_chronicle_job(...)` RPC. `librarian-chat` searches official
+and personal history through separate fixed RPCs with the caller's JWT; it has
+no SQL tool or service-role bypass. Migrations `personal_chronicle_pipeline`
+and `personal_chronicle_fk_indexes`, plus Edge Function
+`personal-chronicle-processor` v1, were applied to production.
+**Affected files:** `modules/chronicle-library/*`,
+`supabase/personal_chronicles.sql`,
+`supabase/functions/personal-chronicle-processor/index.ts`,
+`supabase/functions/librarian-chat/{index,tools}.ts`,
+`scripts/{test-chronicle-library,test-rules-chat-search}.ts`
+**Status:** active
+
+---
+
 ## 2026-07-13 — Private Chronicle reader and upload use the library membership boundary
 
 **Area:** Library UI / Supabase persistence / private game history

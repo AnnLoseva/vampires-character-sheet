@@ -21,6 +21,7 @@ export type LibrarianChronicleHit = {
   chunk_index: number
   rank: number
   snippet: string
+  source_scope?: 'official' | 'personal'
 }
 
 const NAME_STOP_WORDS = new Set([
@@ -162,7 +163,7 @@ export function mergeChronicleToolHits(
   const merged = new Map<string, { hit: LibrarianChronicleHit; score: number; bestPosition: number }>()
   hitLists.forEach(hits => {
     hits.forEach((hit, position) => {
-      const key = `${hit.chronicle_id}:${hit.document_title}:${hit.chunk_index}`
+      const key = `${hit.source_scope || 'official'}:${hit.chronicle_id}:${hit.document_title}:${hit.chunk_index}`
       const score = 1 / (60 + position + 1)
       const current = merged.get(key)
       if (current) {

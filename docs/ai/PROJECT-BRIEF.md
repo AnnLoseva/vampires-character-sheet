@@ -26,7 +26,8 @@ Single app, two roles, driven by a `role` (`master` | `player`) parameter.
 3. **Journal** — `/journal`, a TipTap-based rich journal.
 4. **Reference** — `/reference`, a markdown rules reference.
 5. **Chronicle library** — `/library/chronicles`, a private Markdown archive
-   available only through per-user chronicle membership.
+   with membership-scoped official history and owner-only processed player
+   transcripts/personal recaps.
 6. **Master console** — `/master?room=...`, a desktop shell for future
    Storyteller modules; currently protected by the compatibility master-password gate.
 
@@ -48,7 +49,7 @@ sheet and table**, carrying `room`, `role`, `characterId`.
 | `/table` | `GameTable` | The shared campaign room |
 | `/journal` | Journal editor | Rich-text journal |
 | `/reference` | Reference pages | Markdown rules reference |
-| `/library/chronicles` | `ChronicleLibraryRoute` | Private membership-scoped chronicle reader and Storyteller upload |
+| `/library/chronicles` | `ChronicleLibraryRoute` | Official Chronicle reader, Storyteller upload and owner-only player transcript processing |
 | `/master?room=<room-id>` | `MasterConsoleRoute` → `MasterConsoleShell` | Desktop Storyteller workspace shell; room is required |
 | `/old` | redirect | Legacy redirect → `/character-sheet` |
 
@@ -59,7 +60,8 @@ sheet and table**, carrying `room`, `role`, `characterId`.
   `table_chat_messages`, `table_images`, `table_scenes`, `table_scene_music`,
   `table_music`, `table_music_library`, `media_studio_layers`, plus private
   `library_chronicles`, `library_chronicle_members` and
-  `library_chronicle_chunks`.
+  `library_chronicle_chunks`, plus owner-only personal Chronicle jobs,
+  source chunks and final documents.
 - **Supabase storage buckets** — `table-images` and a music bucket for uploaded
   table/media assets.
 - **localStorage** — room/role and character-creation drafts (bridge state).

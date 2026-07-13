@@ -74,6 +74,9 @@ persist to the same Supabase project.
  → RLS-scoped `library_chronicle_chunks` reader + client-side document search
  → Storyteller-only Markdown/TXT parser
  → `replace_library_chronicle_document(...)` (RLS + membership-gated atomic replace)
+ → player TXT/Markdown/SRT/VTT → persisted raw chunks → authenticated
+   `personal-chronicle-processor` calls → full clean transcript + short personal chronicle
+ → owner-only personal document reader/search + downloadable Markdown
 ```
 
 ## Flow: master console
@@ -128,7 +131,9 @@ maps display names ↔ stable identifiers.
   `master_macros`, `chronicle_entity_links`, `master_action_log`; actor domain:
   `chronicle_actors`, `chronicle_actor_private`; private Library game history:
   `library_chronicles`, `library_chronicle_members`,
-  `library_chronicle_chunks`.
+  `library_chronicle_chunks`; owner-only player history:
+  `personal_chronicle_jobs`, `personal_chronicle_job_chunks`,
+  `personal_chronicle_documents`, `personal_chronicle_document_chunks`.
 - Buckets: `table-images` and a music bucket.
 - Table names centralized in `modules/table/constants.ts`.
 - Schema/policies live in `supabase/*.sql`.
@@ -139,6 +144,9 @@ maps display names ↔ stable identifiers.
   chunks as readable Markdown. Uploads replace one named document atomically
   and require both an authoritative Storyteller role and an existing library
   membership for the target chronicle.
+- Player transcripts are chunked and persisted before bounded AI calls. Their
+  raw parts and two final documents remain owner-only; the Librarian combines
+  official and personal search RPCs using the caller's Auth JWT.
 
 ## Media / table layer
 Images, video, files and layers on the table canvas (tldraw). Utilities in

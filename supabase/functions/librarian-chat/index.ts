@@ -58,7 +58,7 @@ type DeepSeekMessage = {
 const SYSTEM_PROMPT = `Ты — Библиотекарь: вежливый, чуть старомодный хранитель знаний клуба Vampire: the Masquerade (V5 и V20).
 ЖЁСТКИЕ ПРАВИЛА:
 1. Отвечай только на основе начальных материалов и результатов инструментов. Не добавляй факты из памяти.
-2. Если выбрана активная хроника и вопрос касается событий игры, NPC, отношений, мест, тайн, истории или прошлых сессий, сначала вызови search_my_chronicle. Передай 1–4 коротких запроса: имена и ключевой факт отдельно полезнее длинного вопроса. При необходимости уточни поиск вторым вызовом.
+2. Если выбрана активная хроника и вопрос касается событий игры, NPC, отношений, мест, тайн, истории или прошлых сессий, сначала вызови search_my_chronicle. Он ищет и в официальной хронике мастера, и в личных документах текущего игрока. Для воспоминаний и точки зрения игрока особенно учитывай личные документы. Передай 1–4 коротких запроса: имена и ключевой факт отдельно полезнее длинного вопроса. При необходимости уточни поиск вторым вызовом.
 3. Если вопрос явно о листе, предыстории, отношениях, опоре/Прикосновении или личных параметрах персонажа пользователя, вызови find_my_characters. Имя не обязано быть полным, и слова «мой/моя» не обязательны. Если названы несколько персонажей, запроси их всех одним вызовом. Когда имя может относиться и к листу, и к активной хронике, используй оба источника.
 4. Если вопрос о механике или правиле VTM, вызови search_rulebooks. Передай 1–4 коротких поисковых формулировки с терминами правил; при необходимости сделай ещё один вызов с другими терминами. Для вопроса о конкретном персонаже и правиле можно использовать несколько инструментов.
 5. Результаты поиска — не вся база. Если точного ответа в них нет, скажи: «В найденных фрагментах нет точного ответа» и предложи уточнить запрос. Не утверждай, что факта нет во всей книге или хронике.
@@ -94,7 +94,7 @@ const TOOLS = [
     type: "function",
     function: {
       name: "search_my_chronicle",
-      description: "Ищет только в выбранной библиотечной хронике, доступной текущему пользователю. Используй для событий игры, NPC, отношений, мест, тайн и прошлых сессий. Доступ повторно проверяется базой данных.",
+      description: "Ищет в официальных документах выбранной хроники и в личных документах текущего пользователя. Используй для событий игры, NPC, отношений, мест, тайн, воспоминаний игрока и прошлых сессий. База отдельно проверяет доступ к каждому источнику.",
       parameters: {
         type: "object",
         properties: {
@@ -176,7 +176,7 @@ function buildMaterials(
   if (activeChronicle) {
     parts.push(
       `[Активная хроника — только метаданные]\n${activeChronicle.title}\n` +
-      "Её содержимое можно читать только через search_my_chronicle.",
+      "Её официальное содержимое и личные документы игрока можно читать только через search_my_chronicle.",
     );
   }
   return parts.length ? parts.join("\n\n") : "(начальных материалов нет — используй подходящий инструмент)";
@@ -270,16 +270,32 @@ async function executeTool(
     const queries = safeStrings(args.queries, 4, 180);
     if (queries.length === 0) return { error: "Нужен хотя бы один короткий поисковый запрос." };
     const hitLists = await Promise.all(queries.map(async query => {
-      const { data, error } = await client.rpc("search_library_chronicle", {
-        p_chronicle_id: activeChronicle.id,
-        p_query: query,
-        p_limit: 6,
-      });
-      if (error) {
-        console.error(`search_my_chronicle tool (${query}):`, error.message);
-        return [];
+      const [officialResult, personalResult] = await Promise.all([
+        client.rpc("search_library_chronicle", {
+          p_chronicle_id: activeChronicle.id,
+          p_query: query,
+          p_limit: 6,
+        }),
+        client.rpc("search_my_personal_chronicle", {
+          p_chronicle_id: activeChronicle.id,
+          p_query: query,
+          p_limit: 6,
+        }),
+      ]);
+      if (officialResult.error) {
+        console.error(`search_my_chronicle official (${query}):`, officialResult.error.message);
       }
-      return (data || []) as LibrarianChronicleHit[];
+      if (personalResult.error) {
+        console.error(`search_my_chronicle personal (${query}):`, personalResult.error.message);
+      }
+      const officialHits = officialResult.error
+        ? []
+        : ((officialResult.data || []) as LibrarianChronicleHit[])
+          .map(hit => ({ ...hit, source_scope: "official" as const }));
+      const personalHits = personalResult.error
+        ? []
+        : (personalResult.data || []) as LibrarianChronicleHit[];
+      return [...officialHits, ...personalHits];
     }));
     const hits = mergeChronicleToolHits(hitLists).map(hit => ({
       ...hit,
@@ -287,7 +303,7 @@ async function executeTool(
     }));
     for (const hit of hits) {
       usedChronicle.set(
-        `${hit.chronicle_id}:${hit.document_title}:${hit.chunk_index}`,
+        `${hit.source_scope || "official"}:${hit.chronicle_id}:${hit.document_title}:${hit.chunk_index}`,
         hit,
       );
     }
@@ -296,7 +312,7 @@ async function executeTool(
       queries,
       hits,
       note: hits.length
-        ? "Это найденные фрагменты, а не вся хроника. Ссылайся на документ и раздел."
+        ? "Это найденные фрагменты официальной и/или личной хроники, а не вся база. source_scope=personal означает приватный документ текущего игрока. Ссылайся на документ и раздел."
         : "По этим формулировкам фрагментов не найдено; попробуй имена и ключевые факты отдельными запросами.",
     };
   }

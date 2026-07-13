@@ -121,8 +121,63 @@ export const dictionary: Record<string, string> = {
   'Например: Бриджет Кит Геенна': 'e.g.: Bridget Kit Gehenna',
   'Поиск идёт только по открытой вам хронике.':
     'Search covers only the chronicle available to you.',
+  'Поиск идёт по официальной хронике и вашим личным документам.':
+    'Search covers the official chronicle and your personal documents.',
   'Мои хроники': 'My chronicles',
   'Документы': 'Documents',
+  'Официальная хроника': 'Official chronicle',
+  'Личный документ': 'Personal document',
+  'Личные документы': 'Personal documents',
+  'Официальные документы ещё не загружены': 'No official documents uploaded yet',
+  'Личных документов пока нет': 'No personal documents yet',
+  'Скачать .md': 'Download .md',
+  'Личная хроника игрока': 'Player personal chronicle',
+  'Загрузите полную расшифровку: ИИ очистит весь текст, отметит говорящих и создаст короткую хронику от лица вашего персонажа.':
+    'Upload a complete transcript: AI will clean the entire text, identify speakers, and create a short chronicle from your character’s perspective.',
+  'Исходник, полный обработанный текст и пересказ принадлежат только вам. Другие участники хроники их не увидят.':
+    'The source, full processed text, and recap belong only to you. Other chronicle members cannot see them.',
+  'Куда сохранить': 'Save to',
+  'От чьего лица писать': 'Whose perspective to use',
+  'Например: Альмериальда': 'e.g.: Almerialda',
+  'Подсказки по говорящим': 'Speaker hints',
+  'Например: Анна играет Альмериальду; Артём — рассказчик':
+    'e.g.: Anna plays Almerialda; Artyom is the Storyteller',
+  'Полный файл': 'Complete file',
+  'Обработать полностью': 'Process the entire file',
+  'Обрабатываю...': 'Processing...',
+  'Читаю полный файл': 'Reading the complete file',
+  'Разбиваю текст на безопасные части без обрезания':
+    'Splitting the text into safe parts without truncation',
+  'Сохраняю исходник в базе: {count} частей': 'Saving the source: {count} parts',
+  'ИИ обрабатывает часть {current} из {total}': 'AI is processing part {current} of {total}',
+  'ИИ собирает конспект: этап {current} из {total}':
+    'AI is assembling the recap: stage {current} of {total}',
+  'ИИ пишет короткую личную хронику и сохраняет оба файла':
+    'AI is writing the short personal chronicle and saving both files',
+  'Готово': 'Complete',
+  'Можно вернуться позже: завершённые части уже сохранены.':
+    'You can return later: completed parts are already saved.',
+  'Незавершённые обработки': 'Unfinished processing',
+  'готово частей: {current} из {total}': 'parts complete: {current} of {total}',
+  'Продолжить': 'Continue',
+  'Не удалось загрузить незавершённые обработки.':
+    'Unfinished processing could not be loaded.',
+  'Не все части файла попали в базу. Удалите эту обработку и загрузите файл снова.':
+    'Not every part reached the database. Delete this job and upload the file again.',
+  'ИИ не вернул промежуточный конспект.': 'AI did not return an intermediate recap.',
+  'Полная чистая расшифровка и короткая личная хроника сохранены. Их видите только вы и библиотекарь в рамках вашего доступа.':
+    'The complete clean transcript and short personal chronicle are saved. Only you and the Librarian acting within your access can see them.',
+  'Обработка остановлена. Уже готовые части сохранены.':
+    'Processing stopped. Completed parts are saved.',
+  'Не удалось обработать файл. Нажмите «Продолжить», чтобы повторить.':
+    'The file could not be processed. Select Continue to retry.',
+  'Файл слишком большой. Максимум — 8 МБ текста.':
+    'The file is too large. The maximum is 8 MB of text.',
+  'Можно загрузить Markdown, TXT, SRT или VTT.':
+    'Markdown, TXT, SRT, or VTT files can be uploaded.',
+  'Обработка не началась': 'Processing did not start',
+  'Не удалось принять файл.': 'The file could not be accepted.',
+  'Не удалось удалить обработку.': 'The processing job could not be deleted.',
   'Загружаю хронику...': 'Loading chronicle...',
   'Персонажей не найдено. Создай его в «Архиве личности» на главной.':
     'No characters found. Create one in the Identity Archive on the main page.',

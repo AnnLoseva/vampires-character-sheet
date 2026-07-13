@@ -175,6 +175,7 @@ export function buildChronicleDocuments(values: unknown[]): ChronicleDocument[] 
       title,
       chunks,
       markdown: `# ${title}\n\n${body}`,
+      scope: 'official' as const,
     }
   })
 }

@@ -18,7 +18,8 @@
   for layout/deep-link/registry/privacy unit checks.
 
 ## What is stable enough
-- Routes `/`, `/character-sheet`, `/table`, `/journal`, `/reference`, `/master` — all thin
+- Routes `/`, `/character-sheet`, `/table`, `/journal`, `/reference`,
+  `/library/chronicles`, `/master` — all thin
   `app/*/page.tsx` wrappers over `modules/*/*Route`.
 - The iframe character sheet loads, saves and loads characters.
 - The game table renders and syncs a room via Supabase.
@@ -59,7 +60,10 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-13 — `/master` now gates module mount on live Supabase Auth +
+2026-07-13 — `/library/chronicles` now separates official history from
+  owner-only, resumable AI-processed player transcripts (full clean text + short
+  personal recap), and the Librarian searches both under caller RLS.
+  Earlier: `/master` gates module mount on live Supabase Auth +
   `chronicle_members` and the home screen validates cached identity against the
   current Auth user. Earlier: PROMPT 14–15 detached windows (`display=detached`), BroadcastChannel
   bus, layout schema v1 + conflict copy, home → `/master` for master role,
