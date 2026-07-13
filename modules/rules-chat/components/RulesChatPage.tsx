@@ -1,13 +1,13 @@
 'use client'
 
-// Чат-библиотекарь: полнотекстовый поиск по книгам правил (book_pages).
-// Ничего не выдумывает — цитирует книгу со страницей, чтобы игрок мог
-// открыть свой PDF и увидеть то же самое.
+// Чат-библиотекарь: структурные ответы из rules.json + цитаты из книг
+// (book_pages) со страницами. Ничего не выдумывает.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase'
+import { loadRules, parseQuery, type EntityMatch } from '../engine'
 
 type BookHit = {
   source: string
@@ -19,14 +19,14 @@ type BookHit = {
 
 type ChatMessage =
   | { role: 'user'; text: string }
-  | { role: 'assistant'; text: string; hits?: BookHit[] }
+  | { role: 'assistant'; text: string; entities?: EntityMatch[]; hits?: BookHit[] }
 
 const SUGGESTIONS = [
-  'испытание крови',
-  'преклонение величие',
+  'клан Тореадор',
+  'Величие',
   'голод последствия',
-  'ритуалы некромантии',
-  'сложность проверки',
+  'испытание крови',
+  'ритуалы некромантии v20',
 ]
 
 // ts_headline возвращает текст книги с <b>…</b>. Экранируем всё,
@@ -42,6 +42,82 @@ function renderSnippet(snippet: string) {
   return { __html: withBold }
 }
 
+function EntityCard({ entity }: { entity: EntityMatch }) {
+  const { t } = useLang()
+  if (entity.kind === 'clan') {
+    return (
+      <section className="rules-chat-card">
+        <h3>{t('Клан')}: {entity.name}</h3>
+        {entity.data.description ? <p>{entity.data.description}</p> : null}
+        {entity.data.disciplines?.length ? (
+          <p><strong>{t('Дисциплины')}:</strong> {entity.data.disciplines.join(', ')}</p>
+        ) : null}
+        {entity.data.bane ? <p><strong>{t('Проклятие')}:</strong> {entity.data.bane}</p> : null}
+        {entity.data.playstyle ? <p><strong>{t('Стиль игры')}:</strong> {entity.data.playstyle}</p> : null}
+        {entity.data.conflict ? <p><strong>{t('Конфликт')}:</strong> {entity.data.conflict}</p> : null}
+      </section>
+    )
+  }
+  if (entity.kind === 'discipline') {
+    const levels = Object.entries(entity.data.powers || {})
+    return (
+      <section className="rules-chat-card">
+        <h3>{t('Дисциплина')}: {entity.name}</h3>
+        {entity.data.description ? <p>{entity.data.description}</p> : null}
+        {entity.data.system ? <p><strong>{t('Система')}:</strong> {entity.data.system}</p> : null}
+        {levels.map(([level, powers]) => (
+          <div key={level} className="rules-chat-card-level">
+            <strong>{t('Уровень')} {level}</strong>
+            {Object.entries(powers || {}).map(([powerName, power]) => (
+              <div key={powerName} className="rules-chat-card-power">
+                <em>{powerName}</em>
+                {power.description ? <span> — {power.description}</span> : null}
+                {power.pool ? <small>{t('Пул')}: {power.pool}</small> : null}
+                {power.cost ? <small>{t('Цена')}: {power.cost}</small> : null}
+              </div>
+            ))}
+          </div>
+        ))}
+      </section>
+    )
+  }
+  if (entity.kind === 'power') {
+    return (
+      <section className="rules-chat-card">
+        <h3>{entity.name} <small>({entity.discipline}, {t('уровень')} {entity.level})</small></h3>
+        {entity.data.description ? <p>{entity.data.description}</p> : null}
+        {entity.data.pool ? <p><strong>{t('Пул')}:</strong> {entity.data.pool}</p> : null}
+        {entity.data.cost ? <p><strong>{t('Цена')}:</strong> {entity.data.cost}</p> : null}
+        {entity.data.effect ? <p><strong>{t('Эффект')}:</strong> {entity.data.effect}</p> : null}
+      </section>
+    )
+  }
+  if (entity.kind === 'merit') {
+    return (
+      <section className="rules-chat-card">
+        <h3>{entity.flaw ? t('Недостаток') : t('Преимущество')}: {entity.name}</h3>
+        {entity.data['описание'] ? <p>{entity.data['описание']}</p> : null}
+        {(entity.data['варианты'] || []).map(variant => (
+          <p key={variant['название_пункта']}>
+            <strong>{variant['название_пункта']}{variant['точки'] ? ` (${variant['точки']})` : ''}:</strong>{' '}
+            {variant['полное_описание']}
+          </p>
+        ))}
+      </section>
+    )
+  }
+  return (
+    <section className="rules-chat-card">
+      <h3>{t('Тип хищника')}: {entity.name}</h3>
+      {entity.data.description ? <p>{entity.data.description}</p> : null}
+      {entity.data.specialty ? <p><strong>{t('Специализация')}:</strong> {entity.data.specialty}</p> : null}
+      {entity.data.disciplines?.length ? (
+        <p><strong>{t('Дисциплины')}:</strong> {entity.data.disciplines.join(', ')}</p>
+      ) : null}
+    </section>
+  )
+}
+
 export default function RulesChatPage() {
   const { t } = useLang()
   const [messages, setMessages] = useState<ChatMessage[]>([])
@@ -55,6 +131,7 @@ export default function RulesChatPage() {
       .auth.getUser()
       .then(({ data }) => setHasSession(Boolean(data.user)))
       .catch(() => setHasSession(false))
+    void loadRules()
   }, [])
 
   useEffect(() => {
@@ -68,18 +145,32 @@ export default function RulesChatPage() {
     setBusy(true)
     setMessages(prev => [...prev, { role: 'user', text: trimmed }])
     try {
+      const rules = await loadRules()
+      const parsed = parseQuery(trimmed, rules)
+
+      let hits: BookHit[] = []
+      const ftsQuery = parsed.ftsQuery || trimmed
       const { data, error } = await createClient().rpc('search_book_pages', {
-        p_query: trimmed,
-        p_limit: 6,
+        p_query: ftsQuery,
+        p_source: parsed.source,
+        p_limit: 5,
       })
-      if (error) throw error
-      const hits = (data || []) as BookHit[]
+      if (error) {
+        console.error('Поиск по книгам не удался:', error)
+      } else {
+        hits = (data || []) as BookHit[]
+      }
+
+      const hasAnything = parsed.entities.length > 0 || hits.length > 0
       setMessages(prev => [
         ...prev,
-        hits.length
+        hasAnything
           ? {
               role: 'assistant',
-              text: t('Вот что нашлось в книгах:'),
+              text: parsed.entities.length
+                ? t('Вот что я знаю об этом:')
+                : t('Вот что нашлось в книгах:'),
+              entities: parsed.entities,
               hits,
             }
           : {
@@ -88,7 +179,7 @@ export default function RulesChatPage() {
             },
       ])
     } catch (error) {
-      console.error('Поиск по книгам не удался:', error)
+      console.error('Чат-библиотекарь: ошибка ответа:', error)
       setMessages(prev => [
         ...prev,
         { role: 'assistant', text: t('Не получилось выполнить поиск. Проверь, что ты вошёл в аккаунт, и попробуй ещё раз.') },
@@ -134,8 +225,16 @@ export default function RulesChatPage() {
             {messages.map((message, index) => (
               <article key={index} className={`rules-chat-message ${message.role}`}>
                 <p>{message.text}</p>
-                {message.role === 'assistant' && message.hits ? (
+                {message.role === 'assistant' && message.entities?.length ? (
+                  <div className="rules-chat-entities">
+                    {message.entities.map(entity => (
+                      <EntityCard key={`${entity.kind}-${entity.name}`} entity={entity} />
+                    ))}
+                  </div>
+                ) : null}
+                {message.role === 'assistant' && message.hits?.length ? (
                   <div className="rules-chat-hits">
+                    {message.entities?.length ? <small className="rules-chat-hits-title">{t('В книгах об этом:')}</small> : null}
                     {message.hits.map(hit => (
                       <blockquote key={`${hit.source}-${hit.page}`}>
                         <span dangerouslySetInnerHTML={renderSnippet(hit.snippet)} />
@@ -253,11 +352,11 @@ export default function RulesChatPage() {
         }
         .rules-chat-suggestions button:hover { background: rgba(139, 0, 0, 0.35); }
         .rules-chat-message {
-          max-width: 780px;
+          max-width: 820px;
           border-radius: 12px;
           padding: 12px 16px;
           font-size: 15px;
-          line-height: 1.5;
+          line-height: 1.55;
         }
         .rules-chat-message p { margin: 0; }
         .rules-chat-message.user {
@@ -270,7 +369,28 @@ export default function RulesChatPage() {
           background: rgba(216, 181, 106, 0.07);
           border: 1px solid rgba(216, 181, 106, 0.22);
         }
-        .rules-chat-hits { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
+        .rules-chat-entities { display: flex; flex-direction: column; gap: 12px; margin-top: 12px; }
+        .rules-chat-card {
+          background: rgba(0, 0, 0, 0.45);
+          border: 1px solid rgba(216, 181, 106, 0.35);
+          border-radius: 10px;
+          padding: 14px 16px;
+        }
+        .rules-chat-card h3 {
+          margin: 0 0 8px;
+          font-family: 'Cinzel', serif;
+          color: #d8b56a;
+          font-size: 17px;
+        }
+        .rules-chat-card p { margin: 0 0 8px; white-space: pre-line; }
+        .rules-chat-card p:last-child { margin-bottom: 0; }
+        .rules-chat-card-level { margin-top: 10px; }
+        .rules-chat-card-level > strong { color: #d8b56a; display: block; margin-bottom: 4px; }
+        .rules-chat-card-power { margin: 0 0 8px 12px; font-size: 14px; }
+        .rules-chat-card-power em { color: #f0d9a8; font-style: normal; font-weight: 600; }
+        .rules-chat-card-power small { display: block; opacity: 0.75; margin-left: 0; }
+        .rules-chat-hits { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; }
+        .rules-chat-hits-title { opacity: 0.7; font-style: italic; }
         .rules-chat-hits blockquote {
           margin: 0;
           padding: 10px 14px;
