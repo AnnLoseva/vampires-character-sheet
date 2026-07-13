@@ -78,6 +78,7 @@ as $$
 $$;
 
 revoke all on function public.search_book_pages(text, text, integer) from public;
+revoke all on function public.search_book_pages(text, text, integer) from anon;
 grant execute on function public.search_book_pages(text, text, integer) to authenticated;
 
 -- Masters (of any chronicle) can manage book pages via /master/ingest-books.
