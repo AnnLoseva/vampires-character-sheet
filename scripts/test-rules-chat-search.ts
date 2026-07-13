@@ -11,8 +11,10 @@ import {
 } from '../modules/rules-chat/engine'
 import {
   buildCharacterToolPayload,
+  mergeChronicleToolHits,
   selectCharacterRows,
   type LibrarianCharacterRow,
+  type LibrarianChronicleHit,
 } from '../supabase/functions/librarian-chat/tools'
 
 let passed = 0
@@ -151,6 +153,25 @@ test('a page confirmed by several query variants outranks a single noisy hit', (
     [hit(213)],
   ])
   assert.equal(merged[0]?.page, 213)
+})
+
+test('chronicle chunks confirmed by several queries are deduplicated and promoted', () => {
+  const hit = (document: string, chunk: number): LibrarianChronicleHit => ({
+    chronicle_id: 'chronicle',
+    chronicle_title: 'Знамение Геенны 1',
+    document_title: document,
+    section_title: `Сцена ${chunk}`,
+    chunk_index: chunk,
+    rank: 1,
+    snippet: `${document} ${chunk}`,
+  })
+  const merged = mergeChronicleToolHits([
+    [hit('Хроника 1', 3), hit('Хроника 4', 6)],
+    [hit('Хроника 4', 6)],
+  ])
+  assert.equal(merged[0]?.document_title, 'Хроника 4')
+  assert.equal(merged[0]?.chunk_index, 6)
+  assert.equal(merged.filter(item => item.document_title === 'Хроника 4').length, 1)
 })
 
 console.log(`\n${passed} tests passed`)

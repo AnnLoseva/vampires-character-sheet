@@ -23,6 +23,9 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 | `characters` | legacy sheet + table | Character records (save/load) |
 | `users` | app | User records |
 | `book_pages` | rules chat | Authenticated, page-addressed rulebook text + FTS |
+| `library_chronicles` | rules chat | Private library chronicle titles/availability |
+| `library_chronicle_members` | rules chat | Owner-scoped subscriptions and last-opened order |
+| `library_chronicle_chunks` | rules chat | Section-addressed private game text + Russian FTS |
 | `table_rolls` | table + master public rolls | Dice rolls per room (player-visible) |
 | `master_hidden_rolls` | master-rolls | Master-only hidden rolls until reveal |
 | `master_session_notes` | master-overview | Private session notes (autosave) |
@@ -102,14 +105,23 @@ membership. Bulk actor changes use one whitelisted, room-scoped RPC.
 
 Rules chat book search uses `book_pages` and the authenticated-only
 `search_book_pages(query, source, limit)` RPC. The authenticated
-`librarian-chat` Edge Function gives DeepSeek two controlled read-only tools:
-book search through that RPC and owner-only character lookup through
-`get_my_characters()`. Every tool call is validated and executed with the
-caller's Auth JWT; the model never gets SQL or database credentials. It can
+`librarian-chat` Edge Function gives DeepSeek three controlled read-only tools:
+book search through that RPC, owner-only character lookup through
+`get_my_characters()`, and active-game search through
+`search_library_chronicle(...)`. Every tool call is validated and executed with
+the caller's Auth JWT; the model never gets SQL or database credentials. It can
 refine short rule-language queries and request several partially named
 characters, while the browser keeps device-local journal access. Text is
-normalized during ingest; keep PDF page numbers stable so chat citations remain
+normalized during ingest; keep PDF page numbers stable so book citations remain
 verifiable.
+
+Library game history is deliberately separate from master-console membership.
+`open_library_chronicle(title)` subscribes the current Auth user only when the
+normalized title matches an active library chronicle; it cannot grant a room
+role. `list_my_library_chronicles()` drives last-opened preselection, and both
+the chunk RLS policy and search RPC require the caller's own
+`library_chronicle_members` row. Chronicle source text is private data: ingest
+it directly into Supabase, never into the repository.
 
 ## Music / media persistence
 Images/media → `table_images` + `table-images` bucket; music → `table_music`,

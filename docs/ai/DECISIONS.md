@@ -1,16 +1,48 @@
 # Decisions
 
+## 2026-07-13 — Library chronicles use separate opt-in membership
+
+**Area:** Rules chat / Supabase persistence / private game history
+**Decision:** Private game transcripts in the Library use
+`library_chronicles`, `library_chronicle_members` and
+`library_chronicle_chunks`, not the master-console `chronicles` /
+`chronicle_members` contract. Entering an exact active title through
+`open_library_chronicle(title)` creates or refreshes only the caller's library
+membership; `list_my_library_chronicles()` returns the most recently opened
+membership first. The first library chronicle is `Знамение Геенны 1`, populated
+from six local Markdown records as 87 cleaned, section-addressed chunks. Private
+chronicle text is ingested directly and is not committed to Git.
+**Reason:** A player should enter a known game title once and have it selected
+on later visits, while library access must never self-grant player/master rights
+to the live game room.
+**Consequences:** All three tables have RLS. Users can select only chronicles,
+memberships and chunks for which `user_id = auth.uid()`; there are no client
+write grants. The narrowly scoped security-definer `open_library_chronicle`
+checks `auth.uid()`, normalizes the exact title, has an empty `search_path`, and
+is executable only by `authenticated`. DeepSeek gets the controlled
+`search_my_chronicle(queries)` tool only in the context of the canonical active
+membership validated with the caller's JWT; its database RPC rechecks
+membership. Switching chronicles clears browser chat history to prevent source
+mixing.
+**Affected files:** `supabase/library_chronicles.sql`,
+`modules/rules-chat/components/RulesChatPage.tsx`,
+`supabase/functions/librarian-chat/{index,tools}.ts`,
+`scripts/test-rules-chat-search.ts`
+**Status:** active
+
+---
+
 ## 2026-07-13 — DeepSeek chooses read-only rules-chat tools
 
 **Area:** Rules chat / Supabase Edge Functions / external LLM
 **Decision:** `librarian-chat` is an authenticated tool-calling loop. DeepSeek
-may request either `find_my_characters(names)` or
-`search_rulebooks(queries, edition)`; the Edge Function validates the arguments
-and executes the existing `get_my_characters()` / `search_book_pages(...)` RPCs
-with the caller's JWT. The model never receives SQL, database credentials or a
-general query tool. Character lookup accepts partial names and can return
-several named sheets in one call. Journal data remains device-local and is
-passed explicitly by the browser.
+may request `find_my_characters(names)`, `search_rulebooks(queries, edition)` or
+the membership-scoped `search_my_chronicle(queries)`; the Edge Function
+validates arguments and executes only the corresponding fixed RPCs with the
+caller's JWT. The model never receives SQL, database credentials or a general
+query tool. Character lookup accepts partial names and can return several named
+sheets in one call. Journal data remains device-local and is passed explicitly
+by the browser.
 **Reason:** Browser heuristics skipped character sheets when a player used a
 name without «мой/моя», and a two-character relationship question could be
 reduced to an unrelated clan summary. The answer model needs to choose which

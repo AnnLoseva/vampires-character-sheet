@@ -114,10 +114,16 @@ maps display names ↔ stable identifiers.
   `table_music_library`, `media_studio_layers`, `book_pages`; master foundation:
   `chronicles`, `chronicle_members`, `chronicle_sessions`, `master_layouts`,
   `master_macros`, `chronicle_entity_links`, `master_action_log`; actor domain:
-  `chronicle_actors`, `chronicle_actor_private`.
+  `chronicle_actors`, `chronicle_actor_private`; private Library game history:
+  `library_chronicles`, `library_chronicle_members`,
+  `library_chronicle_chunks`.
 - Buckets: `table-images` and a music bucket.
 - Table names centralized in `modules/table/constants.ts`.
 - Schema/policies live in `supabase/*.sql`.
+- Library game history is selected by exact title once, then restored from the
+  caller's last-opened membership. DeepSeek searches it only through the
+  membership-scoped RPC using the caller's JWT; this membership never grants a
+  master-console or room role.
 
 ## Media / table layer
 Images, video, files and layers on the table canvas (tldraw). Utilities in

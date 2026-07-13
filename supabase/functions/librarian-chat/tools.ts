@@ -13,6 +13,16 @@ export type LibrarianBookHit = {
   snippet: string
 }
 
+export type LibrarianChronicleHit = {
+  chronicle_id: string
+  chronicle_title: string
+  document_title: string
+  section_title: string
+  chunk_index: number
+  rank: number
+  snippet: string
+}
+
 const NAME_STOP_WORDS = new Set([
   'и', 'а', 'но', 'или', 'and', 'персонаж', 'персонажа', 'персонажи',
 ])
@@ -141,6 +151,34 @@ export function mergeBookToolHits(hitLists: LibrarianBookHit[][], maxHits = 8): 
 
   return [...merged.values()]
     .sort((a, b) => b.score - a.score || a.bestPosition - b.bestPosition || a.hit.page - b.hit.page)
+    .slice(0, maxHits)
+    .map(({ hit, score }) => ({ ...hit, rank: score }))
+}
+
+export function mergeChronicleToolHits(
+  hitLists: LibrarianChronicleHit[][],
+  maxHits = 10,
+): LibrarianChronicleHit[] {
+  const merged = new Map<string, { hit: LibrarianChronicleHit; score: number; bestPosition: number }>()
+  hitLists.forEach(hits => {
+    hits.forEach((hit, position) => {
+      const key = `${hit.chronicle_id}:${hit.document_title}:${hit.chunk_index}`
+      const score = 1 / (60 + position + 1)
+      const current = merged.get(key)
+      if (current) {
+        current.score += score
+        current.bestPosition = Math.min(current.bestPosition, position)
+      } else {
+        merged.set(key, { hit, score, bestPosition: position })
+      }
+    })
+  })
+
+  return [...merged.values()]
+    .sort((a, b) => b.score - a.score
+      || a.bestPosition - b.bestPosition
+      || a.hit.document_title.localeCompare(b.hit.document_title, 'ru')
+      || a.hit.chunk_index - b.hit.chunk_index)
     .slice(0, maxHits)
     .map(({ hit, score }) => ({ ...hit, rank: score }))
 }

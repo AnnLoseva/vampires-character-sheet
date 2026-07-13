@@ -31,7 +31,25 @@ type ChatMessage =
       entities?: EntityMatch[]
       refHits?: Array<ReferenceSearchHit & { url: string }>
       hits?: BookHit[]
+      chronicle?: ChronicleHit[]
     }
+
+type LibraryChronicle = {
+  id: string
+  title: string
+  joined_at: string
+  last_opened_at: string
+}
+
+type ChronicleHit = {
+  chronicle_id: string
+  chronicle_title: string
+  document_title: string
+  section_title: string
+  chunk_index: number
+  rank: number
+  snippet: string
+}
 
 const SUGGESTIONS = [
   'мой персонаж',
@@ -61,6 +79,27 @@ function isBookHit(value: unknown): value is BookHit {
   return typeof hit.source === 'string'
     && typeof hit.title === 'string'
     && typeof hit.page === 'number'
+    && typeof hit.rank === 'number'
+    && typeof hit.snippet === 'string'
+}
+
+function isLibraryChronicle(value: unknown): value is LibraryChronicle {
+  if (!value || typeof value !== 'object') return false
+  const chronicle = value as Partial<LibraryChronicle>
+  return typeof chronicle.id === 'string'
+    && typeof chronicle.title === 'string'
+    && typeof chronicle.joined_at === 'string'
+    && typeof chronicle.last_opened_at === 'string'
+}
+
+function isChronicleHit(value: unknown): value is ChronicleHit {
+  if (!value || typeof value !== 'object') return false
+  const hit = value as Partial<ChronicleHit>
+  return typeof hit.chronicle_id === 'string'
+    && typeof hit.chronicle_title === 'string'
+    && typeof hit.document_title === 'string'
+    && typeof hit.section_title === 'string'
+    && typeof hit.chunk_index === 'number'
     && typeof hit.rank === 'number'
     && typeof hit.snippet === 'string'
 }
@@ -176,19 +215,73 @@ export default function RulesChatPage() {
   const [draft, setDraft] = useState('')
   const [busy, setBusy] = useState(false)
   const [hasSession, setHasSession] = useState<boolean | null>(null)
+  const [chronicles, setChronicles] = useState<LibraryChronicle[]>([])
+  const [activeChronicle, setActiveChronicle] = useState<LibraryChronicle | null>(null)
+  const [chronicleDraft, setChronicleDraft] = useState('')
+  const [chronicleBusy, setChronicleBusy] = useState(false)
+  const [chronicleError, setChronicleError] = useState('')
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    createClient()
-      .auth.getUser()
-      .then(({ data }) => setHasSession(Boolean(data.user)))
-      .catch(() => setHasSession(false))
+    let cancelled = false
+    const client = createClient()
+    client.auth.getUser()
+      .then(async ({ data }) => {
+        if (cancelled) return
+        const signedIn = Boolean(data.user)
+        setHasSession(signedIn)
+        if (!signedIn) return
+
+        const { data: memberships, error } = await client.rpc('list_my_library_chronicles')
+        if (cancelled) return
+        if (error) {
+          console.error('list_my_library_chronicles:', error)
+          setChronicleError(t('Не удалось загрузить сохранённые хроники.'))
+          return
+        }
+        const available = Array.isArray(memberships)
+          ? memberships.filter(isLibraryChronicle)
+          : []
+        setChronicles(available)
+        const recent = available[0] || null
+        setActiveChronicle(recent)
+        if (recent) setChronicleDraft(recent.title)
+      })
+      .catch(() => {
+        if (!cancelled) setHasSession(false)
+      })
     void loadRules()
-  }, [])
+    return () => { cancelled = true }
+  }, [t])
 
   useEffect(() => {
     listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' })
   }, [messages, busy])
+
+  const openChronicle = useCallback(async () => {
+    const title = chronicleDraft.trim()
+    if (!title || chronicleBusy) return
+    setChronicleBusy(true)
+    setChronicleError('')
+    try {
+      const { data, error } = await createClient().rpc('open_library_chronicle', { p_title: title })
+      if (error) throw error
+      const opened = Array.isArray(data) ? data.find(isLibraryChronicle) : null
+      if (!opened) {
+        setChronicleError(t('Хроника с таким названием не найдена. Проверь написание.'))
+        return
+      }
+      if (activeChronicle?.id !== opened.id) setMessages([])
+      setActiveChronicle(opened)
+      setChronicleDraft(opened.title)
+      setChronicles(previous => [opened, ...previous.filter(item => item.id !== opened.id)])
+    } catch (error) {
+      console.error('open_library_chronicle:', error)
+      setChronicleError(t('Не удалось открыть хронику. Проверь вход в аккаунт и попробуй ещё раз.'))
+    } finally {
+      setChronicleBusy(false)
+    }
+  }, [activeChronicle?.id, chronicleBusy, chronicleDraft, t])
 
   const ask = useCallback(async (question: string) => {
     const trimmed = question.trim()
@@ -223,6 +316,7 @@ export default function RulesChatPage() {
         ? []
         : await searchReference(bookPlan.referenceQuery)
       let hits: BookHit[] = []
+      let chronicleHits: ChronicleHit[] = []
 
       // «Мозг»: DeepSeek через edge-функцию. Отвечает только по нашим
       // материалам; при недоступности — прежний локальный ответ.
@@ -251,6 +345,9 @@ export default function RulesChatPage() {
             date: entry.date,
             excerpt: entry.excerpt,
           })),
+          chronicle: activeChronicle
+            ? { id: activeChronicle.id, title: activeChronicle.title }
+            : undefined,
         }
         const { data: aiData, error: aiError } = await createClient().functions.invoke('librarian-chat', {
           body: { question: trimmed, history, context },
@@ -258,9 +355,12 @@ export default function RulesChatPage() {
         if (aiError) {
           console.error('librarian-chat:', aiError)
         } else {
-          const result = aiData as { answer?: unknown; books?: unknown }
+          const result = aiData as { answer?: unknown; books?: unknown; chronicle?: unknown }
           aiAnswer = typeof result?.answer === 'string' ? result.answer.trim() : ''
           hits = Array.isArray(result?.books) ? result.books.filter(isBookHit) : []
+          chronicleHits = Array.isArray(result?.chronicle)
+            ? result.chronicle.filter(isChronicleHit)
+            : []
         }
       } catch (error) {
         console.error('librarian-chat не ответил:', error)
@@ -269,6 +369,7 @@ export default function RulesChatPage() {
       const hasAnything = aiAnswer.length > 0 || bookPlan.isLibraryQuestion
         || journal.length > 0
         || parsed.entities.length > 0 || refHits.length > 0 || hits.length > 0
+        || chronicleHits.length > 0
       setMessages(prev => [
         ...prev,
         hasAnything
@@ -286,6 +387,7 @@ export default function RulesChatPage() {
               entities: aiAnswer ? [] : parsed.entities,
               refHits,
               hits,
+              chronicle: chronicleHits,
             }
           : {
               role: 'assistant',
@@ -303,7 +405,7 @@ export default function RulesChatPage() {
     } finally {
       setBusy(false)
     }
-  }, [busy, messages, t])
+  }, [activeChronicle, busy, messages, t])
 
   return (
     <main className="rules-chat-shell">
@@ -324,6 +426,50 @@ export default function RulesChatPage() {
         </section>
       ) : (
         <>
+          <section className="rules-chat-chronicle">
+            <div className="rules-chat-chronicle-copy">
+              <strong>{t('Хроника игры')}</strong>
+              <span>
+                {activeChronicle
+                  ? t('Последняя открытая хроника выбрана автоматически. Чтобы сменить её, введи другое название.')
+                  : t('Введи название игры один раз — в следующий раз эта хроника откроется автоматически.')}
+              </span>
+            </div>
+            <form
+              className="rules-chat-chronicle-form"
+              onSubmit={event => {
+                event.preventDefault()
+                void openChronicle()
+              }}
+            >
+              <input
+                value={chronicleDraft}
+                onChange={event => {
+                  setChronicleDraft(event.target.value)
+                  setChronicleError('')
+                }}
+                placeholder={t('Название хроники')}
+                list="rules-chat-chronicles"
+                disabled={chronicleBusy}
+                autoComplete="off"
+              />
+              <datalist id="rules-chat-chronicles">
+                {chronicles.map(chronicle => (
+                  <option key={chronicle.id} value={chronicle.title} />
+                ))}
+              </datalist>
+              <button type="submit" disabled={chronicleBusy || !chronicleDraft.trim()}>
+                {chronicleBusy ? t('Открываю...') : t('Открыть хронику')}
+              </button>
+            </form>
+            {activeChronicle ? (
+              <small className="rules-chat-chronicle-active">
+                {t('Активна')}: {activeChronicle.title}. {t('ИИ видит её материалы только в рамках твоего доступа.')}
+              </small>
+            ) : null}
+            {chronicleError ? <small className="rules-chat-chronicle-error">{chronicleError}</small> : null}
+          </section>
+
           <div className="rules-chat-messages" ref={listRef}>
             {messages.length === 0 ? (
               <section className="rules-chat-empty">
@@ -382,6 +528,19 @@ export default function RulesChatPage() {
                         <span dangerouslySetInnerHTML={renderSnippet(hit.snippet)} />
                         <footer>
                           {hit.title} — {t('стр.')} {hit.page}
+                        </footer>
+                      </blockquote>
+                    ))}
+                  </div>
+                ) : null}
+                {message.role === 'assistant' && message.chronicle?.length ? (
+                  <div className="rules-chat-hits">
+                    <small className="rules-chat-hits-title">{t('Из хроники:')}</small>
+                    {message.chronicle.map(hit => (
+                      <blockquote key={`${hit.chronicle_id}-${hit.document_title}-${hit.chunk_index}`}>
+                        <span dangerouslySetInnerHTML={renderSnippet(hit.snippet)} />
+                        <footer>
+                          {hit.document_title}{hit.section_title ? ` — ${hit.section_title}` : ''}
                         </footer>
                       </blockquote>
                     ))}
@@ -467,6 +626,62 @@ export default function RulesChatPage() {
           border-radius: 8px;
           text-decoration: none;
         }
+        .rules-chat-chronicle {
+          display: grid;
+          grid-template-columns: minmax(220px, 1fr) minmax(300px, 1.2fr);
+          gap: 8px 20px;
+          align-items: center;
+          margin-top: 16px;
+          padding: 14px 16px;
+          border: 1px solid rgba(216, 181, 106, 0.28);
+          border-radius: 12px;
+          background: rgba(216, 181, 106, 0.06);
+        }
+        .rules-chat-chronicle-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 3px;
+        }
+        .rules-chat-chronicle-copy strong {
+          color: #d8b56a;
+          font-family: 'Cinzel', serif;
+        }
+        .rules-chat-chronicle-copy span {
+          font-size: 12px;
+          line-height: 1.4;
+          opacity: 0.72;
+        }
+        .rules-chat-chronicle-form {
+          display: flex;
+          gap: 8px;
+        }
+        .rules-chat-chronicle-form input {
+          min-width: 0;
+          flex: 1;
+          background: rgba(0, 0, 0, 0.45);
+          border: 1px solid rgba(216, 181, 106, 0.3);
+          border-radius: 9px;
+          color: #f4eadf;
+          padding: 9px 12px;
+          outline: none;
+        }
+        .rules-chat-chronicle-form input:focus { border-color: #d8b56a; }
+        .rules-chat-chronicle-form button {
+          border: 1px solid rgba(216, 181, 106, 0.42);
+          border-radius: 9px;
+          background: rgba(139, 0, 0, 0.62);
+          color: #f4eadf;
+          padding: 9px 16px;
+          cursor: pointer;
+        }
+        .rules-chat-chronicle-form button:disabled { opacity: 0.5; cursor: default; }
+        .rules-chat-chronicle-active,
+        .rules-chat-chronicle-error {
+          grid-column: 1 / -1;
+          font-size: 12px;
+        }
+        .rules-chat-chronicle-active { color: #c9dda6; }
+        .rules-chat-chronicle-error { color: #ffaaa5; }
         .rules-chat-messages {
           flex: 1;
           overflow-y: auto;
@@ -577,6 +792,11 @@ export default function RulesChatPage() {
           cursor: pointer;
         }
         .rules-chat-input button:disabled { opacity: 0.5; cursor: default; }
+        @media (max-width: 720px) {
+          .rules-chat-chronicle { grid-template-columns: 1fr; }
+          .rules-chat-chronicle-form { flex-direction: column; }
+          .rules-chat-chronicle-form button { width: 100%; }
+        }
       `}</style>
     </main>
   )

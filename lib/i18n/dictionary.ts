@@ -67,6 +67,22 @@ export const dictionary: Record<string, string> = {
   'Вот что нашлось в твоём архиве:': 'Here is what I found in your archive:',
   'Из дневника:': 'From your journal:',
   'В справочнике:': 'From the reference:',
+  'Хроника игры': 'Game chronicle',
+  'Последняя открытая хроника выбрана автоматически. Чтобы сменить её, введи другое название.':
+    'Your most recently opened chronicle is selected automatically. Enter another title to switch.',
+  'Введи название игры один раз — в следующий раз эта хроника откроется автоматически.':
+    'Enter the game title once — this chronicle will open automatically next time.',
+  'Название хроники': 'Chronicle title',
+  'Открываю...': 'Opening...',
+  'Открыть хронику': 'Open chronicle',
+  'ИИ видит её материалы только в рамках твоего доступа.':
+    'The AI can see its materials only within your access.',
+  'Из хроники:': 'From the chronicle:',
+  'Не удалось загрузить сохранённые хроники.': 'Saved chronicles failed to load.',
+  'Хроника с таким названием не найдена. Проверь написание.':
+    'No chronicle with that title was found. Check the spelling.',
+  'Не удалось открыть хронику. Проверь вход в аккаунт и попробуй ещё раз.':
+    'The chronicle failed to open. Make sure you are logged in and try again.',
   'Персонажей не найдено. Создай его в «Архиве личности» на главной.':
     'No characters found. Create one in the Identity Archive on the main page.',
   'В дневнике ничего не нашлось.': 'Nothing found in the journal.',
