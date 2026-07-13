@@ -7,7 +7,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase'
-import { loadRules, parseQuery, type EntityMatch } from '../engine'
+import { asText, loadRules, parseQuery, type EntityMatch } from '../engine'
 
 type BookHit = {
   source: string
@@ -42,19 +42,28 @@ function renderSnippet(snippet: string) {
   return { __html: withBold }
 }
 
+function Field({ label, value }: { label?: string; value: unknown }) {
+  const text = asText(value)
+  if (!text) return null
+  return (
+    <p>
+      {label ? <strong>{label}: </strong> : null}
+      {text}
+    </p>
+  )
+}
+
 function EntityCard({ entity }: { entity: EntityMatch }) {
   const { t } = useLang()
   if (entity.kind === 'clan') {
     return (
       <section className="rules-chat-card">
         <h3>{t('Клан')}: {entity.name}</h3>
-        {entity.data.description ? <p>{entity.data.description}</p> : null}
-        {entity.data.disciplines?.length ? (
-          <p><strong>{t('Дисциплины')}:</strong> {entity.data.disciplines.join(', ')}</p>
-        ) : null}
-        {entity.data.bane ? <p><strong>{t('Проклятие')}:</strong> {entity.data.bane}</p> : null}
-        {entity.data.playstyle ? <p><strong>{t('Стиль игры')}:</strong> {entity.data.playstyle}</p> : null}
-        {entity.data.conflict ? <p><strong>{t('Конфликт')}:</strong> {entity.data.conflict}</p> : null}
+        <Field value={entity.data.description} />
+        <Field label={t('Дисциплины')} value={entity.data.disciplines} />
+        <Field label={t('Проклятие')} value={entity.data.bane} />
+        <Field label={t('Стиль игры')} value={entity.data.playstyle} />
+        <Field label={t('Конфликт')} value={entity.data.conflict} />
       </section>
     )
   }
@@ -63,19 +72,24 @@ function EntityCard({ entity }: { entity: EntityMatch }) {
     return (
       <section className="rules-chat-card">
         <h3>{t('Дисциплина')}: {entity.name}</h3>
-        {entity.data.description ? <p>{entity.data.description}</p> : null}
-        {entity.data.system ? <p><strong>{t('Система')}:</strong> {entity.data.system}</p> : null}
+        <Field value={entity.data.description} />
+        <Field label={t('Система')} value={entity.data.system} />
         {levels.map(([level, powers]) => (
           <div key={level} className="rules-chat-card-level">
             <strong>{t('Уровень')} {level}</strong>
-            {Object.entries(powers || {}).map(([powerName, power]) => (
-              <div key={powerName} className="rules-chat-card-power">
-                <em>{powerName}</em>
-                {power.description ? <span> — {power.description}</span> : null}
-                {power.pool ? <small>{t('Пул')}: {power.pool}</small> : null}
-                {power.cost ? <small>{t('Цена')}: {power.cost}</small> : null}
-              </div>
-            ))}
+            {Object.entries(powers || {}).map(([powerName, power]) => {
+              const description = asText(power.description)
+              const pool = asText(power.pool)
+              const cost = asText(power.cost)
+              return (
+                <div key={powerName} className="rules-chat-card-power">
+                  <em>{powerName}</em>
+                  {description ? <span> — {description}</span> : null}
+                  {pool ? <small>{t('Пул')}: {pool}</small> : null}
+                  {cost ? <small>{t('Цена')}: {cost}</small> : null}
+                </div>
+              )
+            })}
           </div>
         ))}
       </section>
@@ -85,10 +99,10 @@ function EntityCard({ entity }: { entity: EntityMatch }) {
     return (
       <section className="rules-chat-card">
         <h3>{entity.name} <small>({entity.discipline}, {t('уровень')} {entity.level})</small></h3>
-        {entity.data.description ? <p>{entity.data.description}</p> : null}
-        {entity.data.pool ? <p><strong>{t('Пул')}:</strong> {entity.data.pool}</p> : null}
-        {entity.data.cost ? <p><strong>{t('Цена')}:</strong> {entity.data.cost}</p> : null}
-        {entity.data.effect ? <p><strong>{t('Эффект')}:</strong> {entity.data.effect}</p> : null}
+        <Field value={entity.data.description} />
+        <Field label={t('Пул')} value={entity.data.pool} />
+        <Field label={t('Цена')} value={entity.data.cost} />
+        <Field label={t('Эффект')} value={entity.data.effect} />
       </section>
     )
   }
@@ -96,12 +110,13 @@ function EntityCard({ entity }: { entity: EntityMatch }) {
     return (
       <section className="rules-chat-card">
         <h3>{entity.flaw ? t('Недостаток') : t('Преимущество')}: {entity.name}</h3>
-        {entity.data['описание'] ? <p>{entity.data['описание']}</p> : null}
+        <Field value={entity.data['описание']} />
         {(entity.data['варианты'] || []).map(variant => (
-          <p key={variant['название_пункта']}>
-            <strong>{variant['название_пункта']}{variant['точки'] ? ` (${variant['точки']})` : ''}:</strong>{' '}
-            {variant['полное_описание']}
-          </p>
+          <Field
+            key={variant['название_пункта']}
+            label={`${variant['название_пункта']}${variant['точки'] ? ` (${variant['точки']})` : ''}`}
+            value={variant['полное_описание']}
+          />
         ))}
       </section>
     )
@@ -109,11 +124,9 @@ function EntityCard({ entity }: { entity: EntityMatch }) {
   return (
     <section className="rules-chat-card">
       <h3>{t('Тип хищника')}: {entity.name}</h3>
-      {entity.data.description ? <p>{entity.data.description}</p> : null}
-      {entity.data.specialty ? <p><strong>{t('Специализация')}:</strong> {entity.data.specialty}</p> : null}
-      {entity.data.disciplines?.length ? (
-        <p><strong>{t('Дисциплины')}:</strong> {entity.data.disciplines.join(', ')}</p>
-      ) : null}
+      <Field value={entity.data.description} />
+      <Field label={t('Специализация')} value={entity.data.specialty} />
+      <Field label={t('Дисциплины')} value={entity.data.disciplines} />
     </section>
   )
 }

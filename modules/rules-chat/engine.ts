@@ -13,35 +13,66 @@ export type RulesData = {
 }
 
 export type ClanInfo = {
-  description?: string
+  description?: unknown
   disciplines?: string[]
-  bane?: string
-  playstyle?: string
-  conflict?: string
+  bane?: unknown
+  playstyle?: unknown
+  conflict?: unknown
 }
 
+// Поля rules.json бывают строками, списками или вложенными объектами
+// (например disciplines[*].system = {type, masquerade, resonance, limitations}),
+// поэтому значения типизируем как unknown и рендерим через безопасный хелпер.
 export type DisciplinePower = {
-  description?: string
-  pool?: string
-  cost?: string
-  effect?: string
+  description?: unknown
+  pool?: unknown
+  cost?: unknown
+  effect?: unknown
 }
 
 export type DisciplineInfo = {
-  description?: string
-  system?: string
+  description?: unknown
+  system?: unknown
   powers?: Record<string, Record<string, DisciplinePower>>
+}
+
+const VALUE_LABELS: Record<string, string> = {
+  type: 'Тип',
+  masquerade: 'Маскарад',
+  resonance: 'Резонанс',
+  limitations: 'Ограничения',
+}
+
+// Приводит любое значение rules.json к строке для рендера. null — не показывать.
+export function asText(value: unknown): string | null {
+  if (value === null || value === undefined) return null
+  if (typeof value === 'string') return value.trim() || null
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value)
+  if (Array.isArray(value)) {
+    const parts = value.map(asText).filter((part): part is string => Boolean(part))
+    return parts.length ? parts.join(', ') : null
+  }
+  if (typeof value === 'object') {
+    const parts = Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => {
+        const text = asText(item)
+        return text ? `${VALUE_LABELS[key] || key}: ${text}` : null
+      })
+      .filter((part): part is string => Boolean(part))
+    return parts.length ? parts.join('\n') : null
+  }
+  return null
 }
 
 export type MeritInfo = {
   'название'?: string
-  'описание'?: string
-  'варианты'?: Array<{ 'название_пункта'?: string; 'точки'?: number; 'полное_описание'?: string }>
+  'описание'?: unknown
+  'варианты'?: Array<{ 'название_пункта'?: string; 'точки'?: number; 'полное_описание'?: unknown }>
 }
 
 export type PredatorInfo = {
-  description?: string
-  specialty?: string
+  description?: unknown
+  specialty?: unknown
   disciplines?: string[]
   advantages?: unknown
   disadvantages?: unknown
