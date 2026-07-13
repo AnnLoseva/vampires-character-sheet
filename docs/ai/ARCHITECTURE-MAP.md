@@ -111,7 +111,7 @@ maps display names ↔ stable identifiers.
 - Client: `lib/supabase.ts` (React), `public/supabase.js` (legacy).
 - Tables: `characters`, `users`, `table_rolls`, `table_chat_messages`,
   `table_images`, `table_scenes`, `table_scene_music`, `table_music`,
-  `table_music_library`, `media_studio_layers`; master foundation:
+  `table_music_library`, `media_studio_layers`, `book_pages`; master foundation:
   `chronicles`, `chronicle_members`, `chronicle_sessions`, `master_layouts`,
   `master_macros`, `chronicle_entity_links`, `master_action_log`; actor domain:
   `chronicle_actors`, `chronicle_actor_private`.

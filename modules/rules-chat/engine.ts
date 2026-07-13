@@ -1,7 +1,16 @@
 // Движок чата-библиотекаря: понимание запроса без внешнего ИИ.
-// 1) распознаёт сущности (клан, дисциплина, сила, преимущество, хищник, навык)
-//    в rules.json и строит структурный ответ;
-// 2) чистит запрос от слов-паразитов и фильтра издания для FTS по книгам.
+// 1) распознаёт сущности (клан, дисциплина, сила, преимущество, хищник,
+//    навык, атрибут, тема правил) в rules.json и строит структурный ответ;
+// 2) отвечает на личные вопросы: лист персонажа (только владельца, через
+//    security definer RPC get_my_characters) и дневник (localStorage игрока);
+// 3) ищет по справочнику (modules/reference) и книгам (book_pages);
+// 4) чистит запрос от слов-паразитов и фильтра издания для FTS.
+
+import { createClient } from '@/lib/supabase'
+import { REFERENCE_DOCUMENTS, getReferenceDocumentUrl, getReferenceFileUrl, type ReferenceDocument } from '@/modules/reference/catalog'
+import { preprocessReferenceMarkdown, searchReferenceCorpus, type ReferenceSearchHit } from '@/modules/reference/utils/markdown'
+
+export type { ReferenceSearchHit }
 
 export type RulesData = {
   clans: Record<string, ClanInfo>
@@ -84,11 +93,22 @@ export type EntityMatch =
   | { kind: 'power'; name: string; discipline: string; level: string; data: DisciplinePower }
   | { kind: 'merit'; name: string; flaw: boolean; data: MeritInfo }
   | { kind: 'predator'; name: string; data: PredatorInfo }
+  | { kind: 'skill'; name: string; data: unknown }
+  | { kind: 'attribute'; name: string; data: unknown }
+  | { kind: 'topic'; name: string; data: unknown }
 
 export type ParsedQuery = {
   entities: EntityMatch[]
   ftsQuery: string
   source: string | null
+  personal: boolean
+  journal: boolean
+}
+
+// Карточка личного ответа (лист персонажа / дневник).
+export type PersonalCard = {
+  title: string
+  fields: Array<{ label?: string; value: unknown }>
 }
 
 let rulesCache: RulesData | null = null
@@ -137,6 +157,22 @@ function nameMatches(tokens: string[], name: string): boolean {
 const V5_HINTS = ['v5', 'в5', '5', 'пятерка', 'пятерке', 'пятой', 'пятая']
 const V20_HINTS = ['v20', 'в20', '20', 'двадцатка', 'двадцатке', 'двадцатой']
 
+// Маркеры «вопрос о моём»: лист, персонаж, дневник, сессии.
+const MY_MARKERS = new Set([
+  'мой', 'моя', 'мое', 'моё', 'мои', 'моего', 'моей', 'моих', 'моем', 'моём',
+  'меня', 'мне', 'я', 'свой', 'своя', 'своего', 'своей', 'свои', 'своих',
+])
+const PERSONAL_HINTS = ['персонаж', 'лист', 'предыстор', 'бэкстор', 'бекстор']
+const JOURNAL_HINTS = ['дневник', 'сесси', 'запис', 'заметк', 'было']
+
+// Темы правил из rules.json: здоровье, сила воли, человечность, броски.
+const TOPIC_KEYWORDS: Array<{ keys: string[]; field: keyof RulesData | string; title: string }> = [
+  { keys: ['здоровь', 'урон', 'ранен'], field: 'health', title: 'Здоровье' },
+  { keys: ['воли', 'воля'], field: 'willpower', title: 'Сила воли' },
+  { keys: ['человечност'], field: 'humanity_rules', title: 'Человечность' },
+  { keys: ['бросок', 'броски', 'проверк', 'дайс'], field: 'rolls', title: 'Броски' },
+]
+
 export function parseQuery(question: string, rules: RulesData | null): ParsedQuery {
   const rawTokens = question.split(/\s+/).map(normalizeToken).filter(Boolean)
 
@@ -147,6 +183,10 @@ export function parseQuery(question: string, rules: RulesData | null): ParsedQue
     if (V20_HINTS.includes(token)) { source = 'v20-corebook-ru'; continue }
     tokens.push(token)
   }
+
+  const hasMyMarker = tokens.some(token => MY_MARKERS.has(token))
+  const journal = tokens.some(token => JOURNAL_HINTS.some(hint => token.startsWith(hint)))
+  const personal = hasMyMarker || journal || tokens.some(token => PERSONAL_HINTS.some(hint => token.startsWith(hint)))
 
   const entities: EntityMatch[] = []
   if (rules) {
@@ -182,10 +222,247 @@ export function parseQuery(question: string, rules: RulesData | null): ParsedQue
     for (const [name, data] of Object.entries(rules.predator_types || {})) {
       if (nameMatches(tokens, name)) entities.push({ kind: 'predator', name, data })
     }
+    // Навыки и атрибуты показываем как справку, только если это не личный
+    // вопрос («моя сила» — про лист, «сила» — про правило).
+    if (!personal) {
+      for (const [name, data] of Object.entries(rules.skills || {})) {
+        if (nameMatches(tokens, name)) entities.push({ kind: 'skill', name, data })
+      }
+      for (const [name, data] of Object.entries(rules.attributes || {})) {
+        if (nameMatches(tokens, name)) entities.push({ kind: 'attribute', name, data })
+      }
+    }
+    for (const topic of TOPIC_KEYWORDS) {
+      const rulesRecord = rules as unknown as Record<string, unknown>
+      if (tokens.some(token => topic.keys.some(key => token.startsWith(key))) && rulesRecord[topic.field]) {
+        entities.push({ kind: 'topic', name: topic.title, data: rulesRecord[topic.field] })
+      }
+    }
   }
 
   const meaningful = tokens.filter(token => !FILLER_WORDS.has(token) && token.length > 1)
   const ftsQuery = meaningful.join(' ')
 
-  return { entities: entities.slice(0, 3), ftsQuery, source }
+  return { entities: entities.slice(0, 3), ftsQuery, source, personal, journal }
+}
+
+// ─── Персонажи владельца (изоляция обеспечена на сервере) ───────────────────
+
+export type CharacterRow = {
+  id: string
+  name: string
+  clan: string | null
+  data: Record<string, unknown>
+}
+
+export async function loadMyCharacters(): Promise<CharacterRow[]> {
+  const { data, error } = await createClient().rpc('get_my_characters')
+  if (error) {
+    console.error('get_my_characters:', error)
+    return []
+  }
+  return (data || []) as CharacterRow[]
+}
+
+// Поля листа, которые можно спросить словами.
+const SHEET_FIELDS: Array<{ keys: string[]; field: string; label: string }> = [
+  { keys: ['предыстор', 'бэкстор', 'бекстор', 'истори'], field: 'backstory', label: 'Предыстория' },
+  { keys: ['внешност'], field: 'appearance', label: 'Внешность' },
+  { keys: ['концепт'], field: 'concept', label: 'Концепт' },
+  { keys: ['натур'], field: 'nature', label: 'Натура' },
+  { keys: ['маска', 'маски', 'маску'], field: 'mask', label: 'Маска' },
+  { keys: ['сир', 'сира', 'сире', 'сиром'], field: 'sire', label: 'Сир' },
+  { keys: ['поколени'], field: 'generation', label: 'Поколение' },
+  { keys: ['хищник', 'хищничеств', 'охот'], field: 'predator', label: 'Тип хищника' },
+  { keys: ['преимуществ', 'мерит'], field: 'merits', label: 'Преимущества' },
+  { keys: ['недостат', 'изъян', 'флоу'], field: 'flaws', label: 'Недостатки' },
+  { keys: ['замет'], field: 'notes', label: 'Заметки' },
+  { keys: ['прикосновени', 'тачстоун', 'якор'], field: 'touchstones', label: 'Прикосновения' },
+  { keys: ['инвентар', 'снаряжени', 'вещи'], field: 'inventory', label: 'Инвентарь' },
+  { keys: ['атрибут'], field: 'attributes', label: 'Атрибуты' },
+  { keys: ['навык', 'скилл'], field: 'skills', label: 'Навыки' },
+  { keys: ['дисциплин', 'силы'], field: 'disciplines', label: 'Дисциплины' },
+  { keys: ['клан'], field: 'clan', label: 'Клан' },
+]
+
+function findByStem(record: Record<string, unknown> | undefined, tokens: string[]): Array<{ label: string; value: unknown }> {
+  if (!record) return []
+  const found: Array<{ label: string; value: unknown }> = []
+  for (const [key, value] of Object.entries(record)) {
+    const normalized = normalizeToken(key)
+    if (tokens.some(token => stemEquals(token, normalized))) {
+      found.push({ label: key, value })
+    }
+  }
+  return found
+}
+
+// Строит карточки ответа по листу персонажа.
+export function buildCharacterCards(tokens: string[], characters: CharacterRow[], activeId: string | null): PersonalCard[] {
+  if (characters.length === 0) return []
+
+  // «мои персонажи» — список.
+  if (tokens.some(token => token.startsWith('персонаж')) && characters.length > 1
+    && !SHEET_FIELDS.some(f => f.keys.some(k => tokens.some(t => t.startsWith(k))))) {
+    return [{
+      title: 'Твои персонажи',
+      fields: characters.map(character => ({
+        label: character.name,
+        value: character.clan || '—',
+      })),
+    }]
+  }
+
+  // Персонаж: упомянутый по имени → активный → первый.
+  const byName = characters.find(character =>
+    character.name && nameMatches(tokens, character.name))
+  const active = characters.find(character => character.id === activeId)
+  const character = byName || active || characters[0]
+  const sheet = character.data || {}
+
+  const fields: Array<{ label?: string; value: unknown }> = []
+
+  // Конкретные поля листа.
+  for (const fieldDef of SHEET_FIELDS) {
+    if (fieldDef.keys.some(key => tokens.some(token => token.startsWith(key)))) {
+      const value = fieldDef.field === 'clan'
+        ? (sheet.clan ?? character.clan)
+        : (sheet as Record<string, unknown>)[fieldDef.field]
+      fields.push({ label: fieldDef.label, value })
+    }
+  }
+
+  // Конкретный атрибут/навык/дисциплина по имени («моя сила», «мой окультизм»).
+  if (fields.length === 0) {
+    fields.push(
+      ...findByStem(sheet.attributes as Record<string, unknown>, tokens),
+      ...findByStem(sheet.skills as Record<string, unknown>, tokens),
+      ...findByStem(sheet.disciplines as Record<string, unknown>, tokens),
+    )
+  }
+
+  // Ничего конкретного — сводка листа.
+  if (fields.length === 0) {
+    fields.push(
+      { label: 'Клан', value: sheet.clan ?? character.clan },
+      { label: 'Поколение', value: sheet.generation },
+      { label: 'Концепт', value: sheet.concept },
+      { label: 'Тип хищника', value: sheet.predator },
+      { label: 'Атрибуты', value: sheet.attributes },
+      { label: 'Навыки', value: sheet.skills },
+      { label: 'Дисциплины', value: sheet.disciplines },
+    )
+  }
+
+  return [{ title: character.name, fields }]
+}
+
+// ─── Дневник игрока (localStorage, никуда не отправляется) ──────────────────
+
+export type JournalHit = {
+  title: string
+  date: string
+  excerpt: string
+}
+
+type StoredJournalEntry = {
+  title?: string
+  text?: string
+  updatedAt?: string
+  createdAt?: string
+}
+
+export function searchJournal(tokens: string[], legacyUserId: string | null): JournalHit[] {
+  if (typeof window === 'undefined' || !legacyUserId) return []
+  const prefix = `vtm-journal:${legacyUserId}:`
+  const entries: Array<StoredJournalEntry & { room: string }> = []
+  for (const key of Object.keys(window.localStorage)) {
+    if (!key.startsWith(prefix)) continue
+    try {
+      const parsed = JSON.parse(window.localStorage.getItem(key) || '[]') as StoredJournalEntry[]
+      const room = key.slice(prefix.length)
+      for (const entry of parsed) entries.push({ ...entry, room })
+    } catch {
+      // битые записи пропускаем
+    }
+  }
+  if (entries.length === 0) return []
+
+  const meaningful = tokens.filter(token =>
+    !FILLER_WORDS.has(token)
+    && !MY_MARKERS.has(token)
+    && !JOURNAL_HINTS.some(hint => token.startsWith(hint))
+    && token.length > 2)
+
+  const scored = entries.map(entry => {
+    const haystack = normalizeHaystack(`${entry.title || ''} ${entry.text || ''}`)
+    let score = 0
+    let firstIndex = -1
+    for (const token of meaningful) {
+      const index = haystack.indexOf(token.slice(0, Math.max(3, token.length - 2)))
+      if (index >= 0) {
+        score += 1
+        if (firstIndex < 0) firstIndex = index
+      }
+    }
+    return { entry, score, firstIndex }
+  })
+
+  const matched = meaningful.length
+    ? scored.filter(item => item.score > 0).sort((a, b) => b.score - a.score)
+    : scored.sort((a, b) =>
+        (b.entry.updatedAt || b.entry.createdAt || '').localeCompare(a.entry.updatedAt || a.entry.createdAt || ''))
+
+  return matched.slice(0, 4).map(({ entry, firstIndex }) => {
+    const text = (entry.text || '').replace(/\s+/g, ' ').trim()
+    const start = Math.max(0, (firstIndex >= 0 ? firstIndex : 0) - 80)
+    const excerpt = (start > 0 ? '…' : '') + text.slice(start, start + 280) + (text.length > start + 280 ? '…' : '')
+    return {
+      title: entry.title || 'Без названия',
+      date: (entry.updatedAt || entry.createdAt || '').slice(0, 10),
+      excerpt,
+    }
+  })
+}
+
+function normalizeHaystack(value: string): string {
+  return value.toLowerCase().replace(/ё/g, 'е')
+}
+
+// ─── Справочник (modules/reference) ─────────────────────────────────────────
+
+type ReferenceCorpus = Array<{ doc: ReferenceDocument; markdown: string }>
+let corpusCache: ReferenceCorpus | null = null
+let corpusPromise: Promise<ReferenceCorpus | null> | null = null
+
+async function loadReferenceCorpus() {
+  if (corpusCache) return corpusCache
+  if (!corpusPromise) {
+    corpusPromise = Promise.all(
+      REFERENCE_DOCUMENTS.map(async doc => {
+        const response = await fetch(getReferenceFileUrl(doc.file))
+        if (!response.ok) throw new Error(`reference fetch failed: ${doc.file}`)
+        const raw = await response.text()
+        return { doc, markdown: preprocessReferenceMarkdown(raw, doc.file) }
+      }),
+    )
+      .then(entries => {
+        corpusCache = entries
+        return entries
+      })
+      .catch(error => {
+        console.error('Справочник не загрузился:', error)
+        corpusPromise = null
+        return null
+      })
+  }
+  return corpusPromise
+}
+
+export async function searchReference(query: string): Promise<Array<ReferenceSearchHit & { url: string }>> {
+  const corpus = await loadReferenceCorpus()
+  if (!corpus) return []
+  return searchReferenceCorpus(corpus, query)
+    .slice(0, 4)
+    .map(hit => ({ ...hit, url: getReferenceDocumentUrl(hit.doc.slug, hit.slug) }))
 }

@@ -64,7 +64,7 @@ as $$
       (case when bp.lang = 'en' then 'english' else 'russian' end)::regconfig,
       bp.content,
       q,
-      'MaxWords=60, MinWords=25, MaxFragments=2, FragmentDelimiter=" … "'
+      'MaxWords=80, MinWords=45, MaxFragments=1, ShortWord=2'
     ) as snippet
   from public.book_pages bp
   cross join lateral websearch_to_tsquery(

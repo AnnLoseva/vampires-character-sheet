@@ -7,7 +7,20 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase'
-import { asText, loadRules, parseQuery, type EntityMatch } from '../engine'
+import {
+  asText,
+  buildCharacterCards,
+  loadMyCharacters,
+  loadRules,
+  normalizeToken,
+  parseQuery,
+  searchJournal,
+  searchReference,
+  type EntityMatch,
+  type JournalHit,
+  type PersonalCard,
+  type ReferenceSearchHit,
+} from '../engine'
 
 type BookHit = {
   source: string
@@ -19,14 +32,23 @@ type BookHit = {
 
 type ChatMessage =
   | { role: 'user'; text: string }
-  | { role: 'assistant'; text: string; entities?: EntityMatch[]; hits?: BookHit[] }
+  | {
+      role: 'assistant'
+      text: string
+      personal?: PersonalCard[]
+      journal?: JournalHit[]
+      entities?: EntityMatch[]
+      refHits?: Array<ReferenceSearchHit & { url: string }>
+      hits?: BookHit[]
+    }
 
 const SUGGESTIONS = [
+  'мой персонаж',
+  'моя предыстория',
+  'что было в дневнике',
   'клан Тореадор',
   'Величие',
   'голод последствия',
-  'испытание крови',
-  'ритуалы некромантии v20',
 ]
 
 // ts_headline возвращает текст книги с <b>…</b>. Экранируем всё,
@@ -121,6 +143,22 @@ function EntityCard({ entity }: { entity: EntityMatch }) {
       </section>
     )
   }
+  if (entity.kind === 'skill' || entity.kind === 'attribute') {
+    return (
+      <section className="rules-chat-card">
+        <h3>{entity.kind === 'skill' ? t('Навык') : t('Атрибут')}: {entity.name}</h3>
+        <Field value={entity.data} />
+      </section>
+    )
+  }
+  if (entity.kind === 'topic') {
+    return (
+      <section className="rules-chat-card">
+        <h3>{entity.name}</h3>
+        <Field value={entity.data} />
+      </section>
+    )
+  }
   return (
     <section className="rules-chat-card">
       <h3>{t('Тип хищника')}: {entity.name}</h3>
@@ -160,35 +198,118 @@ export default function RulesChatPage() {
     try {
       const rules = await loadRules()
       const parsed = parseQuery(trimmed, rules)
+      const tokens = trimmed.split(/\s+/).map(normalizeToken).filter(Boolean)
 
-      let hits: BookHit[] = []
-      const ftsQuery = parsed.ftsQuery || trimmed
-      const { data, error } = await createClient().rpc('search_book_pages', {
-        p_query: ftsQuery,
-        p_source: parsed.source,
-        p_limit: 5,
-      })
-      if (error) {
-        console.error('Поиск по книгам не удался:', error)
-      } else {
-        hits = (data || []) as BookHit[]
+      // Личный контекст: id легаси-пользователя и активный персонаж — из
+      // localStorage этого устройства; сами листы приходят только через
+      // get_my_characters (сервер отдаёт исключительно листы владельца).
+      let personal: PersonalCard[] = []
+      let journal: JournalHit[] = []
+      let legacyUserId: string | null = null
+      try {
+        const savedUser = window.localStorage.getItem('vtm-chat-user') || window.localStorage.getItem('vtm-sheet-user')
+        legacyUserId = savedUser ? (JSON.parse(savedUser) as { id?: string }).id || null : null
+      } catch { /* нет сохранённого пользователя */ }
+
+      if (parsed.personal && !parsed.journal) {
+        const characters = await loadMyCharacters()
+        const activeId = legacyUserId
+          ? window.localStorage.getItem(`vtm-chat-character:${legacyUserId}`)
+            || window.localStorage.getItem(`vtm-home-character:${legacyUserId}`)
+          : null
+        personal = buildCharacterCards(tokens, characters, activeId)
+        if (personal.length === 0) {
+          personal = [{ title: t('Персонажи'), fields: [{ value: t('Персонажей не найдено. Создай его в «Архиве личности» на главной.') }] }]
+        }
+      }
+      if (parsed.journal) {
+        journal = searchJournal(tokens, legacyUserId)
       }
 
-      const hasAnything = parsed.entities.length > 0 || hits.length > 0
+      // Справочник + книги параллельно (личные вопросы книгами не заваливаем).
+      const wantBooks = !parsed.personal
+      const ftsQuery = parsed.ftsQuery || trimmed
+      const [refHits, bookResult] = await Promise.all([
+        parsed.journal ? Promise.resolve([]) : searchReference(ftsQuery),
+        wantBooks
+          ? createClient().rpc('search_book_pages', { p_query: ftsQuery, p_source: parsed.source, p_limit: 5 })
+          : Promise.resolve({ data: [], error: null }),
+      ])
+      if (bookResult.error) console.error('Поиск по книгам не удался:', bookResult.error)
+      const hits = (bookResult.data || []) as BookHit[]
+
+      // «Мозг»: DeepSeek через edge-функцию. Отвечает только по нашим
+      // материалам; при недоступности — прежний локальный ответ.
+      let aiAnswer = ''
+      try {
+        const history = messages
+          .slice(-8)
+          .map(message => ({ role: message.role, text: message.text }))
+        const context = {
+          rules: parsed.entities.map(entity => ({
+            name: entity.name,
+            body: asText(entity.data) || '',
+          })),
+          books: hits.map(hit => ({
+            title: hit.title,
+            page: hit.page,
+            snippet: hit.snippet.replace(/<\/?b>/g, ''),
+          })),
+          reference: refHits.map(hit => ({
+            doc: hit.doc.shortTitle,
+            section: hit.title,
+            snippet: hit.snippet,
+          })),
+          character: personal.length
+            ? personal
+                .map(card => `${card.title}\n${card.fields
+                  .map(field => `${field.label ? `${field.label}: ` : ''}${asText(field.value) || ''}`)
+                  .join('\n')}`)
+                .join('\n\n')
+            : undefined,
+          journal: journal.map(entry => ({
+            title: entry.title,
+            date: entry.date,
+            excerpt: entry.excerpt,
+          })),
+        }
+        const { data: aiData, error: aiError } = await createClient().functions.invoke('librarian-chat', {
+          body: { question: trimmed, history, context },
+        })
+        if (aiError) {
+          console.error('librarian-chat:', aiError)
+        } else {
+          aiAnswer = ((aiData as { answer?: string })?.answer || '').trim()
+        }
+      } catch (error) {
+        console.error('librarian-chat не ответил:', error)
+      }
+
+      const hasAnything = aiAnswer.length > 0 || personal.length > 0 || journal.length > 0
+        || parsed.entities.length > 0 || refHits.length > 0 || hits.length > 0
       setMessages(prev => [
         ...prev,
         hasAnything
           ? {
               role: 'assistant',
-              text: parsed.entities.length
-                ? t('Вот что я знаю об этом:')
-                : t('Вот что нашлось в книгах:'),
-              entities: parsed.entities,
+              text: aiAnswer
+                || (personal.length || journal.length
+                  ? t('Вот что нашлось в твоём архиве:')
+                  : parsed.entities.length
+                    ? t('Вот что я знаю об этом:')
+                    : t('Вот что нашлось в книгах:')),
+              // При живом ИИ-ответе карточки прячем, источники оставляем.
+              personal: aiAnswer ? [] : personal,
+              journal,
+              entities: aiAnswer ? [] : parsed.entities,
+              refHits,
               hits,
             }
           : {
               role: 'assistant',
-              text: t('В книгах ничего не нашлось. Попробуй переформулировать — например, назови дисциплину, ритуал или термин из правил.'),
+              text: parsed.journal
+                ? t('В дневнике ничего не нашлось.')
+                : t('В книгах ничего не нашлось. Попробуй переформулировать — например, назови дисциплину, ритуал или термин из правил.'),
             },
       ])
     } catch (error) {
@@ -200,7 +321,7 @@ export default function RulesChatPage() {
     } finally {
       setBusy(false)
     }
-  }, [busy, t])
+  }, [busy, messages, t])
 
   return (
     <main className="rules-chat-shell">
@@ -238,10 +359,48 @@ export default function RulesChatPage() {
             {messages.map((message, index) => (
               <article key={index} className={`rules-chat-message ${message.role}`}>
                 <p>{message.text}</p>
+                {message.role === 'assistant' && message.personal?.length ? (
+                  <div className="rules-chat-entities">
+                    {message.personal.map(card => (
+                      <section className="rules-chat-card" key={card.title}>
+                        <h3>{card.title}</h3>
+                        {card.fields.map((field, fieldIndex) => (
+                          <Field key={fieldIndex} label={field.label} value={field.value} />
+                        ))}
+                      </section>
+                    ))}
+                  </div>
+                ) : null}
+                {message.role === 'assistant' && message.journal?.length ? (
+                  <div className="rules-chat-hits">
+                    <small className="rules-chat-hits-title">{t('Из дневника:')}</small>
+                    {message.journal.map((entry, entryIndex) => (
+                      <blockquote key={entryIndex}>
+                        <span>{entry.excerpt}</span>
+                        <footer>{entry.title}{entry.date ? ` — ${entry.date}` : ''}</footer>
+                      </blockquote>
+                    ))}
+                  </div>
+                ) : null}
                 {message.role === 'assistant' && message.entities?.length ? (
                   <div className="rules-chat-entities">
                     {message.entities.map(entity => (
                       <EntityCard key={`${entity.kind}-${entity.name}`} entity={entity} />
+                    ))}
+                  </div>
+                ) : null}
+                {message.role === 'assistant' && message.refHits?.length ? (
+                  <div className="rules-chat-hits">
+                    <small className="rules-chat-hits-title">{t('В справочнике:')}</small>
+                    {message.refHits.map(hit => (
+                      <blockquote key={hit.url}>
+                        <span>{hit.snippet}</span>
+                        <footer>
+                          <Link href={hit.url} className="rules-chat-ref-link">
+                            {hit.doc.shortTitle} → {hit.title}
+                          </Link>
+                        </footer>
+                      </blockquote>
                     ))}
                   </div>
                 ) : null}
@@ -371,7 +530,7 @@ export default function RulesChatPage() {
           font-size: 15px;
           line-height: 1.55;
         }
-        .rules-chat-message p { margin: 0; }
+        .rules-chat-message p { margin: 0; white-space: pre-line; }
         .rules-chat-message.user {
           align-self: flex-end;
           background: rgba(139, 0, 0, 0.3);
@@ -419,6 +578,8 @@ export default function RulesChatPage() {
           opacity: 0.7;
           font-style: italic;
         }
+        .rules-chat-ref-link { color: #d8b56a; text-decoration: none; }
+        .rules-chat-ref-link:hover { text-decoration: underline; }
         .rules-chat-input {
           display: flex;
           gap: 10px;

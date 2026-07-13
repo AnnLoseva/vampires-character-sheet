@@ -6,6 +6,7 @@
 
 import { useCallback, useState } from 'react'
 import { createClient } from '@/lib/supabase'
+import { normalizeBookContent } from './book-text'
 
 type BookPageRow = {
   source: string
@@ -43,7 +44,9 @@ export default function IngestBooksPage() {
           if (!trimmed) continue
           try {
             const row = JSON.parse(trimmed) as BookPageRow
-            if (row.source && row.page > 0 && row.content) rows.push(row)
+            if (row.source && row.page > 0 && row.content) {
+              rows.push({ ...row, content: normalizeBookContent(row.content) })
+            }
           } catch {
             // пропускаем битые строки
           }

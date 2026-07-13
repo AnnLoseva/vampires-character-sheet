@@ -63,6 +63,13 @@ export const dictionary: Record<string, string> = {
   'Преимущество': 'Merit',
   'Тип хищника': 'Predator type',
   'Специализация': 'Specialty',
+  'Атрибут': 'Attribute',
+  'Вот что нашлось в твоём архиве:': 'Here is what I found in your archive:',
+  'Из дневника:': 'From your journal:',
+  'В справочнике:': 'From the reference:',
+  'Персонажей не найдено. Создай его в «Архиве личности» на главной.':
+    'No characters found. Create one in the Identity Archive on the main page.',
+  'В дневнике ничего не нашлось.': 'Nothing found in the journal.',
   'Спроси про правило, дисциплину, ритуал...': 'Ask about a rule, discipline, ritual...',
   'Спросить': 'Ask',
   'стр.': 'p.',

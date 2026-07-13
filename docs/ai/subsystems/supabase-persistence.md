@@ -22,6 +22,7 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 |---|---|---|
 | `characters` | legacy sheet + table | Character records (save/load) |
 | `users` | app | User records |
+| `book_pages` | rules chat | Authenticated, page-addressed rulebook text + FTS |
 | `table_rolls` | table + master public rolls | Dice rolls per room (player-visible) |
 | `master_hidden_rolls` | master-rolls | Master-only hidden rolls until reveal |
 | `master_session_notes` | master-overview | Private session notes (autosave) |
@@ -98,6 +99,10 @@ same `characters.id` twice within one chronicle. Linked character data is loaded
 from `characters` on hydration and is never copied wholesale into the actor row.
 GM-only fields use `chronicle_actor_private`; both actor tables require master
 membership. Bulk actor changes use one whitelisted, room-scoped RPC.
+
+Rules chat book search uses `book_pages` and the authenticated-only
+`search_book_pages(query, source, limit)` RPC. Text is normalized during ingest;
+keep PDF page numbers stable so chat citations remain verifiable.
 
 ## Music / media persistence
 Images/media → `table_images` + `table-images` bucket; music → `table_music`,

@@ -1,5 +1,26 @@
 # Decisions
 
+## 2026-07-13 — Rules chat personal data: owner-only via `get_my_characters`
+
+**Area:** Supabase persistence / rules chat
+**Decision:** The rules chat reads character sheets exclusively through the
+parameterless security-definer RPC `get_my_characters()`, which filters by
+`users.auth_user_id = auth.uid()` — it cannot return another user's data. The
+player journal is read from `vtm-journal:{userId}:*` in localStorage on the
+player's own device and never leaves it. Reference search reuses
+`modules/reference` corpus + `searchReferenceCorpus`.
+**Reason:** Strict per-user isolation requested for chat access to sheets and
+journals.
+**Consequences:** Known gap: the legacy sheet/table flows still read the
+`characters` table with the anon key (client-side user_id filter), so
+table-level lockdown is a separate migration that must not break legacy pages.
+Do not add parameters to `get_my_characters`.
+**Affected files:** `supabase/rules_chat_personal.sql`,
+`modules/rules-chat/engine.ts`, `modules/rules-chat/components/RulesChatPage.tsx`
+**Status:** active
+
+---
+
 ## 2026-07-13 — Rulebook pages in Supabase (`book_pages`) for the rules assistant
 
 **Area:** Supabase persistence / rules reference
@@ -7,6 +28,10 @@
 extracted) lives in `public.book_pages`, one row per PDF page, with a generated
 `tsvector` (russian/english config by `lang`) and `search_book_pages(query,
 source, limit)` RPC returning ranked `ts_headline` snippets with page numbers.
+The exact owned PDFs were re-extracted on 2026-07-13: V5 with page-image OCR
+and layout-aware column ordering, V20 from its text layer with coordinate-aware
+column ordering. The ingest UI normalizes soft hyphens, wrapped words and line
+wraps; the RPC returns one coherent fragment instead of disconnected excerpts.
 Page numbers are PDF pages of the exact files the group owns, so citations can
 be checked against the real book. Book text is NOT committed to the repo
 (copyright); it is ingested by a master via `/master/ingest-books` from locally
@@ -15,8 +40,11 @@ generated JSONL files. RLS: read — authenticated only; write — masters only
 **Reason:** Foundation for the offline-friendly VTM rules chat (no external AI
 APIs, works from RF): Postgres FTS answers "where in the book" queries.
 **Consequences:** Re-ingest by re-uploading JSONL (upsert on source+page). New
-books = new `source` slug. Do not add anon read policies.
-**Affected files:** `supabase/book_pages.sql`, `app/master/ingest-books/page.tsx`
+books = new `source` slug. The pre-cleanup rows are retained for rollback in
+`private.book_pages_backup_20260713` with no app-role grants. Do not add anon
+read policies.
+**Affected files:** `supabase/book_pages.sql`, `app/master/ingest-books/page.tsx`,
+`app/master/ingest-books/book-text.ts`
 **Status:** active
 
 ---
