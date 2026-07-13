@@ -10,6 +10,9 @@ export type MasterConsoleModule = Module<'master-console', 'vtm5'>
 export type MasterConsoleRouteState =
   | { status: 'loading' }
   | { status: 'invalid-room'; message: string }
+  | { status: 'auth-required'; room: string }
+  | { status: 'access-denied'; room: string }
+  | { status: 'access-error'; room: string; message: string }
   | { status: 'locked'; room: string; denied: boolean }
   | { status: 'ready'; room: string }
 

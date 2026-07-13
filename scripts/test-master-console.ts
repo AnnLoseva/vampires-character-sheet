@@ -10,6 +10,8 @@ import { collectSearchProviders } from '../modules/master-console/search/collect
 import { toPublishedProjection } from '../modules/session-log/mappers'
 import { rollWeightedRow } from '../modules/lore/utils/random-table-roll'
 import { isDangerousBulkAction, describeBulkAction } from '../modules/actors/services/actor-actions'
+import { resolveMasterConsoleAccess } from '../modules/master-console/access'
+import type { ChronicleMembership } from '../modules/master-console/persistence/types'
 import type { SessionLogEntry } from '../modules/session-log/types'
 
 let passed = 0
@@ -92,6 +94,33 @@ test('search providers collected without shell hardcoding all tables', () => {
   assert.ok(providers.every(p => typeof p.search === 'function'))
   assert.ok(providers.some(p => p.id === 'actors'))
   assert.ok(providers.some(p => p.id === 'session-log'))
+})
+
+console.log('auth gate')
+const masterMembership: ChronicleMembership = {
+  chronicleId: 'chronicle-1',
+  userId: 'auth-user-1',
+  role: 'master',
+  createdAt: '2026-07-13T00:00:00.000Z',
+}
+
+test('signed-out users cannot enter master console', () => {
+  assert.deepEqual(resolveMasterConsoleAccess(null, null), { status: 'signed-out' })
+})
+
+test('authenticated non-members cannot enter master console', () => {
+  assert.deepEqual(resolveMasterConsoleAccess('auth-user-1', null), { status: 'forbidden' })
+})
+
+test('membership must belong to the authenticated user', () => {
+  assert.deepEqual(resolveMasterConsoleAccess('auth-user-2', masterMembership), { status: 'forbidden' })
+})
+
+test('authenticated masters can enter their chronicle', () => {
+  assert.deepEqual(resolveMasterConsoleAccess('auth-user-1', masterMembership), {
+    status: 'allowed',
+    membership: masterMembership,
+  })
 })
 
 console.log('privacy mappers')

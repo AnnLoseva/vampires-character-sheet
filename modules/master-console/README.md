@@ -34,3 +34,8 @@ Parser: `search/deep-link.ts`. Detached windows: `multi-window/open-detached.ts`
 
 Local password gate is compatibility only. Real authorization = Supabase Auth +
 `chronicle_members.role = 'master'` + RLS.
+
+`MasterConsoleRoute` verifies the live Auth user and room membership before it
+mounts any master module, then rechecks both when the local password unlocks the
+console. Missing sessions return to the home login; authenticated non-members
+receive an explicit access-denied state instead of a partially working shell.

@@ -62,7 +62,9 @@ body:has(.master-console-state) {
 }
 
 .master-console-topbar button,
-.master-console-access button {
+.master-console-access button,
+.master-console-state-action a,
+.master-console-state-action button {
   min-height: var(--ctrl-md);
   padding: 0 var(--sp-5);
   border: 1px solid var(--vtm-line-blood);
@@ -70,6 +72,20 @@ body:has(.master-console-state) {
   color: var(--vtm-blood-pale);
   background: var(--vtm-surface-blood);
   cursor: pointer;
+}
+
+.master-console-state-action {
+  margin-top: var(--sp-6);
+}
+
+.master-console-state-action a,
+.master-console-state-action button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  font: inherit;
+  text-decoration: none;
 }
 
 .master-console-search-btn {

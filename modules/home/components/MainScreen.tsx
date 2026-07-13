@@ -35,6 +35,17 @@ type CharacterRow = {
 
 const DEFAULT_ROOM = 'campaign-666'
 
+function clearRememberedUser() {
+  window.localStorage.removeItem('vtm-chat-user')
+  window.localStorage.removeItem('vtm-sheet-user')
+}
+
+function storeRememberedUser(user: ChatUser) {
+  const value = JSON.stringify(user)
+  window.localStorage.setItem('vtm-chat-user', value)
+  window.localStorage.setItem('vtm-sheet-user', value)
+}
+
 const particles = Array.from({ length: 36 }, (_, index) => ({
   id: index,
   left: `${(index * 37) % 100}%`,
@@ -101,7 +112,7 @@ export default function MainScreen() {
   const [usernameDraft, setUsernameDraft] = useState('')
   const [passwordDraft, setPasswordDraft] = useState('')
   const [authStatus, setAuthStatus] = useState('Private archive access')
-  const [isAuthBusy, setIsAuthBusy] = useState(false)
+  const [isAuthBusy, setIsAuthBusy] = useState(true)
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
   const smoothX = useSpring(mouseX, { stiffness: 45, damping: 22 })
@@ -110,23 +121,61 @@ export default function MainScreen() {
   const backgroundY = useTransform(smoothY, [-1, 1], [-12, 12])
 
   useEffect(() => {
+    let cancelled = false
     const savedRoom = window.localStorage.getItem('vtm-table-room')
     const savedRole = window.localStorage.getItem('vtm-table-role')
-    const savedUser = window.localStorage.getItem('vtm-chat-user') || window.localStorage.getItem('vtm-sheet-user')
 
     if (savedRoom) setRoomDraft(savedRoom)
     if (savedRole === 'master' || savedRole === 'player') setRole(savedRole)
-    if (savedUser) {
+
+    const restoreArchiveSession = async () => {
+      const supabase = createClient()
       try {
-        const user = JSON.parse(savedUser) as ChatUser
-        if (user?.id && user?.username) {
-          setChatUser(user)
-          setAuthStatus(`Session: ${user.username}`)
+        const { data: authData, error: authError } = await supabase.auth.getUser()
+        if (cancelled) return
+        if (authError?.name !== 'AuthSessionMissingError') {
+          if (authError) throw authError
         }
-      } catch {
-        window.localStorage.removeItem('vtm-chat-user')
-        window.localStorage.removeItem('vtm-sheet-user')
+        if (!authData.user) {
+          clearRememberedUser()
+          setChatUser(null)
+          setAuthStatus('Private archive access')
+          return
+        }
+
+        const { data: profile, error: profileError } = await supabase
+          .from('users')
+          .select('id, username')
+          .eq('auth_user_id', authData.user.id)
+          .maybeSingle()
+        if (cancelled) return
+        if (profileError || !profile) {
+          clearRememberedUser()
+          setChatUser(null)
+          setAuthStatus('Сессия архива недействительна. Войдите снова.')
+          await supabase.auth.signOut({ scope: 'local' })
+          return
+        }
+
+        const user = profile as ChatUser
+        storeRememberedUser(user)
+        setChatUser(user)
+        setAuthStatus(`Session: ${user.username}`)
+      } catch (error) {
+        console.error('Не удалось восстановить Supabase Auth-сессию:', error)
+        if (!cancelled) {
+          clearRememberedUser()
+          setChatUser(null)
+          setAuthStatus('Не удалось проверить сессию. Войдите снова.')
+        }
+      } finally {
+        if (!cancelled) setIsAuthBusy(false)
       }
+    }
+
+    void restoreArchiveSession()
+    return () => {
+      cancelled = true
     }
   }, [])
 
@@ -212,8 +261,7 @@ export default function MainScreen() {
   }
 
   const rememberUser = (user: ChatUser) => {
-    window.localStorage.setItem('vtm-chat-user', JSON.stringify(user))
-    window.localStorage.setItem('vtm-sheet-user', JSON.stringify(user))
+    storeRememberedUser(user)
     setChatUser(user)
     setUsernameDraft('')
     setPasswordDraft('')
@@ -251,7 +299,11 @@ export default function MainScreen() {
           return
         }
 
-        await supabase.auth.signInWithPassword({ email, password })
+        const { error: registerSignInError } = await supabase.auth.signInWithPassword({ email, password })
+        if (registerSignInError) {
+          setAuthStatus(t('Аккаунт создан, но вход не выполнен. Попробуйте войти.'))
+          return
+        }
         rememberUser(data as ChatUser)
         return
       }
@@ -291,9 +343,8 @@ export default function MainScreen() {
   }
 
   const logout = () => {
-    void createClient().auth.signOut()
-    window.localStorage.removeItem('vtm-chat-user')
-    window.localStorage.removeItem('vtm-sheet-user')
+    void createClient().auth.signOut({ scope: 'local' })
+    clearRememberedUser()
     setChatUser(null)
     setCharacters([])
     setSelectedCharacterId('')
@@ -438,6 +489,7 @@ export default function MainScreen() {
                   <button type="submit" className="card-action" disabled={isAuthBusy}>
                     {isAuthBusy ? '...' : authMode === 'login' ? t('Войти в аккаунт') : t('Создать аккаунт')}
                   </button>
+                  <small className="auth-status" role="status">{authStatus}</small>
                 </form>
               )
             }
@@ -918,6 +970,13 @@ export default function MainScreen() {
           display: grid;
           gap: 9px;
           justify-items: center;
+        }
+
+        .auth-status {
+          min-height: 16px;
+          color: rgba(238, 232, 223, 0.66);
+          font-size: 11px;
+          line-height: 1.35;
         }
 
         .auth-tabs {

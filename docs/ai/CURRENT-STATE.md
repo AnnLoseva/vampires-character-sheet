@@ -7,7 +7,9 @@
 - **Master console (PROMPT 6–15)** — six modules live under `/master`: overview,
   actors, scenes, lore, blood-bonds, session-log. Search/commands (`⌘K`), deep
   links, detached second-monitor windows (`display=detached`), layout versioning.
-  Auth/SQL deploy for production RLS still operator-owned.
+  Route entry now requires a live Supabase Auth session plus master membership;
+  the local password remains only a compatibility lock. Production provisioning
+  for new chronicles/members remains operator-owned.
 - **Legacy character sheet phase** — iframe sheet (`public/main.js` +
   `old-sheet.html`) stays load-bearing; bridge in `modules/character-sheet/`.
 - Hub + Modules architecture is **mostly complete** (`GameTable.tsx` ~2.6k lines —
@@ -57,7 +59,9 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-11 — PROMPT 14–15: detached windows (`display=detached`), BroadcastChannel
+2026-07-13 — `/master` now gates module mount on live Supabase Auth +
+  `chronicle_members` and the home screen validates cached identity against the
+  current Auth user. Earlier: PROMPT 14–15 detached windows (`display=detached`), BroadcastChannel
   bus, layout schema v1 + conflict copy, home → `/master` for master role,
   `test:master-console`, search/command palette, session-log. Six modules active.
   Earlier same day: bonds, lore, scenes, overview, rolls, NPC.

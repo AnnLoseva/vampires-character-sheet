@@ -29,12 +29,15 @@ import type {
   MasterMacroRow,
 } from '../persistence/types'
 import { validateEntityLink } from '../persistence/validation'
+import { resolveMasterConsoleAccess, type MasterConsoleAccess } from '../access'
 
-export async function getMasterMembership(room: string): Promise<ChronicleMembership | null> {
-  const client = createClient()
-  const { data: authData, error: authError } = await client.auth.getUser()
-  if (authError || !authData.user) return null
+type MasterConsoleClient = ReturnType<typeof createClient>
 
+async function fetchMasterMembershipForUser(
+  client: MasterConsoleClient,
+  room: string,
+  userId: string,
+): Promise<ChronicleMembership | null> {
   const { data: chronicle, error: chronicleError } = await client
     .from(CHRONICLES)
     .select('id')
@@ -47,7 +50,7 @@ export async function getMasterMembership(room: string): Promise<ChronicleMember
     .from(CHRONICLE_MEMBERS)
     .select('chronicle_id, user_id, role, created_at')
     .eq('chronicle_id', chronicle.id)
-    .eq('user_id', authData.user.id)
+    .eq('user_id', userId)
     .eq('role', 'master')
     .maybeSingle()
   if (error) throw error
@@ -59,6 +62,26 @@ export async function getMasterMembership(room: string): Promise<ChronicleMember
     role: data.role,
     createdAt: data.created_at,
   }
+}
+
+export async function getMasterMembership(room: string): Promise<ChronicleMembership | null> {
+  const client = createClient()
+  const { data: authData, error: authError } = await client.auth.getUser()
+  if (authError || !authData.user) return null
+
+  return fetchMasterMembershipForUser(client, room, authData.user.id)
+}
+
+export async function getMasterConsoleAccess(room: string): Promise<MasterConsoleAccess> {
+  const client = createClient()
+  const { data: authData, error: authError } = await client.auth.getUser()
+  if (authError?.name !== 'AuthSessionMissingError') {
+    if (authError) throw authError
+  }
+  if (!authData.user) return resolveMasterConsoleAccess(null, null)
+
+  const membership = await fetchMasterMembershipForUser(client, room, authData.user.id)
+  return resolveMasterConsoleAccess(authData.user.id, membership)
 }
 
 export async function fetchMasterLayouts(room: string): Promise<MasterLayout[]> {
