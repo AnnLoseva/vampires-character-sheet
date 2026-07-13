@@ -10,19 +10,15 @@ import { createClient } from '@/lib/supabase'
 import {
   asText,
   buildBookSearchPlan,
-  buildCharacterCards,
-  loadMyCharacters,
   loadRules,
   normalizeToken,
   parseQuery,
   RULEBOOK_LIBRARY,
-  searchBookPages,
   searchJournal,
   searchReference,
   type BookHit,
   type EntityMatch,
   type JournalHit,
-  type PersonalCard,
   type ReferenceSearchHit,
 } from '../engine'
 
@@ -31,7 +27,6 @@ type ChatMessage =
   | {
       role: 'assistant'
       text: string
-      personal?: PersonalCard[]
       journal?: JournalHit[]
       entities?: EntityMatch[]
       refHits?: Array<ReferenceSearchHit & { url: string }>
@@ -58,6 +53,16 @@ function renderSnippet(snippet: string) {
     .replace(/&lt;b&gt;/g, '<b>')
     .replace(/&lt;\/b&gt;/g, '</b>')
   return { __html: withBold }
+}
+
+function isBookHit(value: unknown): value is BookHit {
+  if (!value || typeof value !== 'object') return false
+  const hit = value as Partial<BookHit>
+  return typeof hit.source === 'string'
+    && typeof hit.title === 'string'
+    && typeof hit.page === 'number'
+    && typeof hit.rank === 'number'
+    && typeof hit.snippet === 'string'
 }
 
 function Field({ label, value }: { label?: string; value: unknown }) {
@@ -200,10 +205,9 @@ export default function RulesChatPage() {
         .map(message => message.text)
       const bookPlan = buildBookSearchPlan(trimmed, previousUserQuestions, parsed.source)
 
-      // Личный контекст: id легаси-пользователя и активный персонаж — из
-      // localStorage этого устройства; сами листы приходят только через
-      // get_my_characters (сервер отдаёт исключительно листы владельца).
-      let personal: PersonalCard[] = []
+      // Дневник остаётся локальным на устройстве. Листы персонажей и страницы
+      // книг теперь запрашивает сама модель через безопасные read-only
+      // инструменты Edge Function в контексте текущей Auth-сессии.
       let journal: JournalHit[] = []
       let legacyUserId: string | null = null
       try {
@@ -211,30 +215,14 @@ export default function RulesChatPage() {
         legacyUserId = savedUser ? (JSON.parse(savedUser) as { id?: string }).id || null : null
       } catch { /* нет сохранённого пользователя */ }
 
-      if (parsed.personal && !parsed.journal) {
-        const characters = await loadMyCharacters()
-        const activeId = legacyUserId
-          ? window.localStorage.getItem(`vtm-chat-character:${legacyUserId}`)
-            || window.localStorage.getItem(`vtm-home-character:${legacyUserId}`)
-          : null
-        personal = buildCharacterCards(tokens, characters, activeId)
-        if (personal.length === 0) {
-          personal = [{ title: t('Персонажи'), fields: [{ value: t('Персонажей не найдено. Создай его в «Архиве личности» на главной.') }] }]
-        }
-      }
       if (parsed.journal) {
         journal = searchJournal(tokens, legacyUserId)
       }
 
-      // Для книг строим несколько коротких запросов на языке правил и
-      // объединяем результаты. Так разговорная формулировка или опечатка не
-      // превращают весь запрос в одно слишком строгое FTS-условие.
-      const [refHits, hits] = await Promise.all([
-        parsed.journal || bookPlan.isLibraryQuestion || !bookPlan.referenceQuery
-          ? Promise.resolve([])
-          : searchReference(bookPlan.referenceQuery),
-        parsed.searchBooks ? searchBookPages(bookPlan) : Promise.resolve([]),
-      ])
+      const refHits = parsed.journal || bookPlan.isLibraryQuestion || !bookPlan.referenceQuery
+        ? []
+        : await searchReference(bookPlan.referenceQuery)
+      let hits: BookHit[] = []
 
       // «Мозг»: DeepSeek через edge-функцию. Отвечает только по нашим
       // материалам; при недоступности — прежний локальный ответ.
@@ -253,23 +241,11 @@ export default function RulesChatPage() {
             name: entity.name,
             body: asText(entity.data) || '',
           })),
-          books: hits.map(hit => ({
-            title: hit.title,
-            page: hit.page,
-            snippet: hit.snippet.replace(/<\/?b>/g, ''),
-          })),
           reference: refHits.map(hit => ({
             doc: hit.doc.shortTitle,
             section: hit.title,
             snippet: hit.snippet,
           })),
-          character: personal.length
-            ? personal
-                .map(card => `${card.title}\n${card.fields
-                  .map(field => `${field.label ? `${field.label}: ` : ''}${asText(field.value) || ''}`)
-                  .join('\n')}`)
-                .join('\n\n')
-            : undefined,
           journal: journal.map(entry => ({
             title: entry.title,
             date: entry.date,
@@ -282,14 +258,16 @@ export default function RulesChatPage() {
         if (aiError) {
           console.error('librarian-chat:', aiError)
         } else {
-          aiAnswer = ((aiData as { answer?: string })?.answer || '').trim()
+          const result = aiData as { answer?: unknown; books?: unknown }
+          aiAnswer = typeof result?.answer === 'string' ? result.answer.trim() : ''
+          hits = Array.isArray(result?.books) ? result.books.filter(isBookHit) : []
         }
       } catch (error) {
         console.error('librarian-chat не ответил:', error)
       }
 
       const hasAnything = aiAnswer.length > 0 || bookPlan.isLibraryQuestion
-        || personal.length > 0 || journal.length > 0
+        || journal.length > 0
         || parsed.entities.length > 0 || refHits.length > 0 || hits.length > 0
       setMessages(prev => [
         ...prev,
@@ -299,13 +277,11 @@ export default function RulesChatPage() {
               text: aiAnswer
                 || (bookPlan.isLibraryQuestion
                   ? t('В библиотеке доступны VTM V5 и VTM V20 на русском языке.')
-                  : personal.length || journal.length
+                  : journal.length
                   ? t('Вот что нашлось в твоём архиве:')
                   : parsed.entities.length
                     ? t('Вот что я знаю об этом:')
                     : t('Вот что нашлось в книгах:')),
-              // При живом ИИ-ответе карточки прячем, источники оставляем.
-              personal: aiAnswer ? [] : personal,
               journal,
               entities: aiAnswer ? [] : parsed.entities,
               refHits,
@@ -334,7 +310,7 @@ export default function RulesChatPage() {
       <header className="rules-chat-header">
         <div>
           <h1>{t('Библиотекарь')}</h1>
-          <p>{t('Задай вопрос по правилам — отвечу цитатами из книг с точными страницами.')}</p>
+          <p>{t('Спроси о правилах или своих персонажах — найду данные в книгах и архиве.')}</p>
         </div>
         <Link href="/" className="rules-chat-home">
           {t('В салон')}
@@ -365,18 +341,6 @@ export default function RulesChatPage() {
             {messages.map((message, index) => (
               <article key={index} className={`rules-chat-message ${message.role}`}>
                 <p>{message.text}</p>
-                {message.role === 'assistant' && message.personal?.length ? (
-                  <div className="rules-chat-entities">
-                    {message.personal.map(card => (
-                      <section className="rules-chat-card" key={card.title}>
-                        <h3>{card.title}</h3>
-                        {card.fields.map((field, fieldIndex) => (
-                          <Field key={fieldIndex} label={field.label} value={field.value} />
-                        ))}
-                      </section>
-                    ))}
-                  </div>
-                ) : null}
                 {message.role === 'assistant' && message.journal?.length ? (
                   <div className="rules-chat-hits">
                     <small className="rules-chat-hits-title">{t('Из дневника:')}</small>
@@ -425,7 +389,7 @@ export default function RulesChatPage() {
                 ) : null}
               </article>
             ))}
-            {busy ? <article className="rules-chat-message assistant"><p>{t('Листаю книги...')}</p></article> : null}
+            {busy ? <article className="rules-chat-message assistant"><p>{t('Ищу в архиве и книгах...')}</p></article> : null}
           </div>
 
           <form

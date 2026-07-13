@@ -6,7 +6,6 @@
 // 3) ищет по справочнику (modules/reference) и книгам (book_pages);
 // 4) чистит запрос от слов-паразитов и фильтра издания для FTS.
 
-import { createClient } from '@/lib/supabase'
 import { REFERENCE_DOCUMENTS, getReferenceDocumentUrl, getReferenceFileUrl, type ReferenceDocument } from '@/modules/reference/catalog'
 import { preprocessReferenceMarkdown, searchReferenceCorpus, type ReferenceSearchHit } from '@/modules/reference/utils/markdown'
 
@@ -125,12 +124,6 @@ export const RULEBOOK_LIBRARY = [
   { source: 'v5-corebook-ru', edition: 'V5', title: 'VTM v5: Книга правил (RU)' },
   { source: 'v20-corebook-ru', edition: 'V20', title: 'VTM V20: Юбилейное издание (RU)' },
 ] as const
-
-// Карточка личного ответа (лист персонажа / дневник).
-export type PersonalCard = {
-  title: string
-  fields: Array<{ label?: string; value: unknown }>
-}
 
 let rulesCache: RulesData | null = null
 let rulesPromise: Promise<RulesData | null> | null = null
@@ -434,134 +427,6 @@ export function mergeBookHitLists(hitLists: BookHit[][], maxHits = 8): BookHit[]
     .sort((a, b) => b.score - a.score || a.bestPosition - b.bestPosition || a.hit.page - b.hit.page)
     .slice(0, maxHits)
     .map(({ hit, score }) => ({ ...hit, rank: score }))
-}
-
-export async function searchBookPages(plan: BookSearchPlan): Promise<BookHit[]> {
-  if (plan.queries.length === 0) return []
-  const client = createClient()
-  const results = await Promise.all(
-    plan.queries.map(async query => {
-      const result = await client.rpc('search_book_pages', {
-        p_query: query,
-        p_source: plan.source,
-        p_limit: 5,
-      })
-      if (result.error) console.error(`Поиск по книгам не удался (${query}):`, result.error)
-      return (result.data || []) as BookHit[]
-    }),
-  )
-  return mergeBookHitLists(results)
-}
-
-// ─── Персонажи владельца (изоляция обеспечена на сервере) ───────────────────
-
-export type CharacterRow = {
-  id: string
-  name: string
-  clan: string | null
-  data: Record<string, unknown>
-}
-
-export async function loadMyCharacters(): Promise<CharacterRow[]> {
-  const { data, error } = await createClient().rpc('get_my_characters')
-  if (error) {
-    console.error('get_my_characters:', error)
-    return []
-  }
-  return (data || []) as CharacterRow[]
-}
-
-// Поля листа, которые можно спросить словами.
-const SHEET_FIELDS: Array<{ keys: string[]; field: string; label: string }> = [
-  { keys: ['предыстор', 'бэкстор', 'бекстор', 'истори'], field: 'backstory', label: 'Предыстория' },
-  { keys: ['внешност'], field: 'appearance', label: 'Внешность' },
-  { keys: ['концепт'], field: 'concept', label: 'Концепт' },
-  { keys: ['натур'], field: 'nature', label: 'Натура' },
-  { keys: ['маска', 'маски', 'маску'], field: 'mask', label: 'Маска' },
-  { keys: ['сир', 'сира', 'сире', 'сиром'], field: 'sire', label: 'Сир' },
-  { keys: ['поколени'], field: 'generation', label: 'Поколение' },
-  { keys: ['хищник', 'хищничеств', 'охот'], field: 'predator', label: 'Тип хищника' },
-  { keys: ['преимуществ', 'мерит'], field: 'merits', label: 'Преимущества' },
-  { keys: ['недостат', 'изъян', 'флоу'], field: 'flaws', label: 'Недостатки' },
-  { keys: ['замет'], field: 'notes', label: 'Заметки' },
-  { keys: ['прикосновени', 'тачстоун', 'якор'], field: 'touchstones', label: 'Прикосновения' },
-  { keys: ['инвентар', 'снаряжени', 'вещи'], field: 'inventory', label: 'Инвентарь' },
-  { keys: ['атрибут'], field: 'attributes', label: 'Атрибуты' },
-  { keys: ['навык', 'скилл'], field: 'skills', label: 'Навыки' },
-  { keys: ['дисциплин', 'силы'], field: 'disciplines', label: 'Дисциплины' },
-  { keys: ['клан'], field: 'clan', label: 'Клан' },
-]
-
-function findByStem(record: Record<string, unknown> | undefined, tokens: string[]): Array<{ label: string; value: unknown }> {
-  if (!record) return []
-  const found: Array<{ label: string; value: unknown }> = []
-  for (const [key, value] of Object.entries(record)) {
-    const normalized = normalizeToken(key)
-    if (tokens.some(token => stemEquals(token, normalized))) {
-      found.push({ label: key, value })
-    }
-  }
-  return found
-}
-
-// Строит карточки ответа по листу персонажа.
-export function buildCharacterCards(tokens: string[], characters: CharacterRow[], activeId: string | null): PersonalCard[] {
-  if (characters.length === 0) return []
-
-  // «мои персонажи» — список.
-  if (tokens.some(token => token.startsWith('персонаж')) && characters.length > 1
-    && !SHEET_FIELDS.some(f => f.keys.some(k => tokens.some(t => t.startsWith(k))))) {
-    return [{
-      title: 'Твои персонажи',
-      fields: characters.map(character => ({
-        label: character.name,
-        value: character.clan || '—',
-      })),
-    }]
-  }
-
-  // Персонаж: упомянутый по имени → активный → первый.
-  const byName = characters.find(character =>
-    character.name && nameMatches(tokens, character.name))
-  const active = characters.find(character => character.id === activeId)
-  const character = byName || active || characters[0]
-  const sheet = character.data || {}
-
-  const fields: Array<{ label?: string; value: unknown }> = []
-
-  // Конкретные поля листа.
-  for (const fieldDef of SHEET_FIELDS) {
-    if (fieldDef.keys.some(key => tokens.some(token => token.startsWith(key)))) {
-      const value = fieldDef.field === 'clan'
-        ? (sheet.clan ?? character.clan)
-        : (sheet as Record<string, unknown>)[fieldDef.field]
-      fields.push({ label: fieldDef.label, value })
-    }
-  }
-
-  // Конкретный атрибут/навык/дисциплина по имени («моя сила», «мой окультизм»).
-  if (fields.length === 0) {
-    fields.push(
-      ...findByStem(sheet.attributes as Record<string, unknown>, tokens),
-      ...findByStem(sheet.skills as Record<string, unknown>, tokens),
-      ...findByStem(sheet.disciplines as Record<string, unknown>, tokens),
-    )
-  }
-
-  // Ничего конкретного — сводка листа.
-  if (fields.length === 0) {
-    fields.push(
-      { label: 'Клан', value: sheet.clan ?? character.clan },
-      { label: 'Поколение', value: sheet.generation },
-      { label: 'Концепт', value: sheet.concept },
-      { label: 'Тип хищника', value: sheet.predator },
-      { label: 'Атрибуты', value: sheet.attributes },
-      { label: 'Навыки', value: sheet.skills },
-      { label: 'Дисциплины', value: sheet.disciplines },
-    )
-  }
-
-  return [{ title: character.name, fields }]
 }
 
 // ─── Дневник игрока (localStorage, никуда не отправляется) ──────────────────

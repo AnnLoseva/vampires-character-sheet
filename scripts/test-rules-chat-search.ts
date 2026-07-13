@@ -9,6 +9,11 @@ import {
   parseQuery,
   type BookHit,
 } from '../modules/rules-chat/engine'
+import {
+  buildCharacterToolPayload,
+  selectCharacterRows,
+  type LibrarianCharacterRow,
+} from '../supabase/functions/librarian-chat/tools'
 
 let passed = 0
 function test(name: string, fn: () => void) {
@@ -46,6 +51,59 @@ test('a polite dative phrase is not mistaken for a sheet lookup', () => {
   const parsed = parseQuery('расскажи мне про клан Тореадор', null)
   assert.equal(parsed.personal, false)
   assert.equal(parsed.searchBooks, true)
+})
+
+console.log('rules-chat character tools')
+
+const characters: LibrarianCharacterRow[] = [
+  {
+    id: 'bridget',
+    name: 'Бриджет МакКейн',
+    clan: 'Бруха',
+    data: {
+      backstory: 'Бриджет работает спасательницей.',
+      touchstones: [{
+        name: 'Кит Вэсли',
+        description: 'Девушка Бриджет. Они начали встречаться и сейчас живут вместе.',
+        image: 'data:image/jpeg;base64,do-not-send',
+      }],
+    },
+  },
+  {
+    id: 'kit',
+    name: 'Кит Вэсли',
+    clan: null,
+    data: {
+      backstory: 'Живёт с Бриджет. Они в отношениях два года.',
+      touchstones: [],
+    },
+  },
+]
+
+test('a partial first name finds the full character name', () => {
+  assert.deepEqual(selectCharacterRows(characters, ['Кит']).map(character => character.id), ['kit'])
+})
+
+test('one request containing two names returns both character sheets', () => {
+  assert.deepEqual(
+    selectCharacterRows(characters, ['Бриджет и Кит']).map(character => character.id),
+    ['bridget', 'kit'],
+  )
+})
+
+test('character tool details preserve relationship evidence and omit images', () => {
+  const payload = buildCharacterToolPayload(characters, ['Бриджет', 'Кит'])
+  const serialized = JSON.stringify(payload)
+  assert.match(serialized, /Девушка Бриджет/)
+  assert.match(serialized, /отношениях два года/)
+  assert.doesNotMatch(serialized, /base64/)
+})
+
+test('empty names return only a lightweight character overview', () => {
+  const payload = buildCharacterToolPayload(characters, [])
+  const serialized = JSON.stringify(payload)
+  assert.match(serialized, /overview/)
+  assert.doesNotMatch(serialized, /отношениях два года/)
 })
 
 console.log('rules-chat search plan')

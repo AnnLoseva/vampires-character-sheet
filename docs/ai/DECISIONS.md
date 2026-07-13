@@ -1,5 +1,37 @@
 # Decisions
 
+## 2026-07-13 — DeepSeek chooses read-only rules-chat tools
+
+**Area:** Rules chat / Supabase Edge Functions / external LLM
+**Decision:** `librarian-chat` is an authenticated tool-calling loop. DeepSeek
+may request either `find_my_characters(names)` or
+`search_rulebooks(queries, edition)`; the Edge Function validates the arguments
+and executes the existing `get_my_characters()` / `search_book_pages(...)` RPCs
+with the caller's JWT. The model never receives SQL, database credentials or a
+general query tool. Character lookup accepts partial names and can return
+several named sheets in one call. Journal data remains device-local and is
+passed explicitly by the browser.
+**Reason:** Browser heuristics skipped character sheets when a player used a
+name without «мой/моя», and a two-character relationship question could be
+reduced to an unrelated clan summary. The answer model needs to choose which
+trusted source to inspect and refine book terminology when the first search is
+weak.
+**Consequences:** `verify_jwt` remains enabled. Character isolation continues
+to be enforced inside the parameterless `get_my_characters()` RPC. Tool rounds
+and result sizes are capped; the first model step must select one trusted tool,
+while later steps may refine or answer. Images and bulky editor metadata are
+omitted from character tool output. Book hits used by the model are returned to
+the browser for visible page citations. The default model is
+`deepseek-v4-flash`, with `DEEPSEEK_MODEL` as an operator override; non-thinking mode keeps the
+multi-round tool protocol deterministic and avoids reasoning-content replay.
+**Affected files:** `supabase/functions/librarian-chat/{index,tools}.ts`,
+`modules/rules-chat/engine.ts`,
+`modules/rules-chat/components/RulesChatPage.tsx`,
+`scripts/test-rules-chat-search.ts`
+**Status:** active
+
+---
+
 ## 2026-07-13 — Rules chat retrieval is context-aware; DeepSeek is answer-only
 
 **Area:** Rules chat / Supabase / external LLM
@@ -22,7 +54,7 @@ site/reference text in the answer prompt; V5 and V20 mechanics remain separate.
 **Affected files:** `modules/rules-chat/engine.ts`,
 `modules/rules-chat/components/RulesChatPage.tsx`,
 `supabase/functions/librarian-chat/index.ts`, `scripts/test-rules-chat-search.ts`
-**Status:** active
+**Status:** superseded by “DeepSeek chooses read-only rules-chat tools” above
 
 ---
 

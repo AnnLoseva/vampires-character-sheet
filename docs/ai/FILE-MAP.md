@@ -88,6 +88,8 @@ opening code**. Risk levels drive how careful you must be.
 ## Chat, music, journal, reference
 | Path | Role | Risk | Edit protocol | Notes |
 |---|---|---|---|---|
+| `modules/rules-chat/*` | Rules assistant UI, local journal/reference context | high | supabase-edit-protocol | DB retrieval is delegated to authenticated Edge tools |
+| `supabase/functions/librarian-chat/*` | DeepSeek tool loop over owner sheets + book search | **critical** | supabase-edit-protocol | Keep `verify_jwt`; no general SQL tool |
 | `modules/chat/module-definition.ts` | chat Hub module contract | low | before-any-change | `table_chat_messages` persistence |
 | `modules/chat/components/ChatPanel.tsx` | chat UI | medium | react-table-edit-protocol | `table_chat_messages` |
 | `modules/chat/hooks/useChat.ts` | chat state/auth/realtime | high | react-table-edit-protocol + supabase-edit-protocol | Supabase realtime + localStorage user |
