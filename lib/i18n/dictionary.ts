@@ -33,6 +33,24 @@ export const dictionary: Record<string, string> = {
   'Библиотека': 'Library',
   'Открывайте листы персонажей и личные дневники, сохранённые во время игры.':
     'Open character sheets and personal journals saved during play.',
+  'Знания мира: чат-библиотекарь по книгам правил, справочник и дневники.':
+    'World knowledge: a librarian chat over the rulebooks, reference and journals.',
+  'Библиотекарь': 'The Librarian',
+  'Задай вопрос по правилам — отвечу цитатами из книг с точными страницами.':
+    'Ask a rules question — I answer with book quotes and exact page numbers.',
+  'В салон': 'Back to salon',
+  'Тексты книг доступны только своим. Войди в аккаунт на главной странице и возвращайся.':
+    'Book texts are for members only. Log in on the main page and come back.',
+  'Например:': 'For example:',
+  'Вот что нашлось в книгах:': 'Here is what the books say:',
+  'В книгах ничего не нашлось. Попробуй переформулировать — например, назови дисциплину, ритуал или термин из правил.':
+    'Nothing found in the books. Try rephrasing — for example, name a discipline, ritual or rules term.',
+  'Не получилось выполнить поиск. Проверь, что ты вошёл в аккаунт, и попробуй ещё раз.':
+    'Search failed. Make sure you are logged in and try again.',
+  'Листаю книги...': 'Leafing through the books...',
+  'Спроси про правило, дисциплину, ритуал...': 'Ask about a rule, discipline, ritual...',
+  'Спросить': 'Ask',
+  'стр.': 'p.',
   'Открыть редактор': 'Open editor',
   'Дневник': 'Journal',
   'Справочник': 'Reference',

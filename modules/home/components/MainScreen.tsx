@@ -541,27 +541,17 @@ export default function MainScreen() {
           <EntryCard
             accent="cyan"
             title={t('Библиотека')}
-            description={t('Открывайте листы персонажей и личные дневники, сохранённые во время игры.')}
+            description={t('Знания мира: чат-библиотекарь по книгам правил, справочник и дневники.')}
             button={
               <div className="library-actions">
-                <Link href={sheetHref} onClick={() => rememberTableChoice(role)} className="card-action">
-                  {t('Открыть редактор')}
-                </Link>
-                <Link
-                  href={newSheetHref}
-                  onClick={() => {
-                    rememberTableChoice(role)
-                    window.localStorage.removeItem('vtm-character-creation-draft-v2')
-                  }}
-                  className="ghost-action"
-                >
-                  {t('Создать нового персонажа')}
-                </Link>
-                <Link href="/journal" className="ghost-action">
-                  {t('Дневник')}
+                <Link href="/library/chat" className="card-action">
+                  {t('Чат')}
                 </Link>
                 <Link href="/reference" className="ghost-action">
                   {t('Справочник')}
+                </Link>
+                <Link href="/journal" className="ghost-action">
+                  {t('Дневник')}
                 </Link>
               </div>
             }
