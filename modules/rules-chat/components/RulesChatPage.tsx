@@ -5,6 +5,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
+import ReactMarkdown from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase'
 import {
@@ -60,17 +62,21 @@ const SUGGESTIONS = [
   'голод последствия',
 ]
 
-// ts_headline возвращает текст книги с <b>…</b>. Экранируем всё,
-// потом возвращаем только жирное выделение.
+// ts_headline возвращает текст книги с <b>…</b> и часто режет фразу на
+// полуслове. Экранируем всё, возвращаем только жирное выделение и сглаживаем
+// рваные края многоточиями, чтобы выдержка читалась как цитата.
 function renderSnippet(snippet: string) {
-  const escaped = snippet
+  const trimmed = snippet.replace(/\*\*|__/g, '').trim()
+  const startsMidSentence = /^[a-zа-яё]/.test(trimmed)
+  const endsMidSentence = !/[.!?…»)\]]$/.test(trimmed)
+  const escaped = trimmed
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
   const withBold = escaped
     .replace(/&lt;b&gt;/g, '<b>')
     .replace(/&lt;\/b&gt;/g, '</b>')
-  return { __html: withBold }
+  return { __html: `${startsMidSentence ? '…' : ''}${withBold}${endsMidSentence ? '…' : ''}` }
 }
 
 function isBookHit(value: unknown): value is BookHit {
@@ -486,7 +492,13 @@ export default function RulesChatPage() {
 
             {messages.map((message, index) => (
               <article key={index} className={`rules-chat-message ${message.role}`}>
-                <p>{message.text}</p>
+                {message.role === 'assistant' ? (
+                  <div className="rules-chat-answer">
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.text}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <p>{message.text}</p>
+                )}
                 {message.role === 'assistant' && message.journal?.length ? (
                   <div className="rules-chat-hits">
                     <small className="rules-chat-hits-title">{t('Из дневника:')}</small>
@@ -522,7 +534,7 @@ export default function RulesChatPage() {
                 ) : null}
                 {message.role === 'assistant' && message.hits?.length ? (
                   <div className="rules-chat-hits">
-                    {message.entities?.length ? <small className="rules-chat-hits-title">{t('В книгах об этом:')}</small> : null}
+                    <small className="rules-chat-hits-title">{t('В книгах об этом:')}</small>
                     {message.hits.map(hit => (
                       <blockquote key={`${hit.source}-${hit.page}`}>
                         <span dangerouslySetInnerHTML={renderSnippet(hit.snippet)} />
@@ -716,6 +728,42 @@ export default function RulesChatPage() {
           line-height: 1.55;
         }
         .rules-chat-message p { margin: 0; white-space: pre-line; }
+        .rules-chat-answer p { margin: 0 0 10px; white-space: normal; }
+        .rules-chat-answer > *:last-child { margin-bottom: 0; }
+        .rules-chat-answer strong { color: #f0d9a8; }
+        .rules-chat-answer em { color: #d8b56a; }
+        .rules-chat-answer ul,
+        .rules-chat-answer ol { margin: 0 0 10px; padding-left: 22px; }
+        .rules-chat-answer li { margin: 4px 0; }
+        .rules-chat-answer li::marker { color: #d8b56a; }
+        .rules-chat-answer h1,
+        .rules-chat-answer h2,
+        .rules-chat-answer h3,
+        .rules-chat-answer h4 {
+          margin: 12px 0 6px;
+          font-family: 'Cinzel', serif;
+          font-size: 16px;
+          color: #d8b56a;
+        }
+        .rules-chat-answer blockquote {
+          margin: 0 0 10px;
+          padding: 8px 12px;
+          border-left: 3px solid #8b0000;
+          background: rgba(0, 0, 0, 0.3);
+          border-radius: 0 8px 8px 0;
+        }
+        .rules-chat-answer code {
+          background: rgba(0, 0, 0, 0.4);
+          border-radius: 4px;
+          padding: 1px 5px;
+          font-size: 13px;
+        }
+        .rules-chat-answer a { color: #d8b56a; }
+        .rules-chat-answer hr {
+          border: none;
+          border-top: 1px solid rgba(216, 181, 106, 0.25);
+          margin: 12px 0;
+        }
         .rules-chat-message.user {
           align-self: flex-end;
           background: rgba(139, 0, 0, 0.3);
@@ -756,12 +804,20 @@ export default function RulesChatPage() {
           border-radius: 0 8px 8px 0;
           font-size: 14px;
         }
-        .rules-chat-hits blockquote b { color: #d8b56a; }
+        .rules-chat-hits blockquote > span {
+          display: block;
+          font-family: Georgia, 'Times New Roman', serif;
+          font-style: italic;
+          line-height: 1.6;
+          opacity: 0.92;
+        }
+        .rules-chat-hits blockquote b { color: #d8b56a; font-style: normal; }
         .rules-chat-hits blockquote footer {
           margin-top: 8px;
           font-size: 12px;
-          opacity: 0.7;
-          font-style: italic;
+          font-style: normal;
+          color: #d8b56a;
+          opacity: 0.85;
         }
         .rules-chat-ref-link { color: #d8b56a; text-decoration: none; }
         .rules-chat-ref-link:hover { text-decoration: underline; }
