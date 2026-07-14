@@ -187,6 +187,17 @@ function stripHeadlineMarkup(text: string): string {
   return (text || "").replace(/<\/?b>/gi, "").replace(/\s+/g, " ").trim();
 }
 
+// DeepSeek иногда пишет вызовы инструментов текстом (DSML-разметка или
+// спецтокены вида <｜tool▁call▁begin｜>) — такой служебный мусор не должен
+// попадать в чат.
+function stripToolCallMarkup(text: string): string {
+  return (text || "")
+    .replace(/<[｜|]{1,2}DSML[｜|]{1,2}tool_calls>[\s\S]*?(?:<\/[｜|]{1,2}DSML[｜|]{1,2}tool_calls>|$)/gi, "")
+    .replace(/<\/?[｜|]{1,2}DSML[｜|]{1,2}[^>]*>/gi, "")
+    .replace(/<[｜|][^<>]{0,80}[｜|]>/g, "")
+    .trim();
+}
+
 function buildMaterials(
   context: RequestBody["context"],
   activeChronicle: LibraryChronicle | null,
@@ -700,7 +711,16 @@ Deno.serve(async (req: Request) => {
       if (assistant.tool_calls) assistant.tool_calls = toolCalls;
       messages.push(assistant);
       if (toolCalls.length === 0) {
-        const answer = (assistant.content || "").trim();
+        const answer = stripToolCallMarkup(assistant.content || "");
+        if (!answer) {
+          // Модель вывела вызов инструментов текстом — напоминаем формат
+          // и даём ещё одну попытку в следующем раунде.
+          messages.push({
+            role: "user",
+            content: "Разметка вызова инструментов в тексте не выполняется. Вызови инструмент штатно или сформулируй ответ по уже собранным материалам.",
+          });
+          continue;
+        }
         return jsonResponse({ answer, ...filterCitedSources(answer, usedBooks, usedChronicle) });
       }
 
@@ -723,8 +743,15 @@ Deno.serve(async (req: Request) => {
       }
     }
 
+    // Лимит раундов исчерпан: просим сформулировать ответ по собранному,
+    // иначе модель пытается писать новые вызовы инструментов текстом.
+    messages.push({
+      role: "user",
+      content: "Инструменты в этом ходе больше недоступны. Сформулируй окончательный ответ по уже полученным материалам, без служебной разметки.",
+    });
     const finalAnswer = await callDeepSeek(apiKey, messages, "none");
-    const answer = (finalAnswer.content || "").trim();
+    const answer = stripToolCallMarkup(finalAnswer.content || "")
+      || "Не удалось сформулировать ответ по собранным материалам. Попробуй сузить вопрос — например, спросить об одной сессии или сцене.";
     return jsonResponse({ answer, ...filterCitedSources(answer, usedBooks, usedChronicle) });
   } catch (error) {
     console.error("librarian-chat failure", error);
