@@ -512,3 +512,64 @@
   background: var(--vtm-void);
   text-align: center;
 }
+
+.actors-import-dialog {
+  width: min(520px, 100%);
+}
+
+.actors-import-kind {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  margin-bottom: var(--sp-4);
+  color: var(--vtm-ink-dim);
+  font-size: var(--fs-12);
+}
+
+.actors-import-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 320px;
+  overflow-y: auto;
+  display: grid;
+  gap: var(--sp-2);
+}
+
+.actors-import-list li {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-3);
+  padding: var(--sp-2) var(--sp-3);
+  border: 1px solid var(--vtm-line-soft);
+  border-radius: var(--r-xs);
+  background: var(--vtm-surface-2);
+}
+
+.actors-import-list img,
+.actors-import-avatar {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  background: var(--vtm-void);
+  border: 1px solid var(--vtm-line-soft);
+}
+
+.actors-import-name {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  color: var(--vtm-ink);
+  font-size: var(--fs-13);
+}
+
+.actors-import-name small {
+  color: var(--vtm-ink-muted);
+  font-size: var(--fs-11);
+}
+
+.actors-import-list button {
+  flex: 0 0 auto;
+}

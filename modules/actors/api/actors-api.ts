@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase'
 import { fetchCharactersByIds } from '@/modules/table/api/character-api'
+import { CHARACTERS } from '@/modules/table/constants'
 import { mapCharacterRow } from '@/modules/table/mappers'
 import { CHRONICLE_ACTORS, CHRONICLE_ACTOR_PRIVATE } from '../constants'
 import { mapActorPrivateRow, mapChronicleActorRow, toActorBulkPatch } from '../mappers'
@@ -103,6 +104,69 @@ export async function bulkUpdateActors(room: string, actorIds: readonly string[]
   })
   if (error) throw error
   return (data || []).map((row: unknown) => mapChronicleActorRow(row as ChronicleActorRow))
+}
+
+export type OwnCharacterSummary = {
+  id: string
+  name: string
+  clan: string
+  image: string
+}
+
+type OwnCharacterRow = {
+  id: string
+  name: string | null
+  clan: string | null
+  image: string | null
+}
+
+/** All characters of the app user (legacy `users` auth) for master import. */
+export async function listOwnCharacters(userId: string): Promise<OwnCharacterSummary[]> {
+  const { data, error } = await createClient()
+    .from(CHARACTERS)
+    .select('id, name, clan, image:data->>characterImage')
+    .eq('user_id', userId)
+    .order('name', { ascending: true })
+  if (error) throw error
+  return (data || []).map(row => {
+    const character = row as OwnCharacterRow
+    return {
+      id: character.id,
+      name: character.name || 'Без имени',
+      clan: character.clan || '',
+      image: character.image || '',
+    }
+  })
+}
+
+/**
+ * Create an actor already linked to an existing `characters` row.
+ * The sheet stays the source of truth; the actor row holds chronicle metadata.
+ */
+export async function createLinkedActorFromCharacter(input: {
+  chronicleId: string
+  room: string
+  characterId: string
+  name: string
+  imageUrl?: string
+  kind?: ChronicleActor['kind']
+}): Promise<ChronicleActor> {
+  const { data, error } = await createClient().from(CHRONICLE_ACTORS).insert({
+    chronicle_id: input.chronicleId,
+    room: input.room,
+    kind: input.kind || 'full_npc',
+    character_id: input.characterId,
+    name: input.name.trim() || 'Актор',
+    image_url: input.imageUrl || '',
+  }).select(ACTOR_SELECT).single()
+  if (error) {
+    if ((error as { code?: string }).code === '23505') {
+      throw new Error('Этот персонаж уже добавлен как актёр в этой хронике')
+    }
+    throw error
+  }
+  if (!data) throw new Error('Linked actor was not created')
+  return mapChronicleActorRow(data as ChronicleActorRow)
 }
 
 export async function linkExistingCharacter(actorId: string, characterId: string, kind?: ChronicleActor['kind']) {

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { getMasterMembership } from '@/modules/master-console/api'
 import type { MasterModuleProps } from '@/modules/master-console/types'
 import { getCharacterSheetHref } from '@/modules/table/utils/table-urls'
+import { createLinkedActorFromCharacter, listOwnCharacters, type OwnCharacterSummary } from '../api'
 import { useActiveSceneId, useChronicleActors } from '../hooks'
 import {
   createActorFromTemplate,
@@ -55,6 +56,26 @@ type PromptState =
   | { kind: 'faction' | 'tag' | 'status'; title: string; value: string; actionFactory: (value: string) => ActorBulkAction }
   | { kind: 'save_filter' | 'custom_name'; title: string; value: string }
 
+type ImportState = {
+  loading: boolean
+  error: string | null
+  characters: OwnCharacterSummary[]
+  kind: Extract<ActorKind, 'player_character' | 'full_npc'>
+  busyId: string | null
+}
+
+/** Same legacy app user the sheet/chat use (`users` table, not Supabase Auth). */
+function readStoredSheetUser(): { id: string; username: string } | null {
+  if (typeof window === 'undefined') return null
+  const saved = window.localStorage.getItem('vtm-chat-user') || window.localStorage.getItem('vtm-sheet-user')
+  if (!saved) return null
+  try {
+    const parsed = JSON.parse(saved) as { id?: string; username?: string }
+    if (parsed?.id && parsed?.username) return { id: parsed.id, username: parsed.username }
+  } catch { /* ignore broken localStorage payload */ }
+  return null
+}
+
 export default function ActorsModule({
   room,
   role,
@@ -77,6 +98,7 @@ export default function ActorsModule({
     targets: MasterActor[]
   } | null>(null)
   const [prompt, setPrompt] = useState<PromptState | null>(null)
+  const [importState, setImportState] = useState<ImportState | null>(null)
 
   useEffect(() => {
     setSavedFilters(loadSavedActorFilters(room))
@@ -263,6 +285,54 @@ export default function ActorsModule({
       setBusy(false)
     }
   }, [reload, resolveLogContext, room])
+
+  const linkedCharacterIds = useMemo(() => {
+    const ids = new Set<string>()
+    for (const actor of actors) {
+      if (actor.characterId) ids.add(actor.characterId)
+    }
+    return ids
+  }, [actors])
+
+  const openImportDialog = useCallback(async () => {
+    const user = readStoredSheetUser()
+    if (!user) {
+      setActionError('Войди на главной странице (аккаунт листов), чтобы импортировать своих персонажей.')
+      return
+    }
+    setImportState({ loading: true, error: null, characters: [], kind: 'full_npc', busyId: null })
+    try {
+      const characters = await listOwnCharacters(user.id)
+      setImportState(prev => prev ? { ...prev, loading: false, characters } : prev)
+    } catch (err) {
+      setImportState(prev => prev
+        ? { ...prev, loading: false, error: err instanceof Error ? err.message : 'Не удалось загрузить персонажей' }
+        : prev)
+    }
+  }, [])
+
+  const importCharacter = useCallback(async (character: OwnCharacterSummary) => {
+    setImportState(prev => prev ? { ...prev, busyId: character.id, error: null } : prev)
+    try {
+      const logContext = await resolveLogContext()
+      const kind = importState?.kind || 'full_npc'
+      const created = await createLinkedActorFromCharacter({
+        chronicleId: logContext.chronicleId,
+        room,
+        characterId: character.id,
+        name: character.name,
+        imageUrl: character.image,
+        kind,
+      })
+      setSelectedId(created.id)
+      await reload()
+      setImportState(prev => prev ? { ...prev, busyId: null } : prev)
+    } catch (err) {
+      setImportState(prev => prev
+        ? { ...prev, busyId: null, error: err instanceof Error ? err.message : 'Не удалось добавить персонажа' }
+        : prev)
+    }
+  }, [importState?.kind, reload, resolveLogContext, room])
 
   const onTemplateClick = useCallback((templateId: ActorTemplateId) => {
     if (templateId === 'custom') {
@@ -452,6 +522,14 @@ export default function ActorsModule({
                 + {template.label}
               </button>
             ))}
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => void openImportDialog()}
+              title="Добавить любого из своих персонажей как актёра с привязанным полным листом"
+            >
+              + Мои персонажи
+            </button>
           </div>
         </div>
 
@@ -631,6 +709,70 @@ export default function ActorsModule({
             <div className="actors-dialog-actions" style={{ marginTop: 12 }}>
               <button type="button" onClick={() => setPrompt(null)}>Отмена</button>
               <button type="button" data-danger="true" onClick={submitPrompt}>OK</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {importState ? (
+        <div className="actors-dialog-backdrop" role="presentation" onClick={() => setImportState(null)}>
+          <div
+            className="actors-dialog actors-import-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="actors-import-title"
+            onClick={event => event.stopPropagation()}
+          >
+            <h3 id="actors-import-title">Мои персонажи</h3>
+            <p>Персонаж добавляется как актёр с привязанным полным листом. Лист остаётся источником правды.</p>
+            <label className="actors-import-kind">
+              Добавлять как:
+              <select
+                className="actors-select"
+                value={importState.kind}
+                onChange={event => setImportState(prev => prev
+                  ? { ...prev, kind: event.target.value as ImportState['kind'] }
+                  : prev)}
+              >
+                <option value="full_npc">full_npc</option>
+                <option value="player_character">player_character</option>
+              </select>
+            </label>
+            {importState.loading ? <div className="actors-loading">Загрузка персонажей…</div> : null}
+            {importState.error ? <div className="actors-error" role="alert">{importState.error}</div> : null}
+            {!importState.loading && importState.characters.length === 0 && !importState.error ? (
+              <div className="actors-empty">
+                <strong>Персонажей не найдено</strong>
+                <span>Создайте персонажа в листе персонажа, затем вернитесь сюда.</span>
+              </div>
+            ) : null}
+            <ul className="actors-import-list">
+              {importState.characters.map(character => {
+                const alreadyLinked = linkedCharacterIds.has(character.id)
+                return (
+                  <li key={character.id}>
+                    {character.image ? (
+                      <img src={character.image} alt="" loading="lazy" />
+                    ) : (
+                      <span className="actors-import-avatar" aria-hidden="true" />
+                    )}
+                    <span className="actors-import-name">
+                      {character.name}
+                      {character.clan ? <small>{character.clan}</small> : null}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={alreadyLinked || importState.busyId === character.id}
+                      onClick={() => void importCharacter(character)}
+                    >
+                      {alreadyLinked ? 'Уже в хронике' : importState.busyId === character.id ? 'Добавляю…' : 'Добавить'}
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
+            <div className="actors-dialog-actions" style={{ marginTop: 12 }}>
+              <button type="button" onClick={() => setImportState(null)}>Закрыть</button>
             </div>
           </div>
         </div>

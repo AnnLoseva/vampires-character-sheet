@@ -27,6 +27,10 @@ Layout: `[table | detail card 316px]`.
 - Combined filters (search, scene, faction, clan, kind, status, tags)
 - Sortable columns, row selection, bulk actions with confirm + action log
 - Data-driven create templates (`utils/actor-templates.ts`)
+- «Мои персонажи» import dialog: any character of the app user (legacy `users`
+  auth via `vtm-chat-user`/`vtm-sheet-user`) becomes a linked actor
+  (`createLinkedActorFromCharacter`, default kind `full_npc`); duplicates are
+  blocked by the chronicle-level unique index
 - Quick actions: roller request, rouse request, full sheet route, scene, clone,
   hunger, archive
 - Private GM fields only on `MasterActor` / detail card; `toActorPublicPayload`
