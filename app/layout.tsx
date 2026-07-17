@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { LanguageProvider } from '@/lib/i18n/LanguageProvider'
 import { GlobalMusicEngineMount } from '@/modules/music/components/GlobalMusicEngineMount'
+import { Analytics } from '@vercel/analytics/next'
 
 export const metadata: Metadata = {
   title: 'VTM V5 — Character Sheet & Table',
@@ -26,6 +27,7 @@ export default function RootLayout({
       <body>
         <LanguageProvider>{children}</LanguageProvider>
         <GlobalMusicEngineMount />
+        <Analytics />
       </body>
     </html>
   )
