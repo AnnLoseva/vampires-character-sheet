@@ -12,15 +12,19 @@ import {
   TABLE_ROLLS,
   TABLE_SCENE_MUSIC,
   TABLE_SCENES,
+  TABLE_TOKENS,
 } from '../constants'
 import {
   mapLayerRow,
   mapRollRow,
   mapSceneMusicRow,
   mapSceneRow,
+  mapTokenRow,
 } from '../mappers'
 import type {
   ActiveParticipant,
+  CharacterToken,
+  CharacterTokenRow,
   LayerPatch,
   MasterReveal,
   MasterWhisper,
@@ -34,10 +38,12 @@ import type {
   TableLayerRow,
   TableScene,
   TableSceneRow,
+  TokenPatch,
   VoiceSignal,
 } from '../types'
 import { mergeRoll, sortLayers, upsertLayer } from '../utils/layer-utils'
 import { sortSceneMusic, upsertScene } from '../utils/scene-utils'
+import { sortTokens, upsertToken } from '../utils/token-utils'
 
 export type UseTableRealtimeOptions = {
   room: string
@@ -63,8 +69,12 @@ export type UseTableRealtimeOptions = {
   setMasterWhispers: Dispatch<SetStateAction<MasterWhisper[]>>
   setZoom: Dispatch<SetStateAction<number>>
   setPan: Dispatch<SetStateAction<{ x: number; y: number }>>
+  setTokens: (next: CharacterToken[] | ((prev: CharacterToken[]) => CharacterToken[])) => void
+  setSelectedTokenId: Dispatch<SetStateAction<string | null>>
   loadLayersForScene: (targetRoom: string, sceneId: string) => void | Promise<void>
   loadSceneMusic: (targetRoom: string, sceneId: string) => void | Promise<void>
+  loadTokensForScene: (targetRoom: string, sceneId: string) => void | Promise<void>
+  loadControllers: () => void | Promise<void>
   ensureDefaultScene: (targetRoom: string) => Promise<string | null>
   onRollRef: MutableRefObject<((roll: RollMessage) => void) | null>
   onVoiceSignalRef: MutableRefObject<((signal: VoiceSignal) => void | Promise<void>) | null>
@@ -107,8 +117,12 @@ export function useTableRealtime(options: UseTableRealtimeOptions) {
       setMasterWhispers,
       setZoom,
       setPan,
+      setTokens,
+      setSelectedTokenId,
       loadLayersForScene,
       loadSceneMusic,
+      loadTokensForScene,
+      loadControllers,
       ensureDefaultScene,
       onRollRef,
       onVoiceSignalRef,
@@ -121,6 +135,7 @@ export function useTableRealtime(options: UseTableRealtimeOptions) {
       if (cancelled || !sceneId) return
       void loadLayersForScene(currentRoom, sceneId)
       void loadSceneMusic(currentRoom, sceneId)
+      void loadTokensForScene(currentRoom, sceneId)
     })
 
     const channel = supabase
@@ -209,6 +224,7 @@ export function useTableRealtime(options: UseTableRealtimeOptions) {
         setScenes(prev => prev.map(item => ({ ...item, isActive: item.id === scene.sceneId })))
         void loadLayersForScene(currentRoom, scene.sceneId)
         void loadSceneMusic(currentRoom, scene.sceneId)
+        void loadTokensForScene(currentRoom, scene.sceneId)
       })
       .on('broadcast', { event: 'scene' }, payload => {
         const scene = payload.payload as TableScene
@@ -224,7 +240,41 @@ export function useTableRealtime(options: UseTableRealtimeOptions) {
           setSelectedSceneId(deleted.nextActiveSceneId)
           void loadLayersForScene(currentRoom, deleted.nextActiveSceneId)
           void loadSceneMusic(currentRoom, deleted.nextActiveSceneId)
+          void loadTokensForScene(currentRoom, deleted.nextActiveSceneId)
         }
+      })
+      .on('broadcast', { event: 'token' }, payload => {
+        const token = payload.payload as CharacterToken
+        if (!token || token.room !== currentRoom || token.sceneId !== activeSceneIdRef.current) return
+        setTokens(prev => upsertToken(prev, token))
+      })
+      .on('broadcast', { event: 'token-update' }, payload => {
+        const update = payload.payload as { id?: string; room?: string; patch?: TokenPatch }
+        if (!update.id || update.room !== currentRoom || !update.patch) return
+        const patch = update.patch
+        setTokens(prev => sortTokens(prev.map(token => (
+          token.id === update.id ? { ...token, ...patch } : token
+        ))))
+      })
+      .on('broadcast', { event: 'token-move' }, payload => {
+        const update = payload.payload as { room?: string; updates?: Array<{ id: string; x: number; y: number }> }
+        if (update.room !== currentRoom || !Array.isArray(update.updates) || update.updates.length === 0) return
+        const positions = new Map(update.updates.map(item => [item.id, item]))
+        setTokens(prev => prev.map(token => {
+          const position = positions.get(token.id)
+          return position ? { ...token, x: position.x, y: position.y } : token
+        }))
+      })
+      .on('broadcast', { event: 'token-delete' }, payload => {
+        const id = String((payload.payload as { id?: string })?.id || '')
+        if (!id) return
+        setTokens(prev => prev.filter(token => token.id !== id))
+        setSelectedTokenId(prev => (prev === id ? null : prev))
+      })
+      .on('broadcast', { event: 'controllers-update' }, payload => {
+        const update = payload.payload as { room?: string }
+        if (update.room !== currentRoom) return
+        void loadControllers()
       })
       .on('broadcast', { event: 'scene-music' }, payload => {
         const track = payload.payload as SceneMusicTrack
@@ -377,6 +427,22 @@ export function useTableRealtime(options: UseTableRealtimeOptions) {
             })
             setSelectedLayerId(prev => (prev === deleted.id ? null : prev))
           }
+        },
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: TABLE_TOKENS, filter: `room=eq.${currentRoom}` },
+        payload => {
+          if (payload.eventType === 'DELETE') {
+            const deleted = payload.old as { id?: string }
+            if (!deleted.id) return
+            setTokens(prev => prev.filter(token => token.id !== deleted.id))
+            setSelectedTokenId(prev => (prev === deleted.id ? null : prev))
+            return
+          }
+          const token = mapTokenRow(payload.new as CharacterTokenRow)
+          if (token.sceneId !== activeSceneIdRef.current) return
+          setTokens(prev => upsertToken(prev, token))
         },
       )
       .subscribe(status => {

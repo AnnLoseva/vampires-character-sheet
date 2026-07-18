@@ -27,6 +27,7 @@ type SceneManagerProps = {
   patchSceneMusic: (track: SceneMusicTrack, patch: Partial<Pick<SceneMusicTrack, 'title' | 'orderIndex' | 'isDefault' | 'autoplay'>>) => Promise<void>
   renameSceneMusic: (track: SceneMusicTrack) => Promise<void>
   deleteSceneMusic: (track: SceneMusicTrack) => Promise<void>
+  clearSceneBackground: (sceneId?: string) => Promise<void>
 }
 
 export default function SceneManager({
@@ -54,6 +55,7 @@ export default function SceneManager({
   patchSceneMusic,
   renameSceneMusic,
   deleteSceneMusic,
+  clearSceneBackground,
 }: SceneManagerProps) {
   const { t, tf } = useLang()
   return (
@@ -96,6 +98,26 @@ export default function SceneManager({
             </button>
           </article>
         ))}
+      </div>
+      <div className="scene-background-box">
+        <header>
+          <strong>{t('Фон сцены')}</strong>
+          <span>
+            {selectedScene?.backgroundUrl
+              ? `${selectedScene.width} × ${selectedScene.height}`
+              : t('не выбран')}
+          </span>
+        </header>
+        {selectedScene?.backgroundUrl ? (
+          <div className="scene-background-preview">
+            <img src={selectedScene.backgroundUrl} alt="" />
+            <button type="button" className="danger" onClick={() => void clearSceneBackground(selectedScene.id)}>
+              {t('Сбросить фон')}
+            </button>
+          </div>
+        ) : (
+          <p className="panel-empty">{t('Назначь фон через меню изображения: «Установить как фон».')}</p>
+        )}
       </div>
       <div className="scene-music-box">
         <header>

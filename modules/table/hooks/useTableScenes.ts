@@ -10,6 +10,7 @@ import {
 } from '../api/scene-api'
 import type { SceneMusicTrack, TableScene } from '../types'
 import { sortSceneMusic } from '../utils/scene-utils'
+import { DEFAULT_SCENE_HEIGHT, DEFAULT_SCENE_WIDTH } from '../constants'
 
 export function useTableScenes(room: string, defaultSceneName: string) {
   const [scenes, setScenes] = useState<TableScene[]>([])
@@ -66,6 +67,9 @@ export function useTableScenes(room: string, defaultSceneName: string) {
         name: defaultSceneName,
         thumbnailUrl: '',
         isActive: true,
+        backgroundUrl: '',
+        width: DEFAULT_SCENE_WIDTH,
+        height: DEFAULT_SCENE_HEIGHT,
         createdBy: 'master',
         createdAt: now,
         updatedAt: now,

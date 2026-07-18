@@ -46,15 +46,32 @@ Canonical types/constants/mappers live in `modules/table/*`:
 ## Supabase dependencies
 Table names come from `modules/table/constants.ts` (and a couple defined near their
 use): `table_rolls`, `table_chat_messages`, `table_images`, `table_scenes`,
-`table_scene_music`, `table_music`, `table_music_library`; plus `characters` for
+`table_scene_music`, `table_tokens`, `table_character_controllers`,
+`table_music`, `table_music_library`; plus `characters` for
 loading player sheets. Buckets: `table-images` and a music bucket. Realtime is a
 per-room channel (`table-room:{room}`). See `supabase-persistence.md`.
 
 ## Media / layer model
-Media items (images/video/files) are placed on the canvas and organized into
-layers within a scene; visibility is scene/layer driven. Root layer drop id is
-`ROOT_LAYER_DROP_ID` (`__root__`). Helpers live in `modules/table/utils/*`.
-See `music-and-media.md`.
+Three fixed visual layers (2026-07-18 DECISIONS entry):
+1. **Scene stage / background** — a `table_scenes` property (`backgroundUrl`,
+   `width`, `height`); the stage rectangle's size follows the background
+   image's natural size (default 1920×1080). Assigned only via image menus
+   («Установить как фон» / the «Фон» upload); not selectable on canvas.
+2. **Media** (`table_images`) — unchanged: images/video/text/files with
+   folders, crops, blend modes. Master workspace = area beyond the stage.
+3. **Character tokens** (`table_tokens`, `TokenLayer.tsx`) — always above
+   media (`TOKEN_LAYER_Z`), aspect-preserving (`DEFAULT_TOKEN_SIZE` 160 on the
+   longer side), linked to `characters.id`; double-click/tap opens
+   `CharacterPreviewModal` for the master or a controlling player.
+
+Player visibility is geometric (`utils/scene-geometry.ts`): objects fully
+outside the stage are hidden, partial overlaps are clipped
+(`.scene-media-layer.clipped`, `.token-layer-clip`); a player's own tokens are
+always visible. Control is many-to-many via `table_character_controllers`
+(`useCharacterControllers`), surfaced in `CharactersPanel` (master left-toolbar
+tab «Персонажи», player right-rail tab «Мои персонажи»).
+Root layer drop id is `ROOT_LAYER_DROP_ID` (`__root__`). Helpers live in
+`modules/table/utils/*`. See `music-and-media.md`.
 
 ## Dice / roll integration
 Rolls are stored in `table_rolls` and surfaced via `DiceRollOverlay.tsx`; the

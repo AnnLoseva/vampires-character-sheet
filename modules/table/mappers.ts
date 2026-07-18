@@ -1,4 +1,5 @@
-import type { CharacterOption, CharacterRow, CharacterType, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
+import type { CharacterController, CharacterControllerRow, CharacterOption, CharacterRow, CharacterToken, CharacterTokenRow, CharacterType, Die, HealthMetaState, InventoryItem, LayerPatch, NormalizedWillpower, OpposedRollResult, RollMessage, RollMeta, RollRow, RouseCheckResult, SceneMusicRow, SceneMusicTrack, TableLayer, TableLayerRow, TableScene, TableSceneRow, TokenPatch, VitalTrackers, WillpowerMetaState, WillpowerTracker } from './types'
+import { DEFAULT_SCENE_HEIGHT, DEFAULT_SCENE_WIDTH } from './constants'
 import { getMusicProvider } from '@/modules/music/utils'
 import type { HumanityStainEvent } from '@/core/systems/vtm5/rules/humanity'
 import { getAttributeDots } from '@/lib/i18n/ruleNames'
@@ -586,9 +587,60 @@ export function mapSceneRow(row: TableSceneRow): TableScene {
     name: row.name,
     thumbnailUrl: row.thumbnail_url || '',
     isActive: row.is_active ?? false,
+    backgroundUrl: row.background_url || '',
+    width: row.width || DEFAULT_SCENE_WIDTH,
+    height: row.height || DEFAULT_SCENE_HEIGHT,
     createdBy: row.created_by ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  }
+}
+
+export function mapTokenRow(row: CharacterTokenRow): CharacterToken {
+  return {
+    id: row.id,
+    room: row.room,
+    sceneId: row.scene_id,
+    characterId: row.character_id,
+    characterName: row.character_name || '',
+    imageUrl: row.image_url || '',
+    ownerUserId: row.owner_user_id ?? null,
+    x: row.x ?? 80,
+    y: row.y ?? 80,
+    width: row.width ?? 160,
+    height: row.height ?? 160,
+    zIndex: row.z_index ?? 1,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  }
+}
+
+export function toTokenDbPatch(patch: TokenPatch) {
+  const dbPatch: Record<string, unknown> = {}
+  if (patch.sceneId !== undefined) dbPatch.scene_id = patch.sceneId
+  if (patch.characterName !== undefined) dbPatch.character_name = patch.characterName
+  if (patch.imageUrl !== undefined) dbPatch.image_url = patch.imageUrl
+  if (patch.ownerUserId !== undefined) dbPatch.owner_user_id = patch.ownerUserId
+  if (patch.x !== undefined) dbPatch.x = patch.x
+  if (patch.y !== undefined) dbPatch.y = patch.y
+  if (patch.width !== undefined) dbPatch.width = patch.width
+  if (patch.height !== undefined) dbPatch.height = patch.height
+  if (patch.zIndex !== undefined) dbPatch.z_index = patch.zIndex
+  dbPatch.updated_at = new Date().toISOString()
+  return dbPatch
+}
+
+export function mapControllerRow(row: CharacterControllerRow): CharacterController {
+  return {
+    id: row.id,
+    room: row.room,
+    characterId: row.character_id,
+    userId: row.user_id,
+    canMoveToken: row.can_move_token ?? true,
+    canOpenSheet: row.can_open_sheet ?? true,
+    canRollDice: row.can_roll_dice ?? true,
+    canResizeToken: row.can_resize_token ?? false,
+    createdAt: row.created_at,
   }
 }
 

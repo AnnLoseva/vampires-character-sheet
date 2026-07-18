@@ -45,7 +45,9 @@ Tables (from `modules/table/constants.ts` and `supabase/*.sql`):
 | `blood_bond_events` | blood-bonds | Append-only bond history |
 | `table_chat_messages` | table | Room chat |
 | `table_images` | table | Images/media placed on the table |
-| `table_scenes` | table | Scenes |
+| `table_scenes` | table | Scenes (incl. `background_url`, `width`, `height` — the stage) |
+| `table_tokens` | table | Character tokens above the media layer |
+| `table_character_controllers` | table | Which room users control which characters |
 | `table_scene_music` | table | Music attached to scenes |
 | `table_music` | table | Music state/playback |
 | `table_music_library` | table | Saved music library entries |

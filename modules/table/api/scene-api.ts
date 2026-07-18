@@ -5,7 +5,7 @@ import { mapSceneMusicRow, mapSceneRow } from '../mappers'
 import type { SceneMusicRow, SceneMusicTrack, TableScene, TableSceneRow } from '../types'
 import { sortSceneMusic, sortScenes } from '../utils/scene-utils'
 
-const SCENE_SELECT = 'id, room, name, thumbnail_url, is_active, created_by, created_at, updated_at'
+const SCENE_SELECT = 'id, room, name, thumbnail_url, is_active, background_url, width, height, created_by, created_at, updated_at'
 const SCENE_MUSIC_SELECT = 'id, room, scene_id, title, url, source_type, order_index, is_default, autoplay, created_at, updated_at'
 
 export function createTableId() {
@@ -19,6 +19,9 @@ export function toSceneDbRow(scene: TableScene) {
     name: scene.name,
     thumbnail_url: scene.thumbnailUrl,
     is_active: scene.isActive,
+    background_url: scene.backgroundUrl,
+    width: scene.width,
+    height: scene.height,
     created_by: scene.createdBy,
     created_at: scene.createdAt,
     updated_at: scene.updatedAt,
@@ -64,6 +67,9 @@ export async function updateSceneRecord(
     name?: string
     thumbnail_url?: string
     is_active?: boolean
+    background_url?: string
+    width?: number
+    height?: number
     updated_at: string
   },
 ) {
@@ -158,5 +164,11 @@ export async function deleteSceneMusicRecord(trackId: string) {
 export async function deleteSceneWithAssets(sceneId: string) {
   await deleteSceneMusicByScene(sceneId)
   await deleteSceneLayers(sceneId)
+  await deleteSceneTokens(sceneId)
   return deleteSceneRecord(sceneId)
+}
+
+async function deleteSceneTokens(sceneId: string) {
+  const { deleteTokensByScene } = await import('./token-api')
+  return deleteTokensByScene(sceneId)
 }

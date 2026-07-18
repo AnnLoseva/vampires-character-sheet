@@ -48,6 +48,8 @@ export type MediaUploadActionsDeps = {
     selectAfterCreate?: boolean,
     onTable?: boolean,
   ) => Promise<string | null>
+  /** Set the active-scene background (spec: background lives on the scene, not as a layer). */
+  setSceneBackground: (url: string, natural: { width: number; height: number }) => void | Promise<void>
 }
 
 export function createMediaUploadActions(deps: MediaUploadActionsDeps) {
@@ -133,6 +135,13 @@ export function createMediaUploadActions(deps: MediaUploadActionsDeps) {
           continue
         }
 
+        if (options.asBackground && layerType === 'image') {
+          // Scene background is a scene property, not a layer: the stage size
+          // follows the image's natural size and nothing lands on the canvas.
+          await deps.setSceneBackground(publicUrl, natural)
+          continue
+        }
+
         const layerData = layerType === 'text'
           ? getTextLayerData(file, await getFileText(file))
           : layerType === 'file'
@@ -146,24 +155,13 @@ export function createMediaUploadActions(deps: MediaUploadActionsDeps) {
             : publicUrl
         await deps.addMediaLayer(
           layerData,
-          options.asBackground ? `Фон — ${file.name}` : file.name,
+          file.name,
           natural,
           layerType,
           index,
-          options.asBackground ? undefined : options.point,
+          options.point,
           onTable,
           {
-            ...(options.asBackground
-              ? {
-                x: 0,
-                y: 0,
-                zIndex: -1000 + index,
-                locked: true,
-                parentId: null,
-                width: Math.max(1600, natural.width),
-                height: Math.max(900, Math.round((Math.max(1600, natural.width) / Math.max(1, natural.width)) * Math.max(1, natural.height))),
-              }
-              : {}),
             ...(parentId !== undefined ? { parentId } : {}),
           },
         )

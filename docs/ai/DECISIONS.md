@@ -1,5 +1,50 @@
 # Decisions
 
+## 2026-07-18 — Game table gets a scene stage, character tokens and controllers
+
+**Area:** Game table / Supabase persistence / realtime
+**Decision:** The table is reworked into a lightweight virtual board with three
+fixed layers: scene background (a `table_scenes` property: `background_url`,
+`width`, `height`; stage size = the background image's natural size, default
+1920×1080), the existing `table_images` media layer unchanged (it still accepts
+images/video/text/files — per explicit user request), and a new character-token
+layer (`table_tokens`) that always renders above media. Character control is a
+many-to-many `table_character_controllers` assignment (one player can control
+several characters). Player visibility is geometric: objects fully outside the
+stage rectangle are hidden from players and partially-outside objects are
+clipped; a player's own tokens are always visible. The old blanket rule
+"master-owned layers never render for players" is replaced by stage
+intersection — the master's workspace is now the area beyond the stage.
+Double-click/double-tap on a controlled token opens the existing
+`CharacterPreviewModal` (vitals + dice). The background is assigned only from
+the image menus («Установить как фон» in the layer context menu, or the
+toolbar «Фон» upload which now sets the scene background instead of creating a
+locked z⁻¹⁰⁰⁰ layer).
+**Reason:** Spec "облегчённый игровой стол": fixed layer order, master prep
+space off-stage, several characters per player, compact character card from the
+token — without turning the table into a full VTT.
+**Consequences:** New tables follow the existing permissive `table_*` RLS
+pattern ("Anyone can …") because `/table` runs on the custom `users` identity +
+local master password, not Supabase Auth — real server-side permission checks
+remain impossible until the table route migrates to Auth (documented
+limitation; client-side gating mirrors `canEditLayer`). Existing rooms: old
+background layers stay as ordinary media; master-owned media inside the stage
+becomes visible to players. `table_tokens` is in the realtime publication;
+token drag broadcasts at ~90 ms and persists on pointerup.
+**Affected files:** `modules/table/{constants,types,mappers}.ts`,
+`modules/table/api/{scene,token,controller}-api.ts`,
+`modules/table/hooks/{useTableTokens,useCharacterControllers,useTokenActions,useTableRealtime,useTableScenes}.ts`,
+`modules/table/services/{token-actions,scene-actions,media-upload-actions}.ts`,
+`modules/table/components/canvas/{TableCanvas,TokenLayer}.tsx`,
+`modules/table/components/panels/{CharactersPanel,TableRightPanel}.tsx`,
+`modules/table/components/scenes/SceneManager.tsx`,
+`modules/table/components/{LayerContextMenuPanel,GameTableStyles}.tsx`,
+`modules/table/GameTable.tsx`, `lib/i18n/dictionary.ts`; migration
+`table_scene_background_tokens_controllers`.
+**Status:** active
+
+---
+
 ## 2026-07-18 — Rules chat sends an explicit preferred edition
 
 **Area:** Rules chat / Supabase Edge Functions

@@ -33,6 +33,7 @@ export type LayerContextMenuPanelProps = {
   deleteSelectedLayers: (ids: string[]) => void
   previewLayerOpacity: (layerId: string, opacity: number) => void
   commitLayerOpacity: (layerId: string, input: HTMLInputElement) => void
+  setLayerAsBackground: (layer: TableLayer) => void | Promise<void>
   onClose: () => void
 }
 
@@ -63,6 +64,7 @@ export default function LayerContextMenuPanel({
   deleteSelectedLayers,
   previewLayerOpacity,
   commitLayerOpacity,
+  setLayerAsBackground,
   onClose,
 }: LayerContextMenuPanelProps) {
   const { t } = useLang()
@@ -114,6 +116,18 @@ export default function LayerContextMenuPanel({
       ) : null}
       {canManageContext ? (
         <>
+          {isMaster && singleLayer && singleLayer.layerType === 'image' ? (
+            <button
+              type="button"
+              style={{ fontWeight: 600 }}
+              onClick={() => {
+                void setLayerAsBackground(singleLayer)
+                onClose()
+              }}
+            >
+              🖼 {t('Установить как фон')}
+            </button>
+          ) : null}
           {singleLayer ? <button type="button" onClick={() => renameLayer(singleLayer)}>{t('Переименовать')}</button> : null}
           {singleLayer && ['image', 'video'].includes(singleLayer.layerType) ? (
             <div className="context-menu-group">

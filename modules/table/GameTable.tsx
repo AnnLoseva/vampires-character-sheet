@@ -17,8 +17,10 @@ import type { DiceOverlayRoll } from '@/modules/rolls/components/DiceRollOverlay
 import GameTableStyles from './components/GameTableStyles'
 import LayerManager from './components/layers/LayerManager'
 import TableCanvas from './components/canvas/TableCanvas'
+import TokenLayer from './components/canvas/TokenLayer'
 import TableLeftPanel from './components/panels/TableLeftPanel'
 import TableRightPanel from './components/panels/TableRightPanel'
+import CharactersPanel, { type CharacterListEntry } from './components/panels/CharactersPanel'
 import SceneManager from './components/scenes/SceneManager'
 import MediaLibrary from './components/media/MediaLibrary'
 import { ChatPanel, useChat } from '@/modules/chat'
@@ -30,7 +32,9 @@ import { tableDefaultDisciplineRules as defaultDisciplineRules } from './rules-s
 
 import {
   ATTRIBUTE_GROUPS,
+  DEFAULT_SCENE_HEIGHT,
   DEFAULT_SCENE_NAME,
+  DEFAULT_SCENE_WIDTH,
   ROOT_LAYER_DROP_ID,
   SKILL_GROUPS,
   type InventoryCategory,
@@ -44,6 +48,7 @@ import {
   extractImageUrlsFromHtml,
   extractVideoUrlsFromHtml,
   getDroppedMediaUrls,
+  getMediaSize,
   getMediaUrlsFromText,
 } from '@/modules/table/utils/media-utils'
 import {
@@ -65,6 +70,7 @@ import {
   sortLayers,
 } from '@/modules/table/utils/layer-utils'
 import { sortSceneMusic } from '@/modules/table/utils/scene-utils'
+import { intersectsScene, isObjectVisibleToPlayer } from '@/modules/table/utils/scene-geometry'
 import { getCharacterSheetHref } from '@/modules/table/utils/table-urls'
 import { getContestedOpponentOptions, getOpposedCharacterPool } from '@/modules/table/utils/contested-roll-helpers'
 import { buildCharacterRollPool } from '@/modules/table/utils/roll-pool-builders'
@@ -136,6 +142,9 @@ import {
   useTableRealtime,
   useTableRolls,
   useTableScenes,
+  useTableTokens,
+  useCharacterControllers,
+  useTokenActions,
 } from '@/modules/table/hooks'
 import { DEFAULT_OPPOSED_RESPONSE } from '@/modules/rolls/constants'
 import type {
@@ -152,6 +161,7 @@ import {
 import {
   tableApplyDisciplineEffectsToRoll,
   tableDisciplines,
+  tableGetDerivedStats,
   tableHealth,
   tableHumanity,
 } from '@/modules/table/system-runtime'
@@ -168,6 +178,7 @@ import type {
   ActiveParticipant,
   CharacterOption,
   CharacterRow,
+  CharacterToken,
   ImageEditorDraft,
   ImageEditorState,
   InventoryItem,
@@ -248,6 +259,14 @@ export default function VampireTable() {
     setSelectedLayerIds,
     loadLayersForScene: loadLayersForSceneCore,
   } = useTableLayers()
+  const {
+    tokens,
+    setTokens,
+    tokensRef,
+    selectedTokenId,
+    setSelectedTokenId,
+    loadTokensForScene,
+  } = useTableTokens()
   const [diceOverlayQueue, setDiceOverlayQueue] = useState<DiceOverlayRoll[]>([])
   const shownDiceOverlayIdsRef = useRef<Set<string>>(new Set())
   const [roomParticipants, setRoomParticipants] = useState<ActiveParticipant[]>([])
@@ -329,6 +348,7 @@ export default function VampireTable() {
   const sceneRef = useRef<HTMLDivElement>(null)
   const triggerDiceOverlayRef = useRef<((roll: RollMessage) => void) | null>(null)
   const broadcastRef = useRef<(event: string, payload: unknown) => void>(() => {})
+  const setSceneBackgroundRef = useRef<(url: string, natural: { width: number; height: number }) => void | Promise<void>>(() => {})
   const imageEditorRef = useRef<ImageEditorDraft | null>(null)
   const panRef = useRef(pan)
   const chatUserRef = useRef<ChatUser | null>(null)
@@ -474,6 +494,21 @@ export default function VampireTable() {
     [chatCharacters],
   )
   const selectedActiveCharacter = hydratedChatCharacters.find(item => item.id === selectedChatCharacterId) || null
+
+  const {
+    controllers,
+    controlledCharacterIds,
+    loadControllers,
+    assignCharacter,
+    unassignController,
+  } = useCharacterControllers({
+    room,
+    chatUser,
+    chatCharacters: hydratedChatCharacters,
+    broadcast: (event, payload) => broadcastRef.current(event, payload),
+  })
+  const controlledCharacterIdsRef = useRef<Set<string>>(new Set())
+  controlledCharacterIdsRef.current = controlledCharacterIds
 
   useEffect(() => {
     imageEditorRef.current = imageEditor
@@ -632,13 +667,48 @@ export default function VampireTable() {
     setMasterWhispers,
     setZoom,
     setPan,
+    setTokens,
+    setSelectedTokenId,
     loadLayersForScene,
     loadSceneMusic,
+    loadTokensForScene,
+    loadControllers,
     ensureDefaultScene,
     onRollRef: triggerDiceOverlayRef,
     onVoiceSignalRef: handleVoiceSignalRef,
   })
   broadcastRef.current = broadcast
+
+  const {
+    canManageToken,
+    canResizeToken,
+    addCharacterToken,
+    patchToken,
+    broadcastTokenMove,
+    commitTokenPosition,
+    bringTokenToFront,
+    deleteToken,
+  } = useTokenActions({
+    room,
+    t,
+    tf,
+    isMaster,
+    chatUser,
+    tokensRef,
+    setTokens,
+    setSelectedTokenId,
+    setTableStatus,
+    broadcast: (event, payload) => broadcastRef.current(event, payload),
+    getActiveSceneId: () => activeSceneIdRef.current,
+    getSceneBounds: () => {
+      const scene = scenesRef.current.find(item => item.id === activeSceneIdRef.current)
+      return {
+        width: scene?.width || DEFAULT_SCENE_WIDTH,
+        height: scene?.height || DEFAULT_SCENE_HEIGHT,
+      }
+    },
+    canControlCharacterId: characterId => controlledCharacterIdsRef.current.has(characterId),
+  })
 
   const {
     patchLayer,
@@ -738,6 +808,7 @@ export default function VampireTable() {
     setTextMaterialNameDraft,
     addMediaLayer,
     createFolder,
+    setSceneBackground: (url, natural) => setSceneBackgroundRef.current(url, natural),
   })
 
   const {
@@ -1000,6 +1071,8 @@ export default function VampireTable() {
     setSceneThumbnailFromSelection,
     saveSelectionAsGroup,
     publishSceneTrack,
+    setSceneBackground,
+    clearSceneBackground,
   } = useSceneActions({
     room,
     roomRef,
@@ -1028,6 +1101,7 @@ export default function VampireTable() {
     addMediaLayer,
     patchLayer,
   })
+  setSceneBackgroundRef.current = setSceneBackground
 
   const {
     sendMasterWhisper,
@@ -1233,7 +1307,11 @@ export default function VampireTable() {
     freeBoxes: 3,
     status: 'normal' as const,
   }
-  const canRollPreview = Boolean(previewCharacter?.id && (isMaster || previewCharacter.id === selectedActiveCharacter?.id))
+  const canRollPreview = Boolean(previewCharacter?.id && (
+    isMaster
+    || previewCharacter.id === selectedActiveCharacter?.id
+    || controlledCharacterIds.has(previewCharacter.id)
+  ))
   const previewContestedOpponentOptions = getContestedOpponentOptions(contestedOpponentContext, previewCharacter)
   const selectedPreviewContestedOpponent = previewContestedOpponentOptions.find(option => option.id === previewContestedOpponentId) || null
   const canEditPreviewInventory = Boolean(chatUser && previewCharacter?.id && previewCharacter.id === selectedActiveCharacter?.id)
@@ -1577,14 +1655,135 @@ export default function VampireTable() {
     tableRole,
   }
 
+  const stageBounds = useMemo(() => ({
+    width: activeScene?.width || DEFAULT_SCENE_WIDTH,
+    height: activeScene?.height || DEFAULT_SCENE_HEIGHT,
+  }), [activeScene?.width, activeScene?.height])
+
   const visibleLayers = useMemo(
     () => sortLayers(layers).filter(layer => {
-      // GM-owned layers never render on player table canvas.
-      if (!isMaster && layer.ownerRole === 'master') return false
-      return isLayerEffectivelyVisible(layer, layers)
+      if (!isLayerEffectivelyVisible(layer, layers)) return false
+      // Master sees the whole workspace; players only what intersects the stage
+      // (everything beyond the stage rectangle is the master's prep area).
+      if (isMaster) return true
+      return intersectsScene(layer, stageBounds)
     }),
-    [layers, isMaster],
+    [layers, isMaster, stageBounds],
   )
+
+  const visibleTokens = useMemo(() => {
+    if (isMaster) return tokens
+    return tokens.filter(token => isObjectVisibleToPlayer({
+      object: token,
+      scene: stageBounds,
+      isOwnToken: controlledCharacterIds.has(token.characterId),
+    }))
+  }, [tokens, isMaster, stageBounds, controlledCharacterIds])
+
+  const isOwnToken = (token: CharacterToken) => controlledCharacterIds.has(token.characterId)
+
+  const openCharacterCard = (character: { id: string; name: string; image: string }) => {
+    if (!isMaster && !controlledCharacterIds.has(character.id)) {
+      setHandNotice('У вас нет доступа к этому персонажу')
+      window.setTimeout(() => setHandNotice(''), 3200)
+      return
+    }
+    void openCharacterPreview({
+      id: character.id,
+      name: character.name,
+      clan: null,
+      image: character.image,
+      hydrated: false,
+      characterType: 'vampire',
+      inventory: [],
+      attributes: {},
+      skills: {},
+      disciplines: {},
+      selectedPowers: {},
+      selectedPathPowers: {},
+      derivedStats: tableGetDerivedStats({}, {}),
+      activeEffects: [],
+    } as CharacterOption)
+  }
+
+  const openTokenCharacter = (token: CharacterToken) => {
+    openCharacterCard({ id: token.characterId, name: token.characterName, image: token.imageUrl })
+  }
+
+  const focusCharacterToken = (characterId: string) => {
+    const token = tokensRef.current.find(item => item.characterId === characterId)
+    if (!token) return
+    setSelectedTokenId(token.id)
+    const rect = sceneRef.current?.getBoundingClientRect()
+    if (!rect) return
+    setPan({
+      x: Math.round(rect.width / 2 - (token.x + token.width / 2) * zoom),
+      y: Math.round(rect.height / 2 - (token.y + token.height / 2) * zoom),
+    })
+  }
+
+  const ownCharacterEntries = useMemo<CharacterListEntry[]>(() => hydratedChatCharacters.map(character => ({
+    id: character.id,
+    name: character.name,
+    clan: character.clan,
+    image: character.image,
+    userId: character.userId,
+    username: character.username,
+  })), [hydratedChatCharacters])
+
+  const masterCharacterEntries = useMemo<CharacterListEntry[]>(() => {
+    const map = new Map<string, CharacterListEntry>()
+    ownCharacterEntries.forEach(entry => map.set(entry.id, entry))
+    roomParticipants.forEach(participant => {
+      if (participant.characterId && !map.has(participant.characterId)) {
+        map.set(participant.characterId, {
+          id: participant.characterId,
+          name: participant.characterName,
+          clan: participant.characterClan,
+          image: participant.characterImage,
+          userId: participant.userId,
+          username: participant.username,
+        })
+      }
+    })
+    return [...map.values()]
+  }, [ownCharacterEntries, roomParticipants])
+
+  const panelBaseEntries = isMaster ? masterCharacterEntries : ownCharacterEntries
+  const panelExtraCharacterIds = useMemo(() => {
+    const known = new Set(panelBaseEntries.map(entry => entry.id))
+    const relevant = isMaster
+      ? controllers
+      : controllers.filter(controller => controller.userId === chatUser?.id)
+    return [...new Set(relevant.map(controller => controller.characterId).filter(id => !known.has(id)))]
+  }, [panelBaseEntries, controllers, isMaster, chatUser?.id])
+
+  const charactersPanel = (
+    <CharactersPanel
+      isMaster={isMaster}
+      chatUser={chatUser}
+      baseEntries={panelBaseEntries}
+      extraCharacterIds={panelExtraCharacterIds}
+      controllers={controllers}
+      roomParticipants={roomParticipants}
+      tokens={tokens}
+      onAddToken={entry => void addCharacterToken({ id: entry.id, name: entry.name, image: entry.image })}
+      onFindToken={focusCharacterToken}
+      onOpenCharacter={entry => openCharacterCard({ id: entry.id, name: entry.name, image: entry.image })}
+      assignCharacter={isMaster ? assignCharacter : undefined}
+      unassignController={isMaster ? unassignController : undefined}
+    />
+  )
+
+  const setLayerAsBackground = async (layer: TableLayer) => {
+    if (!isMaster || layer.layerType !== 'image' || !layer.imageData) return
+    try {
+      const natural = await getMediaSize(layer.imageData, 'image')
+      await setSceneBackground(layer.imageData, natural)
+    } catch (error) {
+      console.error('Не удалось определить размер фонового изображения:', error)
+    }
+  }
   const checkLayerEffectivelyVisible = (layer: TableLayer) => isLayerEffectivelyVisible(layer, layers)
   const managerLayers = useMemo(
     () => (isMaster ? layers : layers.filter(layer => canEditLayer(layer))),
@@ -1726,6 +1925,7 @@ export default function VampireTable() {
               <button type="button" className={leftToolbarTab === 'layers' ? 'active' : ''} onClick={() => setLeftToolbarTab('layers')}>{t('Слои')}</button>
               <button type="button" className={leftToolbarTab === 'media' ? 'active' : ''} onClick={() => setLeftToolbarTab('media')}>{t('Медиа')}</button>
               <button type="button" className={leftToolbarTab === 'music' ? 'active' : ''} onClick={() => setLeftToolbarTab('music')}>{t('Музыка')}</button>
+              <button type="button" className={leftToolbarTab === 'characters' ? 'active' : ''} onClick={() => setLeftToolbarTab('characters')}>{t('Персонажи')}</button>
             </nav>
 
             <SceneManager
@@ -1753,6 +1953,7 @@ export default function VampireTable() {
               patchSceneMusic={patchSceneMusic}
               renameSceneMusic={renameSceneMusic}
               deleteSceneMusic={deleteSceneMusic}
+              clearSceneBackground={clearSceneBackground}
             />
 
             <section className={`scene-layer-panel ${leftToolbarTab === 'layers' ? '' : 'table-right-panel-hidden'}`}>
@@ -1892,6 +2093,12 @@ export default function VampireTable() {
                 <MusicPlayer room={room} tableRole={tableRole} channelRef={channelRef} playbackEnabled={false} />
               </div>
             ) : null}
+
+            {leftToolbarTab === 'characters' ? (
+              <section className="scene-characters-panel">
+                {charactersPanel}
+              </section>
+            ) : null}
           </aside>
         ) : null}
         </TableLeftPanel>
@@ -1902,6 +2109,32 @@ export default function VampireTable() {
           pan={pan}
           handNotice={handNotice}
           isDraggingOver={isDraggingOver}
+          stage={{
+            width: stageBounds.width,
+            height: stageBounds.height,
+            backgroundUrl: activeScene?.backgroundUrl || '',
+          }}
+          clipMediaToStage={!isMaster}
+          tokenLayer={(
+            <TokenLayer
+              tokens={visibleTokens}
+              sceneBounds={stageBounds}
+              zoom={zoom}
+              isMaster={isMaster}
+              clipForeign={!isMaster}
+              selectedTokenId={selectedTokenId}
+              setSelectedTokenId={setSelectedTokenId}
+              isOwnToken={isOwnToken}
+              canManageToken={canManageToken}
+              canResizeToken={canResizeToken}
+              broadcastTokenMove={broadcastTokenMove}
+              commitTokenPosition={commitTokenPosition}
+              patchToken={patchToken}
+              bringTokenToFront={bringTokenToFront}
+              deleteToken={deleteToken}
+              onOpenCharacter={openTokenCharacter}
+            />
+          )}
           visibleLayers={visibleLayers}
           selectedLayerId={selectedLayerId}
           selectedLayerIds={selectedLayerIds}
@@ -1986,6 +2219,12 @@ export default function VampireTable() {
               toggleFolder={toggleFolder}
             />
           </section>
+          ) : null}
+
+          {!isMaster ? (
+            <section className={`characters-sidebar table-right-panel ${rightRailTab === 'characters' ? '' : 'table-right-panel-hidden'}`} aria-label={t('Мои персонажи')}>
+              {charactersPanel}
+            </section>
           ) : null}
 
           <section className={`roll-sidebar table-right-panel ${rightRailTab === 'rolls' ? '' : 'table-right-panel-hidden'}`} aria-label={t('История бросков')}>
@@ -2532,6 +2771,7 @@ export default function VampireTable() {
           deleteSelectedLayers={deleteSelectedLayers}
           previewLayerOpacity={previewLayerOpacity}
           commitLayerOpacity={commitLayerOpacity}
+          setLayerAsBackground={setLayerAsBackground}
           onClose={() => setLayerContextMenu(null)}
         />
       ) : null}

@@ -17,6 +17,7 @@ import { upsertTableMusicState } from '../api/music-api'
 import type { MusicChannel } from '@/modules/music/types'
 import type { LayerPatch, SceneMusicTrack, TableLayer, TableScene } from '../types'
 import { sortSceneMusic, upsertScene } from '../utils/scene-utils'
+import { DEFAULT_SCENE_HEIGHT, DEFAULT_SCENE_WIDTH } from '../constants'
 
 export type SceneActionsDeps = {
   room: string
@@ -105,6 +106,9 @@ export function createSceneActions(deps: SceneActionsDeps) {
       name,
       thumbnailUrl: '',
       isActive: deps.scenesRef.current.length === 0,
+      backgroundUrl: '',
+      width: DEFAULT_SCENE_WIDTH,
+      height: DEFAULT_SCENE_HEIGHT,
       createdBy: deps.getCurrentOwnerId(),
       createdAt: now,
       updatedAt: now,
@@ -224,6 +228,67 @@ export function createSceneActions(deps: SceneActionsDeps) {
     deps.setExpandedFolders(prev => new Set(prev).add(folderId))
   }
 
+  /**
+   * Set the active-scene background from an image URL; stage size follows the
+   * image's natural size (spec: scene size = background size). Never touches
+   * existing layers or tokens.
+   */
+  const setSceneBackground = async (
+    url: string,
+    natural: { width: number; height: number },
+    targetSceneId?: string,
+  ) => {
+    if (!deps.isMaster) return
+    const sceneId = targetSceneId || deps.activeSceneIdRef.current
+    const scene = deps.scenesRef.current.find(item => item.id === sceneId)
+    if (!scene) return
+    const width = Math.max(320, Math.round(natural.width) || DEFAULT_SCENE_WIDTH)
+    const height = Math.max(320, Math.round(natural.height) || DEFAULT_SCENE_HEIGHT)
+    const updatedAt = new Date().toISOString()
+    const next = { ...scene, backgroundUrl: url, width, height, updatedAt }
+    deps.setScenes(prev => upsertScene(prev, next))
+    const { error } = await updateSceneRecord(scene.id, {
+      background_url: url,
+      width,
+      height,
+      updated_at: updatedAt,
+    })
+    if (error) {
+      console.error('Не удалось сохранить фон сцены:', error)
+      deps.setSceneStatus('Фон сцены не сохранился')
+      return
+    }
+    deps.broadcast('scene', next)
+  }
+
+  const clearSceneBackground = async (targetSceneId?: string) => {
+    if (!deps.isMaster) return
+    const sceneId = targetSceneId || deps.activeSceneIdRef.current
+    const scene = deps.scenesRef.current.find(item => item.id === sceneId)
+    if (!scene) return
+    const updatedAt = new Date().toISOString()
+    const next = {
+      ...scene,
+      backgroundUrl: '',
+      width: DEFAULT_SCENE_WIDTH,
+      height: DEFAULT_SCENE_HEIGHT,
+      updatedAt,
+    }
+    deps.setScenes(prev => upsertScene(prev, next))
+    const { error } = await updateSceneRecord(scene.id, {
+      background_url: '',
+      width: DEFAULT_SCENE_WIDTH,
+      height: DEFAULT_SCENE_HEIGHT,
+      updated_at: updatedAt,
+    })
+    if (error) {
+      console.error('Не удалось сбросить фон сцены:', error)
+      deps.setSceneStatus('Фон сцены не сбросился')
+      return
+    }
+    deps.broadcast('scene', next)
+  }
+
   return {
     createScene,
     renameScene,
@@ -233,5 +298,7 @@ export function createSceneActions(deps: SceneActionsDeps) {
     saveSelectionAsGroup,
     publishSceneTrack,
     playSceneAutoplayMusic,
+    setSceneBackground,
+    clearSceneBackground,
   }
 }

@@ -574,6 +574,11 @@ export type TableScene = {
   name: string
   thumbnailUrl: string
   isActive: boolean
+  /** Scene background image URL; empty string = no background (default stage). */
+  backgroundUrl: string
+  /** Stage size in scene units; follows the background image's natural size. */
+  width: number
+  height: number
   createdBy: string | null
   createdAt: string
   updatedAt: string
@@ -585,9 +590,74 @@ export type TableSceneRow = {
   name: string
   thumbnail_url: string | null
   is_active: boolean | null
+  background_url?: string | null
+  width?: number | null
+  height?: number | null
   created_by: string | null
   created_at: string
   updated_at: string
+}
+
+/** Character token: a canvas object linked to a character, always above media layers. */
+export type CharacterToken = {
+  id: string
+  room: string
+  sceneId: string
+  characterId: string
+  characterName: string
+  imageUrl: string
+  ownerUserId: string | null
+  x: number
+  y: number
+  width: number
+  height: number
+  zIndex: number
+  createdAt: string
+  updatedAt: string
+}
+
+export type CharacterTokenRow = {
+  id: string
+  room: string
+  scene_id: string
+  character_id: string
+  character_name: string | null
+  image_url: string | null
+  owner_user_id: string | null
+  x: number | null
+  y: number | null
+  width: number | null
+  height: number | null
+  z_index: number | null
+  created_at: string
+  updated_at: string
+}
+
+export type TokenPatch = Partial<Pick<CharacterToken, 'sceneId' | 'characterName' | 'imageUrl' | 'ownerUserId' | 'x' | 'y' | 'width' | 'height' | 'zIndex'>>
+
+/** Assignment "user controls character" — one player may control several characters. */
+export type CharacterController = {
+  id: string
+  room: string
+  characterId: string
+  userId: string
+  canMoveToken: boolean
+  canOpenSheet: boolean
+  canRollDice: boolean
+  canResizeToken: boolean
+  createdAt: string
+}
+
+export type CharacterControllerRow = {
+  id: string
+  room: string
+  character_id: string
+  user_id: string
+  can_move_token: boolean | null
+  can_open_sheet: boolean | null
+  can_roll_dice: boolean | null
+  can_resize_token: boolean | null
+  created_at: string
 }
 
 export type SceneMusicTrack = {
@@ -670,8 +740,8 @@ export type LayerDropTarget = {
   placement: LayerDropPlacement
 } | null
 
-export type RightRailTab = 'media' | 'rolls' | 'chat' | 'diary' | 'master'
+export type RightRailTab = 'media' | 'rolls' | 'chat' | 'diary' | 'characters' | 'master'
 export type MediaTab = 'music' | 'layers' | 'library'
-export type LeftToolbarTab = 'scenes' | 'layers' | 'media' | 'music'
+export type LeftToolbarTab = 'scenes' | 'layers' | 'media' | 'music' | 'characters'
 
 export type TableModule = Module<'table', 'vtm5'>

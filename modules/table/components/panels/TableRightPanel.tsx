@@ -44,6 +44,15 @@ export default function TableRightPanel({
               {t('Мои медиа')}
             </button>
           ) : null}
+          {!isMaster ? (
+            <button
+              type="button"
+              className={rightRailTab === 'characters' ? 'active' : ''}
+              onClick={() => setRightRailTab('characters')}
+            >
+              {t('Мои персонажи')}
+            </button>
+          ) : null}
           <button
             type="button"
             className={rightRailTab === 'rolls' ? 'active' : ''}

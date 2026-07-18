@@ -990,4 +990,28 @@ export const dictionary: Record<string, string> = {
   '{reason} · Испытание Крови': '{reason} · Rouse Check',
   'В тексте указана добровольная или зависящая от цели трата Воли; автоматически она не списывается.':
     "The text specifies a voluntary or target-dependent Willpower spend; it is not deducted automatically.",
+
+  // Game table: scene background, character tokens, character assignments
+  'Установить как фон': 'Set as background',
+  'Фон сцены': 'Scene background',
+  'Сбросить фон': 'Reset background',
+  'Назначь фон через меню изображения: «Установить как фон».':
+    'Assign a background from an image’s menu: "Set as background".',
+  'Мои персонажи': 'My characters',
+  'на столе': 'on the table',
+  'На стол': 'To the table',
+  'Карточка': 'Card',
+  'Назначить...': 'Assign...',
+  'Назначить игрока': 'Assign a player',
+  'Снять назначение': 'Remove the assignment',
+  'Персонажи появятся, когда игроки подключатся.': 'Characters will appear once players connect.',
+  'Тебе пока не назначены персонажи.': 'No characters have been assigned to you yet.',
+  'Поиск персонажа по имени': 'Search characters by name',
+  'Найти': 'Find',
+  'Ищу персонажей...': 'Searching for characters...',
+  'Поиск не удался.': 'The search failed.',
+  'Ничего не нашлось.': 'Nothing found.',
+  'Убрать токен со стола': 'Remove the token from the table',
+  'Убрать токен "{name}" со стола?': 'Remove the token "{name}" from the table?',
+  'У вас нет доступа к этому персонажу': 'You have no access to this character',
 }

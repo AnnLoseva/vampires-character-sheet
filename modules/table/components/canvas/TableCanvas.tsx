@@ -1,4 +1,4 @@
-import { type Dispatch, type DragEvent, type MouseEvent, type PointerEvent, type RefObject, type SetStateAction, type TouchEvent, type WheelEvent } from 'react'
+import { type Dispatch, type DragEvent, type MouseEvent, type PointerEvent, type ReactNode, type RefObject, type SetStateAction, type TouchEvent, type WheelEvent } from 'react'
 import {
   createEditorState,
   getLayerCrop,
@@ -21,6 +21,11 @@ type TableCanvasProps = {
   pan: { x: number; y: number }
   handNotice: string
   isDraggingOver: boolean
+  /** Stage rectangle: size follows the scene background; everything outside is the master's workspace. */
+  stage: { width: number; height: number; backgroundUrl: string }
+  /** Player view: clip media (and mark the workspace) by the stage bounds. */
+  clipMediaToStage: boolean
+  tokenLayer: ReactNode
   visibleLayers: TableLayer[]
   selectedLayerId: string | null
   selectedLayerIds: Set<string>
@@ -64,6 +69,9 @@ export default function TableCanvas({
   pan,
   handNotice,
   isDraggingOver,
+  stage,
+  clipMediaToStage,
+  tokenLayer,
   visibleLayers,
   selectedLayerId,
   selectedLayerIds,
@@ -179,6 +187,15 @@ export default function TableCanvas({
             transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
           }}
         >
+          <div
+            className={`scene-stage ${stage.backgroundUrl ? 'has-background' : 'no-background'}`}
+            style={{ width: stage.width, height: stage.height }}
+            aria-hidden="true"
+          >
+            {stage.backgroundUrl ? (
+              <img src={stage.backgroundUrl} alt="" draggable={false} />
+            ) : null}
+          </div>
           {visibleLayers.length === 0 ? (
             <div className="scene-empty">
               <h2>{t('Добавь первый слой')}</h2>
@@ -186,6 +203,10 @@ export default function TableCanvas({
             </div>
           ) : null}
 
+          <div
+            className={`scene-media-layer ${clipMediaToStage ? 'clipped' : ''}`}
+            style={clipMediaToStage ? { width: stage.width, height: stage.height } : undefined}
+          >
           {visibleLayers.map(layer => {
             const youtubeEmbedUrl = layer.layerType === 'video' ? getEmbeddableVideoUrl(layer.imageData) : ''
             return (
@@ -359,6 +380,8 @@ export default function TableCanvas({
               ) : null}
             </div>
           )})}
+          </div>
+          {tokenLayer}
           {selectionRect ? (
             <div
               className="selection-rect"

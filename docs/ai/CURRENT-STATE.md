@@ -4,6 +4,12 @@
 > Delete stale lines. Long-term decisions go to `DECISIONS.md`, not here.
 
 ## Current development focus
+- **Game table lite (2026-07-18)** — scene stage/background on `table_scenes`,
+  character tokens (`table_tokens`) above media, `table_character_controllers`
+  (several characters per player), geometric player visibility (outside-stage
+  hidden/clipped, own tokens always visible). Needs live-room testing with a
+  logged-in master + player; server-side permission checks still impossible
+  (custom users identity, permissive `table_*` RLS).
 - **Master console (PROMPT 6–15)** — six modules live under `/master`: overview,
   actors, scenes, lore, blood-bonds, session-log. Search/commands (`⌘K`), deep
   links, detached second-monitor windows (`display=detached`), layout versioning.
@@ -60,7 +66,9 @@ _(none recorded — add temporary bugs here only while being worked, then remove
 - `public/rules.json` / `rules_eng.json` — data layer, mind RU/EN drift.
 
 ## Last updated
-2026-07-13 — `/library/chronicles` now separates official history from
+2026-07-18 — Game table lite: scene stage/background, character tokens above
+  media, character controllers, geometric player visibility (see DECISIONS).
+  Earlier: `/library/chronicles` now separates official history from
   owner-only, resumable AI-processed player transcripts (full clean text + short
   personal recap), and the Librarian searches both under caller RLS.
   Earlier: `/master` gates module mount on live Supabase Auth +
