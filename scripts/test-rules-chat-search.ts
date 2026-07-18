@@ -4,15 +4,24 @@
  */
 import assert from 'node:assert/strict'
 import {
+  DEFAULT_RULES_EDITION,
+  RULEBOOK_LIBRARY,
+  RULES_EDITION_MODES,
   buildBookSearchPlan,
   mergeBookHitLists,
   parseQuery,
+  sourceForEditionMode,
   type BookHit,
 } from '../modules/rules-chat/engine'
 import {
   buildCharacterToolPayload,
+  editionFallbackForSearch,
+  ensureEditionFallbackWarning,
   mergeChronicleToolHits,
+  normalizePreferredEdition,
   selectCharacterRows,
+  shouldFlagEditionFallback,
+  sourceForEdition,
   type LibrarianCharacterRow,
   type LibrarianChronicleHit,
 } from '../supabase/functions/librarian-chat/tools'
@@ -28,6 +37,85 @@ function test(name: string, fn: () => void) {
     throw error
   }
 }
+
+console.log('rules-chat edition mode contract')
+
+test('the edition mode contract contains exactly V5, V20, and general', () => {
+  assert.deepEqual(RULES_EDITION_MODES, ['V5', 'V20', 'general'])
+})
+
+test('V5 is the default edition mode', () => {
+  assert.equal(DEFAULT_RULES_EDITION, 'V5')
+})
+
+test('edition-specific modes map to their rulebook library sources', () => {
+  for (const edition of ['V5', 'V20'] as const) {
+    const book = RULEBOOK_LIBRARY.find(item => item.edition === edition)
+    assert.ok(book)
+    assert.equal(sourceForEditionMode(edition), book.source)
+  }
+})
+
+test('general mode leaves the source unrestricted', () => {
+  assert.equal(sourceForEditionMode('general'), null)
+})
+
+test('edge edition helpers clamp input and map search sources', () => {
+  assert.equal(normalizePreferredEdition('V20'), 'V20')
+  assert.equal(normalizePreferredEdition('general'), 'general')
+  assert.equal(normalizePreferredEdition(undefined), 'V5')
+  assert.equal(normalizePreferredEdition('all'), 'V5')
+  assert.equal(sourceForEdition('V5'), 'v5-corebook-ru')
+  assert.equal(sourceForEdition('V20'), 'v20-corebook-ru')
+  assert.equal(sourceForEdition('all'), null)
+})
+
+test('edge fallback flag is set only for successful cross-edition results', () => {
+  assert.equal(shouldFlagEditionFallback('V5', 'V20', 1), true)
+  assert.equal(shouldFlagEditionFallback('V5', 'V20', 0), false)
+  assert.equal(shouldFlagEditionFallback('V5', 'V5', 1), false)
+  assert.equal(shouldFlagEditionFallback('V5', 'all', 1), false)
+  assert.equal(shouldFlagEditionFallback('general', 'all', 1), false)
+})
+
+test('a missing model warning is prefixed for a successful V5 to V20 fallback', () => {
+  const fallback = editionFallbackForSearch('V5', 'V20', 2)
+  assert.deepEqual(fallback, { preferredEdition: 'V5', searchedEdition: 'V20' })
+  assert.equal(
+    ensureEditionFallbackWarning('Правило действует один раз за ход.', fallback),
+    'В выбранной редакции V5 не найдено; ниже информация из V20.\n\nПравило действует один раз за ход.',
+  )
+})
+
+test('an explicit model warning is preserved without a duplicate prefix', () => {
+  const fallback = editionFallbackForSearch('V5', 'V20', 1)
+  const answer = 'В выбранной редакции V5 фрагменты не найдены. Далее использована информация из V20.\n\nОтвет.'
+  assert.equal(ensureEditionFallbackWarning(answer, fallback), answer)
+})
+
+test('the inverse V20 to V5 fallback receives the matching deterministic warning', () => {
+  const fallback = editionFallbackForSearch('V20', 'V5', 1)
+  assert.equal(
+    ensureEditionFallbackWarning('Ответ.', fallback),
+    'В выбранной редакции V20 не найдено; ниже информация из V5.\n\nОтвет.',
+  )
+})
+
+test('general, primary hits, and empty fallbacks never add an edition warning', () => {
+  const answer = 'Ответ без предупреждения.'
+  assert.equal(
+    ensureEditionFallbackWarning(answer, editionFallbackForSearch('general', 'all', 3)),
+    answer,
+  )
+  assert.equal(
+    ensureEditionFallbackWarning(answer, editionFallbackForSearch('V5', 'V5', 3)),
+    answer,
+  )
+  assert.equal(
+    ensureEditionFallbackWarning(answer, editionFallbackForSearch('V5', 'V20', 0)),
+    answer,
+  )
+})
 
 console.log('rules-chat query classification')
 
@@ -53,6 +141,12 @@ test('a polite dative phrase is not mistaken for a sheet lookup', () => {
   const parsed = parseQuery('расскажи мне про клан Тореадор', null)
   assert.equal(parsed.personal, false)
   assert.equal(parsed.searchBooks, true)
+})
+
+test('parseQuery uses the preferred edition unless the question names another one', () => {
+  assert.equal(parseQuery('Как работает голод?', null, 'V20').source, 'v20-corebook-ru')
+  assert.equal(parseQuery('Как работает голод в V5?', null, 'V20').source, 'v5-corebook-ru')
+  assert.equal(parseQuery('Как работает голод?', null, 'general').source, null)
 })
 
 console.log('rules-chat character tools')
@@ -128,6 +222,29 @@ test('follow-up inherits topic and edition from the previous user question', () 
   const plan = buildBookSearchPlan('а если две ночи?', ['Как работает голод в V5?'])
   assert.equal(plan.source, 'v5-corebook-ru')
   assert.ok(plan.queries.includes('голод закат'))
+})
+
+test('the UI default and an explicit preferred edition supply the source', () => {
+  assert.equal(
+    buildBookSearchPlan('Как работает голод?', [], DEFAULT_RULES_EDITION).source,
+    'v5-corebook-ru',
+  )
+  assert.equal(buildBookSearchPlan('Как работает голод?', [], 'V20').source, 'v20-corebook-ru')
+})
+
+test('an explicit question hint overrides the preferred edition', () => {
+  assert.equal(buildBookSearchPlan('Как работает голод в V20?', [], 'V5').source, 'v20-corebook-ru')
+})
+
+test('general mode keeps even a follow-up source unrestricted', () => {
+  const plan = buildBookSearchPlan('а если две ночи?', ['Как работает голод в V5?'], 'general')
+  assert.equal(plan.source, null)
+})
+
+test('follow-up keeps the current UI edition while inheriting the previous topic', () => {
+  const plan = buildBookSearchPlan('а если две ночи?', ['Как работает голод в V5?'], 'V20')
+  assert.equal(plan.source, 'v20-corebook-ru')
+  assert.match(plan.queries.join(' '), /голод/)
 })
 
 test('library inventory question does not search an unrelated page', () => {

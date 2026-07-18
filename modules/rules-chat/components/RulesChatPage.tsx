@@ -10,18 +10,22 @@ import remarkGfm from 'remark-gfm'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import { createClient } from '@/lib/supabase'
 import {
+  DEFAULT_RULES_EDITION,
   asText,
   buildBookSearchPlan,
   loadRules,
   normalizeToken,
   parseQuery,
   RULEBOOK_LIBRARY,
+  RULES_EDITION_LABELS,
+  RULES_EDITION_MODES,
   searchJournal,
   searchReference,
   type BookHit,
   type EntityMatch,
   type JournalHit,
   type ReferenceSearchHit,
+  type RulesEditionMode,
 } from '../engine'
 
 type ChatMessage =
@@ -226,6 +230,7 @@ export default function RulesChatPage() {
   const [chronicleDraft, setChronicleDraft] = useState('')
   const [chronicleBusy, setChronicleBusy] = useState(false)
   const [chronicleError, setChronicleError] = useState('')
+  const [preferredEdition, setPreferredEdition] = useState<RulesEditionMode>(DEFAULT_RULES_EDITION)
   const listRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -297,12 +302,12 @@ export default function RulesChatPage() {
     setMessages(prev => [...prev, { role: 'user', text: trimmed }])
     try {
       const rules = await loadRules()
-      const parsed = parseQuery(trimmed, rules)
+      const parsed = parseQuery(trimmed, rules, preferredEdition)
       const tokens = trimmed.split(/\s+/).map(normalizeToken).filter(Boolean)
       const previousUserQuestions = messages
         .filter((message): message is Extract<ChatMessage, { role: 'user' }> => message.role === 'user')
         .map(message => message.text)
-      const bookPlan = buildBookSearchPlan(trimmed, previousUserQuestions, parsed.source)
+      const bookPlan = buildBookSearchPlan(trimmed, previousUserQuestions, preferredEdition)
 
       // Дневник остаётся локальным на устройстве. Листы персонажей и страницы
       // книг теперь запрашивает сама модель через безопасные read-only
@@ -336,6 +341,7 @@ export default function RulesChatPage() {
             source: book.source,
             edition: book.edition,
             title: book.title,
+            preferred: preferredEdition !== 'general' && book.edition === preferredEdition,
           })),
           rules: parsed.entities.map(entity => ({
             name: entity.name,
@@ -356,7 +362,7 @@ export default function RulesChatPage() {
             : undefined,
         }
         const { data: aiData, error: aiError } = await createClient().functions.invoke('librarian-chat', {
-          body: { question: trimmed, history, context },
+          body: { question: trimmed, history, preferredEdition, context },
         })
         if (aiError) {
           console.error('librarian-chat:', aiError)
@@ -411,7 +417,7 @@ export default function RulesChatPage() {
     } finally {
       setBusy(false)
     }
-  }, [activeChronicle, busy, messages, t])
+  }, [activeChronicle, busy, messages, preferredEdition, t])
 
   return (
     <main className="rules-chat-shell">
@@ -474,6 +480,26 @@ export default function RulesChatPage() {
               </small>
             ) : null}
             {chronicleError ? <small className="rules-chat-chronicle-error">{chronicleError}</small> : null}
+          </section>
+
+          <section className="rules-chat-edition">
+            <div className="rules-chat-edition-copy">
+              <strong>{t('Редакция правил')}</strong>
+              <small>{t('Редакция')}: {t(RULES_EDITION_LABELS[preferredEdition])}</small>
+            </div>
+            <div className="rules-chat-edition-segments" role="group" aria-label={t('Редакция правил')}>
+              {RULES_EDITION_MODES.map(edition => (
+                <button
+                  key={edition}
+                  type="button"
+                  className={edition === preferredEdition ? 'is-active' : undefined}
+                  aria-pressed={edition === preferredEdition}
+                  onClick={() => setPreferredEdition(edition)}
+                >
+                  {t(RULES_EDITION_LABELS[edition])}
+                </button>
+              ))}
+            </div>
           </section>
 
           <div className="rules-chat-messages" ref={listRef}>
@@ -694,6 +720,54 @@ export default function RulesChatPage() {
         }
         .rules-chat-chronicle-active { color: #c9dda6; }
         .rules-chat-chronicle-error { color: #ffaaa5; }
+        .rules-chat-edition {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px 20px;
+          margin-top: 10px;
+          padding: 10px 16px;
+          border: 1px solid rgba(216, 181, 106, 0.22);
+          border-radius: 12px;
+          background: rgba(216, 181, 106, 0.04);
+        }
+        .rules-chat-edition-copy {
+          display: flex;
+          flex-direction: column;
+          gap: 2px;
+        }
+        .rules-chat-edition-copy strong {
+          color: #d8b56a;
+          font-family: 'Cinzel', serif;
+        }
+        .rules-chat-edition-copy small {
+          color: #c9dda6;
+          font-size: 12px;
+        }
+        .rules-chat-edition-segments {
+          display: inline-flex;
+          overflow: hidden;
+          border: 1px solid rgba(216, 181, 106, 0.38);
+          border-radius: 9px;
+          background: rgba(0, 0, 0, 0.35);
+        }
+        .rules-chat-edition-segments button {
+          min-width: 72px;
+          border: 0;
+          border-right: 1px solid rgba(216, 181, 106, 0.25);
+          background: transparent;
+          color: #f4eadf;
+          padding: 8px 14px;
+          cursor: pointer;
+          font-size: 13px;
+        }
+        .rules-chat-edition-segments button:last-child { border-right: 0; }
+        .rules-chat-edition-segments button:hover { background: rgba(216, 181, 106, 0.1); }
+        .rules-chat-edition-segments button.is-active {
+          background: rgba(139, 0, 0, 0.78);
+          color: #fff4e2;
+          box-shadow: inset 0 0 0 1px rgba(216, 181, 106, 0.2);
+        }
         .rules-chat-messages {
           flex: 1;
           overflow-y: auto;
@@ -852,6 +926,9 @@ export default function RulesChatPage() {
           .rules-chat-chronicle { grid-template-columns: 1fr; }
           .rules-chat-chronicle-form { flex-direction: column; }
           .rules-chat-chronicle-form button { width: 100%; }
+          .rules-chat-edition { align-items: stretch; flex-direction: column; }
+          .rules-chat-edition-segments { display: flex; width: 100%; }
+          .rules-chat-edition-segments button { flex: 1; min-width: 0; }
         }
       `}</style>
     </main>

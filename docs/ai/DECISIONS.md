@@ -1,5 +1,36 @@
 # Decisions
 
+## 2026-07-18 — Rules chat sends an explicit preferred edition
+
+**Area:** Rules chat / Supabase Edge Functions
+**Decision:** The browser sends the current `V5` / `V20` / `general` mode as
+top-level `preferredEdition` in every `librarian-chat` request and marks the
+matching rulebook inventory item as `preferred`. Client-side query parsing and
+book planning may recognize an explicit V5/V20 hint in the question, while the
+authenticated Librarian enforces the UI mode as its search priority;
+`general` leaves its source unrestricted. If Librarian search finds no fragments
+in the selected V5/V20 edition, it may retry the other edition, but its answer
+must explicitly warn that the following information comes from that edition.
+**Reason:** The UI selection must affect both local retrieval planning and the
+edition context and tool search used by the authenticated Librarian.
+**Consequences:** The Edge Function allow-lists the incoming mode and defaults
+invalid or missing legacy values to V5. Cross-edition results are marked with
+`used_other_edition`, `preferred_edition` and `searched_edition` so the model is
+required to emit the fallback warning and cannot present that mechanic as a
+rule of the selected edition. The Edge Function also remembers every successful
+cross-edition fallback for the request and deterministically prefixes a clear
+warning if the final model answer omitted one. The `book_pages` RPC, JWT
+validation, RLS and authentication flow are unchanged. This conservative
+tracking may produce an extra warning if the model later mixes sources; that
+false positive is preferred to missing the required fallback disclosure.
+**Affected files:** `modules/rules-chat/engine.ts`,
+`modules/rules-chat/components/RulesChatPage.tsx`,
+`supabase/functions/librarian-chat/{index,tools}.ts`,
+`scripts/test-rules-chat-search.ts`
+**Status:** active
+
+---
+
 ## 2026-07-13 — Player transcripts use an owner-only resumable AI pipeline
 
 **Area:** Chronicle library / Supabase persistence / external LLM

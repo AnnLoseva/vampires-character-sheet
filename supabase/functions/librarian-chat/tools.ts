@@ -24,6 +24,89 @@ export type LibrarianChronicleHit = {
   source_scope?: 'official' | 'personal'
 }
 
+export type RulesEditionMode = 'V5' | 'V20' | 'general'
+export type RulebookSearchEdition = 'V5' | 'V20' | 'all'
+export type EditionFallback = {
+  preferredEdition: Exclude<RulesEditionMode, 'general'>
+  searchedEdition: Exclude<RulebookSearchEdition, 'all'>
+}
+
+export function normalizePreferredEdition(value: unknown): RulesEditionMode {
+  return value === 'V20' || value === 'general' ? value : 'V5'
+}
+
+export function sourceForEdition(edition: unknown): string | null {
+  if (edition === 'V5') return 'v5-corebook-ru'
+  if (edition === 'V20') return 'v20-corebook-ru'
+  return null
+}
+
+export function otherEdition(edition: 'V5' | 'V20'): 'V5' | 'V20' {
+  return edition === 'V5' ? 'V20' : 'V5'
+}
+
+export function editionFallbackForSearch(
+  preferredEdition: RulesEditionMode,
+  searchedEdition: RulebookSearchEdition,
+  hitCount: number,
+): EditionFallback | null {
+  if (
+    hitCount <= 0
+    || preferredEdition === 'general'
+    || searchedEdition === 'all'
+    || preferredEdition === searchedEdition
+  ) {
+    return null
+  }
+  return { preferredEdition, searchedEdition }
+}
+
+export function shouldFlagEditionFallback(
+  preferredEdition: RulesEditionMode,
+  searchedEdition: RulebookSearchEdition,
+  hitCount: number,
+): boolean {
+  return editionFallbackForSearch(preferredEdition, searchedEdition, hitCount) !== null
+}
+
+export function editionFallbackWarning(fallback: EditionFallback): string {
+  return `В выбранной редакции ${fallback.preferredEdition} не найдено; ниже информация из ${fallback.searchedEdition}.`
+}
+
+function hasExplicitEditionFallbackWarning(answer: string, fallback: EditionFallback): boolean {
+  const normalized = answer
+    .normalize('NFKC')
+    .replace(/[*_`~]/g, '')
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+  const preferredMarker = `в выбранной редакции ${fallback.preferredEdition.toLowerCase()}`
+  const preferredIndex = normalized.indexOf(preferredMarker)
+  if (preferredIndex < 0) return false
+
+  const searchedMarker = fallback.searchedEdition.toLowerCase()
+  const searchedIndex = normalized.indexOf(
+    searchedMarker,
+    preferredIndex + preferredMarker.length,
+  )
+  if (searchedIndex < 0 || searchedIndex - preferredIndex > 360) return false
+
+  const warning = normalized.slice(
+    preferredIndex,
+    searchedIndex + searchedMarker.length,
+  )
+  const saysMissing = /(?:не\s+найд\w*|не\s+наш\w*|нет\s+(?:точн\w+\s+)?(?:ответ\w*|информац\w*|сведен\w*|фрагмент\w*|правил\w*))/u.test(warning)
+  const introducesFallback = /(?:ниже|далее|следующ\w*|информац\w*|сведен\w*|данн\w*|использ\w*|взят\w*|из\s+редакц\w*|(?:а|но)\s+в)/u.test(warning)
+  return saysMissing && introducesFallback
+}
+
+export function ensureEditionFallbackWarning(
+  answer: string,
+  fallback: EditionFallback | null,
+): string {
+  if (!fallback || hasExplicitEditionFallbackWarning(answer, fallback)) return answer
+  return `${editionFallbackWarning(fallback)}\n\n${answer}`
+}
+
 const NAME_STOP_WORDS = new Set([
   'и', 'а', 'но', 'или', 'and', 'персонаж', 'персонажа', 'персонажи',
 ])

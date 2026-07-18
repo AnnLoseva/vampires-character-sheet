@@ -38,6 +38,9 @@ export const dictionary: Record<string, string> = {
   'Знания мира: чат-библиотекарь, справочник, закрытые хроники и дневники.':
     'World knowledge: the librarian chat, reference, private chronicles, and journals.',
   'Библиотекарь': 'The Librarian',
+  'Редакция правил': 'Rules edition',
+  'Редакция': 'Edition',
+  'Общие': 'General',
   'Задай вопрос по правилам — отвечу цитатами из книг с точными страницами.':
     'Ask a rules question — I answer with book quotes and exact page numbers.',
   'В салон': 'Back to salon',

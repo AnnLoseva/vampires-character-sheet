@@ -120,9 +120,35 @@ export type BookSearchPlan = {
   isLibraryQuestion: boolean
 }
 
+export const RULES_EDITION_MODES = [
+  'V5',
+  'V20',
+  'general',
+] as const
+
+export type RulesEditionMode = (typeof RULES_EDITION_MODES)[number]
+
+export const DEFAULT_RULES_EDITION: RulesEditionMode = 'V5'
+
+const RULES_EDITION_SOURCES = {
+  V5: 'v5-corebook-ru',
+  V20: 'v20-corebook-ru',
+  general: null,
+} as const satisfies Record<RulesEditionMode, string | null>
+
+export const RULES_EDITION_LABELS = {
+  V5: 'V5',
+  V20: 'V20',
+  general: 'Общие',
+} as const satisfies Record<RulesEditionMode, string>
+
+export function sourceForEditionMode(mode: RulesEditionMode): string | null {
+  return RULES_EDITION_SOURCES[mode]
+}
+
 export const RULEBOOK_LIBRARY = [
-  { source: 'v5-corebook-ru', edition: 'V5', title: 'VTM v5: Книга правил (RU)' },
-  { source: 'v20-corebook-ru', edition: 'V20', title: 'VTM V20: Юбилейное издание (RU)' },
+  { source: RULES_EDITION_SOURCES.V5, edition: 'V5', title: 'VTM v5: Книга правил (RU)' },
+  { source: RULES_EDITION_SOURCES.V20, edition: 'V20', title: 'VTM V20: Юбилейное издание (RU)' },
 ] as const
 
 let rulesCache: RulesData | null = null
@@ -201,10 +227,14 @@ const TOPIC_KEYWORDS: Array<{ keys: string[]; field: keyof RulesData | string; t
   { keys: ['бросок', 'броски', 'проверк', 'дайс'], field: 'rolls', title: 'Броски' },
 ]
 
-export function parseQuery(question: string, rules: RulesData | null): ParsedQuery {
+export function parseQuery(
+  question: string,
+  rules: RulesData | null,
+  preferredEdition?: RulesEditionMode,
+): ParsedQuery {
   const rawTokens = question.split(/\s+/).map(normalizeToken).filter(Boolean)
 
-  let source: string | null = null
+  let source = preferredEdition === undefined ? null : sourceForEditionMode(preferredEdition)
   const tokens: string[] = []
   for (const token of rawTokens) {
     if (V5_HINTS.includes(token)) { source = 'v5-corebook-ru'; continue }
@@ -358,7 +388,7 @@ export function isLibraryInventoryQuestion(question: string): boolean {
 export function buildBookSearchPlan(
   question: string,
   previousUserQuestions: string[] = [],
-  explicitSource: string | null = null,
+  preferredEdition?: RulesEditionMode,
 ): BookSearchPlan {
   const isLibraryQuestion = isLibraryInventoryQuestion(question)
   const currentTokens = getRuleSearchTokens(question)
@@ -366,7 +396,11 @@ export function buildBookSearchPlan(
   const previousQuestion = previousUserQuestions.at(-1) || ''
   const previousTokens = followUp ? getRuleSearchTokens(previousQuestion) : []
   const tokens = uniqueTokens([...currentTokens, ...previousTokens]).slice(0, 8)
-  const source = explicitSource || (followUp ? sourceFromQuestion(previousQuestion) : null)
+  const questionSource = sourceFromQuestion(question)
+  const source = questionSource
+    ?? (preferredEdition === undefined
+      ? (followUp ? sourceFromQuestion(previousQuestion) : null)
+      : sourceForEditionMode(preferredEdition))
 
   if (isLibraryQuestion) {
     return { queries: [], referenceQuery: '', source, isLibraryQuestion: true }

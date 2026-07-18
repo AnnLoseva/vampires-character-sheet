@@ -117,7 +117,11 @@ the caller's Auth JWT; the model never gets SQL or database credentials. It can
 refine short rule-language queries and request several partially named
 characters, while the browser keeps device-local journal access. Text is
 normalized during ingest; keep PDF page numbers stable so book citations remain
-verifiable.
+verifiable. Every browser request also carries an allow-listed
+`preferredEdition` (`V5`, `V20` or `general`); an explicit edition in the
+question overrides that default, and `general` leaves book search unrestricted.
+A successful fallback to the other edition is tracked for the request, and the
+Edge Function prefixes a clear edition warning if the model omitted one.
 
 Library game history is deliberately separate from master-console membership.
 `open_library_chronicle(title)` subscribes the current Auth user only when the
