@@ -113,11 +113,6 @@ export function createTokenActions(deps: TokenActionsDeps) {
     deps.broadcast('token-move', { room: deps.room, updates })
   }
 
-  /** Final drag position: local state + broadcast + persist. */
-  const commitTokenPosition = async (tokenId: string, position: { x: number; y: number }) => {
-    await patchToken(tokenId, position)
-  }
-
   const bringTokenToFront = async (tokenId: string) => {
     const token = deps.tokensRef.current.find(item => item.id === tokenId)
     if (!token || !canManageToken(token)) return
@@ -149,7 +144,6 @@ export function createTokenActions(deps: TokenActionsDeps) {
     addCharacterToken,
     patchToken,
     broadcastTokenMove,
-    commitTokenPosition,
     bringTokenToFront,
     deleteToken,
   }

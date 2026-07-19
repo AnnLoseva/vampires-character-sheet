@@ -1,6 +1,6 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { PointerEvent as ReactPointerEvent } from 'react'
 import { useLang } from '@/lib/i18n/LanguageProvider'
 import { TOKEN_LAYER_Z } from '@/modules/table/constants'
@@ -9,25 +9,26 @@ import type { CharacterToken, TokenPatch } from '@/modules/table/types'
 const DRAG_THRESHOLD = 5
 const DOUBLE_TAP_DELAY = 300
 const MOVE_BROADCAST_INTERVAL = 90
+/** Inline style raise while dragging; committed as a real zIndex patch on release. */
+const DRAG_RAISE_Z = 999999
 
 type TokenDragState = {
-  tokenId: string
+  /** Snapshot of the dragged token at pointerdown (safe against mid-drag re-renders). */
+  token: CharacterToken
   mode: 'move' | 'resize'
   corner?: 'nw' | 'ne' | 'sw' | 'se'
   pointerId: number
   startClientX: number
   startClientY: number
-  startX: number
-  startY: number
-  startWidth: number
-  startHeight: number
-  aspectRatio: number
   moved: boolean
   lastBroadcastAt: number
   previewX: number
   previewY: number
   previewWidth: number
   previewHeight: number
+  aspectRatio: number
+  /** Removes the window listeners installed for this drag. */
+  cleanup: () => void
 }
 
 export type TokenLayerProps = {
@@ -43,7 +44,6 @@ export type TokenLayerProps = {
   canManageToken: (token: CharacterToken) => boolean
   canResizeToken: (token: CharacterToken) => boolean
   broadcastTokenMove: (updates: Array<{ id: string; x: number; y: number }>) => void
-  commitTokenPosition: (tokenId: string, position: { x: number; y: number }) => Promise<void>
   patchToken: (tokenId: string, patch: TokenPatch) => Promise<void>
   bringTokenToFront: (tokenId: string) => Promise<void>
   deleteToken: (tokenId: string) => Promise<void>
@@ -62,7 +62,6 @@ export default function TokenLayer({
   canManageToken,
   canResizeToken,
   broadcastTokenMove,
-  commitTokenPosition,
   patchToken,
   bringTokenToFront,
   deleteToken,
@@ -71,103 +70,52 @@ export default function TokenLayer({
   const { t } = useLang()
   const dragRef = useRef<TokenDragState | null>(null)
   const lastTapRef = useRef<{ tokenId: string; at: number }>({ tokenId: '', at: 0 })
+  const zoomRef = useRef(zoom)
+  const tokensRef = useRef(tokens)
+
+  useEffect(() => {
+    zoomRef.current = zoom
+  }, [zoom])
+
+  useEffect(() => {
+    tokensRef.current = tokens
+  }, [tokens])
+
+  useEffect(() => () => {
+    dragRef.current?.cleanup()
+    dragRef.current = null
+  }, [])
 
   const getTokenElement = (tokenId: string) =>
     document.querySelector<HTMLElement>(`.character-token[data-token-id="${CSS.escape(tokenId)}"]`)
 
-  const startTokenPointer = (event: ReactPointerEvent<HTMLElement>, token: CharacterToken) => {
-    if (event.button !== 0 && event.pointerType === 'mouse') return
-    event.stopPropagation()
-    const manageable = canManageToken(token)
-    setSelectedTokenId(token.id)
-    if (manageable) void bringTokenToFront(token.id)
-    if (!manageable) return
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    dragRef.current = {
-      tokenId: token.id,
-      mode: 'move',
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: token.x,
-      startY: token.y,
-      startWidth: token.width,
-      startHeight: token.height,
-      aspectRatio: Math.max(0.01, token.width / token.height),
-      moved: false,
-      lastBroadcastAt: 0,
-      previewX: token.x,
-      previewY: token.y,
-      previewWidth: token.width,
-      previewHeight: token.height,
-    }
-  }
-
-  const startTokenResize = (
-    event: ReactPointerEvent<HTMLElement>,
-    token: CharacterToken,
-    corner: 'nw' | 'ne' | 'sw' | 'se',
-  ) => {
-    if (!canResizeToken(token)) return
-    event.stopPropagation()
-    event.preventDefault()
-    event.currentTarget.setPointerCapture(event.pointerId)
-    dragRef.current = {
-      tokenId: token.id,
-      mode: 'resize',
-      corner,
-      pointerId: event.pointerId,
-      startClientX: event.clientX,
-      startClientY: event.clientY,
-      startX: token.x,
-      startY: token.y,
-      startWidth: token.width,
-      startHeight: token.height,
-      aspectRatio: Math.max(0.01, token.width / token.height),
-      moved: false,
-      lastBroadcastAt: 0,
-      previewX: token.x,
-      previewY: token.y,
-      previewWidth: token.width,
-      previewHeight: token.height,
-    }
-  }
-
-  const updateTokenPointer = (event: ReactPointerEvent<HTMLElement>) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
-    const dxClient = event.clientX - drag.startClientX
-    const dyClient = event.clientY - drag.startClientY
-    if (!drag.moved && Math.hypot(dxClient, dyClient) < DRAG_THRESHOLD) return
-    drag.moved = true
-
-    const sceneDx = dxClient / zoom
-    const sceneDy = dyClient / zoom
-    const element = getTokenElement(drag.tokenId)
+  const applyDragPreview = (drag: TokenDragState, clientX: number, clientY: number) => {
+    const sceneDx = (clientX - drag.startClientX) / zoomRef.current
+    const sceneDy = (clientY - drag.startClientY) / zoomRef.current
+    const element = getTokenElement(drag.token.id)
 
     if (drag.mode === 'move') {
-      drag.previewX = Math.round(drag.startX + sceneDx)
-      drag.previewY = Math.round(drag.startY + sceneDy)
+      drag.previewX = Math.round(drag.token.x + sceneDx)
+      drag.previewY = Math.round(drag.token.y + sceneDy)
       if (element) element.style.transform = `translate3d(${sceneDx}px, ${sceneDy}px, 0)`
       const now = performance.now()
       if (now - drag.lastBroadcastAt >= MOVE_BROADCAST_INTERVAL) {
         drag.lastBroadcastAt = now
-        broadcastTokenMove([{ id: drag.tokenId, x: drag.previewX, y: drag.previewY }])
+        broadcastTokenMove([{ id: drag.token.id, x: drag.previewX, y: drag.previewY }])
       }
       return
     }
 
     const horizontal = drag.corner?.includes('w') ? -sceneDx : sceneDx
     const vertical = drag.corner?.includes('n') ? -sceneDy : sceneDy
-    const widthFromX = drag.startWidth + horizontal
-    const widthFromY = (drag.startHeight + vertical) * drag.aspectRatio
+    const widthFromX = drag.token.width + horizontal
+    const widthFromY = (drag.token.height + vertical) * drag.aspectRatio
     const width = Math.max(24, Math.round(Math.abs(horizontal) > Math.abs(vertical) ? widthFromX : widthFromY))
     const height = Math.max(24, Math.round(width / drag.aspectRatio))
     drag.previewWidth = width
     drag.previewHeight = height
-    drag.previewX = drag.corner?.includes('w') ? Math.round(drag.startX + drag.startWidth - width) : drag.startX
-    drag.previewY = drag.corner?.includes('n') ? Math.round(drag.startY + drag.startHeight - height) : drag.startY
+    drag.previewX = drag.corner?.includes('w') ? Math.round(drag.token.x + drag.token.width - width) : drag.token.x
+    drag.previewY = drag.corner?.includes('n') ? Math.round(drag.token.y + drag.token.height - height) : drag.token.y
     if (element) {
       element.style.left = `${drag.previewX}px`
       element.style.top = `${drag.previewY}px`
@@ -176,31 +124,68 @@ export default function TokenLayer({
     }
   }
 
-  const finishTokenPointer = (event: ReactPointerEvent<HTMLElement>, token: CharacterToken) => {
-    const drag = dragRef.current
-    if (!drag || drag.pointerId !== event.pointerId) return
+  const clearDragStyles = (drag: TokenDragState, revert: boolean) => {
+    const element = getTokenElement(drag.token.id)
+    if (!element) return
+    element.style.zIndex = ''
+    if (drag.mode === 'move') {
+      element.style.transform = ''
+      return
+    }
+    if (revert) {
+      element.style.left = `${drag.token.x}px`
+      element.style.top = `${drag.token.y}px`
+      element.style.width = `${drag.token.width}px`
+      element.style.height = `${drag.token.height}px`
+    }
+  }
+
+  /** zIndex patch that puts the token above every other token, if it is not already there. */
+  const raisePatch = (tokenId: string): TokenPatch => {
+    const current = tokensRef.current.find(item => item.id === tokenId)
+    if (!current) return {}
+    const isTopmost = tokensRef.current.every(item => item.id === tokenId || item.zIndex < current.zIndex)
+    if (isTopmost) return {}
+    const maxZ = tokensRef.current.reduce((max, item) => Math.max(max, item.zIndex), 0)
+    return { zIndex: maxZ + 1 }
+  }
+
+  const finishDrag = (drag: TokenDragState, cancelled: boolean) => {
     dragRef.current = null
-    const element = getTokenElement(drag.tokenId)
+    drag.cleanup()
+
+    if (cancelled) {
+      clearDragStyles(drag, true)
+      return
+    }
 
     if (drag.mode === 'move') {
-      if (element) element.style.transform = ''
+      clearDragStyles(drag, false)
       if (drag.moved) {
-        void commitTokenPosition(drag.tokenId, { x: drag.previewX, y: drag.previewY })
+        // One commit for position + raise: a single broadcast/DB write, and no
+        // list re-sort while the pointer is still captured.
+        void patchToken(drag.token.id, {
+          x: drag.previewX,
+          y: drag.previewY,
+          ...raisePatch(drag.token.id),
+        })
         return
       }
-      // Short tap: double-tap within the delay opens the character card.
+      // Short tap: select/raise; a second tap within the delay opens the card.
+      void bringTokenToFront(drag.token.id)
       const now = performance.now()
       const lastTap = lastTapRef.current
-      lastTapRef.current = { tokenId: token.id, at: now }
-      if (lastTap.tokenId === token.id && now - lastTap.at <= DOUBLE_TAP_DELAY) {
+      lastTapRef.current = { tokenId: drag.token.id, at: now }
+      if (lastTap.tokenId === drag.token.id && now - lastTap.at <= DOUBLE_TAP_DELAY) {
         lastTapRef.current = { tokenId: '', at: 0 }
-        onOpenCharacter(token)
+        onOpenCharacter(drag.token)
       }
       return
     }
 
+    clearDragStyles(drag, !drag.moved)
     if (drag.moved) {
-      void patchToken(drag.tokenId, {
+      void patchToken(drag.token.id, {
         x: drag.previewX,
         y: drag.previewY,
         width: drag.previewWidth,
@@ -209,19 +194,100 @@ export default function TokenLayer({
     }
   }
 
-  const cancelTokenPointer = () => {
-    const drag = dragRef.current
-    if (!drag) return
-    dragRef.current = null
-    const element = getTokenElement(drag.tokenId)
-    if (!element) return
-    if (drag.mode === 'move') element.style.transform = ''
-    else {
-      element.style.left = `${drag.startX}px`
-      element.style.top = `${drag.startY}px`
-      element.style.width = `${drag.startWidth}px`
-      element.style.height = `${drag.startHeight}px`
+  const startDrag = (
+    event: ReactPointerEvent<HTMLElement>,
+    token: CharacterToken,
+    mode: 'move' | 'resize',
+    corner?: 'nw' | 'ne' | 'sw' | 'se',
+  ) => {
+    if (dragRef.current) return
+    event.preventDefault()
+    // Best effort: capture keeps events flowing over iframes (video layers).
+    // The real drag lifecycle lives on window listeners below, so it survives
+    // even if the capture is lost to a mid-drag DOM re-order.
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId)
+    } catch {
+      // Capture is an optimization only.
     }
+
+    const pointerId = event.pointerId
+    const handleMove = (nativeEvent: globalThis.PointerEvent) => {
+      const drag = dragRef.current
+      if (!drag || nativeEvent.pointerId !== pointerId) return
+      if (!drag.moved) {
+        const distance = Math.hypot(
+          nativeEvent.clientX - drag.startClientX,
+          nativeEvent.clientY - drag.startClientY,
+        )
+        if (distance < DRAG_THRESHOLD) return
+        drag.moved = true
+        const element = getTokenElement(drag.token.id)
+        if (element) {
+          element.style.zIndex = String(DRAG_RAISE_Z)
+          element.style.willChange = drag.mode === 'move' ? 'transform' : 'left, top, width, height'
+        }
+      }
+      applyDragPreview(drag, nativeEvent.clientX, nativeEvent.clientY)
+    }
+    const handleUp = (nativeEvent: globalThis.PointerEvent) => {
+      const drag = dragRef.current
+      if (!drag || nativeEvent.pointerId !== pointerId) return
+      const element = getTokenElement(drag.token.id)
+      if (element) element.style.willChange = ''
+      finishDrag(drag, false)
+    }
+    const handleCancel = (nativeEvent: globalThis.PointerEvent) => {
+      const drag = dragRef.current
+      if (!drag || nativeEvent.pointerId !== pointerId) return
+      const element = getTokenElement(drag.token.id)
+      if (element) element.style.willChange = ''
+      finishDrag(drag, true)
+    }
+    const cleanup = () => {
+      window.removeEventListener('pointermove', handleMove)
+      window.removeEventListener('pointerup', handleUp)
+      window.removeEventListener('pointercancel', handleCancel)
+    }
+    window.addEventListener('pointermove', handleMove)
+    window.addEventListener('pointerup', handleUp)
+    window.addEventListener('pointercancel', handleCancel)
+
+    dragRef.current = {
+      token,
+      mode,
+      corner,
+      pointerId,
+      startClientX: event.clientX,
+      startClientY: event.clientY,
+      moved: false,
+      lastBroadcastAt: 0,
+      previewX: token.x,
+      previewY: token.y,
+      previewWidth: token.width,
+      previewHeight: token.height,
+      aspectRatio: Math.max(0.01, token.width / token.height),
+      cleanup,
+    }
+  }
+
+  const startTokenPointer = (event: ReactPointerEvent<HTMLElement>, token: CharacterToken) => {
+    if (event.button !== 0 && event.pointerType === 'mouse') return
+    event.stopPropagation()
+    setSelectedTokenId(token.id)
+    if (!canManageToken(token)) return
+    startDrag(event, token, 'move')
+  }
+
+  const startTokenResize = (
+    event: ReactPointerEvent<HTMLElement>,
+    token: CharacterToken,
+    corner: 'nw' | 'ne' | 'sw' | 'se',
+  ) => {
+    if (event.button !== 0 && event.pointerType === 'mouse') return
+    if (!canResizeToken(token)) return
+    event.stopPropagation()
+    startDrag(event, token, 'resize', corner)
   }
 
   const renderToken = (token: CharacterToken) => {
@@ -242,9 +308,6 @@ export default function TokenLayer({
         }}
         title={token.characterName || undefined}
         onPointerDown={event => startTokenPointer(event, token)}
-        onPointerMove={updateTokenPointer}
-        onPointerUp={event => finishTokenPointer(event, token)}
-        onPointerCancel={cancelTokenPointer}
         onClick={event => event.stopPropagation()}
         onDragStart={event => event.preventDefault()}
       >
@@ -279,9 +342,6 @@ export default function TokenLayer({
                 key={corner}
                 className={`resize-handle ${corner}`}
                 onPointerDown={event => startTokenResize(event, token, corner)}
-                onPointerMove={updateTokenPointer}
-                onPointerUp={event => finishTokenPointer(event, token)}
-                onPointerCancel={cancelTokenPointer}
                 title={t('Изменить размер')}
               />
             ))}
